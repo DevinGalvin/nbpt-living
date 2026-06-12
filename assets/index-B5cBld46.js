@@ -4050,7 +4050,7 @@ void main() {
       <div class="pill"><span class="dot"></span><span class="txt"></span></div>
       <div class="banner"><div class="name"></div><div class="sub"></div></div>
       <div class="corner help">WASD / arrows · R run · Shift sprint · C camera · M travel &amp; search · wheel zoom</div>
-      <div class="corner attr">Map data © OpenStreetMap contributors</div>
+      <div class="corner attr">Map data © OpenStreetMap contributors · b46</div>
       <div class="stick-base"></div><div class="stick-knob"></div>
       <div class="compass"><div class="needle">N</div></div>
       <div class="travel-btn" title="Travel (M)">🗺</div>
