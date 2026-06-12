@@ -3983,13 +3983,14 @@ void main() {
 #hud .hist-line { text-align: center; font-size: 12.5px; color: #c8bd96; margin-top: 12px; letter-spacing: 0.5px; }
 #hud .hist-line b { color: #e8c44f; }
 #hud .mini {
-  position: absolute; top: 70px; right: 14px; opacity: 0.55; border-radius: 8px;
+  position: absolute; top: 70px; right: 14px; opacity: 0.85; border-radius: 8px;
   overflow: hidden; border: 1px solid rgba(243, 241, 232, 0.35); pointer-events: none;
 }
 #hud .mini canvas { display: block; }
 #hud .mini .me {
-  position: absolute; width: 5px; height: 5px; border-radius: 50%;
-  background: #ffd24a; box-shadow: 0 0 5px 1.5px rgba(255, 210, 74, 0.8);
+  position: absolute; width: 9px; height: 9px; border-radius: 50%;
+  background: #ff4a3a; border: 1.5px solid #ffffff;
+  box-shadow: 0 0 7px 2px rgba(255, 74, 58, 0.75);
   transform: translate(-50%, -50%);
 }
 #hud .objective {
