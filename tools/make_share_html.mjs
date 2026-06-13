@@ -38,12 +38,12 @@ let out = html
   // inject data first, then the bundle, right before </body>
   .replace('</body>', `${dataScript}\n<script type="module">${bundle}</script>\n</body>`);
 
-const outUrl = new URL('NBPT-Living.html', dist);
+const outUrl = new URL('ClipperTown.html', dist);
 await writeFile(outUrl, out);
 
 const size = Buffer.byteLength(out) / 1e6;
 console.log(`Wrote dist/NBPT-Living.html — ${size.toFixed(1)} MB (game + full map + terrain, runs offline from a double-click)`);
 
 // sanity: nothing left that needs a server
-const leftovers = (await readdir(dist)).filter((f) => f !== 'NBPT-Living.html');
+const leftovers = (await readdir(dist)).filter((f) => f !== 'ClipperTown.html');
 console.log('(dist also contains the normal hosted build:', leftovers.join(', ') + ')');
