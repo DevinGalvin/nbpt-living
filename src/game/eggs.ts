@@ -1241,7 +1241,9 @@ export class EggRunner {
     if (!best) {
       const d = this.dogPos();
       const dd = Math.hypot(px - d.x, pz - d.z);
-      if (dd < 42) best = { tag: 'pet', x: d.x, z: d.z, label: '🐾 PET', r: 42 };
+      // only when you actually stop and stand with Clipper — not constantly while
+      // walking (he heels within 42px, so this used to show the whole time).
+      if (dd < 42 && this.stillT > 1) best = { tag: 'pet', x: d.x, z: d.z, label: '🐾 PET', r: 42 };
     }
     return best;
   }
@@ -1266,11 +1268,16 @@ export class EggRunner {
       frog.scale.y = 1 + Math.sin(this.t * 3.1 + frog.position.x) * 0.06;
     }
 
-    if (suppressed || this.hud.dialogueOpen) {
-      if (this.nearTag) {
-        this.nearTag = null;
-        this.hud.showTalk(null);
-      }
+    if (this.hud.dialogueOpen) {
+      if (this.nearTag) { this.nearTag = null; this.hud.showTalk(null); }
+      return;
+    }
+    if (suppressed) {
+      // the quest/history owns the button this frame — drop our claim WITHOUT
+      // hiding it, or we'd clobber the TALK they just set (the old bug: PET is
+      // up, you reach an NPC, eggs clears the fresh TALK → you had to walk away
+      // and back for it to reappear).
+      this.nearTag = null;
       return;
     }
     const near = this.candidates(px, pz);

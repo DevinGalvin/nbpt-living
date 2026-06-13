@@ -205,11 +205,12 @@ export class HistoryRunner {
       if (glint.visible) glint.position.y += Math.sin(this.t * 2.6 + glint.position.x) * dt * 1.4;
       void id;
     }
-    if (suppressed || this.hud.dialogueOpen) {
-      if (this.nearId) {
-        this.nearId = null;
-        this.hud.showTalk(null);
-      }
+    if (this.hud.dialogueOpen) {
+      if (this.nearId) { this.nearId = null; this.hud.showTalk(null); }
+      return;
+    }
+    if (suppressed) {
+      this.nearId = null;   // the quest owns the button — don't clobber its TALK
       return;
     }
     let best: Site | null = null;

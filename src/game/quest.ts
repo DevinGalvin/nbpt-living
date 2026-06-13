@@ -13,8 +13,8 @@ const SAVE_KEY = 'nbpt-ch0-step';
 
 // world-px anchors (verified against world.json / in-game)
 const GRAM = { x: -48, z: 4, face: 0.9 };
-const DONUT = { x: -615, z: 744, face: 0.78 };
-const LIB = { x: -862, z: 2306, face: 1.57 };
+const DONUT = { x: -608, z: 756, face: 0.78 };
+const LIB = { x: -872, z: 2312, face: 1.57 };  // at the library's State St entrance
 const GRATE = { x: -331, z: -552 };
 
 // Chapter 4 "Low Water" + Chapter 5 "The Custom House Star" anchors (world-px)
@@ -26,7 +26,7 @@ const BELL_CG = { x: 3030, z: 75 };    // harbor bell by the Coast Guard station
 const BELL_WHARF = { x: 40, z: -905 }; // harbor bell at the wharf
 
 const GRAM_TALK: Line[] = [
-  { who: 'Gram', text: 'There you are. Two jobs today. Clipper’s in charge.' },
+  { who: 'Gram', text: 'There you are. Two jobs today. Take Clipper, the dog — he’s in charge.' },
   { who: 'Gram', text: 'One: donuts from the Angry Donut, on Inn Street. Tell them they’re for Gram.' },
   { who: 'Gram', text: 'Two: this book goes back to the library. It was due in March.' },
   { who: 'Gram', text: '…of last year.' },
@@ -337,6 +337,10 @@ export class QuestRunner {
     this.grate = this.buildGrate();
     scene.add(this.grate);
 
+    // the library's State-Street entrance: a real double door where you're sent
+    // to return the book (that wall used to show only a window)
+    scene.add(this.buildLibraryDoor());
+
     // gold objective beacon: a pulsing ring at the target's feet plus a faint
     // shaft hanging ABOVE head height — it points at people without ever
     // covering them
@@ -396,6 +400,26 @@ export class QuestRunner {
     const x = GRATE.x, z = GRATE.z;
     g.position.set(x, this.index.heightAtPx(x, z), z);
     g.rotation.y = 0.42;
+    return g;
+  }
+
+  // granite double door on the library's State-Street wall — local +x faces the
+  // street (the wall here runs N–S, exterior to the east, so rotation.y stays 0)
+  private buildLibraryDoor(): THREE.Group {
+    const g = new THREE.Group();
+    const pale = '#e7e3d8', leafHex = '#33433a';
+    for (const dz of [-5.4, 5.4]) {                       // pale stone pilasters
+      const p = box(2, 15, 1.8, pale); p.position.set(0.8, 7.5, dz); g.add(p);
+    }
+    const lintel = box(2.4, 2.2, 13.6, pale); lintel.position.set(0.6, 15.6, 0); g.add(lintel);
+    const recess = box(1.2, 14, 9, '#24201c'); recess.position.set(0.1, 7.4, 0); g.add(recess);
+    for (const dz of [-2.2, 2.2]) {                       // two dark-green leaves
+      const leaf = box(1.1, 12.6, 4.2, leafHex); leaf.position.set(0.7, 6.8, dz); g.add(leaf);
+      const handle = box(0.5, 1.3, 0.5, '#c9a84e'); handle.position.set(1.4, 6.6, dz + (dz < 0 ? 1.5 : -1.5)); g.add(handle);
+    }
+    const step = box(7, 1.4, 12, '#9a9b95'); step.position.set(4.2, 0.6, 0); g.add(step);
+    const wx = -886, wz = 2312;
+    g.position.set(wx, this.index.heightAtPx(wx + 4, wz), wz);
     return g;
   }
 
