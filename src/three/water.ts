@@ -1,11 +1,28 @@
 import * as THREE from 'three';
 import type { WorldData } from '../world/types';
+import { SEASON } from '../world/style';
 
 // One animated water surface for the whole map: triangulated real water polygons
 // (with island holes) floating just above the painted ground, with a rippling
 // noise shader, moving glints, and shallow transparent edges.
 
 const WATER_Y = 1.6;
+
+// Ponds, reservoirs, pools and small unnamed bodies freeze solid in winter — you
+// can walk across them. Rivers, the Merrimack, tidal channels and the ocean stay
+// open water.
+export function isFreezableWater(poly: { k?: string; n?: string; p: number[] }): boolean {
+  if (poly.k === 'ocean' || poly.k === 'fountain') return false;
+  const n = poly.n || '';
+  if (/\b(reservoir|pond|pool|lake)\b/i.test(n)) return true;
+  if (/\b(river|creek|brook|gut|ocean|harbor|merrimack|channel|sound|bay|cove)\b/i.test(n)) return false;
+  let xn = 1e9, xx = -1e9, yn = 1e9, yx = -1e9;
+  for (let i = 0; i < poly.p.length; i += 2) {
+    const x = poly.p[i], y = poly.p[i + 1];
+    if (x < xn) xn = x; if (x > xx) xx = x; if (y < yn) yn = y; if (y > yx) yx = y;
+  }
+  return Math.max(xx - xn, yx - yn) < 22000;   // small body = pond; huge = the bay/river
+}
 
 function ringToVec2(ring: number[]): THREE.Vector2[] {
   const v: THREE.Vector2[] = [];
@@ -19,14 +36,17 @@ function ringToVec2(ring: number[]): THREE.Vector2[] {
   return v;
 }
 
-export function buildWater(world: WorldData): { mesh: THREE.Mesh; update: (t: number) => void } {
+export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mesh | null; update: (t: number) => void } {
   const pos: number[] = [];
   const col: number[] = [];
   const river = new THREE.Color('#3a8ecb');
   const ocean = new THREE.Color('#2c7cb5');
 
+  const icePos: number[] = [];
+  const frozen = SEASON === 'winter';
   for (const poly of world.polys) {
     if (poly.k !== 'water' && poly.k !== 'ocean' && poly.k !== 'fountain') continue;
+    const ice = frozen && isFreezableWater(poly);
     const c = poly.k === 'ocean' ? ocean : river;
     try {
       const contour = ringToVec2(poly.p);
@@ -40,8 +60,12 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; update: (t: nu
       const all = contour.concat(...holes);
       for (const [a, b, cc] of tris) {
         for (const idx of [a, cc, b]) {
-          pos.push(all[idx].x, WATER_Y, -all[idx].y);
-          col.push(c.r, c.g, c.b);
+          if (ice) {
+            icePos.push(all[idx].x, WATER_Y + 0.06, -all[idx].y);
+          } else {
+            pos.push(all[idx].x, WATER_Y, -all[idx].y);
+            col.push(c.r, c.g, c.b);
+          }
         }
       }
     } catch {
@@ -114,8 +138,20 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; update: (t: nu
   mesh.frustumCulled = false;
   mesh.renderOrder = 2;
 
+  // frozen ponds: a flat, matte pale-ice sheet sitting just over the water
+  let ice: THREE.Mesh | null = null;
+  if (icePos.length) {
+    const ig = new THREE.BufferGeometry();
+    ig.setAttribute('position', new THREE.Float32BufferAttribute(icePos, 3));
+    ig.computeVertexNormals();
+    ice = new THREE.Mesh(ig, new THREE.MeshBasicMaterial({ color: '#c4dae6', fog: true }));
+    ice.frustumCulled = false;
+    ice.renderOrder = 3;
+  }
+
   return {
     mesh,
+    ice,
     update: (t: number) => { (mat.uniforms.uTime as { value: number }).value = t / 1000; }
   };
 }

@@ -1,6 +1,7 @@
 import type { WorldData, Poly, Road, PathSeg, Label, Building } from './types';
 import { STYLE, SEASON, hash32, mulberry32 } from './style';
 import { Terrain } from './terrain';
+import { isFreezableWater, WATER_Y } from '../three/water';
 
 // ---------- terrain patterns (grass looks like grass, sand like sand...) ----------
 
@@ -861,8 +862,9 @@ export class WorldIndex {
   }
 
   private fillPoly(ctx: CanvasRenderingContext2D, poly: Poly, pi = -1) {
-    // grass-surface aprons read as worn turf, not asphalt
-    ctx.fillStyle = poly.k === 'apron' && poly.s === 'grass' ? '#abbd84' : terrainFill(poly.k);
+    // grass-surface aprons read as worn turf, not asphalt; frozen ponds go to ice
+    ctx.fillStyle = (SEASON === 'winter' && poly.k === 'water' && isFreezableWater(poly)) ? '#c8dde8'
+      : poly.k === 'apron' && poly.s === 'grass' ? '#abbd84' : terrainFill(poly.k);
     tracePoly(ctx, poly);
     ctx.fill('evenodd');
     if (poly.k === 'plaza') {
@@ -1146,7 +1148,15 @@ export class WorldIndex {
         ctx.fill('evenodd');
       }
     };
-    drawKind(['water', 'ocean', 'fountain', 'pool'], '#ff0000');
+    // water blocks — except frozen ponds in winter, which you can walk across
+    for (const pi of bucket.polys) {
+      const poly = w.polys[pi];
+      if (poly.k !== 'water' && poly.k !== 'ocean' && poly.k !== 'fountain' && poly.k !== 'pool') continue;
+      if (SEASON === 'winter' && poly.k === 'water' && isFreezableWater(poly)) continue;
+      ctx.fillStyle = '#ff0000';
+      tracePoly(ctx, poly);
+      ctx.fill('evenodd');
+    }
     drawKind(['island', 'sand', 'pier', 'stone', 'plaza'], '#000000');
     drawKind(['wetland'], '#0000ff');
     // real barriers block (roads/paths drawn after re-open the gaps at gates)
@@ -1321,6 +1331,9 @@ export class WorldIndex {
   // (static props, spawns), a deck only counts when it hugs the terrain.
   surfaceYAt(x: number, y: number, prevY?: number): number {
     const t = this.heightAtPx(x, y);
+    // a sea-level pond freezes to an ice sheet at the waterline; inland ponds are
+    // painted on the (already flat) ground, so their terrain height is correct
+    if (t < WATER_Y && this.frozenWaterAt(x, y)) return WATER_Y + 0.06;
     const d = this.deckHeightAt(x, y);
     if (d <= 0) return t;
     const from = prevY === undefined ? t : prevY;
@@ -1400,6 +1413,34 @@ export class WorldIndex {
     return false;
   }
 
+  // frozen ponds you can walk across in winter (rivers, the Merrimack, tidal
+  // channels and the ocean stay open — see isFreezableWater)
+  frozenWaterAt(x: number, y: number): boolean {
+    if (SEASON !== 'winter') return false;
+    if (!this.waterBB) {
+      this.waterBB = [];
+      for (const poly of this.world.polys) {
+        if (poly.k === 'water' || poly.k === 'ocean') this.waterBB.push({ poly, bb: bboxOf(poly.p) });
+      }
+    }
+    const ckx = Math.floor(x / CHUNK), cky = Math.floor(y / CHUNK);
+    const key = ckx + ',' + cky;
+    let cand = this.waterCache.get(key);
+    if (!cand) {
+      const ox = ckx * CHUNK, oy = cky * CHUNK;
+      cand = [];
+      for (const { poly, bb } of this.waterBB) {
+        if (bb[2] < ox || bb[0] > ox + CHUNK || bb[3] < oy || bb[1] > oy + CHUNK) continue;
+        cand.push(poly);
+      }
+      this.waterCache.set(key, cand);
+    }
+    for (const poly of cand) {
+      if (isFreezableWater(poly) && pointInPoly(x, y, poly)) return true;
+    }
+    return false;
+  }
+
   // standing on pavement (roads, sidewalks, crossings)? — footstep sounds
   onPavedAt(x: number, y: number): boolean {
     const b = this.bucket(Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK));
@@ -1411,6 +1452,17 @@ export class WorldIndex {
       const p = this.world.paths[pi];
       if (p.c !== 'side' && p.c !== 'crossing' && p.c !== 'ped' && p.c !== 'steps' && p.c !== 'cycle') continue;
       if (distToPolylineSq(x, y, p.p) < (p.w / 2 + 1) ** 2) return true;
+    }
+    return false;
+  }
+
+  // a low fence/hedge right here — the kid & dog hop it (it no longer blocks)
+  lowBarrierNear(x: number, y: number): boolean {
+    const b = this.bucket(Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK));
+    for (const bi of b.barriers) {
+      const bar = this.world.barriers[bi];
+      if (bar.k !== 'fence' && bar.k !== 'hedge') continue;
+      if (distToPolylineSq(x, y, bar.p) < 64) return true;   // within ~8px
     }
     return false;
   }

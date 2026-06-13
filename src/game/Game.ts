@@ -128,6 +128,8 @@ export class Game {
   private debugVec: { x: number; y: number; until: number } | null = null;
   private waterUpdate: ((t: number) => void) | null = null;
   private kidY = 0;
+  private hopT = 0; private wasNearFence = false;       // kid hops low fences
+  private dogHopT = 0; private dogWasNearFence = false; // so does Clipper
   private dogY = 0;
   private fov = 55;
   private camAz = Math.PI;          // camera azimuth (behind-the-back chase)
@@ -175,6 +177,7 @@ export class Game {
 
     const water = buildWater(world);
     this.scene.add(water.mesh);
+    if (water.ice) this.scene.add(water.ice);
     this.waterUpdate = water.update;
 
     this.life = new Life(this.scene, this.index);
@@ -753,7 +756,13 @@ export class Game {
     const terrainY = this.inside ? 0 : this.boating ? WATER_Y : this.terrain.heightAt(this.px, this.pz);
     const surfY = this.inside ? 0 : this.boating ? WATER_Y : this.index.surfaceYAt(this.px, this.pz, this.kidY);
     this.kidY += (surfY - this.kidY) * Math.min(1, dt * 12);
-    this.kid.root.position.y = this.kidY + (this.riding ? 7.5 : 0);
+    // hop low fences/hedges (they no longer block) — a quick arc as you cross one
+    const nearFence = !this.inside && !this.boating && this.index.lowBarrierNear(this.px, this.pz);
+    if (Math.hypot(realVx, realVz) > 4 && nearFence && !this.wasNearFence && this.hopT <= 0) this.hopT = 0.5;
+    this.wasNearFence = nearFence;
+    if (this.hopT > 0) this.hopT = Math.max(0, this.hopT - dt);
+    const hop = this.hopT > 0 ? Math.sin((1 - this.hopT / 0.5) * Math.PI) * 8 : 0;
+    this.kid.root.position.y = this.kidY + hop + (this.riding ? 7.5 : 0);
     if (this.riding) {
       this.bike.root.position.set(this.px, this.kidY, this.pz);
       this.bike.update(dt, Math.hypot(realVx, realVz), this.kid.facing);
@@ -784,7 +793,11 @@ export class Game {
       const dogGround = this.inside ? 0
         : this.index.surfaceYAt(this.dog.root.position.x, this.dog.root.position.z, this.dogY);
       this.dogY += (dogGround - this.dogY) * Math.min(1, dt * 12);
-      this.dog.root.position.y = this.dogY;
+      const dn = !this.inside && this.index.lowBarrierNear(this.dog.root.position.x, this.dog.root.position.z);
+      if (dn && !this.dogWasNearFence && this.dogHopT <= 0) this.dogHopT = 0.5;
+      this.dogWasNearFence = dn;
+      if (this.dogHopT > 0) this.dogHopT = Math.max(0, this.dogHopT - dt);
+      this.dog.root.position.y = this.dogY + (this.dogHopT > 0 ? Math.sin((1 - this.dogHopT / 0.5) * Math.PI) * 7 : 0);
     }
 
     // sprint FOV kick
