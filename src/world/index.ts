@@ -333,6 +333,37 @@ export class WorldIndex {
     (world.barriers || []).forEach((f, i) => add(f.p, 40, (b) => b.barriers.push(i)));
     (world.trees || []).forEach((f, i) => add([f.x, f.y], 40, (b) => b.rtrees.push(i)));
     (world.power || []).forEach((f, i) => add(f.p, 40, (b) => b.power.push(i)));
+
+    // Storefront pre-pass: a building that HOSTS a shop/food POI gets a
+    // storefront ground floor (display glass, door, awning, sign band). The
+    // offline pipeline only checked standalone POI *nodes*, so businesses tagged
+    // directly on the building way (amenity=cafe on The Angry Donut, Oregano's,
+    // etc.) were missed and rendered as blank walls. Flag them from the POIs.
+    const RETAIL_POI = new Set(['shop', 'restaurant', 'cafe', 'fast_food', 'bar', 'pub',
+      'ice_cream', 'bakery', 'supermarket', 'deli', 'confectionery', 'bank']);
+    for (const poi of world.pois) {
+      if (!RETAIL_POI.has(poi.k)) continue;
+      const cell = this.buckets.get(Math.floor(poi.x / CHUNK) + ',' + Math.floor(poi.y / CHUNK));
+      if (!cell) continue;
+      // pick the most specific host: among buildings that CONTAIN the POI, the
+      // one whose centroid is nearest (a small business unit beats a big block
+      // that merely overlaps it — The Angry Donut sits inside a larger footprint
+      // too); otherwise the nearest building within 30px.
+      let host = -1, bestInside = Infinity, near = -1, nearD2 = 30 * 30;
+      for (const bi of cell.buildings) {
+        const pts = world.buildings[bi].p;
+        if (pointInRing(poi.x, poi.y, pts)) {
+          const [cx, cy] = centroidOf(pts);
+          const d2 = (cx - poi.x) * (cx - poi.x) + (cy - poi.y) * (cy - poi.y);
+          if (d2 < bestInside) { bestInside = d2; host = bi; }
+        } else {
+          const d2 = distToPolylineSq(poi.x, poi.y, pts);
+          if (d2 < nearD2) { nearD2 = d2; near = bi; }
+        }
+      }
+      if (host < 0) host = near;
+      if (host >= 0) world.buildings[host].sf = 1;
+    }
   }
 
   bucket(key: string): Bucket {
@@ -1539,12 +1570,18 @@ export class WorldIndex {
       ctx.beginPath();
       ctx.moveTo(0, -w2); ctx.lineTo(0, w2);
       ctx.stroke();
-    } else if (k === 'athletics') {
-      ctx.translate(L!.cx, L!.cz);
-      ctx.rotate(L!.ang);
-      const band = Math.min(54, L!.hw * 0.45);
-      const R = Math.max(10, L!.hw - band / 2 - 2);
-      const S = Math.max(0, L!.hl - L!.hw);
+    } else if (k === 'athletics' && L && L.hl > 350 && L.hw > 250) {
+      // Only the genuine running oval gets lane markings. OSM over-maps the
+      // Bradley Fuller complex as a dozen leisure=track polys (straightaways,
+      // jump runways, throwing aprons); painting a stadium oval on each one
+      // left stray "track pieces" scattered across the fields. The real oval is
+      // the only track-sized, oval-proportioned poly — everything else falls
+      // through to plain grass.
+      ctx.translate(L.cx, L.cz);
+      ctx.rotate(L.ang);
+      const band = Math.min(54, L.hw * 0.45);
+      const R = Math.max(10, L.hw - band / 2 - 2);
+      const S = Math.max(0, L.hl - L.hw);
       const stadium = (r: number) => {
         ctx.beginPath();
         ctx.moveTo(-S, -r);
