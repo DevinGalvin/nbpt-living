@@ -1,0 +1,88 @@
+export interface WorldMeta {
+  name: string;
+  pxPerMeter: number;
+  origin: { lat: number; lon: number };
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+  attribution: string;
+}
+
+export interface Poly {
+  k: string;
+  p: number[];      // flat ring [x,y,...]
+  h?: number[][];   // holes
+  n?: string;
+  z: number;
+  s?: string;       // pitch sport (baseball|basketball|tennis|athletics|...)
+  m?: number;       // pier: 1 = boats moor here (real mooring tag)
+}
+
+export interface Building {
+  p: number[];
+  k: string;        // house | commercial | civic | church | industrial | shed | light
+  lv: number;       // levels
+  n?: string;
+  sf?: number;      // 1 = storefront ground floor (real retail-zone/POI evidence)
+}
+
+export interface Road {
+  p: number[];
+  c: string;        // motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|busway
+  w: number;        // width px
+  n?: string;
+  b?: number;       // bridge
+}
+
+export interface PathSeg {
+  p: number[];
+  c: string;        // foot|cycle|board|ped|crossing|steps|track|pierline|stoneline|runway|taxiway
+  w: number;
+  n?: string;
+  b?: number;
+  m?: number;       // dock line: 1 = boats moor here
+  s?: string;       // surface (runways: asphalt|grass)
+}
+
+export interface Label {
+  x: number;
+  y: number;
+  t: string;
+  k: string;        // bldg | area | water
+  s: number;        // size hint 0|1
+}
+
+export interface Landmark {
+  id: string;
+  name: string;
+  sub: string;
+  x: number;
+  y: number;
+  r: number;
+}
+
+export interface Poi {
+  x: number;
+  y: number;
+  k: string;
+  n: string;
+}
+
+export interface Barrier {
+  p: number[];
+  k: string; // fence | hedge | wall
+}
+
+export interface WorldData {
+  meta: WorldMeta;
+  polys: Poly[];
+  buildings: Building[];
+  roads: Road[];
+  paths: PathSeg[];
+  rails: { p: number[] }[];
+  labels: Label[];
+  landmarks: Landmark[];
+  pois: Poi[];
+  barriers: Barrier[];          // real mapped property-line barriers
+  trees: { x: number; y: number }[]; // real surveyed tree positions
+  addrs: { s: string; a: [string, number, number][] }[]; // mapped addresses per street
+  power: { p: number[]; c: string }[]; // mapped power lines (vertices = poles)
+}

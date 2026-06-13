@@ -1,0 +1,28 @@
+{
+  "name": "nbpt-living",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "NBPT Living — an all-ages adventure on the exact map of Newburyport, MA",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "share": "npm run build && node tools/make_share_html.mjs",
+    "deploy": "sh tools/deploy_pages.sh",
+    "preview": "vite preview",
+    "fetch-osm": "node tools/fetch_osm.mjs",
+    "build-world": "node tools/build_world.mjs",
+    "fetch-terrain": "node tools/fetch_terrain.mjs",
+    "map": "npm run fetch-osm && npm run build-world && npm run fetch-terrain"
+  },
+  "dependencies": {
+    "three": "^0.166.1"
+  },
+  "devDependencies": {
+    "@types/pngjs": "^6.0.5",
+    "@types/three": "^0.166.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0"
+  }
+}
