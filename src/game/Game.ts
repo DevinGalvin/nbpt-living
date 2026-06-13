@@ -999,11 +999,17 @@ export class Game {
   }
 
   private findFree(x: number, y: number): { x: number; y: number } {
-    if (!this.index.isBlocked(x, y)) return { x, y };
-    for (let r = 8; r < 800; r += 8) {
+    // require a little clearance so the player never lands wedged inside a wall
+    // pocket — fast-travel to the Custom House used to drop them stuck in a wall
+    const clear = (px: number, py: number) =>
+      !this.index.isBlocked(px, py) &&
+      !this.index.isBlocked(px + 16, py) && !this.index.isBlocked(px - 16, py) &&
+      !this.index.isBlocked(px, py + 16) && !this.index.isBlocked(px, py - 16);
+    if (clear(x, y)) return { x, y };
+    for (let r = 8; r < 900; r += 8) {
       for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
         const nx = x + Math.cos(a) * r, ny = y + Math.sin(a) * r;
-        if (!this.index.isBlocked(nx, ny)) return { x: nx, y: ny };
+        if (clear(nx, ny)) return { x: nx, y: ny };
       }
     }
     return { x, y };

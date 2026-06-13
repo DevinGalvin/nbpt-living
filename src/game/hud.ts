@@ -64,14 +64,27 @@ const css = `
 #hud .bike-btn.show { display: flex; }
 #hud .bike-btn.on { background: rgba(216, 185, 74, 0.45); border-color: #e8c44f; }
 #hud .travel-panel {
-  position: absolute; inset: 0; background: rgba(12, 17, 24, 0.72);
+  position: absolute; inset: 0; background: rgba(12, 17, 24, 0.72); z-index: 60;
   display: none; align-items: center; justify-content: center; pointer-events: auto;
 }
 #hud .travel-panel.open { display: flex; }
 #hud .travel-card {
+  position: relative;
   background: rgba(22, 29, 38, 0.97); border-radius: 14px; border-bottom: 3px solid #d8b94a;
   padding: 18px 20px 14px; width: min(560px, 92vw); max-height: 78vh; overflow-y: auto;
 }
+/* a tappable close on every modal card — mobile has little backdrop to tap */
+#hud .modal-x {
+  position: absolute; top: 8px; right: 10px; width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 16px; line-height: 1;
+  color: #cdbf94; background: rgba(0, 0, 0, 0.3); cursor: pointer; z-index: 3;
+  user-select: none; -webkit-user-select: none;
+}
+/* the objective pill steps aside whenever a panel, card, or landmark banner is up */
+#hud:has(.travel-panel.open) .objective,
+#hud:has(.journey-panel[style*="flex"]) .objective,
+#hud:has(.hcard.open) .objective,
+#hud:has(.banner.show) .objective { display: none !important; }
 #hud .travel-card h2 {
   font-family: Georgia, serif; color: #f6f3e8; font-size: 21px; margin: 0 0 12px;
   letter-spacing: 1px; text-align: center;
@@ -249,7 +262,7 @@ export class Hud {
       <div class="sound-btn" title="Sound">🔊</div>
       <div class="run-btn" title="Run">🏃</div>
       <div class="bike-btn" title="Bike (B)">🚲</div>
-      <div class="travel-panel"><div class="travel-card"><h2>FAST TRAVEL</h2><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
+      <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q">◈</span><span class="otxt"></span></div>
       <div class="chips"></div>
@@ -415,6 +428,10 @@ export class Hud {
     panel.addEventListener('click', (e) => {
       if (e.target === panel) this.toggleTravel(false);
     });
+    (panel.querySelector('.modal-x') as HTMLElement)?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleTravel(false);
+    });
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Escape') this.toggleTravel(false);
     });
@@ -443,8 +460,8 @@ export class Hud {
     jp.className = 'journey-panel';
     jp.style.cssText = 'position:absolute;inset:0;background:rgba(12,17,24,0.72);display:none;align-items:center;justify-content:center;pointer-events:auto;z-index:60;';
     const jc = document.createElement('div');
-    jc.style.cssText = 'width:min(420px,90vw);max-height:78vh;overflow:auto;background:#141b24;border-radius:14px;border-bottom:3px solid #d8b94a;padding:18px 20px 14px;color:#f3f1e8;';
-    jc.innerHTML = '<div style="font-size:14px;letter-spacing:3px;color:#e8c44f;font-weight:800;margin-bottom:10px;">YOUR JOURNEY</div>'
+    jc.style.cssText = 'position:relative;width:min(420px,90vw);max-height:78vh;overflow:auto;background:#141b24;border-radius:14px;border-bottom:3px solid #d8b94a;padding:18px 20px 14px;color:#f3f1e8;';
+    jc.innerHTML = '<div class="modal-x">✕</div><div style="font-size:14px;letter-spacing:3px;color:#e8c44f;font-weight:800;margin-bottom:10px;">YOUR JOURNEY</div>'
       + '<div class="j-obj" style="font-size:14.5px;line-height:1.5;margin-bottom:4px;"></div>'
       + '<div class="j-dir" style="font-size:12.5px;color:#9fb8cc;margin-bottom:14px;"></div>'
       + '<div class="j-ch" style="font-size:13px;line-height:2.1;color:#d9d2c0;margin-bottom:8px;"></div>'
@@ -471,6 +488,7 @@ export class Hud {
     jc.appendChild(rb);
     jp.appendChild(jc);
     document.querySelector('#hud')!.appendChild(jp);
+    (jc.querySelector('.modal-x') as HTMLElement).addEventListener('click', (e) => { e.stopPropagation(); jp.style.display = 'none'; });
 
     const num = (k: string) => parseInt(localStorage.getItem(k) || '0', 10) || 0;
     const st = (v: number, d: number) => v >= d

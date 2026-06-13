@@ -2168,17 +2168,16 @@ function stringLights(bk: Bucket, ring: number[], y: number) {
 // pumpkins by the front door — some carved and glowing — plus pots of mums
 function pumpkins(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: number; nx: number; nz: number }, g: number, seed: number) {
   const rng = mulberry32(hash32(seed, 91, 7));
-  const n = 2 + (hash32(seed, 3, 11) % 2);
-  const offs = [5.5, -6.5, 8.8];
+  const n = 4 + (hash32(seed, 3, 11) % 4);   // 4–7 pumpkins: a real New England patch
   for (let i = 0; i < n; i++) {
-    const off = offs[i] + (rng() - 0.5) * 2.5;
-    const px = f.x + f.tx * off + f.nx * 5.2;
-    const pz = f.z + f.tz * off + f.nz * 5.2;
-    const r = 2.6 + rng() * 1.5;
+    const off = (i - (n - 1) / 2) * 4.6 + (rng() - 0.5) * 2.2;   // spread across the front
+    const px = f.x + f.tx * off + f.nx * (5.2 + (rng() - 0.5) * 2.4);
+    const pz = f.z + f.tz * off + f.nz * (5.2 + (rng() - 0.5) * 2.4);
+    const r = 3.8 + rng() * 2.6;   // bigger
     tmp.set(rng() < 0.85 ? '#d97a28' : '#e8e2cf');
     octoCanopy(buckets[PLAIN], px, g + r * 0.85, pz, r, tmp.clone());
     buckets[PLAIN].box(px, pz, 0.4, 0.4, g + r * 1.55, g + r * 1.55 + 1.3, '#5e4a28');
-    if (rng() < 0.4) {
+    if (rng() < 0.55) {
       // jack-o'-lantern: glowing face toward the street
       const cxf = px + f.nx * (r * 0.92), czf = pz + f.nz * (r * 0.92);
       const ty = g + r * 0.95;
@@ -2336,8 +2335,8 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         snowman(buckets, frontSegment(b, index), g, seed);
       }
     } else if (SEASON === 'fall') {
-      const porch = b.k === 'house' ? hash32(seed, 23, 5) % 100 < 65
-        : (b.k === 'commercial' || !!b.sf) && hash32(seed, 23, 5) % 100 < 50;
+      const porch = b.k === 'house' ? hash32(seed, 23, 5) % 100 < 88
+        : (b.k === 'commercial' || !!b.sf) && hash32(seed, 23, 5) % 100 < 65;
       if (porch) pumpkins(buckets, frontSegment(b, index), g, seed);
     }
   }

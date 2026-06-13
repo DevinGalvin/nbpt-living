@@ -1153,6 +1153,8 @@ export class WorldIndex {
     ctx.strokeStyle = '#ff0000';
     ctx.lineWidth = 3.5;
     for (const bi of bucket.barriers) {
+      // low fences & hedges are hop-over-able; only solid walls block movement
+      if (w.barriers[bi].k === 'fence' || w.barriers[bi].k === 'hedge') continue;
       strokeLine(ctx, w.barriers[bi].p);
     }
     ctx.strokeStyle = '#000000';
