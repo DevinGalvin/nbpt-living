@@ -327,7 +327,7 @@ function complexGable(shin: Bucket, clap: Bucket, ring: number[], eaveAbs: numbe
 // `g` = ground height at the building, `eaveH` = ABSOLUTE eave height.
 function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
                  seed: number, withDoor: boolean, withShutters: boolean, storefront: boolean, g: number,
-                 maxWinOverride?: number) {
+                 maxWinOverride?: number, forceDoor?: string) {
   const v = ringToVec2(ring);
   const rng = mulberry32(hash32(seed, 31, 7));
   let longest = -1, longestLen = 0;
@@ -405,11 +405,11 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
       }
       if (isDoorSlot) {
         billboard(plain, wx, wy, nx, nz, ux, uy, 5.4, 7.5, g + 7.5, 0.5, tr, tg, tb);
-        tmp.set(pick(STYLE.building.doors, seed));
+        tmp.set(forceDoor || pick(STYLE.building.doors, seed));
         billboard(plain, wx, wy, nx, nz, ux, uy, 4.2, 6.5, g + 6.5, 0.9, tmp.r, tmp.g, tmp.b);
         if (SEASON === 'winter') {
           // a wreath with a red bow on every door — the Newburyport December
-          const doorHex = pick(STYLE.building.doors, seed);
+          const doorHex = forceDoor || pick(STYLE.building.doors, seed);
           tmp.set('#2e5e38');
           billboard(plain, wx, wy, nx, nz, ux, uy, 1.9, 1.9, g + 10.4, 1.1, tmp.r, tmp.g, tmp.b);
           tmp.set(doorHex);
@@ -2266,7 +2266,9 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const eaveAbs = g + eave;
     const [bcx, bcz] = centroidOf(b.p);
     const beach = bcx > BEACH_X && (b.k === 'house' || b.k === 'shed');
-    const wallHex = beach ? pick(STYLE.building.wallsShake, seed) : wallHexFor(b, seed);
+    // 13 Fox Run Drive — a navy house with a red door (a hello to its owner)
+    const isFoxRun = b.k === 'house' && Math.abs(bcx + 18750) < 9 && Math.abs(bcz - 2774) < 9;
+    const wallHex = isFoxRun ? '#2a3a57' : beach ? pick(STYLE.building.wallsShake, seed) : wallHexFor(b, seed);
     const isBrick = b.k === 'commercial' || b.k === 'civic';
     const wallBucket = isBrick ? buckets[BRICK]
       : b.k === 'industrial' ? buckets[PLAIN]
@@ -2324,7 +2326,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       facades(buckets[PLAIN], b.p, eaveAbs, rows, seed,
         b.k === 'house' || b.k === 'commercial' || storefront,
         b.k === 'house' && !beach && !storefront && rng() < 0.75,
-        storefront, g);
+        storefront, g, undefined, isFoxRun ? '#ab3228' : undefined);
     }
 
     // seasonal dressing: Christmas lights on the eaves, pumpkins by the door
