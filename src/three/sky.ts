@@ -123,7 +123,7 @@ export class Sky {
     this.stars = new THREE.Points(sg, this.starMat);
     this.stars.frustumCulled = false;
 
-    // rain (or snow in winter): points raining down around the player
+    // winter snow only (no rain in other seasons): points falling around the player
     const RN = 1300;
     const rp = new Float32Array(RN * 3);
     this.rainV = new Float32Array(RN);
@@ -153,10 +153,13 @@ export class Sky {
   update(dt: number, px: number, pz: number, t: number): SkyState {
     this.tod = (this.tod + dt / this.period) % 1;
 
-    // ---- weather state machine: dry spells punctuated by showers ----
-    if (this.forced !== null) {
+    // ---- weather: only winter precipitates (snow). No rain in the other seasons. ----
+    if (!this.snowMode) {
+      this.wetTarget = 0;                       // rain removed — spring/summer/fall stay clear
+    } else if (this.forced !== null) {
       this.wetTarget = this.forced;
     } else {
+      // winter snow comes and goes in showers
       this.wetTimer -= dt;
       if (this.wetTimer <= 0) {
         if (this.wetTarget > 0) { this.wetTarget = 0; this.wetTimer = 100 + Math.random() * 150; }
