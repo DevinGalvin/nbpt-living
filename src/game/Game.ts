@@ -786,16 +786,38 @@ export class Game {
       : (x: number, y: number) =>
         !this.index.isBlocked(x - half, y) && !this.index.isBlocked(x + half, y) && !this.index.isBlocked(x, y)
         && !(this.life && this.life.obstacleAt(x, y));
-    // sub-step the move and slide each axis independently, so running/biking
-    // through tight streets glides along the houses instead of snagging on a
-    // corner and stopping dead (a big help with the imprecise touch joystick)
+    // sub-step the move and slide along walls so tight streets glide instead of
+    // snagging. When a move is wedged on both axes, try to slip free (round the
+    // corner / glance off a one-sided jut) rather than stopping dead — keyboard
+    // players kept getting pinned on the corners of houses with no way out.
     const moveX = vx * speed * dt, moveZ = vz * speed * dt;
     const steps = Math.max(1, Math.ceil(Math.hypot(moveX, moveZ) / 4));
     const stepX = moveX / steps, stepZ = moveZ / steps;
     let nx = this.px, nz = this.pz;
+    const slip = 3;   // how far to nudge sideways to clear a corner each sub-step
     for (let s = 0; s < steps; s++) {
-      if (free(nx + stepX, nz)) nx += stepX;
-      if (free(nx, nz + stepZ)) nz += stepZ;
+      const okX = stepX !== 0 && free(nx + stepX, nz);
+      const okZ = stepZ !== 0 && free(nx, nz + stepZ);
+      if (okX) nx += stepX;
+      if (okZ) nz += stepZ;
+      if (!okX && !okZ && (stepX !== 0 || stepZ !== 0)) {
+        if (stepX !== 0 && stepZ !== 0 && free(nx + stepX, nz + stepZ)) {
+          nx += stepX; nz += stepZ;                       // round a convex corner / doorway
+        } else if (stepX === 0 && stepZ !== 0) {          // walking N/S, jut on one side
+          if (free(nx + slip, nz + stepZ)) { nx += slip; nz += stepZ; }
+          else if (free(nx - slip, nz + stepZ)) { nx -= slip; nz += stepZ; }
+        } else if (stepZ === 0 && stepX !== 0) {          // walking E/W, jut on one side
+          if (free(nx + stepX, nz + slip)) { nx += stepX; nz += slip; }
+          else if (free(nx + stepX, nz - slip)) { nx += stepX; nz -= slip; }
+        }
+      }
+    }
+    // safety net: nothing should ever trap you fully inside a wall — if it does
+    // (a car, the bounds clamp, a teleport), nudge out to the nearest open ground
+    if (!this.inside && !this.boating && this.index.isBlocked(nx, nz)) {
+      for (const [dx, dz] of [[6, 0], [-6, 0], [0, 6], [0, -6], [10, 10], [-10, 10], [10, -10], [-10, -10]] as const) {
+        if (!this.index.isBlocked(nx + dx, nz + dz)) { nx += dx; nz += dz; break; }
+      }
     }
 
     if (!this.inside) {
@@ -881,7 +903,7 @@ export class Game {
       }
     }
     if (this.chaseCam) {
-      if (movingNow) this.camAz = lerpAngle(this.camAz, Math.atan2(realVx, realVz), Math.min(1, dt * 1.7));
+      if (movingNow) this.camAz = lerpAngle(this.camAz, Math.atan2(realVx, realVz), Math.min(1, dt * 2.2));
     } else {
       this.camAz = lerpAngle(this.camAz, Math.PI, Math.min(1, dt * 3));
     }

@@ -161,7 +161,7 @@ export class Kid {
 
     if (moving) {
       this.prevFace = this.faceAngle;
-      this.faceAngle = lerpAngle(this.faceAngle, Math.atan2(vx, vz), Math.min(1, dt * 11));
+      this.faceAngle = lerpAngle(this.faceAngle, Math.atan2(vx, vz), Math.min(1, dt * 18));
       // stride frequency follows real ground speed — feet stop sliding
       this.phase += dt * (riding ? 3.5 + speed * 0.018 : 7.5 + speed * 0.032);
     } else {
