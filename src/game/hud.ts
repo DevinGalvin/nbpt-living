@@ -82,7 +82,7 @@ const css = `
 }
 /* the objective pill steps aside whenever a panel, card, or landmark banner is up */
 #hud:has(.travel-panel.open) .objective,
-#hud:has(.journey-panel[style*="flex"]) .objective,
+#hud:has(.journey-panel.show) .objective,
 #hud:has(.hcard.open) .objective,
 #hud:has(.banner.show) .objective { display: none !important; }
 #hud .travel-card h2 {
@@ -196,40 +196,24 @@ const css = `
   z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
 #hud .journey-btn:hover { border-color: #e8c44f; }
-/* collected items hang beneath the compass as one connected "adventure log" rail */
-#hud .chips {
-  position: absolute; top: 150px; left: 14px; width: 44px; box-sizing: border-box;
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 22px 0 9px; border-radius: 0 0 22px 22px;
-  background: linear-gradient(rgba(20,28,38,0) 12px, rgba(20,28,38,0.5) 30px);
-  pointer-events: auto; cursor: pointer;
+/* the journey panel fades the backdrop + slides/scales its card in & out */
+#hud .journey-panel {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(12, 17, 24, 0.72); z-index: 60; pointer-events: none; opacity: 0;
+  transition: opacity 0.2s ease;
 }
-#hud .chips:empty { display: none; }
-#hud .chips .chip {
-  width: 34px; height: 34px; border-radius: 50%; background: rgba(20, 28, 38, 0.85);
-  border: 1.5px solid rgba(216, 185, 74, 0.42); display: flex; align-items: center;
-  justify-content: center; font-size: 17px; transition: transform 0.12s ease, border-color 0.12s ease;
+#hud .journey-panel.show { pointer-events: auto; opacity: 1; }
+#hud .journey-card { transform: translateY(18px) scale(0.95); transition: transform 0.26s cubic-bezier(0.2, 0.85, 0.3, 1.12); }
+#hud .journey-panel.show .journey-card { transform: translateY(0) scale(1); }
+/* the items you're carrying, listed inside the panel */
+#hud .j-items { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; }
+#hud .j-items .jitem {
+  flex: 1 1 46%; min-width: 132px; display: flex; align-items: center; gap: 9px;
+  border-radius: 9px; padding: 7px 10px; font-size: 11.5px; line-height: 1.3;
+  border: 1px solid rgba(216,185,74,0.4); background: rgba(216,185,74,0.08); color: #f3f1e8;
 }
-#hud .chips:hover .chip { border-color: rgba(216, 185, 74, 0.8); }
-#hud .chips .chip:hover { transform: scale(1.09); }
-#hud .chips .chip.new { animation: nbpt-chippop 0.5s ease-out; }
-@keyframes nbpt-chippop {
-  0% { transform: scale(0.2); opacity: 0; }
-  60% { transform: scale(1.18); opacity: 1; }
-  100% { transform: scale(1); }
-}
-/* tap a carried item to see what it is (the items themselves, not the journey) */
-#hud .chip-tip {
-  position: absolute; left: 62px; max-width: 220px;
-  background: rgba(20, 28, 38, 0.95); border: 1px solid rgba(216,185,74,0.45);
-  border-left: 3px solid #e8c44f; border-radius: 0 9px 9px 0;
-  color: #f3f1e8; font-size: 12.5px; line-height: 1.4; padding: 8px 12px;
-  pointer-events: none; opacity: 0; transform: translateX(-8px);
-  transition: opacity 0.16s ease, transform 0.16s ease; z-index: 6;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
-}
-#hud .chip-tip.show { opacity: 1; transform: translateX(0); }
-#hud .chip-tip b { color: #f0d27a; }
+#hud .j-items .jitem .ic { font-size: 19px; flex: none; }
+#hud .j-items .jitem b { color: #f0d27a; }
 #hud .chapter {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; padding: 0 22px; pointer-events: none;
@@ -353,8 +337,6 @@ export class Hud {
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q">◈</span><span class="otxt"></span></div>
-      <div class="chips"></div>
-      <div class="chip-tip"></div>
       <div class="runtip"></div>
       <div class="dlg"><div class="who"></div><div class="line"></div><div class="more">tap · E</div></div>
       <div class="talk-btn">💬 TALK</div>
@@ -415,7 +397,7 @@ export class Hud {
 
   private onDown(e: PointerEvent) {
     if (e.pointerType !== 'touch') return;
-    if ((e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .chips, .sound-btn, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard')) return; // UI, not joystick
+    if ((e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .sound-btn, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard')) return; // UI, not joystick
     this.pointers.add(e.pointerId);
     if (this.joyId === -1) {
       this.joyId = e.pointerId;
@@ -547,15 +529,17 @@ export class Hud {
 
   initJourney(markers: { id: string; title: string; year: string; body: string; stamp?: string }[]) {
     const jp = document.createElement('div');
-    jp.className = 'journey-panel';
-    jp.style.cssText = 'position:absolute;inset:0;background:rgba(12,17,24,0.72);display:none;align-items:center;justify-content:center;pointer-events:auto;z-index:60;';
+    jp.className = 'journey-panel';   // styling + show/hide animation live in the css block
     const jc = document.createElement('div');
-    jc.style.cssText = 'position:relative;width:min(420px,90vw);max-height:78vh;overflow:auto;background:#141b24;border-radius:14px;border-bottom:3px solid #d8b94a;padding:18px 20px 14px;color:#f3f1e8;';
+    jc.className = 'journey-card';
+    jc.style.cssText = 'position:relative;width:min(420px,90vw);max-height:82vh;overflow:auto;background:#141b24;border-radius:14px;border-bottom:3px solid #d8b94a;padding:18px 20px 14px;color:#f3f1e8;';
     jc.innerHTML = '<div class="modal-x">✕</div><div style="font-size:14px;letter-spacing:3px;color:#e8c44f;font-weight:800;margin-bottom:10px;">YOUR JOURNEY</div>'
       + '<div class="j-obj" style="font-size:14.5px;line-height:1.5;margin-bottom:4px;"></div>'
       + '<div class="j-dir" style="font-size:12.5px;color:#9fb8cc;margin-bottom:14px;"></div>'
       + '<div class="j-ch" style="font-size:13.5px;line-height:1.5;color:#d9d2c0;margin-bottom:10px;"></div>'
-      + '<div style="font-size:12px;letter-spacing:2px;color:#e8c44f;font-weight:800;margin:10px 0 8px;">TOWN HISTORY</div>'
+      + '<div class="j-itemhdr" style="font-size:12px;letter-spacing:2px;color:#e8c44f;font-weight:800;margin:10px 0 8px;">WHAT YOU’RE CARRYING</div>'
+      + '<div class="j-items"></div>'
+      + '<div style="font-size:12px;letter-spacing:2px;color:#e8c44f;font-weight:800;margin:14px 0 8px;">TOWN HISTORY</div>'
       + '<div class="j-album" style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;"></div>';
     // the journey panel keeps its own history-read tally (the travel card has one too)
     const hl = document.createElement('div');
@@ -580,7 +564,7 @@ export class Hud {
     jc.appendChild(rb);
     jp.appendChild(jc);
     document.querySelector('#hud')!.appendChild(jp);
-    (jc.querySelector('.modal-x') as HTMLElement).addEventListener('click', (e) => { e.stopPropagation(); jp.style.display = 'none'; });
+    (jc.querySelector('.modal-x') as HTMLElement).addEventListener('click', (e) => { e.stopPropagation(); jp.classList.remove('show'); });
 
     const num = (k: string) => parseInt(localStorage.getItem(k) || '0', 10) || 0;
 
@@ -632,6 +616,16 @@ export class Hud {
         for (const kk of cascade) localStorage.removeItem(kk);
         location.reload();
       };
+      // what you're carrying — the items live here now (off the HUD)
+      const items = this.chipKeys;
+      const ihdr = jc.querySelector('.j-itemhdr') as HTMLElement;
+      const ibox = jc.querySelector('.j-items') as HTMLElement;
+      ihdr.style.display = items.length ? '' : 'none';
+      ibox.style.display = items.length ? 'flex' : 'none';
+      ibox.innerHTML = items.map((e) =>
+        '<div class="jitem"><span class="ic">' + e + '</span><span>' + (ITEM_TIPS[e] || 'An item you’re carrying') + '</span></div>'
+      ).join('');
+
       // town history: a friendly count + only the cards you've actually found
       // (no overwhelming wall of "???" boxes)
       const al = jc.querySelector('.j-album') as HTMLElement;
@@ -650,29 +644,27 @@ export class Hud {
           cd.style.cssText = 'flex:1 1 46%;min-width:128px;border-radius:9px;padding:8px 11px;font-size:12px;line-height:1.35;cursor:pointer;border:1px solid rgba(216,185,74,0.55);color:#f3f1e8;background:rgba(216,185,74,0.10);';
           cd.innerHTML = '<div style="font-weight:700;">' + mk.title + '</div><div style="color:#c8bd96;">' + mk.year + '</div>';
           cd.addEventListener('click', () => {
-            jp.style.display = 'none';
+            jp.classList.remove('show');
             this.historyCard(mk.title, mk.year + ' · Newburyport', mk.body, mk.stamp);
           });
           al.appendChild(cd);
         }
       }
-      jp.style.display = 'flex';
     };
 
-    const open = () => { if (jp.style.display === 'flex') jp.style.display = 'none'; else jt(); };
+    // tapping the compass shows/hides the journey panel (with the slide/fade
+    // animation); the panel now holds the carried items, chapters, and history
+    const open = () => {
+      if (jp.classList.contains('show')) { jp.classList.remove('show'); return; }
+      jt();
+      jp.classList.add('show');
+    };
     this.openJourney = open;
     document.querySelector('#hud .journey-btn')!.addEventListener('click', open);
-    // the compass opens the journey; tapping a carried-item chip just names that
-    // item (it's your stuff, not the history log)
-    document.querySelector('#hud .chips')!.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const chip = (e.target as HTMLElement).closest('.chip') as HTMLElement | null;
-      if (chip) this.showChipTip(chip);
-    });
-    jp.addEventListener('click', (ev) => { if (ev.target === jp) jp.style.display = 'none'; });
+    jp.addEventListener('click', (ev) => { if (ev.target === jp) jp.classList.remove('show'); });
     window.addEventListener('keydown', (ev) => {
-      if (jp.style.display === 'flex' && (ev.code === 'Escape' || ev.code === 'KeyJ')) { jp.style.display = 'none'; return; }
-      if (ev.code === 'KeyJ' && (ev.target as HTMLElement)?.tagName !== 'INPUT') jt();
+      if (ev.code === 'Escape' && jp.classList.contains('show')) { jp.classList.remove('show'); return; }
+      if (ev.code === 'KeyJ' && (ev.target as HTMLElement)?.tagName !== 'INPUT') open();
     });
   }
 
@@ -946,29 +938,10 @@ export class Hud {
     el.classList.add('show');
   }
 
+  // the carried items are no longer drawn on the HUD — just track them; the
+  // journey panel lists them (with names) when it's opened
   setChips(emojis: string[]) {
-    const wrap = document.querySelector('#hud .chips') as HTMLElement;
-    const prev = this.chipKeys;
-    // a chip that wasn't here last render pops in; tapping a chip names the item
-    wrap.innerHTML = emojis.map((e, i) => {
-      const fresh = i >= prev.length || prev[i] !== e;
-      const label = (ITEM_TIPS[e] || 'An item you’re carrying').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      return `<div class="chip${fresh ? ' new' : ''}" title="${label}">${e}</div>`;
-    }).join('');
     this.chipKeys = emojis.slice();
-  }
-
-  private chipTipTimer = 0;
-  // a small label naming the carried item, anchored beside the tapped chip
-  private showChipTip(chip: HTMLElement) {
-    const tip = document.querySelector('#hud .chip-tip') as HTMLElement;
-    const emoji = (chip.textContent || '').trim();
-    tip.innerHTML = ITEM_TIPS[emoji] || '<b>An item you’re carrying</b>';
-    const r = chip.getBoundingClientRect();
-    tip.style.top = Math.max(8, r.top - 4) + 'px';
-    tip.classList.add('show');
-    clearTimeout(this.chipTipTimer);
-    this.chipTipTimer = window.setTimeout(() => tip.classList.remove('show'), 3000);
   }
 
   // big serif chapter card: fades in, holds, fades out
