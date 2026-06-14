@@ -104,8 +104,9 @@ export const STYLE = {
                  '#cdd8cc', '#b9c9bb', '#bfcdd6', '#a9bcc8', '#d9cdb4', '#cbbfa6',
                  '#e3d3c2', '#9aa9b4', '#aab394', '#f4efe0',
                  '#944033', '#5d6f88', '#41526a', '#6e7247', '#c8a142', '#7d8c6c', '#7e3434'],
-    // weathered cedar shakes for the Plum Island beach cottages
-    wallsShake: ['#b3a48c', '#a69884', '#998c78', '#bcae96', '#8f8470'],
+    // weathered + stained cedar shakes for the Plum Island shake cottages — varied,
+    // not just brown (driftwood grays, blue-grays, sage alongside the cedar tones)
+    wallsShake: ['#b3a48c', '#a69884', '#998c78', '#bcae96', '#8f8470', '#9aa3a0', '#8b97a0', '#a8ad9e', '#b7b0a2', '#7e8a86'],
     awnings: ['#3f5d3a', '#7a2f2c', '#2c3e5c', '#8a6b3c', '#3c3c3e', '#5d3f63'],
     cars: ['#b5443a', '#3e5c84', '#d8d5cc', '#3a3c40', '#7c8b96', '#5e7e54', '#c8b04a', '#8a4a68'],
     wallsCommercial: ['#fdfcf8', '#faf8f2', '#f8f5ec'], // tint over the real brick texture

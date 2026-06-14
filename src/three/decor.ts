@@ -2423,14 +2423,21 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const eaveAbs = g + eave;
     const [bcx, bcz] = centroidOf(b.p);
     const beach = bcx > BEACH_X && (b.k === 'house' || b.k === 'shed');
+    // Plum Island is a colorful mix like the rest of town — mostly painted clapboard
+    // in the full house palette, with a minority of weathered/stained cedar-shake
+    // cottages (it used to be all brown shake)
+    const beachShake = beach && hash32(seed, 67, 5) % 100 < 38;
     // 13 Fox Run Drive — a navy house with a red door (a hello to its owner)
     const isFoxRun = b.k === 'house' && Math.abs(bcx + 18750) < 9 && Math.abs(bcz - 2774) < 9;
-    const wallHex = isFoxRun ? '#2a3a57' : beach ? pick(STYLE.building.wallsShake, seed) : wallHexFor(b, seed);
+    const wallHex = isFoxRun ? '#2a3a57'
+      : beachShake ? pick(STYLE.building.wallsShake, seed)
+      : beach ? pick(STYLE.building.wallsHouse, seed)
+      : wallHexFor(b, seed);
     const isBrick = b.k === 'commercial' || b.k === 'civic';
     const wallBucket = isBrick ? buckets[BRICK]
       : b.k === 'industrial' ? buckets[PLAIN]
-      : beach ? buckets[SHINGLE]            // weathered cedar shakes on the island
-      : buckets[CLAP];
+      : beachShake ? buckets[SHINGLE]       // weathered cedar-shake cottages
+      : buckets[CLAP];                       // painted clapboard — most of the island, like town
     walls(wallBucket, b.p, base, eaveAbs, wallHex);
 
     const gabled = b.k === 'house' || b.k === 'shed' || b.k === 'church';
@@ -2438,7 +2445,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const obb = obbOf(b.p);
       const ridgeH = Math.max(7, Math.min(22, obb.hw * 0.55));
       const roofHex = pick(STYLE.building.roofs, seed);
-      complexGable(buckets[SHINGLE], beach ? buckets[SHINGLE] : buckets[CLAP], b.p, eaveAbs, roofHex, wallHex);
+      complexGable(buckets[SHINGLE], beachShake ? buckets[SHINGLE] : buckets[CLAP], b.p, eaveAbs, roofHex, wallHex);
       if (b.k === 'house') {
         houseTrim(buckets[PLAIN], b.p, eaveAbs, base);
         if (rng() < 0.7 && obb.hl > 18) {
@@ -2482,7 +2489,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const rows = b.k === 'house' ? (lvEff >= 2 ? 2 : 1) : Math.max(2, Math.min(4, Math.round(lvEff)));
       facades(buckets[PLAIN], b.p, eaveAbs, rows, seed,
         b.k === 'house' || b.k === 'commercial' || storefront,
-        b.k === 'house' && !beach && !storefront && rng() < 0.75,
+        b.k === 'house' && !beachShake && !storefront && rng() < 0.75,
         storefront, g, undefined, isFoxRun ? '#ab3228' : undefined);
     }
 
