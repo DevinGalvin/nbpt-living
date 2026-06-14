@@ -1060,11 +1060,10 @@ export class Game {
     // clamp the direction onto the screen-edge square, leaving a margin
     const m = Math.max(Math.abs(nx), Math.abs(ny)) || 1;
     const ex = nx / m, ey = ny / m;
-    const sx = innerWidth / 2 + ex * (innerWidth / 2 - 50);
-    const sy = innerHeight / 2 - ey * (innerHeight / 2 - 76);   // NDC up → screen up (clears the HUD pills)
+    const sx = innerWidth / 2 + ex * (innerWidth / 2 - 40);
+    const sy = innerHeight / 2 - ey * (innerHeight / 2 - 52);   // NDC up → screen up
     const angle = Math.atan2(-ey, ex);                          // arrow points toward the goal
-    const distM = Math.round(Math.hypot(guide.x - this.px, guide.z - this.pz) / 8 / 10) * 10;
-    this.hud.setWaypoint({ x: sx, y: sy, angle, distance: distM });
+    this.hud.setWaypoint({ x: sx, y: sy, angle });
   }
 
   // ---------- travel & search ----------
