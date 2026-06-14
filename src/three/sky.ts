@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 // Day–night cycle + weather for Clipper Town. Owns the visual sky (gradient
-// dome, sun & moon discs, stars, drifting clouds, rain) and computes a lighting
+// dome, sun & moon discs, stars, rain) and computes a lighting
 // palette for the current time-of-day that Game applies to its sun/hemisphere/
 // fog. Everything is centered on the player each frame so it follows you across
 // the whole map; sky elements opt out of scene fog so they stay crisp.
@@ -44,8 +44,6 @@ export class Sky {
   private moon: THREE.Mesh;
   private stars: THREE.Points;
   private starMat: THREE.PointsMaterial;
-  private clouds = new THREE.Group();
-  private cloudData: { g: THREE.Object3D; vx: number; vz: number }[] = [];
   private rain: THREE.Points;
   private rainMat: THREE.PointsMaterial;
   private rainV: Float32Array;
@@ -110,24 +108,6 @@ export class Sky {
     this.stars = new THREE.Points(sg, this.starMat);
     this.stars.frustumCulled = false;
 
-    // drifting clouds: clusters of squashed white puffs, lit by sun + hemi so
-    // they tint warm at sunset and go dark at night for free
-    for (let i = 0; i < 12; i++) {
-      const g = new THREE.Group();
-      const puffs = 3 + Math.floor(Math.random() * 3);
-      const mat = new THREE.MeshLambertMaterial({ color: '#fbfdff', transparent: true, opacity: 0.92, fog: false, depthWrite: true });
-      for (let p = 0; p < puffs; p++) {
-        const r = 42 + Math.random() * 52;
-        const puff = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), mat);
-        puff.scale.set(1, 0.45, 1);
-        puff.position.set((Math.random() - 0.5) * 150, (Math.random() - 0.5) * 22, (Math.random() - 0.5) * 110);
-        g.add(puff);
-      }
-      g.position.set((Math.random() - 0.5) * 5000, 360 + Math.random() * 320, (Math.random() - 0.5) * 5000);
-      this.clouds.add(g);
-      this.cloudData.push({ g, vx: (Math.random() - 0.5) * 18, vz: (Math.random() - 0.5) * 18 });
-    }
-
     // rain (or snow in winter): points raining down around the player
     const RN = 1300;
     const rp = new Float32Array(RN * 3);
@@ -147,7 +127,7 @@ export class Sky {
     this.rain = new THREE.Points(rg, this.rainMat);
     this.rain.frustumCulled = false;
 
-    scene.add(this.dome, this.sun, this.moon, this.stars, this.clouds, this.rain);
+    scene.add(this.dome, this.sun, this.moon, this.stars, this.rain);
   }
 
   // jump straight to a time of day (0..1) — used by the debug hook
@@ -233,17 +213,6 @@ export class Sky {
     this.moon.position.set(px - trueDir.x * 3000, -elev * 3000, pz - trueDir.z * 3000);
     (this.moon.material as THREE.MeshBasicMaterial).opacity = clamp((-elev + 0.04) / 0.18, 0, 1) * 0.95;
     this.moon.visible = elev < 0.04;
-
-    // ---- clouds drift + wrap around the player ----
-    for (const c of this.cloudData) {
-      const g = c.g;
-      g.position.x += c.vx * dt;
-      g.position.z += c.vz * dt;
-      if (g.position.x - px > 2700) g.position.x -= 5400;
-      else if (g.position.x - px < -2700) g.position.x += 5400;
-      if (g.position.z - pz > 2700) g.position.z -= 5400;
-      else if (g.position.z - pz < -2700) g.position.z += 5400;
-    }
 
     // ---- precipitation ----
     this.rainMat.opacity = clamp(wet * 1.15, 0, 1) * (this.snowMode ? 0.85 : 0.6);

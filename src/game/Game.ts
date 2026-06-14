@@ -181,7 +181,7 @@ export class Game {
     this.sun.shadow.normalBias = 3;
     this.sun.shadow.camera.updateProjectionMatrix();
     this.scene.add(this.hemi, this.sun, this.sun.target, this.kid.root, this.dog.root);
-    // day–night cycle + clouds + weather; winter precipitation falls as snow
+    // day–night cycle + weather; winter precipitation falls as snow
     this.sky = new Sky(this.scene, { startTod: 0.34, period: 420, snow: SEASON === 'winter' });
 
     // street-lamp lighting pool: a soft warm glow disc on the ground + a real
@@ -859,7 +859,7 @@ export class Game {
     this.hud.setCompass(Math.PI - this.camAz);
     this.hud.pos = { x: this.px, y: this.pz }; // journey panel's direction hint
 
-    // day–night cycle drives the sun, sky dome, clouds, and weather; the shadow
+    // day–night cycle drives the sun, sky dome, and weather; the shadow
     // window rides with the player
     const sky = this.sky.update(dt, this.px, this.pz, t);
     const sunD = 950;
