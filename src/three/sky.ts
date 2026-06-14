@@ -9,11 +9,11 @@ import * as THREE from 'three';
 const C = (h: string) => new THREE.Color(h);
 
 // keyed palette colors
-const NIGHT_ZEN = C('#0a1026'), NIGHT_HOR = C('#161f37');
+const NIGHT_ZEN = C('#1a2545'), NIGHT_HOR = C('#3b4a68');
 const DAY_ZEN = C('#5aa6e6'), DAY_HOR = C('#d2e7f3');
 const DUSK_ZEN = C('#3b3a66'), DUSK_HOR = C('#f0935a');
 const DAY_SUN = C('#fff3da'), DUSK_SUN = C('#ff9a4e');
-const NIGHT_HEMI_SKY = C('#2a3454'), NIGHT_HEMI_GND = C('#171c26');
+const NIGHT_HEMI_SKY = C('#3e4c74'), NIGHT_HEMI_GND = C('#2c333f');
 const DAY_HEMI_SKY = C('#dceeff'), DAY_HEMI_GND = C('#8a9a6c');
 const OVERCAST = C('#aab0b6');
 
@@ -179,8 +179,8 @@ export class Sky {
     const zen = NIGHT_ZEN.clone().lerp(DAY_ZEN, day).lerp(DUSK_ZEN, tw * 0.5);
     const hor = NIGHT_HOR.clone().lerp(DAY_HOR, day).lerp(DUSK_HOR, tw * 0.85);
     s.sunColor.copy(DUSK_SUN).lerp(DAY_SUN, day);
-    let sunI = 0.16 + day * 1.4;
-    let hemiI = 0.32 + day * 0.34;  // night keeps a soft moonlit floor so you can still explore
+    let sunI = 0.55 + day * 1.0;    // strong moonlight floor at night
+    let hemiI = 0.62 + day * 0.22;  // bright moonlit ambient so night stays easy to explore
     s.hemiSky.copy(NIGHT_HEMI_SKY).lerp(DAY_HEMI_SKY, day);
     s.hemiGround.copy(NIGHT_HEMI_GND).lerp(DAY_HEMI_GND, day);
     if (wet > 0.01) {
