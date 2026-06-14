@@ -2233,13 +2233,55 @@ function snowman(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: n
   buckets[PLAIN].box(sx + f.tx * 4.6, sz + f.tz * 4.6, 2.6, 0.3, g + 9.8, g + 10.4, '#5e4630');
 }
 
-// a park bench: slatted wood seat + back on cast-iron end frames, lying along `ang`
+// a park bench: slatted wood seat + back on cast-iron end frames. `ang` is the
+// bench's long axis; the backrest sits on the +perp(ang) side and the sitter
+// faces the opposite way.
 function bench(bk: Bucket, x: number, z: number, ang: number, g: number) {
   const ca = Math.cos(ang), sa = Math.sin(ang);
   const wood = '#7a5230', iron = '#3a3d40';
   for (const o of [-7, 7]) rotBox(bk, x + ca * o, z + sa * o, 0.9, 4.2, g, g + 4.2, ang, iron); // end frames
   rotBox(bk, x, z, 9.5, 4.4, g + 4.2, g + 5.1, ang, wood);                                       // seat
   rotBox(bk, x - sa * 3.3, z + ca * 3.3, 9.5, 0.8, g + 5.1, g + 10.8, ang, wood);                // backrest
+}
+
+// Place benches like a city planner: line them along the park/plaza edges, set
+// back from the boundary, squared up parallel to each edge with the back to the
+// outside and the seat facing the open space. Never in the street, never
+// scattered through the middle. One per short edge, two along a long one.
+function placeBenches(P: Bucket, poly: Poly, index: WorldIndex,
+                      roads: { p: number[]; w: number }[], ox: number, oy: number, maxB: number) {
+  const pts = poly.p;
+  const [cx, cz] = centroidOf(pts);
+  const n = pts.length / 2;
+  const SETBACK = 16, ENDMARGIN = 38;
+  let placed = 0;
+  const onRoad = (x: number, z: number) => {
+    for (const r of roads) if (distToPolylineSq(x, z, r.p) < (r.w / 2 + 14) ** 2) return true;
+    return false;
+  };
+  for (let i = 0; i < n && placed < maxB; i++) {
+    const ax = pts[i * 2], az = pts[i * 2 + 1];
+    const bx = pts[((i + 1) % n) * 2], bz = pts[((i + 1) % n) * 2 + 1];
+    const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz);
+    if (len < ENDMARGIN * 2 + 24) continue;            // edge too short to seat a bench
+    const ux = dx / len, uz = dz / len;
+    const midx = (ax + bx) / 2, midz = (az + bz) / 2;
+    let nx = -uz, nz = ux;                              // inward normal (toward centroid)
+    if (nx * (cx - midx) + nz * (cz - midz) < 0) { nx = -nx; nz = -nz; }
+    let ang = Math.atan2(uz, ux);                       // long axis parallel to the edge
+    if ((-uz) * nx + ux * nz > 0) ang += Math.PI;       // flip so the back faces outward
+    const slots = len > 300 ? [0.34, 0.66] : [0.5];     // one bench, or two on a long edge
+    for (const f of slots) {
+      if (placed >= maxB) break;
+      const t = len * f;
+      const px = ax + ux * t + nx * SETBACK, pz = az + uz * t + nz * SETBACK;
+      if (px < ox || px >= ox + CHUNK || pz < oy || pz >= oy + CHUNK) continue;  // this chunk owns it
+      if (!pointInPolyD(px, pz, poly)) continue;        // stay inside the grounds
+      if (onRoad(px, pz)) continue;                     // never in the street
+      bench(P, px, pz, ang, index.heightAtPx(px, pz));
+      placed++;
+    }
+  }
 }
 
 // a little beach crab: domed shell + two front claws, kept tiny
@@ -2701,11 +2743,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   }
 
   // park & plaza benches, beach crabs near the tide line, sparse woodland critters
+  const roadLines = bucket.roads.map((ri) => world.roads[ri]);
   for (const pi of bucket.polys) {
     const poly = world.polys[pi];
     if (poly.k === 'park' || poly.k === 'plaza') {
-      scatterInPoly(poly, hash32(pi, 71, 5), poly.k === 'plaza' ? 70 : 150, 0.45, ox, oy,
-        (x, z, rng) => bench(buckets[PLAIN], x, z, rng() * Math.PI * 2, index.heightAtPx(x, z)), 4);
+      placeBenches(buckets[PLAIN], poly, index, roadLines, ox, oy, poly.k === 'plaza' ? 4 : 6);
     } else if (poly.k === 'sand') {
       scatterInPoly(poly, hash32(pi, 83, 7), 60, 0.3, ox, oy, (x, z, rng) => {
         const g = index.heightAtPx(x, z);
