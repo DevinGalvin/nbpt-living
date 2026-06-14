@@ -1163,8 +1163,10 @@ export class WorldIndex {
     ctx.strokeStyle = '#ff0000';
     ctx.lineWidth = 3.5;
     for (const bi of bucket.barriers) {
-      // low fences & hedges are hop-over-able; only solid walls block movement
-      if (w.barriers[bi].k === 'fence' || w.barriers[bi].k === 'hedge') continue;
+      // fences, hedges, AND low stone walls (graveyard/garden walls) are all
+      // hop-over-able — every mapped barrier here renders waist-high, so none
+      // of them block; buildings are the only hard property-line obstacle
+      if (w.barriers[bi].k === 'fence' || w.barriers[bi].k === 'hedge' || w.barriers[bi].k === 'wall') continue;
       strokeLine(ctx, w.barriers[bi].p);
     }
     ctx.strokeStyle = '#000000';
@@ -1456,12 +1458,12 @@ export class WorldIndex {
     return false;
   }
 
-  // a low fence/hedge right here — the kid & dog hop it (it no longer blocks)
+  // a low fence/hedge/stone wall right here — the kid & dog hop it (none block)
   lowBarrierNear(x: number, y: number): boolean {
     const b = this.bucket(Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK));
     for (const bi of b.barriers) {
       const bar = this.world.barriers[bi];
-      if (bar.k !== 'fence' && bar.k !== 'hedge') continue;
+      if (bar.k !== 'fence' && bar.k !== 'hedge' && bar.k !== 'wall') continue;
       if (distToPolylineSq(x, y, bar.p) < 64) return true;   // within ~8px
     }
     return false;

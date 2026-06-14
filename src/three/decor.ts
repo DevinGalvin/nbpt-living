@@ -559,20 +559,22 @@ function car(bk: Bucket, x: number, z: number, ang: number, hex: string, g = 0) 
   }
 }
 
-// harbor boat on the water plane: runabouts, lobster boats, furled-sail sloops
+// harbor boat on the water plane: runabouts, lobster boats, furled-sail sloops.
+// Scaled up to read like real working boats beside the (tall, stylized) kid.
 function boat(bk: Bucket, x: number, z: number, ang: number, seed: number) {
   const ca = Math.cos(ang), sa = Math.sin(ang);
   const hullHex = pick(['#f4f1e8', '#f4f1e8', '#e9e6db', '#27425c', '#7e3434', '#3e5c50'], seed);
-  hull(bk, x, z, 16, 5.4, WATER_Y - 1.6, WATER_Y + 4, ang, hullHex);
-  chamferBox(bk, x - ca * 1.5, z - sa * 1.5, 10.5, 3.6, WATER_Y + 4, WATER_Y + 5, ang, '#b9926a', 1.6);
+  hull(bk, x, z, 32, 9.5, WATER_Y - 2.6, WATER_Y + 6.5, ang, hullHex);
+  // gunwale rail cap running the length of the deck
+  chamferBox(bk, x - ca * 2.5, z - sa * 2.5, 19, 6.4, WATER_Y + 6.5, WATER_Y + 8, ang, '#b9926a', 2.4);
   if (hash32(seed, 5, 1) % 100 < 45) {
-    // sloop with the sails down
-    bk.box(x, z, 0.55, 0.55, WATER_Y + 4, WATER_Y + 34, '#ece8dc');
-    chamferBox(bk, x - ca * 5, z - sa * 5, 7, 0.8, WATER_Y + 8, WATER_Y + 9.6, ang, '#d8d2c2', 0.6);
+    // sloop with the sails down — tall mast + boom
+    bk.box(x, z, 0.9, 0.9, WATER_Y + 6, WATER_Y + 60, '#ece8dc');
+    chamferBox(bk, x - ca * 9, z - sa * 9, 13, 1.3, WATER_Y + 14, WATER_Y + 16.5, ang, '#d8d2c2', 1);
   } else {
     // lobster-boat wheelhouse forward
-    chamferBox(bk, x + ca * 4, z + sa * 4, 5.8, 3.9, WATER_Y + 4, WATER_Y + 12, ang, '#f8f6ee', 1.5);
-    chamferBox(bk, x + ca * 4, z + sa * 4, 6.5, 4.5, WATER_Y + 11.6, WATER_Y + 13, ang, '#4a4640', 1.8);
+    chamferBox(bk, x + ca * 7, z + sa * 7, 11, 7, WATER_Y + 6.5, WATER_Y + 20, ang, '#f8f6ee', 2.6);
+    chamferBox(bk, x + ca * 7, z + sa * 7, 12, 8, WATER_Y + 19.5, WATER_Y + 21.6, ang, '#4a4640', 3);
   }
 }
 
@@ -2231,6 +2233,65 @@ function snowman(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: n
   buckets[PLAIN].box(sx + f.tx * 4.6, sz + f.tz * 4.6, 2.6, 0.3, g + 9.8, g + 10.4, '#5e4630');
 }
 
+// a park bench: slatted wood seat + back on cast-iron end frames, lying along `ang`
+function bench(bk: Bucket, x: number, z: number, ang: number, g: number) {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const wood = '#7a5230', iron = '#3a3d40';
+  for (const o of [-7, 7]) rotBox(bk, x + ca * o, z + sa * o, 0.9, 4.2, g, g + 4.2, ang, iron); // end frames
+  rotBox(bk, x, z, 9.5, 4.4, g + 4.2, g + 5.1, ang, wood);                                       // seat
+  rotBox(bk, x - sa * 3.3, z + ca * 3.3, 9.5, 0.8, g + 5.1, g + 10.8, ang, wood);                // backrest
+}
+
+// a little beach crab: domed shell + two front claws, kept tiny
+function crab(bk: Bucket, x: number, z: number, ang: number, g: number) {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  octoCanopy(bk, x, g + 0.9, z, 1.9, new THREE.Color('#c2502f'));
+  for (const s of [-1, 1]) {
+    const clx = x + ca * 1.9 - sa * 1.5 * s, clz = z + sa * 1.9 + ca * 1.5 * s;
+    bk.box(clx, clz, 0.7, 0.7, g + 0.1, g + 1.1, '#d8623a');
+  }
+}
+
+// sparse woodland critter: a squirrel (bushy tail) or a rabbit (tall ears)
+function critter(bk: Bucket, x: number, z: number, ang: number, g: number, squirrel: boolean) {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const hex = squirrel ? '#8a5a32' : '#9a9188';
+  const fur = new THREE.Color(hex);
+  octoCanopy(bk, x, g + 2.6, z, 2.7, fur);                                              // body
+  octoCanopy(bk, x + ca * 2.9, g + 3.9, z + sa * 2.9, 1.7, fur.clone().multiplyScalar(1.05)); // head
+  if (squirrel) {
+    octoCanopy(bk, x - ca * 3.3, g + 4.9, z - sa * 3.3, 2.3, fur.clone().multiplyScalar(0.9)); // bushy tail
+  } else {
+    for (const s of [-0.85, 0.85]) bk.box(x + ca * 2.1 - sa * s, z + sa * 2.1 + ca * s, 0.5, 0.5, g + 4.6, g + 8.2, hex); // tall ears
+  }
+}
+
+// one MBTA commuter-rail car: stainless coach, or the purple locomotive
+function railCar(bk: Bucket, cx: number, cz: number, ang: number, g: number, loco: boolean) {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  for (const o of [-30, 30]) rotBox(bk, cx + ca * o, cz + sa * o, 9, 6.5, g, g + 4.5, ang, '#26282b'); // trucks
+  chamferBox(bk, cx, cz, 42, 11, g + 4.5, g + 25, ang, loco ? '#73277f' : '#c7ccd1', 3.2);             // carbody
+  chamferBox(bk, cx, cz, 41.5, 11.4, g + 12, g + 14.6, ang, loco ? '#d7d2c6' : '#73277f', 1.2);        // accent stripe
+  if (loco) {
+    chamferBox(bk, cx + ca * 27, cz + sa * 27, 10, 10.4, g + 17, g + 24, ang, '#16212c', 1.4);         // windscreen
+    chamferBox(bk, cx - ca * 6, cz - sa * 6, 30, 9.4, g + 25, g + 28, ang, '#5a1f63', 2.6);            // roof radiator
+  } else {
+    chamferBox(bk, cx, cz, 37, 11.4, g + 15.5, g + 21.5, ang, '#15202b', 1.4);                         // window band
+    chamferBox(bk, cx, cz, 42, 9.6, g + 25, g + 27.4, ang, '#9aa0a6', 3);                              // roof
+  }
+}
+
+// the commuter-rail train standing at the station: loco + a few coaches,
+// laid along the rail's true heading
+function mbtaTrain(buckets: Bucket[], x: number, z: number, ang: number, index: WorldIndex) {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const cars = [true, false, false, false];
+  for (let i = 0; i < cars.length; i++) {
+    const cx = x - ca * i * 96, cz = z - sa * i * 96;
+    railCar(buckets[PLAIN], cx, cz, ang, index.heightAtPx(cx, cz) + 1.2, cars[i]);
+  }
+}
+
 export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): THREE.Mesh | null {
   const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
   const [ckx, cky] = key.split(',').map(Number);
@@ -2606,11 +2667,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const p = world.paths[pi];
     if (!p.m) continue;
     let flip = 1;
-    walkLineD(p.p, 64, (x, z, tx, tz) => {
+    walkLineD(p.p, 116, (x, z, tx, tz) => {
       flip = -flip;
       const h2 = hash32(Math.round(x), Math.round(z), 23);
       if (h2 % 100 > 62) return;
-      const off = Math.max(p.w, 18) / 2 + 13;
+      const off = Math.max(p.w, 18) / 2 + 22;
       const bx = x - tz * flip * off, bz = z + tx * flip * off;
       if (bx < ox || bx >= ox + CHUNK || bz < oy || bz >= oy + CHUNK) return;
       if (!index.isWaterAt(bx, bz)) return;
@@ -2623,12 +2684,12 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     if (poly.k !== 'pier' || !poly.m) continue;
     const ring = poly.p.concat(poly.p.slice(0, 2));
     let placed = 0;
-    walkLineD(ring, 58, (x, z, tx, tz) => {
-      if (placed >= 4) return;
+    walkLineD(ring, 104, (x, z, tx, tz) => {
+      if (placed >= 3) return;
       const h2 = hash32(Math.round(x), Math.round(z), 29);
       if (h2 % 100 > 55) return;
       for (const s of [1, -1]) {
-        const bx = x - tz * s * 14, bz = z + tx * s * 14;
+        const bx = x - tz * s * 24, bz = z + tx * s * 24;
         if (!index.isWaterAt(bx, bz)) continue;
         if (index.heightAtPx(bx, bz) > WATER_Y - 0.5) continue; // exposed flat — would beach
         if (bx < ox || bx >= ox + CHUNK || bz < oy || bz >= oy + CHUNK) break;
@@ -2637,6 +2698,44 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         break;
       }
     });
+  }
+
+  // park & plaza benches, beach crabs near the tide line, sparse woodland critters
+  for (const pi of bucket.polys) {
+    const poly = world.polys[pi];
+    if (poly.k === 'park' || poly.k === 'plaza') {
+      scatterInPoly(poly, hash32(pi, 71, 5), poly.k === 'plaza' ? 70 : 150, 0.45, ox, oy,
+        (x, z, rng) => bench(buckets[PLAIN], x, z, rng() * Math.PI * 2, index.heightAtPx(x, z)), 4);
+    } else if (poly.k === 'sand') {
+      scatterInPoly(poly, hash32(pi, 83, 7), 60, 0.3, ox, oy, (x, z, rng) => {
+        const g = index.heightAtPx(x, z);
+        if (g > WATER_Y + 14) return;       // only the lower, wetter beach near the tide line
+        crab(buckets[PLAIN], x, z, rng() * Math.PI * 2, g);
+      }, 6);
+    } else if (poly.k === 'wood') {
+      scatterInPoly(poly, hash32(pi, 91, 13), 185, 0.3, ox, oy,
+        (x, z, rng) => critter(buckets[PLAIN], x, z, rng() * Math.PI * 2, index.heightAtPx(x, z), rng() < 0.5), 3);
+    }
+  }
+
+  // MBTA commuter-rail train parked at the Newburyport station platform
+  const ST_X = -5450, ST_Z = 11790;
+  if (Math.floor(ST_X / CHUNK) === ckx && Math.floor(ST_Z / CHUNK) === cky) {
+    let bestD = Infinity, bestAng = 0, bx = ST_X, bz = ST_Z;
+    for (const rl of world.rails) {
+      const pts = rl.p;
+      for (let i = 0; i + 3 < pts.length; i += 2) {
+        const ax = pts[i], az = pts[i + 1], ex = pts[i + 2] - ax, ez = pts[i + 3] - az;
+        const len2 = ex * ex + ez * ez;
+        if (len2 < 1) continue;
+        let s = ((ST_X - ax) * ex + (ST_Z - az) * ez) / len2;
+        s = s < 0 ? 0 : s > 1 ? 1 : s;
+        const qx = ax + ex * s, qz = az + ez * s;
+        const d = (qx - ST_X) ** 2 + (qz - ST_Z) ** 2;
+        if (d < bestD) { bestD = d; bestAng = Math.atan2(ez, ex); bx = qx; bz = qz; }
+      }
+    }
+    if (bestD < 1e9) mbtaTrain(buckets, bx, bz, bestAng, index);
   }
 
   // power lines: poles at the surveyed vertices + sagging wires, exactly where

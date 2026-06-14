@@ -5,6 +5,7 @@ import { Terrain } from '../world/terrain';
 import { buildChunkDecor } from '../three/decor';
 import { detailTex } from '../three/textures';
 import { buildWater, WATER_Y } from '../three/water';
+import { Sky } from '../three/sky';
 import { Kid, Dog, Bike } from '../three/actors';
 import { Life } from './life';
 import { Hud } from './hud';
@@ -100,8 +101,7 @@ export class Game {
   private camZoom = 0.82;    // 0.55 (close) .. 2.4 (far)
   private life: Life | null = null;
   private quest: QuestRunner | null = null;
-  private snow: THREE.Points | null = null;
-  private snowVel: Float32Array | null = null;
+  private sky!: Sky;
   private tunnel: TunnelScene | null = null;
   private history: HistoryRunner | null = null;
   private eggs: EggRunner | null = null;
@@ -138,6 +138,7 @@ export class Game {
   private autoRun = false;          // R toggles always-run
   private places: { label: string; sub: string; x: number; y: number }[] = [];
   private sun!: THREE.DirectionalLight;
+  private hemi!: THREE.HemisphereLight;
 
   constructor(world: WorldData, terrain: Terrain) {
     this.world = world;
@@ -156,7 +157,7 @@ export class Game {
     this.scene.fog = new THREE.Fog(STYLE.sky, fogRange[0], fogRange[1]);
     this.camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 10, 6000);
 
-    const hemi = SEASON === 'winter' ? new THREE.HemisphereLight('#dde9f8', '#a8b2bc', 0.55)
+    this.hemi = SEASON === 'winter' ? new THREE.HemisphereLight('#dde9f8', '#a8b2bc', 0.55)
       : SEASON === 'fall' ? new THREE.HemisphereLight('#f2e6cc', '#8a8058', 0.5)
       : new THREE.HemisphereLight('#e3f2fd', '#90a06c', 0.5);
     this.sun = new THREE.DirectionalLight(SEASON === 'winter' ? '#ffe0b0' : SEASON === 'fall' ? '#ffd9a0' : '#fff2d8', SEASON === 'summer' ? 1.5 : 1.4);
@@ -171,7 +172,9 @@ export class Game {
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 3;
     this.sun.shadow.camera.updateProjectionMatrix();
-    this.scene.add(hemi, this.sun, this.sun.target, this.kid.root, this.dog.root);
+    this.scene.add(this.hemi, this.sun, this.sun.target, this.kid.root, this.dog.root);
+    // day–night cycle + clouds + weather; winter precipitation falls as snow
+    this.sky = new Sky(this.scene, { startTod: 0.34, period: 420, snow: SEASON === 'winter' });
     this.kid.root.traverse((o) => { o.castShadow = true; });
     this.dog.root.traverse((o) => { o.castShadow = true; });
 
@@ -255,24 +258,7 @@ export class Game {
     );
 
     if (SEASON === 'winter') {
-      // falling snow around the player
-      const N = 1700;
-      const pos = new Float32Array(N * 3);
-      this.snowVel = new Float32Array(N);
-      for (let i = 0; i < N; i++) {
-        pos[i * 3] = (Math.random() - 0.5) * 2400;
-        pos[i * 3 + 1] = Math.random() * 650;
-        pos[i * 3 + 2] = (Math.random() - 0.5) * 2400;
-        this.snowVel[i] = 60 + Math.random() * 90;
-      }
-      const sg = new THREE.BufferGeometry();
-      sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      this.snow = new THREE.Points(sg, new THREE.PointsMaterial({
-        color: 0xffffff, size: 4, transparent: true, opacity: 0.85, depthWrite: false
-      }));
-      this.snow.frustumCulled = false;
-      this.scene.add(this.snow);
-      // the big tree in Market Square
+      // the big tree in Market Square (snow now falls from the Sky weather system)
       this.scene.add(this.buildHolidayTree(-100, -48));
     }
 
@@ -320,6 +306,8 @@ export class Game {
       zoom: (z: number) => { this.camZoom = Math.min(2.4, Math.max(0.55, z)); },
       walk: (x: number, y: number, ms: number) => { this.debugVec = { x, y, until: performance.now() + ms }; },
       season: (sn: string) => { localStorage.setItem('nbpt-season', sn); location.reload(); },
+      time: (t: number) => this.sky.setTod(t),            // 0=midnight 0.25=dawn 0.5=noon 0.75=dusk
+      weather: (w: number | null) => this.sky.forceWeather(w), // 1=shower 0=clear null=auto
       _quest: this.quest,
       landmarks: world.landmarks.map((l) => l.id),
       _game: this,
@@ -818,11 +806,19 @@ export class Game {
     this.hud.setCompass(Math.PI - this.camAz);
     this.hud.pos = { x: this.px, y: this.pz }; // journey panel's direction hint
 
-    // sun + shadow window follow the player (late-afternoon angle = long shadows)
-    if (SEASON === 'winter') this.sun.position.set(this.px + 430, 360, this.pz + 540);
-    else if (SEASON === 'fall') this.sun.position.set(this.px + 520, 420, this.pz + 470);
-    else this.sun.position.set(this.px + 620, 560, this.pz + 380);
+    // day–night cycle drives the sun, sky dome, clouds, and weather; the shadow
+    // window rides with the player
+    const sky = this.sky.update(dt, this.px, this.pz, t);
+    const sunD = 950;
+    this.sun.position.set(this.px + sky.sunDir.x * sunD, sky.sunDir.y * sunD + 80, this.pz + sky.sunDir.z * sunD);
     this.sun.target.position.set(this.px, 0, this.pz);
+    this.sun.color.copy(sky.sunColor);
+    this.sun.intensity = sky.sunIntensity;
+    this.hemi.color.copy(sky.hemiSky);
+    this.hemi.groundColor.copy(sky.hemiGround);
+    this.hemi.intensity = sky.hemiIntensity;
+    (this.scene.fog as THREE.Fog).color.copy(sky.fog);
+    this.renderer.setClearColor(sky.fog);
 
     if (this.waterUpdate && !this.inside) this.waterUpdate(t);
     if (this.life && !this.inside) this.life.update(dt, this.px, this.pz, t, Math.sin(this.camAz), Math.cos(this.camAz));
@@ -833,20 +829,6 @@ export class Game {
       if (this.history) this.history.update(dt, this.px, this.pz, this.quest.nearActive);
       // eggs speak last: quest beats, then history markers, then secrets
       if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.quest.nearActive || (this.history ? this.history.nearActive : false));
-    }
-    if (this.snow && this.snowVel) {
-      const attr = this.snow.geometry.getAttribute('position') as THREE.BufferAttribute;
-      const a = attr.array as Float32Array;
-      for (let i = 0; i < this.snowVel.length; i++) {
-        a[i * 3 + 1] -= this.snowVel[i] * dt;
-        a[i * 3] += Math.sin(t * 0.0011 + i * 1.7) * 16 * dt;
-        if (a[i * 3 + 1] < 0) {
-          a[i * 3] = this.px + (Math.random() - 0.5) * 2400;
-          a[i * 3 + 1] = 520 + Math.random() * 130;
-          a[i * 3 + 2] = this.pz + (Math.random() - 0.5) * 2400;
-        }
-      }
-      attr.needsUpdate = true;
     }
     this.audio.update(dt, movingNow, this.sprinting, () =>
       this.inside ? 'hard'

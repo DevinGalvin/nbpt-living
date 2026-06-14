@@ -149,9 +149,14 @@ const css = `
 }
 #hud .mini canvas { display: block; }
 #hud .mini .me {
-  position: absolute; width: 5px; height: 5px; border-radius: 50%;
-  background: #ffd24a; box-shadow: 0 0 5px 1.5px rgba(255, 210, 74, 0.8);
-  transform: translate(-50%, -50%);
+  position: absolute; width: 7px; height: 7px; border-radius: 50%;
+  background: #ff2b2b; transform: translate(-50%, -50%);
+  animation: nbpt-meping 1.5s ease-out infinite;
+}
+@keyframes nbpt-meping {
+  0%   { box-shadow: 0 0 4px 1px rgba(255,43,43,0.95), 0 0 0 0 rgba(255,43,43,0.55); }
+  70%  { box-shadow: 0 0 4px 1px rgba(255,43,43,0.95), 0 0 0 9px rgba(255,43,43,0); }
+  100% { box-shadow: 0 0 4px 1px rgba(255,43,43,0.95), 0 0 0 0 rgba(255,43,43,0); }
 }
 #hud .objective {
   position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
@@ -185,15 +190,33 @@ const css = `
 #hud .talk-btn.show { display: flex; }
 #hud .journey-btn {
   position: absolute; top: 118px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(20, 28, 38, 0.65); border: 1.5px solid rgba(243,241,232,0.4);
-  display: flex; align-items: center; justify-content: center; font-size: 20px;
+  background: rgba(20, 28, 38, 0.78); border: 1.5px solid rgba(216,185,74,0.6);
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+  z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
-#hud .chips { position: absolute; top: 170px; left: 14px; display: flex; flex-direction: column; gap: 7px; }
+#hud .journey-btn:hover { border-color: #e8c44f; }
+/* collected items hang beneath the compass as one connected "adventure log" rail */
+#hud .chips {
+  position: absolute; top: 150px; left: 14px; width: 44px; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 22px 0 9px; border-radius: 0 0 22px 22px;
+  background: linear-gradient(rgba(20,28,38,0) 12px, rgba(20,28,38,0.5) 30px);
+  pointer-events: auto; cursor: pointer;
+}
+#hud .chips:empty { display: none; }
 #hud .chips .chip {
-  width: 40px; height: 40px; border-radius: 50%; background: rgba(20, 28, 38, 0.72);
-  border: 1.5px solid rgba(216, 185, 74, 0.55); display: flex; align-items: center;
-  justify-content: center; font-size: 19px;
+  width: 34px; height: 34px; border-radius: 50%; background: rgba(20, 28, 38, 0.85);
+  border: 1.5px solid rgba(216, 185, 74, 0.42); display: flex; align-items: center;
+  justify-content: center; font-size: 17px; transition: transform 0.12s ease, border-color 0.12s ease;
+}
+#hud .chips:hover .chip { border-color: rgba(216, 185, 74, 0.8); }
+#hud .chips .chip:hover { transform: scale(1.09); }
+#hud .chips .chip.new { animation: nbpt-chippop 0.5s ease-out; }
+@keyframes nbpt-chippop {
+  0% { transform: scale(0.2); opacity: 0; }
+  60% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); }
 }
 #hud .chapter {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
@@ -229,6 +252,8 @@ export class Hud {
   private dlgCool = 0;
   private talkCb: (() => void) | null = null;
   private hcardOpen = false;
+  private openJourney: (() => void) | null = null;   // set by initJourney; chips tap it
+  private chipKeys: string[] = [];                    // last-rendered chips (for pop-in)
 
   private pill: HTMLElement;
   private banner: HTMLElement;
@@ -258,7 +283,7 @@ export class Hud {
       <div class="stick-base"></div><div class="stick-knob"></div>
       <div class="compass"><div class="needle">N</div></div>
       <div class="travel-btn" title="Travel (M)">🗺</div>
-      <div class="journey-btn" title="Journey (J)">📖</div>
+      <div class="journey-btn" title="Adventure log (J)">🧭</div>
       <div class="sound-btn" title="Sound">🔊</div>
       <div class="run-btn" title="Run">🏃</div>
       <div class="bike-btn" title="Bike (B)">🚲</div>
@@ -325,7 +350,7 @@ export class Hud {
 
   private onDown(e: PointerEvent) {
     if (e.pointerType !== 'touch') return;
-    if ((e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .sound-btn, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard')) return; // UI, not joystick
+    if ((e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .chips, .sound-btn, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard')) return; // UI, not joystick
     this.pointers.add(e.pointerId);
     if (this.joyId === -1) {
       this.joyId = e.pointerId;
@@ -574,9 +599,11 @@ export class Hud {
       jp.style.display = 'flex';
     };
 
-    document.querySelector('#hud .journey-btn')!.addEventListener('click', () => {
-      if (jp.style.display === 'flex') jp.style.display = 'none'; else jt();
-    });
+    const open = () => { if (jp.style.display === 'flex') jp.style.display = 'none'; else jt(); };
+    this.openJourney = open;
+    document.querySelector('#hud .journey-btn')!.addEventListener('click', open);
+    // the collected-item chips are part of the same log — tapping them opens it
+    document.querySelector('#hud .chips')!.addEventListener('click', (e) => { e.stopPropagation(); open(); });
     jp.addEventListener('click', (ev) => { if (ev.target === jp) jp.style.display = 'none'; });
     window.addEventListener('keydown', (ev) => {
       if (jp.style.display === 'flex' && (ev.code === 'Escape' || ev.code === 'KeyJ')) { jp.style.display = 'none'; return; }
@@ -856,7 +883,12 @@ export class Hud {
 
   setChips(emojis: string[]) {
     const wrap = document.querySelector('#hud .chips') as HTMLElement;
-    wrap.innerHTML = emojis.map((e) => `<div class="chip">${e}</div>`).join('');
+    const prev = this.chipKeys;
+    // a chip that wasn't here last render pops in; all chips open the log on tap
+    wrap.innerHTML = emojis.map((e, i) =>
+      `<div class="chip${(i >= prev.length || prev[i] !== e) ? ' new' : ''}" title="Open your adventure log (J)">${e}</div>`
+    ).join('');
+    this.chipKeys = emojis.slice();
   }
 
   // big serif chapter card: fades in, holds, fades out

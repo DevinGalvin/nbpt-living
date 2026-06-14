@@ -11,6 +11,7 @@ import { WATER_Y } from '../three/water';
 const PEDS = 22;
 const CARS = 10;
 const BOATS = 4;
+const GULLS = 7;
 
 const SHIRTS = ['#b03a32', '#3e5c84', '#54652c', '#c8a142', '#7c4a68', '#2e6e63', '#8a4a2e', '#5b5e66', '#a8625a', '#46698c'];
 const PANTS = ['#3b4d6b', '#54565c', '#6e5a40', '#444a54', '#7a7c84'];
@@ -223,28 +224,28 @@ class WanderBoat {
     const rng = mulberry32(seed);
     const hullHex = ['#f4f1e8', '#e9e6db', '#27425c', '#7e3434'][Math.floor(rng() * 4)];
     // smooth hull: a squashed capsule lying along +z (rounded bow and stern)
-    const hullGeo = new THREE.CapsuleGeometry(5.5, 19, 5, 12);
+    const hullGeo = new THREE.CapsuleGeometry(12, 44, 5, 12);
     hullGeo.rotateX(Math.PI / 2);
-    hullGeo.scale(1, 0.55, 1);
+    hullGeo.scale(1, 0.5, 1);
     const body = new THREE.Mesh(hullGeo, new THREE.MeshLambertMaterial({ color: hullHex }));
     body.castShadow = true;
-    body.position.y = 1.2;
-    const trim = rbox(8, 1.2, 23, 0.5, '#b9926a');
-    trim.position.y = 4.3;
+    body.position.y = 2.6;
+    const trim = rbox(18, 2.4, 54, 1, '#b9926a');
+    trim.position.y = 9;
     this.root.add(body, trim);
     if (rng() < 0.5) {
       // sloop under power, sails furled
-      const mast = cap(0.6, 28, '#ece8dc');
-      mast.position.y = 18.5;
-      const boom = rbox(1.4, 1.4, 14, 0.6, '#d8d2c2');
-      boom.position.set(0, 8, -5);
+      const mast = cap(1.3, 62, '#ece8dc');
+      mast.position.y = 40;
+      const boom = rbox(3, 3, 30, 1.2, '#d8d2c2');
+      boom.position.set(0, 17, -10);
       this.root.add(mast, boom);
     } else {
       // lobster-boat wheelhouse
-      const house = rbox(8, 8, 12, 1.6, '#f8f6ee');
-      house.position.set(0, 8, 4);
-      const roof = rbox(9, 1.3, 13, 0.6, '#4a4640');
-      roof.position.set(0, 12.5, 4);
+      const house = rbox(17, 16, 26, 3, '#f8f6ee');
+      house.position.set(0, 17, 8);
+      const roof = rbox(19, 2.8, 28, 1.2, '#4a4640');
+      roof.position.set(0, 26.5, 8);
       this.root.add(house, roof);
     }
     this.speed = 40 + rng() * 45;
@@ -269,11 +270,53 @@ class WanderBoat {
   }
 }
 
+// a seagull wheeling in a lazy circle over the harbor: gliding body, banking
+// into the turn, wings rocking in a slow flap
+class Gull {
+  root = new THREE.Group();
+  active = false;
+  cx = 0; cz = 0;
+  ang = 0;
+  radius = 120;
+  private spin = 0.5;
+  private alt = 150;
+  private phase = 0;
+  private wingL: THREE.Mesh;
+  private wingR: THREE.Mesh;
+
+  constructor(seed: number) {
+    const rng = mulberry32(seed);
+    const body = sph(2.4, '#f2f2ec', 0.9, 0.75, 2.0);
+    const head = sph(1.5, '#f6f6f0'); head.position.set(0, 0.5, 3.0);
+    const beak = box(0.7, 0.7, 1.8, '#e0a23a'); beak.position.set(0, 0.3, 4.4);
+    this.wingL = box(9, 0.5, 4.0, '#dfe2e3'); this.wingL.position.set(-5, 0.4, 0);
+    this.wingR = box(9, 0.5, 4.0, '#dfe2e3'); this.wingR.position.set(5, 0.4, 0);
+    this.root.add(body, head, beak, this.wingL, this.wingR);
+    this.spin = (rng() < 0.5 ? -1 : 1) * (0.28 + rng() * 0.3);
+    this.radius = 80 + rng() * 150;
+    this.alt = 95 + rng() * 150;
+    this.phase = rng() * 6;
+  }
+
+  glide(dt: number, t: number) {
+    this.ang += this.spin * dt;
+    const x = this.cx + Math.cos(this.ang) * this.radius;
+    const z = this.cz + Math.sin(this.ang) * this.radius;
+    this.root.position.set(x, this.alt + Math.sin(t * 0.0011 + this.phase) * 9, z);
+    this.root.rotation.y = this.ang + (this.spin > 0 ? Math.PI / 2 : -Math.PI / 2);
+    this.root.rotation.z = (this.spin > 0 ? 1 : -1) * 0.32; // bank into the turn
+    const flap = Math.sin(t * 0.006 + this.phase) * 0.5;
+    this.wingL.rotation.z = 0.2 + flap;
+    this.wingR.rotation.z = -0.2 - flap;
+  }
+}
+
 export class Life {
   private index: WorldIndex;
   private peds: Walker[] = [];
   private cars: TrafficCar[] = [];
   private boats: WanderBoat[] = [];
+  private gulls: Gull[] = [];
 
   constructor(scene: THREE.Scene, index: WorldIndex) {
     this.index = index;
@@ -294,6 +337,12 @@ export class Life {
       b.root.position.set(0, 0, 1e7);
       this.boats.push(b);
       scene.add(b.root);
+    }
+    for (let i = 0; i < GULLS; i++) {
+      const gl = new Gull(i * 197 + 13);
+      gl.root.position.set(0, 0, 1e7);
+      this.gulls.push(gl);
+      scene.add(gl.root);
     }
   }
 
@@ -328,7 +377,7 @@ export class Life {
       const d = 350 + rng() * 700;
       let ok = true;
       for (let s = 60; s <= d; s += 60) {
-        if (!this.clearWater(x0 + Math.sin(a) * s, z0 + Math.cos(a) * s, 30)) { ok = false; break; }
+        if (!this.clearWater(x0 + Math.sin(a) * s, z0 + Math.cos(a) * s, 34)) { ok = false; break; }
       }
       if (!ok) continue;
       b.setTarget(x0 + Math.sin(a) * d, z0 + Math.cos(a) * d);
@@ -556,8 +605,30 @@ export class Life {
         b.checkAcc = 0;
         const hx = b.root.position.x + Math.sin(b.root.rotation.y) * 90;
         const hz = b.root.position.z + Math.cos(b.root.rotation.y) * 90;
-        if (!this.clearWater(hx, hz, 26) && !this.boatTarget(b, rng)) b.active = false;
+        if (!this.clearWater(hx, hz, 32) && !this.boatTarget(b, rng)) b.active = false;
       }
+    }
+
+    // gulls wheel over the harbor & beaches — each circles a point whose loop
+    // touches water; recycle when the player wanders away
+    for (const gl of this.gulls) {
+      const dx = gl.cx - px, dz = gl.cz - pz;
+      if (!gl.active || dx * dx + dz * dz > 1700 * 1700) {
+        gl.active = false;
+        gl.root.position.set(0, 0, 1e7);
+        for (let tries = 0; tries < 10; tries++) {
+          const a = rng() * Math.PI * 2, d = 300 + rng() * 1000;
+          const cx = px + Math.cos(a) * d, cz = pz + Math.sin(a) * d;
+          const r = gl.radius;
+          if (this.index.isWaterAt(cx, cz) || this.index.isWaterAt(cx + r, cz) || this.index.isWaterAt(cx - r, cz)
+            || this.index.isWaterAt(cx, cz + r) || this.index.isWaterAt(cx, cz - r)) {
+            gl.cx = cx; gl.cz = cz; gl.ang = rng() * Math.PI * 2; gl.active = true;
+            break;
+          }
+        }
+        continue;
+      }
+      gl.glide(dt, t);
     }
   }
 
