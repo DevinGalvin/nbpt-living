@@ -9,11 +9,11 @@ import * as THREE from 'three';
 const C = (h: string) => new THREE.Color(h);
 
 // keyed palette colors
-const NIGHT_ZEN = C('#2c3c64'), NIGHT_HOR = C('#5a6e96');
+const NIGHT_ZEN = C('#243354'), NIGHT_HOR = C('#4d5f86');
 const DAY_ZEN = C('#5aa6e6'), DAY_HOR = C('#d2e7f3');
 const DUSK_ZEN = C('#3b3a66'), DUSK_HOR = C('#f0935a');
 const DAY_SUN = C('#fff3da'), DUSK_SUN = C('#ff9a4e');
-const NIGHT_HEMI_SKY = C('#5a6ca0'), NIGHT_HEMI_GND = C('#41495a');
+const NIGHT_HEMI_SKY = C('#4e5e8e'), NIGHT_HEMI_GND = C('#3a4150');
 const DAY_HEMI_SKY = C('#dceeff'), DAY_HEMI_GND = C('#8a9a6c');
 const OVERCAST = C('#aab0b6');
 
@@ -179,8 +179,8 @@ export class Sky {
     const zen = NIGHT_ZEN.clone().lerp(DAY_ZEN, day).lerp(DUSK_ZEN, tw * 0.5);
     const hor = NIGHT_HOR.clone().lerp(DAY_HOR, day).lerp(DUSK_HOR, tw * 0.85);
     s.sunColor.copy(DUSK_SUN).lerp(DAY_SUN, day);
-    let sunI = 0.9 + day * 0.75;    // strong moonlight floor at night
-    let hemiI = 0.85 + day * 0.08;  // near-daylight ambient at night so it's plainly visible
+    let sunI = 0.74 + day * 0.85;   // moonlight floor at night
+    let hemiI = 0.72 + day * 0.14;  // moonlit ambient — visible but a touch moodier
     s.hemiSky.copy(NIGHT_HEMI_SKY).lerp(DAY_HEMI_SKY, day);
     s.hemiGround.copy(NIGHT_HEMI_GND).lerp(DAY_HEMI_GND, day);
     if (wet > 0.01) {
