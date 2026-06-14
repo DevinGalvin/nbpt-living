@@ -9,11 +9,11 @@ import * as THREE from 'three';
 const C = (h: string) => new THREE.Color(h);
 
 // keyed palette colors
-const NIGHT_ZEN = C('#1a2545'), NIGHT_HOR = C('#3b4a68');
+const NIGHT_ZEN = C('#2c3c64'), NIGHT_HOR = C('#5a6e96');
 const DAY_ZEN = C('#5aa6e6'), DAY_HOR = C('#d2e7f3');
 const DUSK_ZEN = C('#3b3a66'), DUSK_HOR = C('#f0935a');
 const DAY_SUN = C('#fff3da'), DUSK_SUN = C('#ff9a4e');
-const NIGHT_HEMI_SKY = C('#3e4c74'), NIGHT_HEMI_GND = C('#2c333f');
+const NIGHT_HEMI_SKY = C('#5a6ca0'), NIGHT_HEMI_GND = C('#41495a');
 const DAY_HEMI_SKY = C('#dceeff'), DAY_HEMI_GND = C('#8a9a6c');
 const OVERCAST = C('#aab0b6');
 
@@ -179,8 +179,8 @@ export class Sky {
     const zen = NIGHT_ZEN.clone().lerp(DAY_ZEN, day).lerp(DUSK_ZEN, tw * 0.5);
     const hor = NIGHT_HOR.clone().lerp(DAY_HOR, day).lerp(DUSK_HOR, tw * 0.85);
     s.sunColor.copy(DUSK_SUN).lerp(DAY_SUN, day);
-    let sunI = 0.55 + day * 1.0;    // strong moonlight floor at night
-    let hemiI = 0.62 + day * 0.22;  // bright moonlit ambient so night stays easy to explore
+    let sunI = 0.9 + day * 0.75;    // strong moonlight floor at night
+    let hemiI = 0.85 + day * 0.08;  // near-daylight ambient at night so it's plainly visible
     s.hemiSky.copy(NIGHT_HEMI_SKY).lerp(DAY_HEMI_SKY, day);
     s.hemiGround.copy(NIGHT_HEMI_GND).lerp(DAY_HEMI_GND, day);
     if (wet > 0.01) {
@@ -199,7 +199,12 @@ export class Sky {
     // sun direction: an east→west arc that's overhead at noon
     const az = (this.tod - 0.5) * Math.PI * 2;
     const horiz = Math.sqrt(Math.max(0.0001, 1 - Math.min(1, elev * elev)));
-    s.sunDir.set(Math.sin(az) * horiz, Math.max(0.06, elev), Math.cos(az) * horiz).normalize();
+    // at night the moon rides high overhead so it actually lights surfaces
+    // instead of grazing the horizon; by day the sun follows its true arc. Ramp
+    // the lift in over the twilight band so shadows don't snap at dusk.
+    const nightLift = Math.max(0, Math.min(1, -elev / 0.2));
+    const lightY = Math.max(0.06, elev) * (1 - nightLift) + 0.5 * nightLift;
+    s.sunDir.set(Math.sin(az) * horiz, lightY, Math.cos(az) * horiz).normalize();
 
     // ---- recolor the dome (top = zenith, bottom = horizon) ----
     const arr = this.domeCol.array as Float32Array;
