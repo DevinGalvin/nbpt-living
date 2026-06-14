@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { WorldIndex } from '../world/index';
 import { Hud } from './hud';
 import { GameAudio } from './audio';
+import { ITEMS, EMOJI_TO_ID, type BagItem, type Mission } from './items';
 
 // Chapter 1 — "Overdue" (the player-facing first chapter; its save key is the
 // legacy "nbpt-ch0-step"). Gram's errand: get donuts + return the overdue book,
@@ -533,9 +534,6 @@ export class QuestRunner {
     let target: { x: number; z: number } | null = null;
     let bangY = 48;
     if (this.step >= 6) {
-      const chips = ['\u{1FAAA}'];
-      if (ch1 >= 2) chips.push('\u{1FA94}');
-      if (ch1 >= 4) chips.push('\u{1F9E9}');
       if (ch1 < 6) {
         this.hud.setObjective('The grate is open\u2026 go down');
         target = { x: GRATE.x, z: GRATE.z };
@@ -545,7 +543,6 @@ export class QuestRunner {
         target = this.editorPos;
       } else if (this.ch2 === 1) {
         this.hud.setObjective('Deliver the Daily News \u2014 ' + this.delivered.size + '/' + this.stops.length);
-        chips.push('\u{1F4F0}');
         let bd = Infinity;
         for (let i = 0; i < this.stops.length; i++) {
           if (this.delivered.has(i)) continue;
@@ -554,7 +551,6 @@ export class QuestRunner {
         }
       } else if (this.ch2 === 2) {
         this.hud.setObjective('Back to the Daily News');
-        chips.push('\u{1F4F0}');
         target = this.editorPos;
       } else if (this.ch2 === 3) {
         this.hud.setObjective('Back inside the Daily News \u2014 search the morgue');
@@ -577,18 +573,15 @@ export class QuestRunner {
       } else {
         this.hud.setObjective(null);
       }
-      if (localStorage.getItem('nbpt-bike') === '1') chips.push('\u{1F6B2}');
-      if (this.ch2 >= 4) chips.push('\u{1F9E9}');
-      if (this.ch3 >= 3) chips.push('\u{1F9E9}');
-      if (this.ch4 >= 3) chips.push('\u{1F9E9}');
-      this.hud.setChips(chips);
     } else {
       this.hud.setObjective(STEP_OBJECTIVE[this.step]);
-      this.hud.setChips(STEP_CHIPS[this.step]);
       const it = this.nearestNonRouteTarget();
       target = it;
       if (it && (this.step === 4 || this.step === 5)) bangY = 26;
     }
+    // feed the two HUD systems from this one sync point: the backpack + missions log
+    this.hud.setBag(this.buildBag());
+    this.hud.setMissions(this.buildMissions());
     // the rowboat waits on the bank during Chapter 4 (hidden once you're aboard or done)
     this.ensureRowboat();
     const showBoat = this.step >= 6 && this.ch2 >= 4 && this.ch3 < 4 && !this.hud.boating;
@@ -619,6 +612,90 @@ export class QuestRunner {
     }
     // the journey panel's direction hint points at the live objective beacon
     this.hud.guide = target;
+  }
+
+  // how many of the four smugglers'-map corners you've found (one per milestone) —
+  // a single counted set, not four copies of one chip
+  private cornerCount(): number {
+    const ch1 = parseInt(localStorage.getItem('nbpt-ch1-step') || '0', 10) || 0;
+    let n = 0;
+    if (ch1 >= 4) n++;        // Ch2 tunnel — first corner
+    if (this.ch2 >= 4) n++;   // Ch3 morgue — second
+    if (this.ch3 >= 3) n++;   // Ch4 den — third
+    if (this.ch4 >= 3) n++;   // Ch5 cellar — fourth
+    return n;
+  }
+
+  // what's in the backpack right now: transient carry items, kept treasures, and
+  // the map-corner collection (the Hud adds the Town-stories collection itself)
+  private buildBag(): BagItem[] {
+    const out: BagItem[] = [];
+    const add = (id: string, extra?: Partial<BagItem>) => out.push({ ...ITEMS[id], ...extra } as BagItem);
+    const ch1 = parseInt(localStorage.getItem('nbpt-ch1-step') || '0', 10) || 0;
+    if (this.step >= 6) {
+      if (this.ch2 === 1 || this.ch2 === 2) add('papers');     // carrying the route's papers
+      add('card');                                             // treasures you keep forever
+      if (ch1 >= 2) add('lantern');
+      if (localStorage.getItem('nbpt-bike') === '1') add('bike');
+      const cc = this.cornerCount();
+      if (cc > 0) add('mapcorners', { count: cc, total: 4 });
+    } else {
+      for (const e of STEP_CHIPS[this.step]) {                 // pre-spine: book/donuts/card
+        const id = EMOJI_TO_ID[e];
+        if (id) add(id);
+      }
+    }
+    return out;
+  }
+
+  // the story spine as mission cards (grouped under "Story"); adding a future side
+  // quest = pushing one more object here, no UI changes. The Hud appends collections.
+  private buildMissions(): Mission[] {
+    const s0 = this.step;
+    const ch1 = parseInt(localStorage.getItem('nbpt-ch1-step') || '0', 10) || 0;
+    const s2 = this.ch2, s3 = this.ch3, s4 = this.ch4;
+    // which chapter currently owns the objective beacon (mirrors apply()'s cascade)
+    const active = s0 < 6 ? 1 : ch1 < 6 ? 2 : s2 < 4 ? 3 : s3 < 4 ? 4 : s4 < 4 ? 5 : 0;
+    return [
+      { id: 'ch1', group: 'story', kicker: 'Chapter 1', title: 'Overdue',
+        state: s0 >= 6 ? 'done' : 'active', active: active === 1, replay: 0, reward: 'Library card',
+        steps: [
+          { label: 'Find Gram in Market Square', done: s0 > 0 },
+          { label: 'Get the donuts on Inn Street', done: s0 > 1 },
+          { label: 'Return Gram’s book to the library', done: s0 > 2 },
+          { label: 'Bring Gram her donuts', done: s0 > 3 },
+          { label: 'Follow Clipper to what he found', done: s0 >= 6 }
+        ] },
+      { id: 'ch2', group: 'story', kicker: 'Chapter 2', title: 'The Door Under Downtown',
+        state: ch1 >= 6 ? 'done' : s0 >= 6 ? 'active' : 'locked', active: active === 2, replay: 1, reward: 'Lantern',
+        steps: [
+          { label: 'Go down through the grate', done: ch1 > 0 },
+          { label: 'Light the way and find the smuggler’s mark', done: ch1 >= 2 },
+          { label: 'Find the torn map corner', done: ch1 >= 4 }
+        ] },
+      { id: 'ch3', group: 'story', kicker: 'Chapter 3', title: 'The Daily News',
+        state: s2 >= 4 ? 'done' : ch1 >= 6 ? 'active' : 'locked', active: active === 3, replay: 2, reward: 'Bicycle',
+        steps: [
+          { label: 'Talk to the Editor on Liberty Street', done: s2 >= 1 },
+          { label: 'Deliver the papers', done: s2 >= 2, count: this.delivered.size, total: this.stops.length },
+          { label: 'Search the morgue', done: s2 >= 4 }
+        ] },
+      { id: 'ch4', group: 'story', kicker: 'Chapter 4', title: 'Low Water',
+        state: s3 >= 4 ? 'done' : s2 >= 4 ? 'active' : 'locked', active: active === 4, replay: 3, reward: 'Third map corner',
+        steps: [
+          { label: 'Row out to the waterline door', done: s3 >= 1 },
+          { label: 'Read the Wharf Rats’ ledger', done: s3 >= 2 },
+          { label: 'Find the third map corner', done: s3 >= 3 },
+          { label: 'Ring the den’s bell', done: s3 >= 4 }
+        ] },
+      { id: 'ch5', group: 'story', kicker: 'Chapter 5', title: 'The Custom House Star',
+        state: s4 >= 4 ? 'done' : s3 >= 4 ? 'active' : 'locked', active: active === 5, replay: 4,
+        steps: [
+          { label: 'Talk to the Custom House keeper', done: s4 >= 1 },
+          { label: 'Ring the harbor home', done: s4 >= 2, count: this.bells.size, total: 3 },
+          { label: 'Open the room with no door', done: s4 >= 4 }
+        ] }
+    ];
   }
 
   // ch0's own step targets (pre-spine-completion)

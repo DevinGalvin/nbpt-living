@@ -237,8 +237,11 @@ export class Game {
       world.landmarks.map((l) => ({ id: l.id, name: l.name, sub: l.sub })),
       (id) => this.hud.fadeThrough(() => this.travelTo(id))
     );
-    // the journey panel (📖 / J): quest spine + history-card album
-    this.hud.initJourney(SITES.map((s) => ({ id: s.id, title: s.title, year: s.year, body: s.body, stamp: s.stamp })));
+    // the missions log (🧭 / J) + the backpack (🎒 / I) — both share the history
+    // markers (for the Town-stories collection + its album)
+    const histMarkers = SITES.map((s) => ({ id: s.id, title: s.title, year: s.year, body: s.body, stamp: s.stamp }));
+    this.hud.initMissions(histMarkers);
+    this.hud.initBag(histMarkers);
     // searchable places: landmarks, businesses, named areas/buildings, streets
     for (const lm of world.landmarks) this.places.push({ label: lm.name, sub: lm.sub, x: lm.x, y: lm.y });
     for (const p of world.pois) this.places.push({ label: p.n, sub: p.k.replace(/_/g, ' '), x: p.x, y: p.y });

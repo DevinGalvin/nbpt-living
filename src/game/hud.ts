@@ -1,4 +1,5 @@
 import type { Landmark, WorldData } from '../world/types';
+import type { BagItem, Mission, MissionGroup } from './items';
 import { SEASON } from '../world/style';
 
 // DOM HUD: street pill, landmark banner, help, attribution, virtual joystick.
@@ -83,6 +84,7 @@ const css = `
 /* the objective pill steps aside whenever a panel, card, or landmark banner is up */
 #hud:has(.travel-panel.open) .objective,
 #hud:has(.journey-panel.show) .objective,
+#hud:has(.bag-panel.show) .objective,
 #hud:has(.hcard.open) .objective,
 #hud:has(.banner.show) .objective { display: none !important; }
 #hud .travel-card h2 {
@@ -205,15 +207,116 @@ const css = `
 #hud .journey-panel.show { pointer-events: auto; opacity: 1; }
 #hud .journey-card { transform: translateY(18px) scale(0.95); transition: transform 0.26s cubic-bezier(0.2, 0.85, 0.3, 1.12); }
 #hud .journey-panel.show .journey-card { transform: translateY(0) scale(1); }
-/* the items you're carrying, listed inside the panel */
-#hud .j-items { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; }
-#hud .j-items .jitem {
+/* ---------- Backpack 🎒: a button that springs in on your first item ---------- */
+#hud .bag-btn {
+  position: absolute; top: 170px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(20, 28, 38, 0.78); border: 1.5px solid rgba(216,185,74,0.6);
+  display: none; align-items: center; justify-content: center; font-size: 22px;
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+  z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+}
+#hud .bag-btn.show { display: flex; }
+#hud .bag-btn:hover { border-color: #e8c44f; }
+#hud .bag-badge {
+  position: absolute; top: -6px; right: -8px; background: #e8c44f; color: #1c2430;
+  font: 800 8.5px system-ui, sans-serif; letter-spacing: 0.5px; padding: 1px 4px;
+  border-radius: 7px; display: none; pointer-events: none;
+}
+#hud .bag-btn.has-new .bag-badge { display: block; }
+@keyframes nbpt-bag-pop {
+  0%   { transform: scale(0) rotate(-25deg); opacity: 0; }
+  55%  { transform: scale(1.35) rotate(8deg); opacity: 1; }
+  72%  { transform: scale(0.9) rotate(-4deg); }
+  100% { transform: scale(1) rotate(0); opacity: 1; }
+}
+@keyframes nbpt-bag-glow {
+  0%   { box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 0 0 0 rgba(232,196,79,0.85); }
+  60%  { box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 0 16px 11px rgba(232,196,79,0); }
+  100% { box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 0 0 0 rgba(232,196,79,0); }
+}
+#hud .bag-btn.pop { animation: nbpt-bag-pop 0.7s cubic-bezier(0.2,0.85,0.3,1.2) both, nbpt-bag-glow 0.95s ease-out both; }
+@keyframes nbpt-bag-wiggle {
+  0%,100% { transform: rotate(0); }
+  20% { transform: rotate(-12deg) scale(1.08); }
+  40% { transform: rotate(10deg) scale(1.08); }
+  60% { transform: rotate(-7deg); }
+  80% { transform: rotate(5deg); }
+}
+#hud .bag-btn.wiggle { animation: nbpt-bag-wiggle 0.55s ease-in-out; }
+#hud .bag-tip {
+  position: absolute; top: 178px; left: 66px; background: rgba(24,32,42,0.94);
+  border: 1px solid rgba(216,185,74,0.55); color: #f3f1e8; font-size: 12.5px; font-weight: 600;
+  padding: 7px 12px; border-radius: 14px; white-space: nowrap; pointer-events: none;
+  opacity: 0; transform: translateX(-8px); z-index: 12;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+#hud .bag-tip b { color: #f0d27a; }
+#hud .bag-tip.show { opacity: 1; transform: translateX(0); }
+/* the bag panel reuses the journey-panel modal pattern (full-screen on mobile) */
+#hud .bag-panel {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(12, 17, 24, 0.72); z-index: 60; pointer-events: none; opacity: 0;
+  transition: opacity 0.2s ease;
+}
+#hud .bag-panel.show { pointer-events: auto; opacity: 1; }
+#hud .bag-card {
+  position: relative; width: min(420px, 90vw); max-height: 82vh; overflow: auto;
+  background: #141b24; border-radius: 14px; border-bottom: 3px solid #d8b94a;
+  padding: 18px 20px 16px; color: #f3f1e8;
+  transform: translateY(18px) scale(0.95); transition: transform 0.26s cubic-bezier(0.2, 0.85, 0.3, 1.12);
+}
+#hud .bag-panel.show .bag-card { transform: translateY(0) scale(1); }
+#hud .bag-head { font-size: 14px; letter-spacing: 3px; color: #e8c44f; font-weight: 800; margin-bottom: 4px; }
+#hud .bag-empty { font-size: 12.5px; color: #8b8678; line-height: 1.5; margin-top: 10px; }
+#hud .bag-sec.empty { display: none; }
+#hud .bag-sectitle { font-size: 11.5px; letter-spacing: 2px; color: #e8c44f; font-weight: 800; margin: 13px 0 7px; }
+#hud .bag-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+#hud .bag-grid .jitem {
   flex: 1 1 46%; min-width: 132px; display: flex; align-items: center; gap: 9px;
   border-radius: 9px; padding: 7px 10px; font-size: 11.5px; line-height: 1.3;
   border: 1px solid rgba(216,185,74,0.4); background: rgba(216,185,74,0.08); color: #f3f1e8;
 }
-#hud .j-items .jitem .ic { font-size: 19px; flex: none; }
-#hud .j-items .jitem b { color: #f0d27a; }
+#hud .bag-grid .jitem .ic { font-size: 19px; flex: none; }
+#hud .bag-grid .jitem .tx { flex: 1; }
+#hud .bag-grid .jitem b { color: #f0d27a; }
+#hud .bag-grid .jitem .cnt {
+  flex: none; font: 800 12px system-ui, sans-serif; color: #f0d27a;
+  background: rgba(216,185,74,0.16); border-radius: 8px; padding: 1px 8px;
+}
+#hud .bag-grid .jitem.tappable { cursor: pointer; }
+#hud .bag-grid .jitem.tappable:hover { background: rgba(216,185,74,0.18); }
+#hud .bag-grid .jitem.fresh { animation: nbpt-item-flash 1.5s ease-out; }
+@keyframes nbpt-item-flash {
+  0%, 100% { border-color: rgba(216,185,74,0.4); background: rgba(216,185,74,0.08); }
+  25% { border-color: #ffd86a; background: rgba(216,185,74,0.22); }
+}
+/* ---------- Missions cards: grouped, tappable, with a sub-step checklist ---------- */
+#hud .m-group { font-size: 11.5px; letter-spacing: 2px; color: #e8c44f; font-weight: 800; margin: 15px 0 7px; }
+#hud .m-card {
+  border: 1px solid rgba(216,185,74,0.28); background: rgba(216,185,74,0.06);
+  border-radius: 10px; padding: 8px 11px; margin: 0 0 6px;
+}
+#hud .m-card.locked { opacity: 0.5; border-color: rgba(243,241,232,0.14); background: rgba(243,241,232,0.04); }
+#hud .m-card.active { border-color: #d8b94a; background: rgba(216,185,74,0.13); }
+#hud .m-card.done { border-color: rgba(158,201,138,0.4); }
+#hud .m-row { display: flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; }
+#hud .m-card.locked .m-row { cursor: default; }
+#hud .m-dot { font-size: 12px; flex: none; }
+#hud .m-title { color: #f6f3e8; flex: 1; }
+#hud .m-card.locked .m-title { color: #787e8a; }
+#hud .m-card.done .m-title { color: #c4ccbb; }
+#hud .m-prog { font: 800 12px system-ui, sans-serif; color: #f0d27a; flex: none; }
+#hud .m-rep { color: #8fa8bc; font-size: 11px; opacity: 0.7; cursor: pointer; flex: none; }
+#hud .m-caret { color: #8fa8bc; font-size: 10px; flex: none; transition: transform 0.18s ease; }
+#hud .m-card.expanded .m-caret { transform: rotate(90deg); }
+#hud .m-card.locked .m-caret, #hud .m-card.locked .m-rep { display: none; }
+#hud .m-steps { display: none; margin: 8px 0 2px 20px; }
+#hud .m-card.expanded .m-steps { display: block; }
+#hud .m-step { font-size: 12.5px; line-height: 1.6; color: #9aa1ad; }
+#hud .m-step.done { color: #c4ccbb; }
+#hud .m-step b { color: #f0d27a; }
+#hud .m-reward { font-size: 11.5px; color: #c8bd96; margin: 6px 0 0 20px; }
+#hud .m-reward b { color: #f0d27a; }
 #hud .chapter {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; padding: 0 22px; pointer-events: none;
@@ -266,17 +369,6 @@ const css = `
 #hud .welcome-card .wstart:hover { background: #f0d27a; }
 `;
 
-// what each carried-item chip is — shown when you tap it
-const ITEM_TIPS: Record<string, string> = {
-  '\u{1F4D5}': '<b>Overdue library book</b><br>Three weeks late — Gram wants it returned.',
-  '\u{1F369}': '<b>A dozen angry donuts</b><br>Gram’s order from the Angry Donut.',
-  '\u{1FAAA}': '<b>Your library card</b><br>Your very own, finally.',
-  '\u{1FA94}': '<b>The smugglers’ lantern</b><br>Found in the tunnel under downtown.',
-  '\u{1F9E9}': '<b>A torn map corner</b><br>Part of an old hand-drawn map.',
-  '\u{1F4F0}': '<b>The Daily News</b><br>Papers to deliver on your route.',
-  '\u{1F6B2}': '<b>Your bicycle</b><br>Press B to hop on and ride.'
-};
-
 export class Hud {
   joyActive = false;
   joyX = 0;
@@ -299,8 +391,20 @@ export class Hud {
   private dlgCool = 0;
   private talkCb: (() => void) | null = null;
   private hcardOpen = false;
-  private openJourney: (() => void) | null = null;   // set by initJourney; chips tap it
-  private chipKeys: string[] = [];                    // last-rendered chips (for pop-in)
+
+  // ---- Backpack (🎒) state — all session-only, never persisted ----
+  private bagItems: BagItem[] = [];                   // last set by the quest (carry/treasure/collection)
+  private bagMounted = false;                         // the constructor's first apply() is a silent mount
+  private bagEverShown = false;                       // has the 🎒 button been revealed yet?
+  private bagSeen = new Set<string>();                // item ids the player has already had
+  private bagNewIds = new Set<string>();              // ids to badge "NEW" / flash until the bag is opened
+  private bagTipShown = false;                        // one-time "this is your backpack" toast
+  private bagPanelOpen = false;
+  // ---- Missions (🧭) state ----
+  private missions: Mission[] = [];
+  // history markers (for the Town-stories collection + its album), shared by bag + missions
+  private histMarkers: { id: string; title: string; year: string; body: string; stamp?: string }[] = [];
+  private albumPanel: HTMLElement | null = null;
 
   private pill: HTMLElement;
   private banner: HTMLElement;
@@ -330,7 +434,9 @@ export class Hud {
       <div class="stick-base"></div><div class="stick-knob"></div>
       <div class="compass"><div class="needle">N</div></div>
       <div class="travel-btn" title="Travel (M)">🗺</div>
-      <div class="journey-btn" title="Adventure log (J)">🧭</div>
+      <div class="journey-btn" title="Missions (J)">🧭</div>
+      <div class="bag-btn" title="Backpack (I)">🎒<span class="bag-badge">NEW</span></div>
+      <div class="bag-tip"></div>
       <div class="sound-btn" title="Sound">🔊</div>
       <div class="run-btn" title="Run">🏃</div>
       <div class="bike-btn" title="Bike (B)">🚲</div>
@@ -397,7 +503,7 @@ export class Hud {
 
   private onDown(e: PointerEvent) {
     if (e.pointerType !== 'touch') return;
-    if ((e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .sound-btn, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard')) return; // UI, not joystick
+    if ((e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .sound-btn, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard')) return; // UI, not joystick
     this.pointers.add(e.pointerId);
     if (this.joyId === -1) {
       this.joyId = e.pointerId;
@@ -524,31 +630,25 @@ export class Hud {
     }
   }
 
-  // ---------- journey panel (📖 / J): the quest spine, a direction hint to the
-  // active beacon, and an album of the history cards you've found ----------
+  // ---------- Missions panel (🧭 / J): the active objective + a direction hint to
+  // the beacon, then grouped, tappable mission cards with sub-step checklists.
+  // The mission data is built by the QuestRunner (setMissions) — this only renders. ----------
 
-  initJourney(markers: { id: string; title: string; year: string; body: string; stamp?: string }[]) {
+  initMissions(markers: { id: string; title: string; year: string; body: string; stamp?: string }[]) {
+    this.histMarkers = markers;
     const jp = document.createElement('div');
-    jp.className = 'journey-panel';   // styling + show/hide animation live in the css block
+    jp.className = 'journey-panel';   // reuse the modal styling + show/hide animation
     const jc = document.createElement('div');
     jc.className = 'journey-card';
     jc.style.cssText = 'position:relative;width:min(420px,90vw);max-height:82vh;overflow:auto;background:#141b24;border-radius:14px;border-bottom:3px solid #d8b94a;padding:18px 20px 14px;color:#f3f1e8;';
-    jc.innerHTML = '<div class="modal-x">✕</div><div style="font-size:14px;letter-spacing:3px;color:#e8c44f;font-weight:800;margin-bottom:10px;">YOUR JOURNEY</div>'
+    jc.innerHTML = '<div class="modal-x">✕</div><div style="font-size:14px;letter-spacing:3px;color:#e8c44f;font-weight:800;margin-bottom:10px;">MISSIONS</div>'
       + '<div class="j-obj" style="font-size:14.5px;line-height:1.5;margin-bottom:4px;"></div>'
-      + '<div class="j-dir" style="font-size:12.5px;color:#9fb8cc;margin-bottom:14px;"></div>'
-      + '<div class="j-ch" style="font-size:13.5px;line-height:1.5;color:#d9d2c0;margin-bottom:10px;"></div>'
-      + '<div class="j-itemhdr" style="font-size:12px;letter-spacing:2px;color:#e8c44f;font-weight:800;margin:10px 0 8px;">WHAT YOU’RE CARRYING</div>'
-      + '<div class="j-items"></div>'
-      + '<div style="font-size:12px;letter-spacing:2px;color:#e8c44f;font-weight:800;margin:14px 0 8px;">TOWN HISTORY</div>'
-      + '<div class="j-album" style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;"></div>';
-    // the journey panel keeps its own history-read tally (the travel card has one too)
-    const hl = document.createElement('div');
-    hl.style.cssText = 'font-size:12.5px;color:#c8bd96;margin:4px 0 14px;';
-    jc.appendChild(hl);
-    // restart: a two-tap arm so a stray click can't wipe a save
+      + '<div class="j-dir" style="font-size:12.5px;color:#9fb8cc;margin-bottom:6px;"></div>'
+      + '<div class="m-groups"></div>';
+    // restart: a two-tap arm so a stray click can't wipe a save (kept at the bottom)
     const rb = document.createElement('div');
     rb.textContent = '↺ Restart journey from the beginning';
-    rb.style.cssText = 'text-align:center;padding:10px;border-radius:9px;border:1px solid rgba(216,90,74,0.5);color:#e8a89a;font-size:12.5px;letter-spacing:1px;cursor:pointer;user-select:none;-webkit-user-select:none;';
+    rb.style.cssText = 'text-align:center;margin-top:16px;padding:10px;border-radius:9px;border:1px solid rgba(216,90,74,0.5);color:#e8a89a;font-size:12.5px;letter-spacing:1px;cursor:pointer;user-select:none;-webkit-user-select:none;';
     rb.addEventListener('click', () => {
       if (rb.dataset.arm !== '1') {
         rb.dataset.arm = '1';
@@ -566,13 +666,10 @@ export class Hud {
     document.querySelector('#hud')!.appendChild(jp);
     (jc.querySelector('.modal-x') as HTMLElement).addEventListener('click', (e) => { e.stopPropagation(); jp.classList.remove('show'); });
 
-    const num = (k: string) => parseInt(localStorage.getItem(k) || '0', 10) || 0;
-
     const jt = () => {
-      const s0 = num('nbpt-ch0-step'), s1 = num('nbpt-ch1-step'), s2 = num('nbpt-ch2-step'), s3 = num('nbpt-ch3-step'), s4 = num('nbpt-ch4-step');
       const objTxt = (document.querySelector('#hud .objective .otxt') as HTMLElement | null)?.textContent || '';
       (jc.querySelector('.j-obj') as HTMLElement).innerHTML = '\u{1F9ED} <b style="color:#f6f3e8">' + (objTxt || 'Walk out and explore!') + '</b>';
-      // short direction hint to the beam of light
+      // short direction hint to the beam of light (unchanged)
       let dl = '';
       if (this.guide && this.pos) {
         const dx = this.guide.x - this.pos.x, dz = this.guide.z - this.pos.y;
@@ -581,91 +678,300 @@ export class Hud {
         dl = dm < 30 ? '\u{1F4CD} You’re right there — follow the beam!' : '\u{1F4CD} ' + dm + ' m ' + oc + ' — follow the beam of light';
       }
       (jc.querySelector('.j-dir') as HTMLElement).textContent = dl;
-      // chapters: a coloured dot + the name — nothing to read on each line
-      const chaps = [
-        { n: 'Overdue', done: s0 >= 6, prog: s0 > 0 },
-        { n: 'The Door Under Downtown', done: s1 >= 6, prog: s1 > 0 },
-        { n: 'The Daily News', done: s2 >= 4, prog: s2 > 0 },
-        { n: 'Low Water', done: s3 >= 4, prog: s2 >= 4 || s3 > 0 },
-        { n: 'The Custom House Star', done: s4 >= 4, prog: s3 >= 4 || s4 > 0 }
-      ];
-      (jc.querySelector('.j-ch') as HTMLElement).innerHTML = chaps.map((c, i) => {
-        const dot = c.done ? '<span style="color:#9ec98a">●</span>' : c.prog ? '<span style="color:#f0d27a">●</span>' : '<span style="color:#565c68">○</span>';
-        const col = c.done ? '#c4ccbb' : c.prog ? '#f6f3e8' : '#787e8a';
-        const rep = (c.done || c.prog) ? ' <span data-c="' + i + '" style="color:#8fa8bc;cursor:pointer;font-size:11px;opacity:0.65;">↻</span>' : '';
-        return '<div style="margin:2px 0;">' + dot + ' <span style="color:' + col + '">Chapter ' + (i + 1) + ' · ' + c.n + '</span>' + rep + '</div>';
-      }).join('');
-      (jc.querySelector('.j-ch') as HTMLElement).onclick = (ev) => {
-        const tg = ev.target as HTMLElement;
-        const cN = tg && tg.dataset ? tg.dataset.c : null;
-        if (cN == null) return;
-        ev.stopPropagation();
-        if (tg.dataset.arm !== '1') {
-          tg.dataset.arm = '1';
-          tg.textContent = '↻ replay?';
-          setTimeout(() => { tg.dataset.arm = '0'; tg.textContent = '↻'; }, 3000);
-          return;
-        }
-        const cascade = [
-          ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells'],
-          ['nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells'],
-          ['nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells'],
-          ['nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells'],
-          ['nbpt-ch4-step', 'nbpt-ch4-bells']
-        ][+cN];
-        for (const kk of cascade) localStorage.removeItem(kk);
-        location.reload();
-      };
-      // what you're carrying — the items live here now (off the HUD)
-      const items = this.chipKeys;
-      const ihdr = jc.querySelector('.j-itemhdr') as HTMLElement;
-      const ibox = jc.querySelector('.j-items') as HTMLElement;
-      ihdr.style.display = items.length ? '' : 'none';
-      ibox.style.display = items.length ? 'flex' : 'none';
-      ibox.innerHTML = items.map((e) =>
-        '<div class="jitem"><span class="ic">' + e + '</span><span>' + (ITEM_TIPS[e] || 'An item you’re carrying') + '</span></div>'
-      ).join('');
-
-      // town history: a friendly count + only the cards you've actually found
-      // (no overwhelming wall of "???" boxes)
-      const al = jc.querySelector('.j-album') as HTMLElement;
-      al.innerHTML = '';
-      let rd: Set<string>;
-      try { rd = new Set(JSON.parse(localStorage.getItem('nbpt-history-read') || '[]')); } catch { rd = new Set(); }
-      hl.innerHTML = rd.size >= markers.length
-        ? '\u{1F3DB} <b style="color:#ffd86a">You found all ' + markers.length + ' — Town Historian!</b>'
-        : '\u{1F4DC} Found <b style="color:#e8c44f">' + rd.size + '</b> of ' + markers.length + ' — explore to find more';
-      const found = markers.filter((mk) => rd.has(mk.id));
-      if (!found.length) {
-        al.innerHTML = '<div style="font-size:12.5px;color:#8b8678;line-height:1.45;">Look for the glowing ★ markers around town to uncover its stories.</div>';
-      } else {
-        for (const mk of found) {
-          const cd = document.createElement('div');
-          cd.style.cssText = 'flex:1 1 46%;min-width:128px;border-radius:9px;padding:8px 11px;font-size:12px;line-height:1.35;cursor:pointer;border:1px solid rgba(216,185,74,0.55);color:#f3f1e8;background:rgba(216,185,74,0.10);';
-          cd.innerHTML = '<div style="font-weight:700;">' + mk.title + '</div><div style="color:#c8bd96;">' + mk.year + '</div>';
-          cd.addEventListener('click', () => {
-            jp.classList.remove('show');
-            this.historyCard(mk.title, mk.year + ' · Newburyport', mk.body, mk.stamp);
-          });
-          al.appendChild(cd);
-        }
-      }
+      this.renderMissions();
     };
 
-    // tapping the compass shows/hides the journey panel (with the slide/fade
-    // animation); the panel now holds the carried items, chapters, and history
+    // tapping the compass shows/hides the missions panel (with the slide/fade animation)
     const open = () => {
       if (jp.classList.contains('show')) { jp.classList.remove('show'); return; }
       jt();
       jp.classList.add('show');
     };
-    this.openJourney = open;
     document.querySelector('#hud .journey-btn')!.addEventListener('click', open);
     jp.addEventListener('click', (ev) => { if (ev.target === jp) jp.classList.remove('show'); });
     window.addEventListener('keydown', (ev) => {
       if (ev.code === 'Escape' && jp.classList.contains('show')) { jp.classList.remove('show'); return; }
       if (ev.code === 'KeyJ' && (ev.target as HTMLElement)?.tagName !== 'INPUT') open();
     });
+  }
+
+  // the quest rebuilds the mission list every apply(); re-render if we're open
+  setMissions(missions: Mission[]) {
+    this.missions = missions;
+    if (document.querySelector('#hud .journey-panel.show:not(.album-panel)')) this.renderMissions();
+  }
+
+  // draw the grouped mission cards (Story / Town Jobs / Collections)
+  private renderMissions() {
+    const root = document.querySelector('#hud .journey-panel .m-groups') as HTMLElement | null;
+    if (!root) return;
+    root.innerHTML = '';
+    // the Town-stories collection is Hud-owned (it tracks the history markers) — show
+    // it as a standing goal in Collections, even at 0 found, opening the album on tap
+    const extra: Mission[] = [{
+      id: 'stories', group: 'collections', title: 'Town stories', kicker: 'Collection',
+      state: 'active', steps: [], opens: 'history-album',
+      count: this.histReadCount(), total: this.histMarkers.length
+    }];
+    const missions = this.missions.concat(extra);
+    const groups: [MissionGroup, string][] = [['story', 'STORY'], ['jobs', 'TOWN JOBS'], ['collections', 'COLLECTIONS']];
+    for (const [g, label] of groups) {
+      const ms = missions.filter((m) => m.group === g);
+      if (!ms.length) continue;
+      const h = document.createElement('div');
+      h.className = 'm-group';
+      h.textContent = label;
+      root.appendChild(h);
+      for (const m of ms) root.appendChild(this.missionCard(m));
+    }
+  }
+
+  // one mission as a tappable card: a status row that expands to its checklist
+  private missionCard(m: Mission): HTMLElement {
+    const card = document.createElement('div');
+    card.className = 'm-card ' + m.state + (m.active ? ' expanded' : '');
+    const dotCol = m.state === 'done' ? '#9ec98a' : m.state === 'active' ? '#f0d27a' : '#565c68';
+    const dotCh = m.state === 'locked' ? '○' : '●';
+    const title = (m.kicker ? m.kicker + ' · ' : '') + m.title;
+    const prog = (m.count != null && m.total != null) ? '<span class="m-prog">' + m.count + '/' + m.total + '</span>' : '';
+    const rep = (m.replay != null && m.state !== 'locked') ? '<span class="m-rep" data-c="' + m.replay + '">↻</span>' : '';
+    const opensAlbum = m.opens === 'history-album';
+    const caret = (m.steps.length || opensAlbum) ? '<span class="m-caret">▸</span>' : '';
+    const row = document.createElement('div');
+    row.className = 'm-row';
+    row.innerHTML = '<span class="m-dot" style="color:' + dotCol + '">' + dotCh + '</span>'
+      + '<span class="m-title">' + title + '</span>' + prog + rep + caret;
+    card.appendChild(row);
+    if (m.steps.length) {
+      const steps = document.createElement('div');
+      steps.className = 'm-steps';
+      steps.innerHTML = m.steps.map((s) => {
+        const mk = s.done ? '<span style="color:#9ec98a">✓</span>' : '<span style="color:#6b7280">○</span>';
+        const c = (s.count != null && s.total != null) ? ' <b>' + s.count + '/' + s.total + '</b>' : '';
+        return '<div class="m-step' + (s.done ? ' done' : '') + '">' + mk + ' ' + s.label + c + '</div>';
+      }).join('');
+      card.appendChild(steps);
+    }
+    if (m.reward) {
+      const rw = document.createElement('div');
+      rw.className = 'm-reward';
+      rw.innerHTML = 'Reward · <b>' + m.reward + '</b>';
+      card.appendChild(rw);
+    }
+    row.addEventListener('click', (ev) => {
+      if ((ev.target as HTMLElement).classList.contains('m-rep')) return;   // replay handled separately
+      if (m.state === 'locked') return;
+      if (opensAlbum) { this.openHistoryAlbum(); return; }
+      card.classList.toggle('expanded');
+    });
+    const repEl = row.querySelector('.m-rep') as HTMLElement | null;
+    if (repEl) repEl.addEventListener('click', (ev) => this.onReplayClick(ev, repEl));
+    return card;
+  }
+
+  // two-tap "replay this chapter": clears that chapter's keys + every chapter after it
+  private onReplayClick(ev: Event, tg: HTMLElement) {
+    ev.stopPropagation();
+    const cN = tg.dataset.c;
+    if (cN == null) return;
+    if (tg.dataset.arm !== '1') {
+      tg.dataset.arm = '1';
+      tg.textContent = '↻ replay?';
+      setTimeout(() => { tg.dataset.arm = '0'; tg.textContent = '↻'; }, 3000);
+      return;
+    }
+    const cascade = [
+      ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells'],
+      ['nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells'],
+      ['nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells'],
+      ['nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells'],
+      ['nbpt-ch4-step', 'nbpt-ch4-bells']
+    ][+cN];
+    if (!cascade) return;
+    for (const kk of cascade) localStorage.removeItem(kk);
+    location.reload();
+  }
+
+  // ---------- Backpack panel (🎒 / I): Carrying now / Treasures & tools / Collections ----------
+
+  initBag(markers: { id: string; title: string; year: string; body: string; stamp?: string }[]) {
+    this.histMarkers = markers;
+    const panel = document.createElement('div');
+    panel.className = 'bag-panel';
+    const card = document.createElement('div');
+    card.className = 'bag-card';
+    card.innerHTML = '<div class="modal-x">✕</div>'
+      + '<div class="bag-head">🎒 YOUR BACKPACK</div>'
+      + '<div class="bag-empty">Your bag is empty for now — go find some treasure!</div>'
+      + '<div class="bag-sec" data-sec="carry"><div class="bag-sectitle">CARRYING NOW</div><div class="bag-grid"></div></div>'
+      + '<div class="bag-sec" data-sec="treasure"><div class="bag-sectitle">TREASURES &amp; TOOLS</div><div class="bag-grid"></div></div>'
+      + '<div class="bag-sec" data-sec="collection"><div class="bag-sectitle">COLLECTIONS</div><div class="bag-grid"></div></div>';
+    panel.appendChild(card);
+    document.querySelector('#hud')!.appendChild(panel);
+    (card.querySelector('.modal-x') as HTMLElement).addEventListener('click', (e) => { e.stopPropagation(); this.toggleBag(false); });
+    panel.addEventListener('click', (e) => { if (e.target === panel) this.toggleBag(false); });
+    document.querySelector('#hud .bag-btn')!.addEventListener('click', () => this.toggleBag());
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Escape' && this.bagPanelOpen) { this.toggleBag(false); return; }
+      if (e.code === 'KeyI' && (e.target as HTMLElement)?.tagName !== 'INPUT') this.toggleBag();
+    });
+  }
+
+  toggleBag(force?: boolean) {
+    const panel = document.querySelector('#hud .bag-panel');
+    if (!panel) return;
+    const want = force !== undefined ? force : !panel.classList.contains('show');
+    panel.classList.toggle('show', want);
+    this.bagPanelOpen = want;
+    if (want) {
+      this.renderBag();          // render first, so freshly-added items flash
+      this.bagNewIds.clear();    // everything is "seen" once you peek inside
+      this.paintBagBadge();
+    }
+  }
+
+  // the quest sets the whole bag every apply(); this drives the button's spring-in/wiggle
+  setBag(items: BagItem[]) {
+    this.bagItems = items;
+    const ids = items.map((i) => i.id);
+    // the very first call is the constructor's mount: if a loaded save already has
+    // items, reveal the button silently (no pop) and remember them as already-seen
+    if (!this.bagMounted) {
+      this.bagMounted = true;
+      if (items.length) {
+        this.revealBag(false);
+        for (const id of ids) this.bagSeen.add(id);
+      }
+      return;
+    }
+    // post-mount: a genuine pickup during play
+    const firstEver = !this.bagEverShown && items.length > 0;
+    let gotNew = false;
+    for (const id of ids) {
+      if (!this.bagSeen.has(id)) { this.bagSeen.add(id); this.bagNewIds.add(id); gotNew = true; }
+    }
+    if (firstEver) this.revealBag(true);      // SPRING IN + glow + the one-time tip
+    else if (gotNew) this.wiggleBag();        // a later pickup just wiggles for attention
+    if (gotNew) this.paintBagBadge();
+    if (this.bagPanelOpen) this.renderBag();
+  }
+
+  private revealBag(pop: boolean) {
+    this.bagEverShown = true;
+    const btn = document.querySelector('#hud .bag-btn') as HTMLElement | null;
+    if (!btn) return;
+    btn.classList.add('show');
+    if (pop) {
+      requestAnimationFrame(() => {
+        btn.classList.add('pop');
+        setTimeout(() => btn.classList.remove('pop'), 1000);
+      });
+      if (!this.bagTipShown) { this.bagTipShown = true; this.showBagTip(); }
+    }
+  }
+
+  private showBagTip() {
+    const tip = document.querySelector('#hud .bag-tip') as HTMLElement | null;
+    if (!tip) return;
+    tip.innerHTML = 'Your <b>backpack</b>! Tap to peek inside';
+    tip.classList.add('show');
+    setTimeout(() => tip.classList.remove('show'), 5200);
+  }
+
+  private wiggleBag() {
+    const btn = document.querySelector('#hud .bag-btn') as HTMLElement | null;
+    if (!btn) return;
+    btn.classList.remove('wiggle');
+    void btn.offsetWidth;   // force reflow so the animation can replay on rapid pickups
+    btn.classList.add('wiggle');
+    setTimeout(() => btn.classList.remove('wiggle'), 650);
+  }
+
+  private paintBagBadge() {
+    const btn = document.querySelector('#hud .bag-btn') as HTMLElement | null;
+    btn?.classList.toggle('has-new', this.bagNewIds.size > 0);
+  }
+
+  private histReadCount(): number {
+    try { return new Set(JSON.parse(localStorage.getItem('nbpt-history-read') || '[]')).size; } catch { return 0; }
+  }
+
+  private renderBag() {
+    const panel = document.querySelector('#hud .bag-panel');
+    if (!panel) return;
+    // quest items + the Hud-owned "Town stories" collection (synthesized here so
+    // the quest stays decoupled from history.ts)
+    const items = this.bagItems.slice();
+    const stories = this.histReadCount();
+    if (stories > 0) {
+      items.push({ id: 'stories', emoji: '\u{1F4DC}', kind: 'collection',
+        name: 'Town stories', desc: 'True tales found on town plaques.',
+        count: stories, total: this.histMarkers.length, opens: 'history-album' });
+    }
+    (panel.querySelector('.bag-empty') as HTMLElement).style.display = items.length ? 'none' : '';
+    for (const sec of ['carry', 'treasure', 'collection'] as const) {
+      const secEl = panel.querySelector('.bag-sec[data-sec="' + sec + '"]') as HTMLElement;
+      const grid = secEl.querySelector('.bag-grid') as HTMLElement;
+      const mine = items.filter((it) => it.kind === sec);
+      secEl.classList.toggle('empty', mine.length === 0);
+      grid.innerHTML = '';
+      for (const it of mine) {
+        const el = document.createElement('div');
+        el.className = 'jitem' + (it.opens ? ' tappable' : '') + (this.bagNewIds.has(it.id) ? ' fresh' : '');
+        const cnt = (it.count != null && it.total != null) ? '<span class="cnt">' + it.count + '/' + it.total + '</span>' : '';
+        el.innerHTML = '<span class="ic">' + it.emoji + '</span><span class="tx"><b>' + it.name + '</b><br>' + it.desc + '</span>' + cnt;
+        if (it.opens === 'history-album') el.addEventListener('click', () => this.openHistoryAlbum());
+        grid.appendChild(el);
+      }
+    }
+  }
+
+  // the album of found Town-stories cards — opened from the bag or a Collections
+  // card; tapping a card opens the full plaque via historyCard()
+  private openHistoryAlbum() {
+    document.querySelector('#hud .bag-panel')?.classList.remove('show');
+    this.bagPanelOpen = false;
+    document.querySelector('#hud .journey-panel.show')?.classList.remove('show');
+    if (!this.albumPanel) {
+      const ap = document.createElement('div');
+      ap.className = 'journey-panel album-panel';   // reuse the modal styling
+      const ac = document.createElement('div');
+      ac.className = 'journey-card';
+      ac.style.cssText = 'position:relative;width:min(420px,90vw);max-height:82vh;overflow:auto;background:#141b24;border-radius:14px;border-bottom:3px solid #d8b94a;padding:18px 20px 14px;color:#f3f1e8;';
+      ac.innerHTML = '<div class="modal-x">✕</div>'
+        + '<div style="font-size:14px;letter-spacing:3px;color:#e8c44f;font-weight:800;margin-bottom:4px;">\u{1F4DC} TOWN STORIES</div>'
+        + '<div class="alb-tally" style="font-size:12.5px;color:#c8bd96;margin:4px 0 12px;"></div>'
+        + '<div class="alb-list" style="display:flex;flex-wrap:wrap;gap:6px;"></div>';
+      ap.appendChild(ac);
+      document.querySelector('#hud')!.appendChild(ap);
+      (ac.querySelector('.modal-x') as HTMLElement).addEventListener('click', (e) => { e.stopPropagation(); ap.classList.remove('show'); });
+      ap.addEventListener('click', (e) => { if (e.target === ap) ap.classList.remove('show'); });
+      this.albumPanel = ap;
+    }
+    let rd: Set<string>;
+    try { rd = new Set(JSON.parse(localStorage.getItem('nbpt-history-read') || '[]')); } catch { rd = new Set(); }
+    const tally = this.albumPanel.querySelector('.alb-tally') as HTMLElement;
+    tally.innerHTML = rd.size >= this.histMarkers.length
+      ? '\u{1F3DB} <b style="color:#ffd86a">You found all ' + this.histMarkers.length + ' — Town Historian!</b>'
+      : '\u{1F4DC} Found <b style="color:#e8c44f">' + rd.size + '</b> of ' + this.histMarkers.length + ' — explore to find more';
+    const list = this.albumPanel.querySelector('.alb-list') as HTMLElement;
+    list.innerHTML = '';
+    const found = this.histMarkers.filter((mk) => rd.has(mk.id));
+    if (!found.length) {
+      list.innerHTML = '<div style="font-size:12.5px;color:#8b8678;line-height:1.45;">Look for the glowing ★ markers around town to uncover its stories.</div>';
+    } else {
+      for (const mk of found) {
+        const cd = document.createElement('div');
+        cd.style.cssText = 'flex:1 1 46%;min-width:128px;border-radius:9px;padding:8px 11px;font-size:12px;line-height:1.35;cursor:pointer;border:1px solid rgba(216,185,74,0.55);color:#f3f1e8;background:rgba(216,185,74,0.10);';
+        cd.innerHTML = '<div style="font-weight:700;">' + mk.title + '</div><div style="color:#c8bd96;">' + mk.year + '</div>';
+        cd.addEventListener('click', () => {
+          this.albumPanel!.classList.remove('show');
+          this.historyCard(mk.title, mk.year + ' · Newburyport', mk.body, mk.stamp);
+        });
+        list.appendChild(cd);
+      }
+    }
+    this.albumPanel.classList.add('show');
   }
 
   // ---------- sound toggle ----------
@@ -846,7 +1152,7 @@ export class Hud {
     this.miniDot.style.top = (z - this.miniMinY) * this.miniScale + 'px';
   }
 
-  // ---------- quest UI: dialogue, objective pill, talk button, item chips ----------
+  // ---------- quest UI: dialogue, objective pill, talk button ----------
 
   // true while a dialogue is showing (plus a short grace so the closing
   // keypress doesn't immediately re-trigger an interact)
@@ -936,12 +1242,6 @@ export class Hud {
     }
     (el.querySelector('.otxt') as HTMLElement).textContent = text;
     el.classList.add('show');
-  }
-
-  // the carried items are no longer drawn on the HUD — just track them; the
-  // journey panel lists them (with names) when it's opened
-  setChips(emojis: string[]) {
-    this.chipKeys = emojis.slice();
   }
 
   // big serif chapter card: fades in, holds, fades out

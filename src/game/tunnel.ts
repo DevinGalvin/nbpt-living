@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Hud } from './hud';
 import { GameAudio } from './audio';
 import { brickTex } from '../three/textures';
+import { ITEMS, type BagItem } from './items';
 
 // Chapter 1 — the smugglers' tunnel under the Firehouse. A small hand-built
 // interior scene: the kid + Clipper move through brick corridors by lantern
@@ -421,10 +422,12 @@ export class TunnelScene {
 
   private apply() {
     this.hud.setObjective(OBJECTIVES[this.step]);
-    const chips: string[] = [];
-    if (this.step >= 2) chips.push('\u{1FA94}');
-    if (this.step >= 4) chips.push('\u{1F9E9}');
-    this.hud.setChips(chips);
+    // feed the backpack: the card you already carry, the lantern once taken,
+    // and the first map corner once found (grabbing each wiggles the bag)
+    const bag: BagItem[] = [{ ...ITEMS.card }];
+    if (this.step >= 2) bag.push({ ...ITEMS.lantern });
+    if (this.step >= 4) bag.push({ ...ITEMS.mapcorners, count: 1, total: 4 });
+    this.hud.setBag(bag);
     const it = this.interactable();
     this.marker.visible = !!it;
     if (it) this.marker.position.set(it.x, it.tag === 'mark' ? 34 : 26, it.z);
