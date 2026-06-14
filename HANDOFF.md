@@ -67,6 +67,10 @@ npm run deploy         # build, then push dist/ to main → live in ~30-60s
   (windows/doors), **HEROES** registry (named landmarks → custom builders), pumpkins,
   stadium, gravestones, the **13 Fox Run Drive** special-case (navy + red door).
 - `src/three/water.ts` — the animated water mesh + `isFreezableWater` + winter ice mesh.
+- `src/three/sky.ts` — **`Sky`**: the day–night cycle (gradient dome, sun/moon, stars),
+  drifting clouds, and weather (rain; snow in winter). Owns `tod` (0–1) + a `period`
+  (sec/day, ~420), computes a per-frame lighting palette that `Game` applies to its
+  sun/hemisphere/fog. Debug hooks: `nbpt.time(0–1)`, `nbpt.weather(1|0|null)`.
 - `src/three/actors.ts` — the Kid + Clipper (the dog) meshes/animation.
 - `src/three/textures.ts` — procedural material textures.
 - `src/game/quest.ts` — **QuestRunner**: NPCs, the objective beacon, dialogue, the
@@ -85,7 +89,16 @@ npm run deploy         # build, then push dist/ to main → live in ~30-60s
 
 ## 5. Recent work (this session, June 13 2026)
 
-Deployed in order: rebrand to Clipper Town; Fuller Field stray-track fix + storefronts
+**Latest batch (9 items):** stone walls (graveyard/garden) are now hop-over-able like
+fences/hedges; loading-screen subtitle → "Exploring Newburyport, Massachusetts" + Market
+Square sub → "Heart of Clipper Town"; minimap you-are-here dot → red radar-ping pulse; new
+**`src/three/sky.ts`** day–night cycle + clouds + weather (replaces the old always-on winter
+snow); MBTA-style **train** at the station; park/plaza **benches**; **gulls** + beach
+**crabs** + sparse woodland **critters** (`life.ts`/`decor.ts`); journey icon 📖→🧭 with the
+collected-item chips now a tappable "adventure log" tray; **boats ~2× bigger** + wider dock
+spacing. ("Clipper City Rail Trail" left as-is — real trail name.)
+
+Earlier this session, deployed in order: rebrand to Clipper Town; Fuller Field stray-track fix + storefronts
 for shop/food buildings (incl. Angry Donut); Chapter 0 polish (TALK button no longer
 clobbered, Pet button contextual, Clipper named, donut/library NPC placement, real
 library double door); then an 8-item batch — fast-travel clearance (Custom House no
