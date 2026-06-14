@@ -754,9 +754,7 @@ export class Game {
     let speed = this.riding ? 530 : this.sprinting ? SPRINT : JOG;
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
 
-    let nx = this.px + vx * speed * dt;
-    let nz = this.pz + vz * speed * dt;
-    const half = 6;
+    const half = 5;   // a slightly slimmer footprint so narrow streets stay passable
     const free = this.boating
       ? () => true // open water — row freely out to the door
       : this.inTunnel
@@ -766,8 +764,17 @@ export class Game {
       : (x: number, y: number) =>
         !this.index.isBlocked(x - half, y) && !this.index.isBlocked(x + half, y) && !this.index.isBlocked(x, y)
         && !(this.life && this.life.obstacleAt(x, y));
-    if (!free(nx, this.pz)) nx = this.px;
-    if (!free(nx, nz)) nz = this.pz;
+    // sub-step the move and slide each axis independently, so running/biking
+    // through tight streets glides along the houses instead of snagging on a
+    // corner and stopping dead (a big help with the imprecise touch joystick)
+    const moveX = vx * speed * dt, moveZ = vz * speed * dt;
+    const steps = Math.max(1, Math.ceil(Math.hypot(moveX, moveZ) / 4));
+    const stepX = moveX / steps, stepZ = moveZ / steps;
+    let nx = this.px, nz = this.pz;
+    for (let s = 0; s < steps; s++) {
+      if (free(nx + stepX, nz)) nx += stepX;
+      if (free(nx, nz + stepZ)) nz += stepZ;
+    }
 
     if (!this.inside) {
       const b = this.world.meta.bounds;
