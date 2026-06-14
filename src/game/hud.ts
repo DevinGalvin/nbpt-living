@@ -87,6 +87,27 @@ const css = `
 #hud:has(.bag-panel.show) .objective,
 #hud:has(.hcard.open) .objective,
 #hud:has(.banner.show) .objective { display: none !important; }
+/* the off-screen waypoint arrow steps aside whenever a panel/dialogue is up */
+#hud:has(.travel-panel.open) .waypoint,
+#hud:has(.journey-panel.show) .waypoint,
+#hud:has(.bag-panel.show) .waypoint,
+#hud:has(.dlg.open) .waypoint { display: none !important; }
+/* off-screen objective pointer: a gold arrow at the screen edge + distance,
+   shown only when the beam of light is off your screen (you still find the route) */
+#hud .waypoint {
+  position: absolute; display: none; flex-direction: column; align-items: center;
+  transform: translate(-50%, -50%); pointer-events: none; z-index: 11; will-change: left, top;
+}
+#hud .waypoint.show { display: flex; }
+#hud .waypoint .wp-arrow {
+  font-size: 31px; line-height: 1; color: #ffd86a; will-change: transform;
+  text-shadow: 0 0 9px rgba(255,200,60,0.95), 0 2px 4px rgba(0,0,0,0.6);
+}
+#hud .waypoint .wp-dist {
+  margin-top: 0; font: 800 11px system-ui, sans-serif; color: #1c2430;
+  background: rgba(232,196,79,0.95); border-radius: 8px; padding: 1px 7px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.45); white-space: nowrap;
+}
 #hud .travel-card h2 {
   font-family: Georgia, serif; color: #f6f3e8; font-size: 21px; margin: 0 0 12px;
   letter-spacing: 1px; text-align: center;
@@ -443,6 +464,7 @@ export class Hud {
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q">◈</span><span class="otxt"></span></div>
+      <div class="waypoint"><div class="wp-arrow">➤</div><div class="wp-dist"></div></div>
       <div class="runtip"></div>
       <div class="dlg"><div class="who"></div><div class="line"></div><div class="more">tap · E</div></div>
       <div class="talk-btn">💬 TALK</div>
@@ -1242,6 +1264,27 @@ export class Hud {
     }
     (el.querySelector('.otxt') as HTMLElement).textContent = text;
     el.classList.add('show');
+  }
+
+  // off-screen objective pointer: Game projects the beacon to the screen each
+  // frame and, when it's off-screen, hands us an edge position + arrow angle +
+  // distance. Pass null to hide (objective on-screen, or no active objective).
+  private wpEl: HTMLElement | null = null;
+  private wpArrow: HTMLElement | null = null;
+  private wpDist: HTMLElement | null = null;
+  setWaypoint(wp: { x: number; y: number; angle: number; distance: number } | null) {
+    if (!this.wpEl) {
+      this.wpEl = document.querySelector('#hud .waypoint');
+      this.wpArrow = document.querySelector('#hud .waypoint .wp-arrow');
+      this.wpDist = document.querySelector('#hud .waypoint .wp-dist');
+    }
+    if (!this.wpEl) return;
+    if (!wp) { this.wpEl.classList.remove('show'); return; }
+    this.wpEl.classList.add('show');
+    this.wpEl.style.left = wp.x + 'px';
+    this.wpEl.style.top = wp.y + 'px';
+    if (this.wpArrow) this.wpArrow.style.transform = 'rotate(' + wp.angle + 'rad)';
+    if (this.wpDist) this.wpDist.textContent = wp.distance + ' m';
   }
 
   // big serif chapter card: fades in, holds, fades out

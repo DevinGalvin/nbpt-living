@@ -261,6 +261,7 @@ export class QuestRunner {
   private beacon: THREE.Group;
   private beaconRing: THREE.Mesh;
   private beaconBeam: THREE.Mesh;
+  private beaconHalo: THREE.Mesh;
   private bang: THREE.Sprite;
   private grate: THREE.Group;
   private grateBars: THREE.Group | null = null;
@@ -342,28 +343,29 @@ export class QuestRunner {
     // to return the book (that wall used to show only a window)
     scene.add(this.buildLibraryDoor());
 
-    // gold objective beacon: a pulsing ring at the target's feet plus a faint
-    // shaft hanging ABOVE head height — it points at people without ever
-    // covering them
+    // gold objective beacon: a TALL pillar of light you can spot from across town —
+    // a bright inner shaft, a wider soft halo, a sonar-pinging base ring, and the "!"
     this.beacon = new THREE.Group();
-    this.beaconRing = new THREE.Mesh(
-      new THREE.RingGeometry(13, 19, 28).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({
-        color: 0xffd24a, transparent: true, opacity: 0.3,
-        side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
-      })
-    );
-    this.beaconRing.position.y = 0.6;
+    const beamMat = (op: number) => new THREE.MeshBasicMaterial({
+      color: 0xffd24a, transparent: true, opacity: op,
+      side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+    });
+    // a soft filled glow disc marks the exact landing spot
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(15, 28).rotateX(-Math.PI / 2), beamMat(0.16));
+    disc.position.y = 0.5;
+    this.beacon.add(disc);
+    // base ring — pings outward (animated in update)
+    this.beaconRing = new THREE.Mesh(new THREE.RingGeometry(12, 20, 36).rotateX(-Math.PI / 2), beamMat(0.5));
+    this.beaconRing.position.y = 0.7;
     this.beacon.add(this.beaconRing);
-    this.beaconBeam = new THREE.Mesh(
-      new THREE.CylinderGeometry(3.4, 4.6, 100, 10, 1, true),
-      new THREE.MeshBasicMaterial({
-        color: 0xffd24a, transparent: true, opacity: 0.08,
-        side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
-      })
-    );
-    this.beaconBeam.position.y = 94; // bottom of the shaft floats at ~44, clear of heads
+    // the tall bright inner shaft (towers well above the rooftops)
+    this.beaconBeam = new THREE.Mesh(new THREE.CylinderGeometry(5, 7.5, 460, 18, 1, true), beamMat(0.42));
+    this.beaconBeam.position.y = 235; // spans ~5 .. 465
     this.beacon.add(this.beaconBeam);
+    // a wider, fainter halo around the shaft for glow
+    this.beaconHalo = new THREE.Mesh(new THREE.CylinderGeometry(11, 16, 460, 18, 1, true), beamMat(0.12));
+    this.beaconHalo.position.y = 235;
+    this.beacon.add(this.beaconHalo);
     scene.add(this.beacon);
     this.bang = bangSprite();
     scene.add(this.bang);
@@ -727,12 +729,14 @@ export class QuestRunner {
 
   update(dt: number, px: number, pz: number) {
     this.t += dt;
-    // beacon pulse: the ring breathes wide, the shaft above shimmers softly
+    // beacon: the shaft + halo breathe; the base ring pings outward like sonar
     const pulse = (Math.sin(this.t * 3.2) + 1) / 2;
-    (this.beaconRing.material as THREE.MeshBasicMaterial).opacity = 0.12 + 0.3 * pulse;
-    const rs = 1 + pulse * 0.22;
+    (this.beaconBeam.material as THREE.MeshBasicMaterial).opacity = 0.3 + 0.22 * pulse;
+    (this.beaconHalo.material as THREE.MeshBasicMaterial).opacity = 0.08 + 0.12 * pulse;
+    const ping = (this.t * 0.8) % 1;
+    const rs = 1 + ping * 1.7;
     this.beaconRing.scale.set(rs, 1, rs);
-    (this.beaconBeam.material as THREE.MeshBasicMaterial).opacity = 0.04 + 0.07 * pulse;
+    (this.beaconRing.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - ping);
     if (this.bang.visible) {
       this.bang.position.y += Math.sin(this.t * 3.2) * dt * 4;
     }

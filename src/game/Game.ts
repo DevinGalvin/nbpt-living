@@ -935,6 +935,7 @@ export class Game {
         : this.index.onPavedAt(this.px, this.pz) ? 'hard' : 'soft');
     if (!this.inside) this.ensureRect();
     this.updateCamera(dt);
+    this.updateWaypoint();
 
     // polls
     this.pollAcc += dt;
@@ -1030,6 +1031,40 @@ export class Game {
       fog.near = 1300 * z;
       fog.far = 2900 * z + 700;
     }
+  }
+
+  // off-screen objective pointer: project the beacon to the screen; if it's
+  // off-screen, show a gold arrow clamped to the screen edge (pointing the way)
+  // plus the distance. On-screen → hide it (the pillar of light is the cue).
+  private _wp = new THREE.Vector3();
+  private _wpV = new THREE.Vector3();
+  private updateWaypoint() {
+    const guide = this.hud.guide;
+    if (!guide || this.inside || this.boating || this.hud.dialogueOpen) { this.hud.setWaypoint(null); return; }
+    this.camera.updateMatrixWorld();
+    const inv = this.camera.matrixWorldInverse;
+    const baseY = this.index.heightAtPx(guide.x, guide.z);
+    // the beam is tall — it counts as "on screen" if ANY point up its body is visible
+    for (const h of [15, 230, 440]) {
+      const p = this._wp.set(guide.x, baseY + h, guide.z);
+      const front = this._wpV.copy(p).applyMatrix4(inv).z < 0;
+      const ndc = p.project(this.camera);
+      if (front && Math.abs(ndc.x) <= 1 && Math.abs(ndc.y) <= 1) { this.hud.setWaypoint(null); return; }
+    }
+    // off-screen: aim the edge arrow with the beam's lower body (the landing spot)
+    const w = this._wp.set(guide.x, baseY + 60, guide.z);
+    const behind = this._wpV.copy(w).applyMatrix4(inv).z >= 0;
+    const ndc = w.project(this.camera);
+    let nx = ndc.x, ny = ndc.y;
+    if (behind) { nx = -nx; ny = -ny; }
+    // clamp the direction onto the screen-edge square, leaving a margin
+    const m = Math.max(Math.abs(nx), Math.abs(ny)) || 1;
+    const ex = nx / m, ey = ny / m;
+    const sx = innerWidth / 2 + ex * (innerWidth / 2 - 50);
+    const sy = innerHeight / 2 - ey * (innerHeight / 2 - 76);   // NDC up → screen up (clears the HUD pills)
+    const angle = Math.atan2(-ey, ex);                          // arrow points toward the goal
+    const distM = Math.round(Math.hypot(guide.x - this.px, guide.z - this.pz) / 8 / 10) * 10;
+    this.hud.setWaypoint({ x: sx, y: sy, angle, distance: distM });
   }
 
   // ---------- travel & search ----------
