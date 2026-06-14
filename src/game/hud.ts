@@ -554,8 +554,8 @@ export class Hud {
     jc.innerHTML = '<div class="modal-x">✕</div><div style="font-size:14px;letter-spacing:3px;color:#e8c44f;font-weight:800;margin-bottom:10px;">YOUR JOURNEY</div>'
       + '<div class="j-obj" style="font-size:14.5px;line-height:1.5;margin-bottom:4px;"></div>'
       + '<div class="j-dir" style="font-size:12.5px;color:#9fb8cc;margin-bottom:14px;"></div>'
-      + '<div class="j-ch" style="font-size:13px;line-height:2.1;color:#d9d2c0;margin-bottom:8px;"></div>'
-      + '<div style="font-size:12px;letter-spacing:2px;color:#e8c44f;font-weight:800;margin:10px 0 8px;">HISTORY CARDS</div>'
+      + '<div class="j-ch" style="font-size:13.5px;line-height:1.5;color:#d9d2c0;margin-bottom:10px;"></div>'
+      + '<div style="font-size:12px;letter-spacing:2px;color:#e8c44f;font-weight:800;margin:10px 0 8px;">TOWN HISTORY</div>'
       + '<div class="j-album" style="display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;"></div>';
     // the journey panel keeps its own history-read tally (the travel card has one too)
     const hl = document.createElement('div');
@@ -583,44 +583,34 @@ export class Hud {
     (jc.querySelector('.modal-x') as HTMLElement).addEventListener('click', (e) => { e.stopPropagation(); jp.style.display = 'none'; });
 
     const num = (k: string) => parseInt(localStorage.getItem(k) || '0', 10) || 0;
-    const st = (v: number, d: number) => v >= d
-      ? '<span style="color:#9ec98a">✓ complete</span>'
-      : v > 0 ? '<span style="color:#e8c44f">● in progress</span>'
-              : '<span style="color:#8b8678">○ not started</span>';
-    // a per-chapter "replay" chip that clears that chapter onward (two-tap armed)
-    const rp = (cN: number, go: boolean) => go
-      ? ' <span data-c="' + cN + '" style="color:#8fa8bc;cursor:pointer;font-size:11px;border:1px solid rgba(143,168,188,0.35);border-radius:6px;padding:0 5px;">↻ replay</span>'
-      : '';
 
     const jt = () => {
       const s0 = num('nbpt-ch0-step'), s1 = num('nbpt-ch1-step'), s2 = num('nbpt-ch2-step'), s3 = num('nbpt-ch3-step'), s4 = num('nbpt-ch4-step');
-      let sd = 0;
-      try { sd = (JSON.parse(localStorage.getItem('nbpt-ch2-stops') || '[]') as unknown[]).length; } catch { /* ignore */ }
       const objTxt = (document.querySelector('#hud .objective .otxt') as HTMLElement | null)?.textContent || '';
-      (jc.querySelector('.j-obj') as HTMLElement).textContent = '\u{1F9ED} ' + (objTxt || 'Walk out the door and explore.');
-      // direction hint to the active beacon (the beam of light)
+      (jc.querySelector('.j-obj') as HTMLElement).innerHTML = '\u{1F9ED} <b style="color:#f6f3e8">' + (objTxt || 'Walk out and explore!') + '</b>';
+      // short direction hint to the beam of light
       let dl = '';
       if (this.guide && this.pos) {
         const dx = this.guide.x - this.pos.x, dz = this.guide.z - this.pos.y;
         const dm = Math.round(Math.hypot(dx, dz) / 8 / 10) * 10;
         const oc = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'][Math.round((((Math.atan2(dx, -dz) * 180 / Math.PI) + 360) % 360) / 45) % 8];
-        dl = dm < 30
-          ? '\u{1F4CD} You’re right there — look for the beam of light.'
-          : '\u{1F4CD} About ' + dm + ' m to the ' + oc + ' — the beam of light marks the spot.';
+        dl = dm < 30 ? '\u{1F4CD} You’re right there — follow the beam!' : '\u{1F4CD} ' + dm + ' m ' + oc + ' — follow the beam of light';
       }
       (jc.querySelector('.j-dir') as HTMLElement).textContent = dl;
-      (jc.querySelector('.j-ch') as HTMLElement).innerHTML =
-        'CHAPTER 1 · Overdue — ' + st(s0, 6) + rp(0, s0 > 0)
-        + '<br>CHAPTER 2 · The Door Under Downtown — ' + st(s1, 6) + rp(1, s1 > 0)
-        + '<br>CHAPTER 3 · The Daily News — '
-          + (s2 >= 4 ? st(4, 4) : s2 > 0 ? '<span style="color:#e8c44f">● in progress' + (sd ? ' · ' + sd + ' papers delivered' : '') + '</span>' : st(0, 1))
-          + rp(2, s2 > 0)
-        + '<br>CHAPTER 4 · Low Water — '
-          + (s3 >= 4 ? st(4, 4) : (s2 >= 4 || s3 > 0) ? '<span style="color:#e8c44f">● in progress</span>' : st(0, 1))
-          + rp(3, s3 > 0)
-        + '<br>CHAPTER 5 · The Custom House Star — '
-          + (s4 >= 4 ? st(4, 4) : (s3 >= 4 || s4 > 0) ? '<span style="color:#e8c44f">● in progress</span>' : st(0, 1))
-          + rp(4, s4 > 0);
+      // chapters: a coloured dot + the name — nothing to read on each line
+      const chaps = [
+        { n: 'Overdue', done: s0 >= 6, prog: s0 > 0 },
+        { n: 'The Door Under Downtown', done: s1 >= 6, prog: s1 > 0 },
+        { n: 'The Daily News', done: s2 >= 4, prog: s2 > 0 },
+        { n: 'Low Water', done: s3 >= 4, prog: s2 >= 4 || s3 > 0 },
+        { n: 'The Custom House Star', done: s4 >= 4, prog: s3 >= 4 || s4 > 0 }
+      ];
+      (jc.querySelector('.j-ch') as HTMLElement).innerHTML = chaps.map((c, i) => {
+        const dot = c.done ? '<span style="color:#9ec98a">●</span>' : c.prog ? '<span style="color:#f0d27a">●</span>' : '<span style="color:#565c68">○</span>';
+        const col = c.done ? '#c4ccbb' : c.prog ? '#f6f3e8' : '#787e8a';
+        const rep = (c.done || c.prog) ? ' <span data-c="' + i + '" style="color:#8fa8bc;cursor:pointer;font-size:11px;opacity:0.65;">↻</span>' : '';
+        return '<div style="margin:2px 0;">' + dot + ' <span style="color:' + col + '">Chapter ' + (i + 1) + ' · ' + c.n + '</span>' + rep + '</div>';
+      }).join('');
       (jc.querySelector('.j-ch') as HTMLElement).onclick = (ev) => {
         const tg = ev.target as HTMLElement;
         const cN = tg && tg.dataset ? tg.dataset.c : null;
@@ -628,8 +618,8 @@ export class Hud {
         ev.stopPropagation();
         if (tg.dataset.arm !== '1') {
           tg.dataset.arm = '1';
-          tg.textContent = '↻ tap again';
-          setTimeout(() => { tg.dataset.arm = '0'; tg.textContent = '↻ replay'; }, 3000);
+          tg.textContent = '↻ replay?';
+          setTimeout(() => { tg.dataset.arm = '0'; tg.textContent = '↻'; }, 3000);
           return;
         }
         const cascade = [
@@ -642,26 +632,29 @@ export class Hud {
         for (const kk of cascade) localStorage.removeItem(kk);
         location.reload();
       };
-      // history-card album: found ones are gold + tappable, the rest are "???"
+      // town history: a friendly count + only the cards you've actually found
+      // (no overwhelming wall of "???" boxes)
       const al = jc.querySelector('.j-album') as HTMLElement;
       al.innerHTML = '';
       let rd: Set<string>;
       try { rd = new Set(JSON.parse(localStorage.getItem('nbpt-history-read') || '[]')); } catch { rd = new Set(); }
       hl.innerHTML = rd.size >= markers.length
-        ? '\u{1F3DB} <b style="color:#ffd86a">Town Historian — ' + rd.size + '/' + markers.length + '</b>'
-        : '\u{1F3DB} History markers read: <b>' + rd.size + '/' + markers.length + '</b>';
-      for (const mk of markers) {
-        const got = rd.has(mk.id);
-        const cd = document.createElement('div');
-        cd.style.cssText = 'flex:1 1 31%;min-width:96px;border-radius:8px;padding:7px 8px;font-size:11px;line-height:1.35;cursor:' + (got ? 'pointer' : 'default') + ';border:1px solid ' + (got ? 'rgba(216,185,74,0.55)' : 'rgba(140,134,120,0.3)') + ';color:' + (got ? '#f3f1e8' : '#6e6a5e') + ';background:' + (got ? 'rgba(216,185,74,0.08)' : 'rgba(20,27,36,0.5)');
-        cd.innerHTML = got
-          ? '<div style="font-weight:700;">' + mk.title + '</div><div style="color:#c8bd96;">' + mk.year + '</div>'
-          : '<div style="font-weight:700;">???</div><div>undiscovered</div>';
-        if (got) cd.addEventListener('click', () => {
-          jp.style.display = 'none';
-          this.historyCard(mk.title, mk.year + ' · Newburyport', mk.body, mk.stamp);
-        });
-        al.appendChild(cd);
+        ? '\u{1F3DB} <b style="color:#ffd86a">You found all ' + markers.length + ' — Town Historian!</b>'
+        : '\u{1F4DC} Found <b style="color:#e8c44f">' + rd.size + '</b> of ' + markers.length + ' — explore to find more';
+      const found = markers.filter((mk) => rd.has(mk.id));
+      if (!found.length) {
+        al.innerHTML = '<div style="font-size:12.5px;color:#8b8678;line-height:1.45;">Look for the glowing ★ markers around town to uncover its stories.</div>';
+      } else {
+        for (const mk of found) {
+          const cd = document.createElement('div');
+          cd.style.cssText = 'flex:1 1 46%;min-width:128px;border-radius:9px;padding:8px 11px;font-size:12px;line-height:1.35;cursor:pointer;border:1px solid rgba(216,185,74,0.55);color:#f3f1e8;background:rgba(216,185,74,0.10);';
+          cd.innerHTML = '<div style="font-weight:700;">' + mk.title + '</div><div style="color:#c8bd96;">' + mk.year + '</div>';
+          cd.addEventListener('click', () => {
+            jp.style.display = 'none';
+            this.historyCard(mk.title, mk.year + ' · Newburyport', mk.body, mk.stamp);
+          });
+          al.appendChild(cd);
+        }
       }
       jp.style.display = 'flex';
     };

@@ -3,9 +3,10 @@ import { WorldIndex } from '../world/index';
 import { Hud } from './hud';
 import { GameAudio } from './audio';
 
-// Chapter 0 — "Overdue". Gram's errand: donuts + the overdue library book,
-// ending with Clipper finding the grate behind the Firehouse. The QuestRunner
-// owns quest NPCs, the objective beacon, dialogue flow, and step persistence.
+// Chapter 1 — "Overdue" (the player-facing first chapter; its save key is the
+// legacy "nbpt-ch0-step"). Gram's errand: get donuts + return the overdue book,
+// report back to Gram, then Clipper finds the grate behind the Firehouse. The
+// QuestRunner owns quest NPCs, the objective beacon, dialogue flow, and persistence.
 
 type Line = { who: string; text: string };
 
@@ -390,7 +391,7 @@ export class QuestRunner {
       rim.position.set(x, 0.55, z);
       g.add(rim);
     }
-    // the bars swing open as one lid once Chapter 0 is done
+    // the bars swing open as one lid once Chapter 1 is done
     this.grateBars = new THREE.Group();
     for (let i = -2; i <= 2; i++) {
       const bar = box(0.9, 0.7, 10.5, '#5a564e');
