@@ -218,6 +218,18 @@ const css = `
   60% { transform: scale(1.18); opacity: 1; }
   100% { transform: scale(1); }
 }
+/* tap a carried item to see what it is (the items themselves, not the journey) */
+#hud .chip-tip {
+  position: absolute; left: 62px; max-width: 220px;
+  background: rgba(20, 28, 38, 0.95); border: 1px solid rgba(216,185,74,0.45);
+  border-left: 3px solid #e8c44f; border-radius: 0 9px 9px 0;
+  color: #f3f1e8; font-size: 12.5px; line-height: 1.4; padding: 8px 12px;
+  pointer-events: none; opacity: 0; transform: translateX(-8px);
+  transition: opacity 0.16s ease, transform 0.16s ease; z-index: 6;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+}
+#hud .chip-tip.show { opacity: 1; transform: translateX(0); }
+#hud .chip-tip b { color: #f0d27a; }
 #hud .chapter {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; padding: 0 22px; pointer-events: none;
@@ -229,6 +241,17 @@ const css = `
 #hud .chapter .big { font-family: Georgia, serif; font-size: clamp(30px, 6vw, 46px); color: #f6f3e8; }
 #hud .chapter .small { font-size: 13px; color: #c8bd96; margin-top: 12px; letter-spacing: 1px; }
 `;
+
+// what each carried-item chip is — shown when you tap it
+const ITEM_TIPS: Record<string, string> = {
+  '\u{1F4D5}': '<b>Overdue library book</b><br>Three weeks late — Gram wants it returned.',
+  '\u{1F369}': '<b>A dozen angry donuts</b><br>Gram’s order from the Angry Donut.',
+  '\u{1FAAA}': '<b>Your library card</b><br>Your very own, finally.',
+  '\u{1FA94}': '<b>The smugglers’ lantern</b><br>Found in the tunnel under downtown.',
+  '\u{1F9E9}': '<b>A torn map corner</b><br>Part of an old hand-drawn map.',
+  '\u{1F4F0}': '<b>The Daily News</b><br>Papers to deliver on your route.',
+  '\u{1F6B2}': '<b>Your bicycle</b><br>Press B to hop on and ride.'
+};
 
 export class Hud {
   joyActive = false;
@@ -291,6 +314,7 @@ export class Hud {
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q">◈</span><span class="otxt"></span></div>
       <div class="chips"></div>
+      <div class="chip-tip"></div>
       <div class="dlg"><div class="who"></div><div class="line"></div><div class="more">tap · E</div></div>
       <div class="talk-btn">💬 TALK</div>
       <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div></div>
@@ -602,8 +626,13 @@ export class Hud {
     const open = () => { if (jp.style.display === 'flex') jp.style.display = 'none'; else jt(); };
     this.openJourney = open;
     document.querySelector('#hud .journey-btn')!.addEventListener('click', open);
-    // the collected-item chips are part of the same log — tapping them opens it
-    document.querySelector('#hud .chips')!.addEventListener('click', (e) => { e.stopPropagation(); open(); });
+    // the compass opens the journey; tapping a carried-item chip just names that
+    // item (it's your stuff, not the history log)
+    document.querySelector('#hud .chips')!.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const chip = (e.target as HTMLElement).closest('.chip') as HTMLElement | null;
+      if (chip) this.showChipTip(chip);
+    });
     jp.addEventListener('click', (ev) => { if (ev.target === jp) jp.style.display = 'none'; });
     window.addEventListener('keydown', (ev) => {
       if (jp.style.display === 'flex' && (ev.code === 'Escape' || ev.code === 'KeyJ')) { jp.style.display = 'none'; return; }
@@ -884,11 +913,26 @@ export class Hud {
   setChips(emojis: string[]) {
     const wrap = document.querySelector('#hud .chips') as HTMLElement;
     const prev = this.chipKeys;
-    // a chip that wasn't here last render pops in; all chips open the log on tap
-    wrap.innerHTML = emojis.map((e, i) =>
-      `<div class="chip${(i >= prev.length || prev[i] !== e) ? ' new' : ''}" title="Open your adventure log (J)">${e}</div>`
-    ).join('');
+    // a chip that wasn't here last render pops in; tapping a chip names the item
+    wrap.innerHTML = emojis.map((e, i) => {
+      const fresh = i >= prev.length || prev[i] !== e;
+      const label = (ITEM_TIPS[e] || 'An item you’re carrying').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      return `<div class="chip${fresh ? ' new' : ''}" title="${label}">${e}</div>`;
+    }).join('');
     this.chipKeys = emojis.slice();
+  }
+
+  private chipTipTimer = 0;
+  // a small label naming the carried item, anchored beside the tapped chip
+  private showChipTip(chip: HTMLElement) {
+    const tip = document.querySelector('#hud .chip-tip') as HTMLElement;
+    const emoji = (chip.textContent || '').trim();
+    tip.innerHTML = ITEM_TIPS[emoji] || '<b>An item you’re carrying</b>';
+    const r = chip.getBoundingClientRect();
+    tip.style.top = Math.max(8, r.top - 4) + 'px';
+    tip.classList.add('show');
+    clearTimeout(this.chipTipTimer);
+    this.chipTipTimer = window.setTimeout(() => tip.classList.remove('show'), 3000);
   }
 
   // big serif chapter card: fades in, holds, fades out
