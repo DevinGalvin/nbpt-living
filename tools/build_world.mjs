@@ -309,6 +309,10 @@ for (const el of raw.elements) {
     const b = { p: ring, k, lv };
     if (sf) b.sf = 1;
     if (t.name) b.n = t.name;
+    // a mapped architecture style → render the home in that style (the rest stay generic)
+    const arch = (t['building:architecture'] || '').toLowerCase();
+    const style = arch.includes('queen') ? 'queen_anne' : arch.startsWith('georg') ? 'georgian' : arch.startsWith('fed') ? 'federal' : null;
+    if (style) b.style = style;
     world.buildings.push(b);
     if (t.name && (areaM2 > 650 || k === 'civic' || k === 'church')) {
       const [cx, cy] = centroid(ring);

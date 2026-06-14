@@ -22,6 +22,7 @@ export interface Building {
   lv: number;       // levels
   n?: string;
   sf?: number;      // 1 = storefront ground floor (real retail-zone/POI evidence)
+  style?: string;   // mapped building:architecture — 'federal' | 'georgian' | 'queen_anne'
 }
 
 export interface Road {

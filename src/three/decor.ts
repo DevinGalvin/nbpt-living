@@ -2334,6 +2334,55 @@ function mbtaTrain(buckets: Bucket[], x: number, z: number, ang: number, index: 
   }
 }
 
+// homes the OSM data names a real architecture style for (building:architecture)
+// get that style instead of the generic gabled house: Newburyport's Federal brick
+// mansions, the odd Georgian, a Queen Anne painted lady.
+function styledHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  let gLo = Infinity;
+  for (let i = 0; i < b.p.length; i += 2) gLo = Math.min(gLo, index.heightAtPx(b.p[i], b.p[i + 1]));
+  const base = gLo - 8;
+  const { eave, lvEff } = buildingDims(b, ringAreaM2(b.p));
+  const eaveAbs = g + eave;
+  const seed = Math.round(Math.abs(obb.cx) * 7 + Math.abs(obb.cz)) | 0;
+  const rows = Math.max(2, Math.min(3, Math.round(lvEff)));
+  // paired chimneys at the gable ends
+  const endChimneys = (frac: number, hex: string, top: number) => {
+    for (const e of [-1, 1]) buckets[BRICK].box(obb.cx + e * obb.hl * frac * ca, obb.cz + e * obb.hl * frac * sa, 2.4, 2.4, eaveAbs + 1, top, hex);
+  };
+
+  if (b.style === 'queen_anne') {
+    const body = pick(['#7c8b6e', '#b0895a', '#9a6b72', '#6e7e8c'], seed); // a painted lady
+    walls(buckets[CLAP], b.p, base, eaveAbs, body);
+    complexGable(buckets[SHINGLE], buckets[CLAP], b.p, eaveAbs, '#46403a', body);
+    facades(buckets[PLAIN], b.p, eaveAbs, Math.max(2, rows), seed, true, true, false, g, undefined, '#7a2e2e');
+    // a corner turret with a conical roof — the Queen Anne signature
+    const cx = obb.cx + obb.hl * 0.82 * ca - obb.hw * 0.68 * sa;
+    const cz = obb.cz + obb.hl * 0.82 * sa + obb.hw * 0.68 * ca;
+    const tr = Math.max(4, Math.min(7, obb.hw * 0.42));
+    walls(buckets[CLAP], octRing(cx, cz, tr), base, eaveAbs + 9, body);
+    cone(buckets[SHINGLE], cx, eaveAbs + 9, cz, tr * 1.2, tr * 2.6, new THREE.Color('#46403a'));
+    endChimneys(0.72, '#8c5240', eaveAbs + 12);
+    return;
+  }
+
+  const federal = b.style === 'federal';
+  const wallHex = federal ? pick(['#9c5d49', '#a86a52', '#8c5440'], seed) : pick(['#e6e0d0', '#dcd6c4', '#ccd2cd'], seed);
+  walls(federal ? buckets[BRICK] : buckets[CLAP], b.p, base, eaveAbs, wallHex);
+  facades(buckets[PLAIN], b.p, eaveAbs, rows, seed, true, true, false, g, undefined, federal ? '#3a4658' : '#7a3a2e');
+  if (federal) {
+    // a low flat roof behind a white cornice + parapet, paired end chimneys
+    flatRoof(buckets[PLAIN], b.p, eaveAbs + 0.8, '#6b6f74');
+    walls(buckets[PLAIN], b.p, eaveAbs, eaveAbs + 4, '#fdfcf8');
+    endChimneys(0.82, wallHex, eaveAbs + 9);
+  } else {
+    // georgian: a formal medium side-gable + paired brick end chimneys
+    complexGable(buckets[SHINGLE], buckets[CLAP], b.p, eaveAbs, '#5a5048', wallHex);
+    endChimneys(0.8, '#8c5240', eaveAbs + 13);
+  }
+}
+
 export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): THREE.Mesh | null {
   const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
   const [ckx, cky] = key.split(',').map(Number);
@@ -2360,6 +2409,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     if (b.k === 'light') {
       const [cx, cz] = centroidOf(b.p);
       lighthouse(buckets[PLAIN], cx, cz, g);
+      continue;
+    }
+    // a home the map names an architecture style for — render it in that style
+    if (b.style) {
+      styledHouse(buckets, b, g, index);
       continue;
     }
     const seed = idx;
