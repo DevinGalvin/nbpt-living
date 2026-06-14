@@ -232,25 +232,27 @@ export class NewsroomScene extends Interior {
   protected readonly bounds: [number, number, number, number][] = [[-82, -156, 82, 14]];
 
   protected build() {
-    this.scene.background = new THREE.Color('#1c2028');
-    this.scene.fog = new THREE.Fog('#1c2028', 260, 720);
-    this.scene.add(new THREE.AmbientLight('#d8cba6', 0.98));            // bright, warm office light
-    const win = new THREE.PointLight('#fff2d6', 150, 560);             // daylight pouring in the front window
-    win.position.set(-52, 32, 8);
+    this.scene.background = new THREE.Color('#262b34');
+    this.scene.fog = new THREE.Fog('#262b34', 320, 820);
+    this.scene.add(new THREE.AmbientLight('#e8dcbd', 1.3));             // bright, warm office light
+    const win = new THREE.PointLight('#fff4dc', 175, 640);             // daylight pouring in the front window
+    win.position.set(-52, 34, 8);
     this.scene.add(win);
     const lamp = new THREE.PointLight('#bfe6c0', 55, 210);              // the editor's green desk lamp
     lamp.position.set(NEWS_EDITOR_AT.x + 14, 20, NEWS_EDITOR_AT.z);
     this.scene.add(lamp);
-    const ceiling = new THREE.PointLight('#fff4dc', 95, 380);           // overhead office light
-    ceiling.position.set(0, 46, -74);
-    this.scene.add(ceiling);
+    for (const cz of [-34, -112]) {                                    // two overhead office lights
+      const c = new THREE.PointLight('#fff4dc', 105, 460);
+      c.position.set(0, 46, cz);
+      this.scene.add(c);
+    }
 
-    this.scene.add(floor(184, 184, -70, '#8a6e4a'));                   // warm plank floor
+    this.scene.add(floor(184, 184, -70, '#9c8159'));                   // warm plank floor
     for (const [w, h, d, x, y, z] of [
       [82, 48, 8, -41, 24, 18], [82, 48, 8, 41, 24, 18],               // front wall (door gap in the middle)
       [8, 48, 184, 82, 24, -70], [8, 48, 184, -82, 24, -70],           // sides
       [172, 48, 8, 0, 24, -156]                                        // back
-    ] as const) this.scene.add(box(w, h, d, x, y, z, '#9a8f7c'));
+    ] as const) this.scene.add(box(w, h, d, x, y, z, '#b6ad97'));      // lighter plaster walls
 
     // bright front window beside the door + a "DAILY NEWS" masthead on the back wall
     const glass = new THREE.Mesh(new THREE.PlaneGeometry(34, 24), new THREE.MeshBasicMaterial({ color: '#dceaf2' }));
@@ -286,10 +288,28 @@ export class NewsroomScene extends Interior {
       this.scene.add(box(15, 30, 13, cx, 15, NEWS_MORGUE_AT.z - 7, '#5e4a30'));
       for (let d = 0; d < 4; d++) this.scene.add(box(12, 1, 1.2, cx, 6 + d * 7, NEWS_MORGUE_AT.z - 0.6, '#cdbf94')); // drawer handles
     }
+    // a second bank of cabinets along the back-left wall
+    for (const cz of [-126, -144]) {
+      this.scene.add(box(14, 30, 14, -71, 15, cz, '#5e4a30'));
+      for (let d = 0; d < 4; d++) this.scene.add(box(1.2, 1, 11, -63.4, 6 + d * 7, cz, '#cdbf94'));
+    }
 
-    // bundles of newspapers stacked on the floor
-    for (const [x, z, s] of [[40, -58, 8], [30, -50, 7], [-22, -56, 8], [-36, -48, 6]] as const)
+    // reporter desks down both sides — typewriter, paper stack, chair
+    const reporterDesk = (dx: number, dz: number) => {
+      this.scene.add(box(24, 10, 13, dx, 5, dz, '#6e5236'));            // desk
+      this.scene.add(box(26, 1.4, 14, dx, 10.7, dz, '#7a5c3a'));        // top
+      this.scene.add(box(6, 4.5, 6, dx + 6, 13, dz, '#3a3d42'));        // typewriter
+      this.scene.add(box(8, 1, 9, dx - 6, 11.6, dz, '#ece6d6'));        // paper stack
+      this.scene.add(box(9, 8.5, 9, dx, 4.5, dz + 13, '#5a4632'));      // chair seat
+      this.scene.add(box(9, 8, 1.6, dx, 12, dz + 17.5, '#5a4632'));     // chair back
+    };
+    reporterDesk(-46, -46); reporterDesk(46, -42); reporterDesk(-50, -72);
+
+    // scattered newspapers — bundles on the floor + loose sheets everywhere
+    for (const [x, z, s] of [[40, -60, 8], [31, -50, 7], [-22, -56, 8], [-34, -50, 6], [64, -62, 7], [16, -118, 7], [-60, -118, 6]] as const)
       this.scene.add(box(s * 1.4, s, s, x, s / 2, z, '#d8d2c2'));
+    for (const [x, z] of [[-16, -30], [24, -34], [-52, -102], [52, -120], [12, -66], [-30, -116], [70, -90], [-8, -96]] as const)
+      this.scene.add(box(7, 0.4, 9, x, 0.4, z, '#e8e2d2'));            // loose sheets on the floor
   }
 
   protected interactable(): Spot | null {
