@@ -240,6 +240,16 @@ const css = `
 #hud .chapter .kick { font-size: 13px; letter-spacing: 4px; color: #e8c44f; font-weight: 700; margin-bottom: 10px; }
 #hud .chapter .big { font-family: Georgia, serif; font-size: clamp(30px, 6vw, 46px); color: #f6f3e8; }
 #hud .chapter .small { font-size: 13px; color: #c8bd96; margin-top: 12px; letter-spacing: 1px; }
+/* one-time nudge that you can run — shown a few seconds into the first walk */
+#hud .runtip {
+  position: absolute; bottom: 104px; left: 50%; transform: translate(-50%, 10px);
+  background: rgba(24,32,42,0.92); border: 1px solid rgba(216,185,74,0.55);
+  color: #f3f1e8; font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
+  padding: 9px 16px; border-radius: 18px; white-space: nowrap; pointer-events: none;
+  opacity: 0; transition: opacity 0.35s ease, transform 0.35s ease; z-index: 12;
+}
+#hud .runtip b { color: #f0d27a; }
+#hud .runtip.show { opacity: 1; transform: translate(-50%, 0); }
 /* first-visit welcome: tells a newcomer what Clipper Town is + what to do */
 #hud .welcome {
   position: absolute; inset: 0; z-index: 80; display: flex;
@@ -345,6 +355,7 @@ export class Hud {
       <div class="objective"><span class="q">◈</span><span class="otxt"></span></div>
       <div class="chips"></div>
       <div class="chip-tip"></div>
+      <div class="runtip"></div>
       <div class="dlg"><div class="who"></div><div class="line"></div><div class="more">tap · E</div></div>
       <div class="talk-btn">💬 TALK</div>
       <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div></div>
@@ -988,6 +999,7 @@ export class Hud {
         <div class="wbody">You’re a kid out on an errand for your <b>Gram</b>. <b>Find her in Market Square</b> to begin — then go wherever you like. A story unfolds across the seasons, with real town history tucked on plaques around the map and secrets to stumble onto.</div>
         <div class="wctrls">
           🕹️ <b>Move</b> — WASD / arrows, or drag anywhere on screen<br>
+          🏃 <b>Run</b> — press R to run (or tap 🏃); hold Shift to sprint<br>
           💬 <b>Talk &amp; look</b> — walk up and press E (or tap TALK)<br>
           ✨ <b>Follow the golden beam</b> — it marks your next stop<br>
           🗺️ travel anywhere · 🧭 your journey so far
@@ -1005,6 +1017,17 @@ export class Hud {
     };
     (el.querySelector('.wstart') as HTMLElement).addEventListener('click', (e) => { e.stopPropagation(); close(); });
     el.addEventListener('click', (e) => { if (e.target === el) close(); });
+  }
+
+  private runTipTimer = 0;
+  // a one-time toast teaching the run control (keys vs touch)
+  showRunTip() {
+    const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const el = document.querySelector('#hud .runtip') as HTMLElement;
+    el.innerHTML = touch ? '💡 Tap <b>🏃</b> to run' : '💡 Press <b>R</b> to run · hold <b>Shift</b> to sprint';
+    el.classList.add('show');
+    clearTimeout(this.runTipTimer);
+    this.runTipTimer = window.setTimeout(() => el.classList.remove('show'), 5000);
   }
 
   // tunnel-dark edges while underground

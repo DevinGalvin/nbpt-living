@@ -136,6 +136,8 @@ export class Game {
   private camClamp = 1;             // occlusion pull-in (1 = full distance)
   private chaseCam = true;          // C toggles chase <-> north-up map view
   private autoRun = false;          // R toggles always-run
+  private runTipShown = localStorage.getItem('nbpt-run-tip') === '1'; // one-time "press R to run" nudge
+  private walkAccum = 0;
   private places: { label: string; sub: string; x: number; y: number }[] = [];
   private sun!: THREE.DirectionalLight;
   private hemi!: THREE.HemisphereLight;
@@ -839,6 +841,16 @@ export class Game {
 
     // chase camera eases in behind the kid's heading (north-up mode locks to π)
     const movingNow = Math.hypot(realVx, realVz) > 1;
+    // a few seconds into your first walk (and not already running), nudge that R runs
+    if (!this.runTipShown && movingNow && !this.sprinting && !this.inside && !this.boating
+        && !this.riding && !this.hud.dialogueOpen && !document.querySelector('#hud .welcome')) {
+      this.walkAccum += dt;
+      if (this.walkAccum > 3) {
+        this.runTipShown = true;
+        localStorage.setItem('nbpt-run-tip', '1');
+        this.hud.showRunTip();
+      }
+    }
     if (this.chaseCam) {
       if (movingNow) this.camAz = lerpAngle(this.camAz, Math.atan2(realVx, realVz), Math.min(1, dt * 1.7));
     } else {
