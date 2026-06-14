@@ -240,6 +240,36 @@ const css = `
 #hud .chapter .kick { font-size: 13px; letter-spacing: 4px; color: #e8c44f; font-weight: 700; margin-bottom: 10px; }
 #hud .chapter .big { font-family: Georgia, serif; font-size: clamp(30px, 6vw, 46px); color: #f6f3e8; }
 #hud .chapter .small { font-size: 13px; color: #c8bd96; margin-top: 12px; letter-spacing: 1px; }
+/* first-visit welcome: tells a newcomer what Clipper Town is + what to do */
+#hud .welcome {
+  position: absolute; inset: 0; z-index: 80; display: flex;
+  align-items: center; justify-content: center; padding: 18px;
+  background: radial-gradient(ellipse at center, rgba(10,14,20,0.74), rgba(8,11,16,0.92));
+  pointer-events: auto; opacity: 1; transition: opacity 0.3s ease;
+  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+}
+#hud .welcome.closing { opacity: 0; }
+#hud .welcome-card {
+  width: min(440px, 94vw); max-height: 90vh; overflow-y: auto; box-sizing: border-box;
+  background: rgba(22,29,38,0.98); border-radius: 16px; border-bottom: 3px solid #d8b94a;
+  padding: 24px 24px 20px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+}
+#hud .welcome-card .wtitle { font-family: Georgia, serif; font-size: 27px; letter-spacing: 3px; color: #f6f3e8; }
+#hud .welcome-card .wsub { font-size: 12.5px; color: #c8bd96; margin: 6px 0 16px; letter-spacing: 0.6px; }
+#hud .welcome-card .wbody { font-size: 14.5px; line-height: 1.6; color: #e8e4d8; text-align: left; }
+#hud .welcome-card .wbody b { color: #f0d27a; }
+#hud .welcome-card .wctrls {
+  font-size: 13px; line-height: 1.95; color: #d9d2c0; text-align: left;
+  margin: 15px 0 2px; border-top: 1px solid rgba(243,241,232,0.12); padding-top: 13px;
+}
+#hud .welcome-card .wctrls b { color: #f3f1e8; }
+#hud .welcome-card .wstart {
+  margin-top: 20px; display: inline-block; cursor: pointer; user-select: none; -webkit-user-select: none;
+  background: rgba(216,185,74,0.95); color: #1c2430; font-weight: 800; letter-spacing: 1px;
+  font-size: 15px; padding: 12px 28px; border-radius: 26px; border: 2px solid #f0d27a;
+  transition: background 0.15s ease;
+}
+#hud .welcome-card .wstart:hover { background: #f0d27a; }
 `;
 
 // what each carried-item chip is — shown when you tap it
@@ -943,6 +973,36 @@ export class Hud {
     (el.querySelector('.small') as HTMLElement).textContent = small;
     el.classList.add('show');
     setTimeout(() => el.classList.remove('show'), 2700);
+  }
+
+  // first-visit welcome: tells a newcomer what Clipper Town is and how to start
+  showWelcome(onStart?: () => void) {
+    const el = document.createElement('div');
+    el.className = 'welcome';
+    el.innerHTML = `
+      <div class="welcome-card">
+        <div class="wtitle">CLIPPER TOWN</div>
+        <div class="wsub">A little explorable world on the real map of Newburyport, MA</div>
+        <div class="wbody">You’re a kid out on an errand for your <b>Gram</b>. <b>Find her in Market Square</b> to begin — then go wherever you like. A story unfolds across the seasons, with real town history tucked on plaques around the map and secrets to stumble onto.</div>
+        <div class="wctrls">
+          🕹️ <b>Move</b> — WASD / arrows, or drag anywhere on screen<br>
+          💬 <b>Talk &amp; look</b> — walk up and press E (or tap TALK)<br>
+          ✨ <b>Follow the golden beam</b> — it marks your next stop<br>
+          🗺️ travel anywhere · 🧭 your journey so far
+        </div>
+        <div class="wstart">Start exploring →</div>
+      </div>`;
+    document.querySelector('#hud')!.appendChild(el);
+    let done = false;
+    const close = () => {
+      if (done) return;
+      done = true;
+      el.classList.add('closing');
+      setTimeout(() => el.remove(), 340);
+      onStart?.();
+    };
+    (el.querySelector('.wstart') as HTMLElement).addEventListener('click', (e) => { e.stopPropagation(); close(); });
+    el.addEventListener('click', (e) => { if (e.target === el) close(); });
   }
 
   // tunnel-dark edges while underground

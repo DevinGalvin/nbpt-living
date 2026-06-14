@@ -353,6 +353,11 @@ export class Game {
     this.renderer.setAnimationLoop((t) => this.frame(t));
     document.getElementById('loading')?.style.setProperty('opacity', '0');
     setTimeout(() => document.getElementById('loading')?.remove(), 700);
+
+    // newcomers land in a 3-D town with no idea it's a story — greet them once
+    if (localStorage.getItem('nbpt-welcomed') !== '1') {
+      setTimeout(() => this.hud.showWelcome(() => localStorage.setItem('nbpt-welcomed', '1')), 850);
+    }
   }
 
   // ---------- chunk streaming ----------
