@@ -565,8 +565,13 @@ export class QuestRunner {
         this.hud.setObjective('The last corner \u2014 the Custom House, Water Street');
         target = KEEPER;
       } else if (this.ch4 === 1) {
-        this.hud.setObjective('Ring the harbor home \u2014 ' + this.bells.size + ' of 3 bells');
-        target = this.bells.has('cg') ? (this.bells.has('wharf') ? WDOOR : BELL_WHARF) : BELL_CG;
+        // the den's bell is the third \u2014 you row back out to it, so once the two
+        // harbor-post bells are rung the beam points at the boat, not the door
+        const denLast = this.bells.has('cg') && this.bells.has('wharf');
+        this.hud.setObjective(denLast
+          ? 'The last bell is in the den \u2014 row back out past the Coast Guard station'
+          : 'Ring the harbor home \u2014 ' + this.bells.size + ' of 3 bells');
+        target = !this.bells.has('cg') ? BELL_CG : !this.bells.has('wharf') ? BELL_WHARF : BOAT;
       } else if (this.ch4 === 2 || this.ch4 === 3) {
         this.hud.setObjective('The stone remembers \u2014 beneath the Custom House');
         target = CELLAR;
@@ -582,15 +587,18 @@ export class QuestRunner {
     // feed the two HUD systems from this one sync point: the backpack + missions log
     this.hud.setBag(this.buildBag());
     this.hud.setMissions(this.buildMissions());
-    // the rowboat waits on the bank during Chapter 4 (hidden once you're aboard or done)
+    // the rowboat waits on the bank during Chapter 4 — and again for Chapter 5's
+    // den bell (you row back out to ring it), parked at the launch bank both times
     this.ensureRowboat();
-    const showBoat = this.step >= 6 && this.ch2 >= 4 && this.ch3 < 4 && !this.hud.boating;
+    const needDenBell = this.ch3 >= 4 && this.ch4 === 1 && !this.bells.has('den');
+    const showBoat = this.step >= 6 && this.ch2 >= 4 && (this.ch3 < 4 || needDenBell) && !this.hud.boating;
     this.rowboat!.visible = showBoat;
     if (showBoat) {
-      const rx = this.ch3 === 0 ? BOAT.x + 9 : -200;
-      const rz = this.ch3 === 0 ? BOAT.z - 26 : -1172;
+      const atLaunch = this.ch3 === 0 || needDenBell;   // launch bank vs. parked by the den door
+      const rx = atLaunch ? BOAT.x + 9 : -200;
+      const rz = atLaunch ? BOAT.z - 26 : -1172;
       this.rowboat!.position.set(rx, this.index.heightAtPx(rx, rz) + 0.5, rz);
-      this.rowboat!.rotation.y = this.ch3 === 0 ? 0.8 : 2.2;
+      this.rowboat!.rotation.y = atLaunch ? 0.8 : 2.2;
     }
     // once the den is cleared, the Custom House keeper and the two harbor bells appear
     if (this.ch3 >= 4 && !this.c5built) { this.c5built = true; this.buildC5Props(); }
