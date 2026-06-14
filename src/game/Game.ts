@@ -11,7 +11,7 @@ import { Life } from './life';
 import { Hud } from './hud';
 import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
-import { DenScene, StarRoomScene } from './interiors';
+import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
 import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
@@ -108,10 +108,11 @@ export class Game {
   private golden = false;
   private inTunnel = false;
   private preTunnel = { x: 0, z: 0 };
-  // Chapter 4/5 interiors (den, star room) reuse the tunnel's scene-swap plumbing
+  // hand-built interiors (newsroom, den, star room) reuse the tunnel's scene-swap plumbing
   private den: DenScene | null = null;
   private star: StarRoomScene | null = null;
-  private interior: DenScene | StarRoomScene | null = null; // active den/star, if any
+  private news: NewsroomScene | null = null;
+  private interior: Interior | null = null; // active newsroom/den/star, if any
   private preInterior = { x: 0, z: 0 };
   // Chapter 4 boat ride: an overground locomotion mode out to the den door
   private boating = false;
@@ -287,7 +288,7 @@ export class Game {
     this.quest = new QuestRunner(this.scene, this.index, this.hud, this.audio, () => this.enterTunnel(), () => {
       localStorage.setItem('nbpt-bike', '1');
       this.bikeEarned();
-    }, () => this.boatRide(), () => this.enterStar());
+    }, () => this.boatRide(), () => this.enterStar(), () => this.enterNews());
     this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
     this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,
@@ -601,7 +602,7 @@ export class Game {
 
   // ---------- Chapter 4/5 interiors (den, star room) — reuse the tunnel swap ----------
 
-  private enterInterior(scene: DenScene | StarRoomScene, vignette: boolean) {
+  private enterInterior(scene: Interior, vignette: boolean) {
     this.preInterior = { x: this.px, z: this.pz };
     this.interior = scene;
     scene.nearTag = null;
@@ -666,6 +667,24 @@ export class Game {
     this.hud.fadeThrough(() => {
       if (!this.interior) return;
       this.audio.setUnderground(false);
+      this.audio.stoneScrape();
+      this.exitInterior(this.preInterior);
+    });
+  }
+
+  // ---------- the Daily News newsroom (Chapter 3) — above ground, no vignette ----------
+
+  enterNews() {
+    this.hud.fadeThrough(() => {
+      if (!this.news) this.news = new NewsroomScene(this.hud, this.audio, () => this.exitNews(), () => this.quest);
+      this.audio.stoneScrape();        // the office door
+      this.enterInterior(this.news, false);
+    });
+  }
+
+  private exitNews() {
+    this.hud.fadeThrough(() => {
+      if (!this.interior) return;
       this.audio.stoneScrape();
       this.exitInterior(this.preInterior);
     });

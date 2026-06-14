@@ -268,6 +268,7 @@ export class QuestRunner {
   private onBike: () => void;
   private onBoat: () => void;   // ROW the boat out to the den (Game drives the ride)
   private onStar: () => void;   // ENTER the Custom House cellar (the star room)
+  private onNews: () => void;   // ENTER the Daily News newsroom (Chapter 3)
   private ch2: number;
   private ch3: number;
   private ch4: number;
@@ -280,7 +281,7 @@ export class QuestRunner {
   private papers: { m: THREE.Mesh; t: number; from: { x: number; z: number }; to: { x: number; z: number } }[] = [];
 
   constructor(scene: THREE.Scene, index: WorldIndex, hud: Hud, audio: GameAudio, onGoDown: () => void, onBike: () => void,
-              onBoat: () => void, onStar: () => void) {
+              onBoat: () => void, onStar: () => void, onNews: () => void) {
     this.scene = scene;
     this.index = index;
     this.hud = hud;
@@ -289,6 +290,7 @@ export class QuestRunner {
     this.onBike = onBike;
     this.onBoat = onBoat;
     this.onStar = onStar;
+    this.onNews = onNews;
     this.step = Math.min(6, Math.max(0, parseInt(localStorage.getItem(SAVE_KEY) || '0', 10) || 0));
     this.ch2 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch2-step') || '0', 10) || 0));
     this.ch3 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch3-step') || '0', 10) || 0));
@@ -323,12 +325,8 @@ export class QuestRunner {
     this.place(donut, DONUT.x, DONUT.z, DONUT.face);
     this.place(lib, LIB.x, LIB.z, LIB.face);
     scene.add(gram, donut, lib);
-
-    // the Editor, outside the Daily News on Liberty Street
-    const editor = npcMesh('#d8b08c', '#5a6678', '#3c3c40', '#7c7468', 'cap');
-    this.npcs.editor = editor;
-    this.place(editor, this.editorPos.x, this.editorPos.z, 2.3);
-    scene.add(editor);
+    // the Editor now lives INSIDE the Daily News newsroom (NewsroomScene), reached
+    // by entering the building on Liberty Street — no outside editor NPC.
     // papers already delivered stay on their porches
     for (const i of this.delivered) {
       const st = this.stops[i];
@@ -485,8 +483,7 @@ export class QuestRunner {
     if (this.step >= 6) {
       c.push({ tag: 'godown', x: GRATE.x, z: GRATE.z, label: '\u2B07 GO DOWN', r: 72 });
       if (this.ch1Done()) {
-        if (this.ch2 === 0 || this.ch2 === 2) c.push({ tag: 'editor', x: this.editorPos.x, z: this.editorPos.z, label: '\u{1F4AC} TALK', r: 55 });
-        else if (this.ch2 === 3) c.push({ tag: 'morgue', x: this.editorPos.x, z: this.editorPos.z, label: '\u{1F5C4} SEARCH', r: 55 });
+        if (this.ch2 === 0 || this.ch2 === 2 || this.ch2 === 3) c.push({ tag: 'news', x: this.editorPos.x, z: this.editorPos.z, label: '\u{1F4F0} ENTER', r: 55 });
         else if (this.ch2 === 1) {
           for (let i = 0; i < this.stops.length; i++) {
             if (!this.delivered.has(i)) c.push({ tag: 'stop' + i, x: this.stops[i].x, z: this.stops[i].z, label: '\u{1F4F0} THROW', r: 62 });
@@ -560,7 +557,7 @@ export class QuestRunner {
         chips.push('\u{1F4F0}');
         target = this.editorPos;
       } else if (this.ch2 === 3) {
-        this.hud.setObjective('Search the morgue \u2014 the old archives');
+        this.hud.setObjective('Back inside the Daily News \u2014 search the morgue');
         target = this.editorPos;
       } else if (this.ch3 === 0) {
         this.hud.setObjective(this.hud.boating ? 'Row west along the seawall \u2014 the beam marks the door' : 'Low water \u2014 a rowboat waits on the bank past the Coast Guard station');
@@ -771,6 +768,12 @@ export class QuestRunner {
         this.onGoDown();
         return;
       }
+      if (it.tag === 'news') {
+        this.hud.showTalk(null);
+        this.nearTag = null;
+        this.onNews();   // step inside the Daily News; the editor/morgue beats run there
+        return;
+      }
       if (it.tag === 'boat') {
         this.hud.showTalk(null);
         this.nearTag = null;
@@ -886,6 +889,7 @@ export class QuestRunner {
 
   // the den + star-room interiors read live state through these and drive their
   // beats back through the quest's own dialogue logic
+  get s2(): number { return this.ch2; }
   get s3(): number { return this.ch3; }
   get s4(): number { return this.ch4; }
   get ringedBells(): Set<string> { return this.bells; }

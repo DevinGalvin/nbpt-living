@@ -10,6 +10,7 @@ import { GameAudio } from './audio';
 
 // what the interiors need from the quest (kept structural to avoid a circular import)
 export interface QuestLike {
+  s2: number;   // Chapter 3 "The Daily News" step (this.ch2)
   s3: number;
   s4: number;
   ringedBells: Set<string>;
@@ -39,7 +40,7 @@ function floor(w: number, d: number, z: number, hex: string): THREE.Mesh {
   return m;
 }
 
-abstract class Interior {
+export abstract class Interior {
   scene = new THREE.Scene();
   abstract readonly name: string;
   protected abstract readonly bounds: [number, number, number, number][];
@@ -217,6 +218,85 @@ export class StarRoomScene extends Interior {
     if (!q) return null;
     if (q.s4 === 2) return { tag: 'corner4', x: STAR_CORNER_AT.x, z: STAR_CORNER_AT.z, label: '\u{1F9E9} TAKE' };
     if (q.s4 === 3) return { tag: 'chest', x: STAR_CHEST_AT.x, z: STAR_CHEST_AT.z, label: '⭐ OPEN' };
+    return null;
+  }
+}
+
+// ---------- the Daily News newsroom, on Liberty Street (Chapter 3) ----------
+
+const NEWS_EDITOR_AT = { x: 8, z: -120 };
+const NEWS_MORGUE_AT = { x: -56, z: -92 };
+
+export class NewsroomScene extends Interior {
+  readonly name = 'the Daily News';
+  protected readonly bounds: [number, number, number, number][] = [[-82, -156, 82, 14]];
+
+  protected build() {
+    this.scene.background = new THREE.Color('#1c2028');
+    this.scene.fog = new THREE.Fog('#1c2028', 260, 720);
+    this.scene.add(new THREE.AmbientLight('#d8cba6', 0.98));            // bright, warm office light
+    const win = new THREE.PointLight('#fff2d6', 150, 560);             // daylight pouring in the front window
+    win.position.set(-52, 32, 8);
+    this.scene.add(win);
+    const lamp = new THREE.PointLight('#bfe6c0', 55, 210);              // the editor's green desk lamp
+    lamp.position.set(NEWS_EDITOR_AT.x + 14, 20, NEWS_EDITOR_AT.z);
+    this.scene.add(lamp);
+    const ceiling = new THREE.PointLight('#fff4dc', 95, 380);           // overhead office light
+    ceiling.position.set(0, 46, -74);
+    this.scene.add(ceiling);
+
+    this.scene.add(floor(184, 184, -70, '#8a6e4a'));                   // warm plank floor
+    for (const [w, h, d, x, y, z] of [
+      [82, 48, 8, -41, 24, 18], [82, 48, 8, 41, 24, 18],               // front wall (door gap in the middle)
+      [8, 48, 184, 82, 24, -70], [8, 48, 184, -82, 24, -70],           // sides
+      [172, 48, 8, 0, 24, -156]                                        // back
+    ] as const) this.scene.add(box(w, h, d, x, y, z, '#9a8f7c'));
+
+    // bright front window beside the door + a "DAILY NEWS" masthead on the back wall
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(34, 24), new THREE.MeshBasicMaterial({ color: '#dceaf2' }));
+    glass.position.set(-52, 24, 13.4);
+    this.scene.add(glass);
+    this.scene.add(box(64, 13, 1.5, 0, 35, -151, '#2a2d33'));
+    this.scene.add(box(58, 7, 2, 0, 35, -150.4, '#d8cdb0'));
+
+    // the editor's desk + a seated editor behind it (back of the room)
+    const ex = NEWS_EDITOR_AT.x, ez = NEWS_EDITOR_AT.z;
+    this.scene.add(box(34, 11, 15, ex, 5.5, ez, '#6e5236'));            // desk body
+    this.scene.add(box(36, 1.6, 16, ex, 11.5, ez, '#7a5c3a'));          // desk top
+    this.scene.add(box(9, 1, 11, ex - 9, 12.6, ez, '#ece6d6'));         // stacked papers
+    this.scene.add(box(7, 4.5, 7, ex + 8, 14, ez, '#3a3d42'));          // typewriter
+    this.scene.add(box(1.4, 7, 1.4, ex + 15, 15, ez, '#6e5638'));       // lamp stem
+    this.scene.add(box(5.4, 1.8, 3.4, ex + 15, 18.6, ez, '#3a7a4a'));   // green lamp shade
+    const fz = ez - 11;
+    this.scene.add(box(11, 13, 8, ex, 10, fz, '#5a6678'));             // editor torso
+    this.scene.add(box(2.8, 9, 2.8, ex - 7, 10, fz + 2, '#5a6678'));    // arms to the desk
+    this.scene.add(box(2.8, 9, 2.8, ex + 7, 10, fz + 2, '#5a6678'));
+    this.scene.add(box(7.4, 6.4, 6.6, ex, 19.5, fz, '#d8b08c'));        // head
+    this.scene.add(box(8.4, 2.6, 7.4, ex, 23, fz, '#3c3c40'));          // newsboy cap
+
+    // the printing press (right side) — a dark machine with a paper roll + fresh sheets
+    this.scene.add(box(30, 30, 26, 56, 15, -104, '#3a3d42'));
+    this.scene.add(box(33, 6, 28, 56, 31, -104, '#4a4d52'));
+    this.scene.add(cyl(7, 7, 24, 12, 56, 18, -86, '#5a5040'));          // paper roll
+    this.scene.add(box(22, 2, 12, 49, 9, -82, '#e8e2d2'));              // sheets sliding out
+
+    // the morgue / archives (left) — a bank of filing cabinets
+    for (let i = 0; i < 3; i++) {
+      const cx = NEWS_MORGUE_AT.x - 18 + i * 18;
+      this.scene.add(box(15, 30, 13, cx, 15, NEWS_MORGUE_AT.z - 7, '#5e4a30'));
+      for (let d = 0; d < 4; d++) this.scene.add(box(12, 1, 1.2, cx, 6 + d * 7, NEWS_MORGUE_AT.z - 0.6, '#cdbf94')); // drawer handles
+    }
+
+    // bundles of newspapers stacked on the floor
+    for (const [x, z, s] of [[40, -58, 8], [30, -50, 7], [-22, -56, 8], [-36, -48, 6]] as const)
+      this.scene.add(box(s * 1.4, s, s, x, s / 2, z, '#d8d2c2'));
+  }
+
+  protected interactable(): Spot | null {
+    const q = this.getQuest();
+    if (!q) return null;
+    if (q.s2 === 0 || q.s2 === 2) return { tag: 'editor', x: NEWS_EDITOR_AT.x, z: NEWS_EDITOR_AT.z + 6, label: '\u{1F4AC} TALK' };
+    if (q.s2 === 3) return { tag: 'morgue', x: NEWS_MORGUE_AT.x, z: NEWS_MORGUE_AT.z + 8, label: '\u{1F5C4} SEARCH' };
     return null;
   }
 }
