@@ -19,6 +19,21 @@ const OVERCAST = C('#aab0b6');
 
 const clamp = (v: number, lo: number, hi: number) => v < lo ? lo : v > hi ? hi : v;
 
+// Sun altitude over the day (tod 0..1 → elevation -1..1), hand-shaped so most of
+// the cycle is daytime + lingering golden sunrise/sunset, with only a brief,
+// shallow night (the dark is the least-loved part). Replaces a plain sine.
+const SUN_T = [0,    0.06, 0.14, 0.24, 0.30, 0.70, 0.76, 0.86, 0.94, 1.0];
+const SUN_E = [-0.3, 0.0,  0.2,  0.9,  1.0,  1.0,  0.9,  0.2,  0.0,  -0.3];
+function sunAltitude(tod: number): number {
+  for (let i = 0; i + 1 < SUN_T.length; i++) {
+    if (tod <= SUN_T[i + 1]) {
+      const f = (tod - SUN_T[i]) / (SUN_T[i + 1] - SUN_T[i]);
+      return SUN_E[i] + (SUN_E[i + 1] - SUN_E[i]) * f;
+    }
+  }
+  return SUN_E[SUN_E.length - 1];
+}
+
 export interface SkyState {
   sunDir: THREE.Vector3;        // unit vector toward the sun (for the directional light)
   sunColor: THREE.Color;
@@ -151,17 +166,17 @@ export class Sky {
     this.wet += (this.wetTarget - this.wet) * Math.min(1, dt * 0.35);
 
     // ---- sun geometry + palette ----
-    const elev = Math.sin((this.tod - 0.25) * Math.PI * 2);          // -1..1
+    const elev = sunAltitude(this.tod);                              // -1..1, mostly daytime
     const day = clamp((elev + 0.08) / 0.32, 0, 1);                   // 0 night .. 1 day
-    const tw = clamp(1 - Math.abs(elev) / 0.20, 0, 1);               // dawn/dusk band
+    const tw = clamp(1 - Math.abs(elev) / 0.26, 0, 1);               // wide dawn/dusk glow band
     const wet = this.wet;
     const s = this.state;
 
     const zen = NIGHT_ZEN.clone().lerp(DAY_ZEN, day).lerp(DUSK_ZEN, tw * 0.5);
     const hor = NIGHT_HOR.clone().lerp(DAY_HOR, day).lerp(DUSK_HOR, tw * 0.85);
     s.sunColor.copy(DUSK_SUN).lerp(DAY_SUN, day);
-    let sunI = 0.74 + day * 0.85;   // moonlight floor at night
-    let hemiI = 0.72 + day * 0.14;  // moonlit ambient — visible but a touch moodier
+    let sunI = 0.82 + day * 0.78;   // moonlight floor at night (brief night, so a bit brighter)
+    let hemiI = 0.8 + day * 0.08;   // moonlit ambient — visible, the dark spell is short now
     s.hemiSky.copy(NIGHT_HEMI_SKY).lerp(DAY_HEMI_SKY, day);
     s.hemiGround.copy(NIGHT_HEMI_GND).lerp(DAY_HEMI_GND, day);
     if (wet > 0.01) {

@@ -98,12 +98,13 @@ const STEP_OBJECTIVE: (string | null)[] = [
   'Find Gram in Market Square',
   'Get the donuts — The Angry Donut, Inn Street',
   'Return Gram’s book — the library, State Street',
-  'Head home through Market Landing',
+  'Bring Gram her donuts — back to Market Square',
+  'Clipper’s run off — follow him',
   'See what Clipper found',
-  'Bring Gram her donuts',
   null
 ];
-const STEP_CHIPS: string[][] = [[], ['\u{1F4D5}'], ['\u{1F4D5}', '\u{1F369}'], ['\u{1F369}', '\u{1FAAA}'], ['\u{1F369}', '\u{1FAAA}'], ['\u{1F369}', '\u{1FAAA}'], ['\u{1FAAA}']];
+// 📕 book · 🍩 donuts · 🪪 library card. Donuts are delivered to Gram at step 3.
+const STEP_CHIPS: string[][] = [[], ['\u{1F4D5}'], ['\u{1F4D5}', '\u{1F369}'], ['\u{1F369}', '\u{1FAAA}'], ['\u{1FAAA}'], ['\u{1FAAA}'], ['\u{1FAAA}']];
 
 // Chapter 4 — "Low Water": the rowboat to the Wharf Rats' den below State Street
 const BOAT_TALK: Line[] = [
@@ -367,7 +368,7 @@ export class QuestRunner {
     this.bang = bangSprite();
     scene.add(this.bang);
 
-    if (this.step === 4) this.dogTarget = { x: GRATE.x, z: GRATE.z };
+    if (this.step === 4 || this.step === 5) this.dogTarget = { x: GRATE.x, z: GRATE.z };
     this.apply();
   }
 
@@ -476,10 +477,10 @@ export class QuestRunner {
 
   private candidates(): { tag: string; x: number; z: number; label: string; r: number }[] {
     const c: { tag: string; x: number; z: number; label: string; r: number }[] = [];
-    if (this.step === 0 || this.step === 5) c.push({ tag: 'gram', x: GRAM.x, z: GRAM.z, label: '\u{1F4AC} TALK', r: 55 });
+    if (this.step === 0 || this.step === 3) c.push({ tag: 'gram', x: GRAM.x, z: GRAM.z, label: '\u{1F4AC} TALK', r: 55 });
     else if (this.step === 1) c.push({ tag: 'donut', x: DONUT.x, z: DONUT.z, label: '\u{1F4AC} TALK', r: 55 });
     else if (this.step === 2) c.push({ tag: 'lib', x: LIB.x, z: LIB.z, label: '\u{1F4AC} TALK', r: 55 });
-    else if (this.step === 4) c.push({ tag: 'grate', x: GRATE.x, z: GRATE.z, label: '\u{1F440} LOOK', r: 60 });
+    else if (this.step === 5) c.push({ tag: 'grate', x: GRATE.x, z: GRATE.z, label: '\u{1F440} LOOK', r: 60 });
     if (this.step >= 6) {
       c.push({ tag: 'godown', x: GRATE.x, z: GRATE.z, label: '\u2B07 GO DOWN', r: 72 });
       if (this.ch1Done()) {
@@ -587,8 +588,8 @@ export class QuestRunner {
       this.hud.setObjective(STEP_OBJECTIVE[this.step]);
       this.hud.setChips(STEP_CHIPS[this.step]);
       const it = this.nearestNonRouteTarget();
-      target = this.step === 3 ? { x: GRATE.x, z: GRATE.z } : it;
-      if (it && this.step === 4) bangY = 26;
+      target = it;
+      if (it && (this.step === 4 || this.step === 5)) bangY = 26;
     }
     // the rowboat waits on the bank during Chapter 4 (hidden once you're aboard or done)
     this.ensureRowboat();
@@ -612,7 +613,7 @@ export class QuestRunner {
       const gy = this.index.heightAtPx(target.x, target.z);
       this.beacon.visible = true;
       this.beacon.position.set(target.x, gy, target.z);
-      this.bang.visible = this.step !== 3;
+      this.bang.visible = true;
       this.bang.position.set(target.x, gy + bangY, target.z);
     } else {
       this.beacon.visible = false;
@@ -624,10 +625,10 @@ export class QuestRunner {
 
   // ch0's own step targets (pre-spine-completion)
   private nearestNonRouteTarget(): { x: number; z: number } | null {
-    if (this.step === 0 || this.step === 5) return { x: GRAM.x, z: GRAM.z };
+    if (this.step === 0 || this.step === 3) return { x: GRAM.x, z: GRAM.z };
     if (this.step === 1) return { x: DONUT.x, z: DONUT.z };
     if (this.step === 2) return { x: LIB.x, z: LIB.z };
-    if (this.step === 4) return { x: GRATE.x, z: GRATE.z };
+    if (this.step === 4 || this.step === 5) return { x: GRATE.x, z: GRATE.z };
     return null;
   }
 
@@ -658,11 +659,11 @@ export class QuestRunner {
       g.rotation.y += Math.sin(this.t * 1.3 + g.position.x) * 0.0006;
     }
 
-    // step 3: crossing Market Landing sets Clipper off
-    if (this.step === 3 && Math.hypot(px - GRATE.x, pz - GRATE.z) < 290) {
+    // step 4: following Clipper, you close on the grate he's found
+    if (this.step === 4 && Math.hypot(px - GRATE.x, pz - GRATE.z) < 290) {
       this.audio.bark();
       this.dogTarget = { x: GRATE.x, z: GRATE.z };
-      this.setStep(4);
+      this.setStep(5);
     }
 
     // newspapers in flight
@@ -826,17 +827,18 @@ export class QuestRunner {
       this.hud.showDialogue(DONUT_TALK, () => this.setStep(2));
     } else if (this.step === 2 && tag === 'lib') {
       this.hud.showDialogue(LIB_TALK, () => this.setStep(3));
-    } else if (this.step === 4 && tag === 'grate') {
-      this.hud.showDialogue(GRATE_TALK, () => {
-        this.audio.bark();
-        this.hud.chapterCard('NEXT — CHAPTER 2', 'The Door Under Downtown', 'to be continued…');
-        this.dogTarget = null;
-        this.setStep(5);
-      });
-    } else if (this.step === 5 && tag === 'gram') {
+    } else if (this.step === 3 && tag === 'gram') {
+      // errands done — report back to Gram first; then Clipper bolts off
       this.hud.showDialogue(GRAM_END, () => {
+        this.audio.bark();
+        this.dogTarget = { x: GRATE.x, z: GRATE.z };   // Clipper runs ahead to the grate
+        this.setStep(4);
+      });
+    } else if (this.step === 5 && tag === 'grate') {
+      this.hud.showDialogue(GRATE_TALK, () => {
         this.audio.jingle();
         this.hud.chapterCard('CHAPTER 1 COMPLETE', 'Overdue', 'the card is yours · the door is waiting');
+        this.dogTarget = null;
         this.setStep(6);
       });
     } else if (tag === 'editor' && this.ch2 === 0) {
