@@ -139,6 +139,12 @@ export class Game {
   private places: { label: string; sub: string; x: number; y: number }[] = [];
   private sun!: THREE.DirectionalLight;
   private hemi!: THREE.HemisphereLight;
+  // street lamps: a small pool of warm lights + ground-glow discs that follow the
+  // nearest lamps and fade in at night (lighting every mapped lamp would be too many)
+  private lampLights: THREE.PointLight[] = [];
+  private lampGlows: THREE.Mesh[] = [];
+  private lampGlowMat!: THREE.MeshBasicMaterial;
+  private lampSpots: { x: number; z: number; gy: number }[] = [];
 
   constructor(world: WorldData, terrain: Terrain) {
     this.world = world;
@@ -175,6 +181,36 @@ export class Game {
     this.scene.add(this.hemi, this.sun, this.sun.target, this.kid.root, this.dog.root);
     // day–night cycle + clouds + weather; winter precipitation falls as snow
     this.sky = new Sky(this.scene, { startTod: 0.34, period: 420, snow: SEASON === 'winter' });
+
+    // street-lamp lighting pool: a soft warm glow disc on the ground + a real
+    // PointLight, both reassigned to the nearest lamps and lit only at night
+    const gtex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const gx = c.getContext('2d')!;
+      const grd = gx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      grd.addColorStop(0, 'rgba(255, 222, 158, 0.95)');
+      grd.addColorStop(0.4, 'rgba(255, 201, 120, 0.45)');
+      grd.addColorStop(1, 'rgba(255, 190, 110, 0)');
+      gx.fillStyle = grd; gx.fillRect(0, 0, 128, 128);
+      return new THREE.CanvasTexture(c);
+    })();
+    this.lampGlowMat = new THREE.MeshBasicMaterial({
+      map: gtex, transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, opacity: 0, fog: false
+    });
+    for (let i = 0; i < 16; i++) {
+      const disc = new THREE.Mesh(new THREE.PlaneGeometry(135, 135), this.lampGlowMat);
+      disc.rotation.x = -Math.PI / 2;
+      disc.position.set(0, -1000, 0);
+      disc.renderOrder = 3;
+      disc.visible = false;
+      this.lampGlows.push(disc);
+      this.scene.add(disc);
+      const L = new THREE.PointLight('#ffd49a', 0, 170, 2);
+      L.position.set(0, -1000, 0);
+      this.lampLights.push(L);
+      this.scene.add(L);
+    }
     this.kid.root.traverse((o) => { o.castShadow = true; });
     this.dog.root.traverse((o) => { o.castShadow = true; });
 
@@ -820,6 +856,23 @@ export class Game {
     (this.scene.fog as THREE.Fog).color.copy(sky.fog);
     this.renderer.setClearColor(sky.fog);
 
+    // street lamps cast warm light at night (a pool following the nearest lamps)
+    const lampOn = this.inside ? 0 : sky.night;
+    this.lampGlowMat.opacity = 0.9 * lampOn;
+    for (let i = 0; i < this.lampLights.length; i++) {
+      const s = this.lampSpots[i];
+      const on = !!s && lampOn > 0.01;
+      const disc = this.lampGlows[i], L = this.lampLights[i];
+      disc.visible = on;
+      if (on) {
+        disc.position.set(s.x, s.gy + 0.6, s.z);
+        L.position.set(s.x, s.gy + 25, s.z);
+        L.intensity = 165 * lampOn;
+      } else {
+        L.intensity = 0;
+      }
+    }
+
     if (this.waterUpdate && !this.inside) this.waterUpdate(t);
     if (this.life && !this.inside) this.life.update(dt, this.px, this.pz, t, Math.sin(this.camAz), Math.cos(this.camAz));
     if (this.inTunnel) this.tunnel!.update(dt, this.px, this.pz);
@@ -846,6 +899,7 @@ export class Game {
         // tunnel coords overlap downtown's — minimap dot, gull logic, and
         // landmark banners would all lie underground
         this.hud.setMiniPos(this.px, this.pz);
+        this.updateLampSpots();
         this.nearWater = this.index.isWaterAt(this.px, this.pz - 230)
           || this.index.isWaterAt(this.px + 230, this.pz) || this.index.isWaterAt(this.px - 230, this.pz)
           || this.index.isWaterAt(this.px, this.pz + 230);
@@ -861,6 +915,25 @@ export class Game {
     }
 
     this.renderer.render(this.inTunnel ? this.tunnel!.scene : this.interior ? this.interior.scene : this.scene, this.camera);
+  }
+
+  // gather the nearest street lamps to the player so the small light pool can
+  // follow them; skipped entirely in daylight
+  private updateLampSpots() {
+    if (this.sky.state.night < 0.02) { this.lampSpots = []; return; }
+    const cx = Math.floor(this.px / CHUNK), cz = Math.floor(this.pz / CHUNK);
+    const found: { x: number; y: number; d: number }[] = [];
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (const lp of this.index.lampsFor((cx + dx) + ',' + (cz + dz))) {
+          const d = (lp.x - this.px) ** 2 + (lp.y - this.pz) ** 2;
+          if (d < 620 * 620) found.push({ x: lp.x, y: lp.y, d });
+        }
+      }
+    }
+    found.sort((a, b) => a.d - b.d);
+    this.lampSpots = found.slice(0, this.lampLights.length)
+      .map((f) => ({ x: f.x, z: f.y, gy: this.index.surfaceYAt(f.x, f.y) }));
   }
 
   private updateCamera(dt: number, snap = false) {

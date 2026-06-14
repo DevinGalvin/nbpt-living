@@ -29,6 +29,7 @@ export interface SkyState {
   fog: THREE.Color;
   elev: number;                 // sun elevation, -1 (midnight) .. +1 (noon)
   wet: number;                  // precipitation intensity 0..1
+  night: number;                // 0 (full day) .. 1 (lamps-on dark) — drives street lamps
 }
 
 export class Sky {
@@ -57,7 +58,7 @@ export class Sky {
   readonly state: SkyState = {
     sunDir: new THREE.Vector3(0, 1, 0), sunColor: new THREE.Color(), sunIntensity: 1.3,
     hemiSky: new THREE.Color(), hemiGround: new THREE.Color(), hemiIntensity: 0.5,
-    fog: new THREE.Color(), elev: 1, wet: 0
+    fog: new THREE.Color(), elev: 1, wet: 0, night: 0
   };
 
   constructor(scene: THREE.Scene, opts: { startTod?: number; period?: number; snow?: boolean }) {
@@ -195,6 +196,7 @@ export class Sky {
     s.fog.copy(hor);
     s.elev = elev;
     s.wet = wet;
+    s.night = clamp(1 - day * 1.2, 0, 1);   // lamps ramp on through dusk, full at night
 
     // sun direction: an east→west arc that's overhead at noon
     const az = (this.tod - 0.5) * Math.PI * 2;

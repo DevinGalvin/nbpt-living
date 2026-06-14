@@ -2492,7 +2492,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const g = index.surfaceYAt(lamp.x, lamp.y);
     buckets[PLAIN].box(lamp.x, lamp.y, 1.5, 1.5, g, g + 2, '#2e3330');
     buckets[PLAIN].box(lamp.x, lamp.y, 0.7, 0.7, g + 2, g + 24, '#2e3330');
-    buckets[PLAIN].box(lamp.x, lamp.y, 2.1, 2.1, g + 24, g + 27.5, '#ffd98c');
+    buckets[GLOW].box(lamp.x, lamp.y, 2.1, 2.1, g + 24, g + 27.5, '#ffe6b0'); // the bulb (always lit)
     // hanging flower baskets (the State Street look)
     const bh = hash32(Math.round(lamp.x), Math.round(lamp.y), 77);
     if (SEASON === 'winter') {
