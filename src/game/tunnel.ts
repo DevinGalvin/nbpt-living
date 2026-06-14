@@ -48,11 +48,13 @@ const OBJECTIVES: (string | null)[] = [
   null
 ];
 
-// walkable corridors (axis-aligned, world px, y = 0 floor)
+// walkable corridors (axis-aligned, world px, y = 0 floor). Adjacent rects must
+// OVERLAP by more than 2× the free() inset (12px) or the doorway between them is
+// walkable in neither rect — C reaches up into B so the cache doorway is open.
 const RECTS: [number, number, number, number][] = [
   [-22, -340, 22, 32],      // A: entry + long north-south corridor
-  [-310, -340, 22, -262],   // B: east-west corridor
-  [-310, -452, -198, -340]  // C: the cache room
+  [-310, -340, 22, -262],   // B: east-west corridor (overlaps A through x∈[-22,22])
+  [-310, -452, -198, -300]  // C: the cache room (overlaps B through z∈[-340,-300])
 ];
 
 const ENTRY = { x: 0, z: 14 };          // where the kid lands coming down

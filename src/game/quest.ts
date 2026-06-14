@@ -481,7 +481,7 @@ export class QuestRunner {
     else if (this.step === 2) c.push({ tag: 'lib', x: LIB.x, z: LIB.z, label: '\u{1F4AC} TALK', r: 55 });
     else if (this.step === 4) c.push({ tag: 'grate', x: GRATE.x, z: GRATE.z, label: '\u{1F440} LOOK', r: 60 });
     if (this.step >= 6) {
-      c.push({ tag: 'godown', x: GRATE.x, z: GRATE.z, label: '\u2B07 GO DOWN', r: 52 });
+      c.push({ tag: 'godown', x: GRATE.x, z: GRATE.z, label: '\u2B07 GO DOWN', r: 72 });
       if (this.ch1Done()) {
         if (this.ch2 === 0 || this.ch2 === 2) c.push({ tag: 'editor', x: this.editorPos.x, z: this.editorPos.z, label: '\u{1F4AC} TALK', r: 55 });
         else if (this.ch2 === 3) c.push({ tag: 'morgue', x: this.editorPos.x, z: this.editorPos.z, label: '\u{1F5C4} SEARCH', r: 55 });
