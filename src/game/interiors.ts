@@ -61,7 +61,7 @@ export abstract class Interior {
     this.getQuest = getQuest;
     this.build();
     // a warm follow-light keeps the room readable around the kid
-    this.light = new THREE.PointLight('#ffe6c0', 240, 760);
+    this.light = new THREE.PointLight('#ffe6c0', 360, 1000);
     this.scene.add(this.light);
     this.marker = new THREE.Mesh(
       new THREE.CapsuleGeometry(2.6, 10, 4, 8),
@@ -128,9 +128,9 @@ export class DenScene extends Interior {
   protected readonly bounds: [number, number, number, number][] = [[-85, -170, 85, 14]];
 
   protected build() {
-    this.scene.background = new THREE.Color('#04060a');
-    this.scene.fog = new THREE.Fog('#04060a', 180, 560);
-    this.scene.add(new THREE.AmbientLight('#8a8474', 0.55));
+    this.scene.background = new THREE.Color('#0c1118');
+    this.scene.fog = new THREE.Fog('#0c1118', 360, 900);
+    this.scene.add(new THREE.AmbientLight('#9a9080', 1.0));
     const blue = new THREE.PointLight('#7cc8e4', 90, 360);
     blue.position.set(-66, 16, -90);
     this.scene.add(blue);
@@ -185,8 +185,8 @@ export class StarRoomScene extends Interior {
   protected readonly bounds: [number, number, number, number][] = [[-75, -140, 75, 14]];
 
   protected build() {
-    this.scene.background = new THREE.Color('#08070a');
-    this.scene.add(new THREE.AmbientLight('#9a9284', 0.5));
+    this.scene.background = new THREE.Color('#13141c');
+    this.scene.add(new THREE.AmbientLight('#a89e88', 0.95));
     this.scene.add(floor(170, 170, -63, '#8f8c84'));
     for (const [w, h, d, x, y, z] of [
       [70, 40, 8, -42, 20, 18], [70, 40, 8, 42, 20, 18],
