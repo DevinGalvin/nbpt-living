@@ -754,9 +754,17 @@ export class QuestRunner {
     // breathes wider, while the base ring pings outward like sonar
     const pulse = (Math.sin(this.t * 3.4) + 1) / 2;
     const throb = pulse * pulse;                 // sharper bright peak = more drama
-    (this.beaconHalo.material as THREE.MeshBasicMaterial).opacity = 0.05 + 0.2 * throb;
-    (this.beaconBeam.material as THREE.MeshBasicMaterial).opacity = 0.1 + 0.3 * throb;
-    (this.beaconCore.material as THREE.MeshBasicMaterial).opacity = 0.28 + 0.46 * throb;
+    // Fade the tall beam out as you arrive, so it isn't a bright column standing
+    // on top of you and the NPC (the beam draws over everything via depthTest off).
+    // It guides you in from a distance, then bows out within interaction range;
+    // the ground ring + "!" remain as the precise here-marker.
+    const bdist = this.beacon.visible
+      ? Math.hypot(px - this.beacon.position.x, pz - this.beacon.position.z)
+      : 9999;
+    const arrive = Math.min(1, Math.max(0, (bdist - 60) / 150)); // 0 ≤60px … 1 ≥210px
+    (this.beaconHalo.material as THREE.MeshBasicMaterial).opacity = (0.05 + 0.2 * throb) * arrive;
+    (this.beaconBeam.material as THREE.MeshBasicMaterial).opacity = (0.1 + 0.3 * throb) * arrive;
+    (this.beaconCore.material as THREE.MeshBasicMaterial).opacity = (0.28 + 0.46 * throb) * arrive;
     const w = 1 + 0.16 * pulse;                  // breathe wider on the bright beat
     this.beaconHalo.scale.set(w, 1, w);
     this.beaconBeam.scale.set(w, 1, w);
