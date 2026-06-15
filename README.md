@@ -1,16 +1,36 @@
-# NBPT Living
+# Clipper Town
 
 A cozy, Zelda-like game set on the **exact map of Newburyport, Massachusetts**. Walk, bike, and kayak real streets and waterways; do quests rooted in the city's true history and present-day life. Built so kids love it **and** anyone from Newburyport has a blast — all-ages, never babyish. Mobile (iOS/Android) + desktop/web.
 
-**Status (June 2026):** 3D walkable map prototype — real OSM data rendered as a tilted-camera "model village" (Three.js): painted ground map + extruded real building footprints, chunky trees, a running kid **and his dog**, downtown through Plum Island.
+**Live at [clippertown.io](https://clippertown.io).** Three.js + TypeScript + Vite.
+
+**Status (June 2026):** live and playable — the chapter spine, seasons (summer→fall→winter) with a full day–night cycle, a kid and his dog **Clipper**, 24 hidden secrets, and the city's named landmarks, downtown through Plum Island.
+
+## Working on the game — read this first
+
+This repo has **two branches with different jobs:**
+
+| Branch | Role |
+|---|---|
+| **`source`** | the real, editable code — **make all changes here** |
+| **`main`** | generated build output that GitHub Pages serves at clippertown.io — **never hand-edit it** |
+
+**Golden rule:** edit on `source`, then ship with `npm run deploy` (it rebuilds and pushes the result to `main`). Editing the built files on `main` directly gets wiped on the next deploy. As a safety net, `npm run deploy` refuses to run unless you're on `source`.
+
+> **Using Claude Code on your phone?** Tell the session to work on the **`source`** branch, not `main`. Full run / deploy / architecture notes + gotchas live in **[HANDOFF.md](HANDOFF.md)**.
 
 ## Quick start
 
 ```bash
+git checkout source           # always work here (main is built output)
 npm install
-npm run map                   # fetch OSM data + build public/world.json (when refreshing map data)
-node tools/fetch_terrain.mjs  # fetch real elevation -> public/heights.bin (when refreshing terrain)
-npm run dev                   # http://localhost:5173
+npm run dev                   # http://localhost:5173 (hot reload)
+npm run build                 # typecheck + production build → dist/
+npm run deploy                # build + publish to clippertown.io (~30-60s)
+
+# Refreshing the map data (rare — regenerates public/world.json):
+npm run map                   # fetch OSM + rebuild world.json  ⚠ wipes hand-added data (e.g. the Fox Run pool)
+node tools/fetch_terrain.mjs  # fetch real elevation → public/heights.bin
 ```
 
 **Controls:** WASD/arrows to run (camera-relative), Shift to sprint, **C toggles chase camera ⇄ north-up map view**, **M (or the 🗺 button) opens the fast-travel map** — all 24 landmarks, tap to teleport with a fade — mouse wheel zooms, number keys 1–9 quick-travel favorites. A compass sits top-right. Touch: floating joystick + second finger to sprint. Debug console hooks: `nbpt.travel(id)`, `nbpt.walk(dx,dy,ms)`, `nbpt.zoom(z)`, `nbpt.landmarks`.
@@ -64,6 +84,6 @@ OpenStreetMap has Newburyport mapped to an exceptional standard (3,501 street wa
 
 **Required attribution:** Map data © OpenStreetMap contributors (ODbL) — openstreetmap.org/copyright. Additional data courtesy of MassGIS, Commonwealth of Massachusetts EOTSS.
 
-## Proposed next milestone
+## Status
 
-**Walkable map prototype:** run the data pipeline for real, render the downtown core in the browser with a placeholder character walking real streets (Kenney CC0 tiles), and verify the "that's my street" feeling on a phone screen.
+Long past a prototype — the game is **live at [clippertown.io](https://clippertown.io)** with the chapter spine, seasons, the day–night cycle, and the whole town. Current state, the deploy workflow, and gotchas are in **[HANDOFF.md](HANDOFF.md)**.
