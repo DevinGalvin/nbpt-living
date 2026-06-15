@@ -140,7 +140,17 @@ const DEN_BELL: Line[] = [
   { who: 'You', text: 'Found you. All of you.' }
 ];
 
-// Chapter 5 — "The Custom House Star": ring the harbor home, open the room with no door
+// Chapter 5 — "The Custom House Star": first carry the three corners back to Gram
+// (she knew all along — your grandfather drew half the map), then the keeper, the
+// harbor bells, and the room with no door.
+const GRAM_CORNERS: Line[] = [
+  { who: 'You', text: 'Gram — three of them. Corners of some old map.' },
+  { who: 'Gram', text: 'Huh. I wondered if those were still down there.' },
+  { who: 'You', text: 'You KNEW about this?' },
+  { who: 'Gram', text: 'Your grandfather drew half that map. Never did find the last piece.' },
+  { who: 'Gram', text: 'It’s under the Custom House. Always was.' },
+  { who: 'Gram', text: 'Told you — this town is full of doors. I’ll call ahead; Marta’s kept that one longer than you’ve been alive.' }
+];
 const KEEPER_TALK: Line[] = [
   { who: 'Keeper', text: 'Gram’s grandkid. She called ahead — said you’d come carrying three corners of something old.' },
   { who: 'Keeper', text: 'This building has a room no key opens. Granite below the granite. A star on the 1835 plans — and no door anywhere.' },
@@ -279,6 +289,7 @@ export class QuestRunner {
   private bells: Set<string>;
   private rowboat: THREE.Group | null = null;
   private c5built = false;
+  private gramSent = false;   // Ch5: shown Gram the three corners → she sends you on (gates the keeper)
   private stops: { x: number; z: number }[] = [];
   private delivered: Set<number>;
   private editorPos = { x: 764, z: 342 };
@@ -300,6 +311,8 @@ export class QuestRunner {
     this.ch2 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch2-step') || '0', 10) || 0));
     this.ch3 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch3-step') || '0', 10) || 0));
     this.ch4 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch4-step') || '0', 10) || 0));
+    // already past the keeper on an old save? treat the Gram beat as done (no backtrack)
+    this.gramSent = localStorage.getItem('nbpt-ch5-gram') === '1' || this.ch4 >= 1;
     try {
       this.bells = new Set(JSON.parse(localStorage.getItem('nbpt-ch4-bells') || '[]'));
     } catch {
@@ -521,7 +534,8 @@ export class QuestRunner {
           }
           // Chapter 5 "The Custom House Star": the keeper, the bells, the cellar
           if (this.ch3 >= 4) {
-            if (this.ch4 === 0) c.push({ tag: 'curator', x: KEEPER.x, z: KEEPER.z, label: '\u{1F4AC} TALK', r: 60 });
+            if (this.ch4 === 0 && !this.gramSent) c.push({ tag: 'gramcorners', x: GRAM.x, z: GRAM.z, label: '\u{1F4AC} TALK', r: 55 });
+            else if (this.ch4 === 0) c.push({ tag: 'curator', x: KEEPER.x, z: KEEPER.z, label: '\u{1F4AC} TALK', r: 60 });
             else if (this.ch4 === 1) {
               if (!this.bells.has('cg')) c.push({ tag: 'cgbell', x: BELL_CG.x, z: BELL_CG.z, label: '\u{1F514} RING', r: 65 });
               if (!this.bells.has('wharf')) c.push({ tag: 'whbell', x: BELL_WHARF.x, z: BELL_WHARF.z, label: '\u{1F514} RING', r: 65 });
@@ -584,6 +598,9 @@ export class QuestRunner {
       } else if (this.ch3 < 4) {
         this.hud.setObjective('The waterline door \u2014 below the seawall, west of the docks');
         target = WDOOR;
+      } else if (this.ch4 === 0 && !this.gramSent) {
+        this.hud.setObjective('Show Gram what you found \u2014 Market Square');
+        target = { x: GRAM.x, z: GRAM.z };
       } else if (this.ch4 === 0) {
         this.hud.setObjective('The last corner \u2014 the Custom House, Water Street');
         target = KEEPER;
@@ -722,6 +739,7 @@ export class QuestRunner {
       { id: 'ch5', group: 'story', kicker: 'Chapter 5', title: 'The Custom House Star',
         state: s4 >= 4 ? 'done' : s3 >= 4 ? 'active' : 'locked', active: active === 5, replay: 4,
         steps: [
+          { label: 'Bring the three corners back to Gram', done: this.gramSent || s4 >= 1 },
           { label: 'Talk to the Custom House keeper', done: s4 >= 1 },
           { label: 'Ring the harbor home', done: s4 >= 2, count: this.bells.size, total: 3 },
           { label: 'Open the room with no door', done: s4 >= 4 }
@@ -1005,6 +1023,13 @@ export class QuestRunner {
       });
     } else if (tag === 'dbell' && this.ch4 === 1) {
       this.ringBell('den');
+    } else if (tag === 'gramcorners' && this.ch4 === 0 && !this.gramSent) {
+      this.hud.showDialogue(GRAM_CORNERS, () => {
+        this.gramSent = true;
+        localStorage.setItem('nbpt-ch5-gram', '1');
+        this.hud.chapterCard('CHAPTER 5', 'The Custom House Star', 'three corners home · the last lies under the Custom House');
+        this.apply();
+      });
     } else if (tag === 'curator' && this.ch4 === 0) {
       this.hud.showDialogue(KEEPER_TALK, () => this.setCh4(1));
     } else if (tag === 'corner4' && this.ch4 === 2) {
