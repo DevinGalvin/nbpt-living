@@ -27,10 +27,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -47,7 +47,7 @@ jobs:
       # like deploy_pages.sh clones the Pages repo to /tmp. persist-credentials
       # (default) wires GITHUB_TOKEN into ./live/.git so the push below works.
       - name: Check out live branch (main) into ./live
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: main
           path: live
