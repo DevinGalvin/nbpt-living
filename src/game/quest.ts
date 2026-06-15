@@ -750,15 +750,21 @@ export class QuestRunner {
 
   update(dt: number, px: number, pz: number) {
     this.t += dt;
-    // beacon: the shaft + halo breathe; the base ring pings outward like sonar
-    const pulse = (Math.sin(this.t * 3.2) + 1) / 2;
-    (this.beaconHalo.material as THREE.MeshBasicMaterial).opacity = 0.07 + 0.05 * pulse;
-    (this.beaconBeam.material as THREE.MeshBasicMaterial).opacity = 0.15 + 0.08 * pulse;
-    (this.beaconCore.material as THREE.MeshBasicMaterial).opacity = 0.4 + 0.12 * pulse;
-    const ping = (this.t * 0.8) % 1;
-    const rs = 1 + ping * 1.7;
+    // beacon: a strong, dramatic pulse — the whole pillar throbs bright→dim and
+    // breathes wider, while the base ring pings outward like sonar
+    const pulse = (Math.sin(this.t * 3.4) + 1) / 2;
+    const throb = pulse * pulse;                 // sharper bright peak = more drama
+    (this.beaconHalo.material as THREE.MeshBasicMaterial).opacity = 0.05 + 0.2 * throb;
+    (this.beaconBeam.material as THREE.MeshBasicMaterial).opacity = 0.1 + 0.3 * throb;
+    (this.beaconCore.material as THREE.MeshBasicMaterial).opacity = 0.28 + 0.46 * throb;
+    const w = 1 + 0.16 * pulse;                  // breathe wider on the bright beat
+    this.beaconHalo.scale.set(w, 1, w);
+    this.beaconBeam.scale.set(w, 1, w);
+    this.beaconCore.scale.set(w, 1, w);
+    const ping = (this.t * 0.85) % 1;
+    const rs = 1 + ping * 2.4;
     this.beaconRing.scale.set(rs, 1, rs);
-    (this.beaconRing.material as THREE.MeshBasicMaterial).opacity = 0.55 * (1 - ping);
+    (this.beaconRing.material as THREE.MeshBasicMaterial).opacity = 0.7 * (1 - ping);
     if (this.bang.visible) {
       this.bang.position.y += Math.sin(this.t * 3.2) * dt * 4;
     }
