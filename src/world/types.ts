@@ -31,6 +31,7 @@ export interface Road {
   w: number;        // width px
   n?: string;
   b?: number;       // bridge
+  l?: number;       // OSM layer (vertical stacking where ways cross); absent = 0
 }
 
 export interface PathSeg {
@@ -39,6 +40,7 @@ export interface PathSeg {
   w: number;
   n?: string;
   b?: number;
+  l?: number;       // OSM layer (vertical stacking where ways cross); absent = 0
   m?: number;       // dock line: 1 = boats moor here
   s?: string;       // surface (runways: asphalt|grass)
 }

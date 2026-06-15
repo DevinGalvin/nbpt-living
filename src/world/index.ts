@@ -3,6 +3,17 @@ import { STYLE, SEASON, hash32, mulberry32 } from './style';
 import { Terrain } from './terrain';
 import { isFreezableWater, WATER_Y } from '../three/water';
 
+// a bridge's structural plan, computed once per span and cached (see bridgeProfile):
+// the deck-TOP height profile plus the discrete supports that hold the slab up
+type BridgeSupport = { x: number; z: number; footY: number; topY: number; ux: number; uz: number };
+type BridgeProfile = {
+  base: number;
+  cum: number[];
+  bumps: { t: number; peak: number }[];
+  water?: { s: number; e: number };
+  supports: { piers: BridgeSupport[]; abut: BridgeSupport[] };
+};
+
 // ---------- terrain patterns (grass looks like grass, sand like sand...) ----------
 
 const patternCanvasCtx = (() => {
@@ -1252,14 +1263,33 @@ export class WorldIndex {
   static readonly UNDERPASS_CLEAR = 46;  // kid (33) + bike (7.5) + margin
   static readonly WATER_CLEAR = 38;      // lift over open water so boats pass beneath
   private static readonly BRIDGE_RAMP = 150;
-  private bridgeProfiles = new Map<number[], { base: number; cum: number[]; bumps: { t: number; peak: number }[]; water?: { s: number; e: number } }>();
+  static readonly DECK_T = 7;            // deck-slab thickness: top rides the profile, bottom sits T below
+  private static readonly PIER_SPACING = 140; // columns this far apart along the span
+  private static readonly CROSS_WINDOW = 60;   // no pier within this of a crossed road (leave the gap open)
+  private bridgeProfiles = new Map<number[], BridgeProfile>();
+  private bridgeComputing = new Set<number[]>();   // recursion guard for bridge-over-bridge clearance
+  private wayLayer: Map<number[], number> | null = null;
 
-  bridgeProfile(pts: number[]): { base: number; cum: number[]; bumps: { t: number; peak: number }[]; water?: { s: number; e: number } } {
+  // effective OSM layer of a way: explicit tag, else 1 for a bridge / 0 for ground
+  private effLayer(p: number[]): number {
+    if (!this.wayLayer) {
+      this.wayLayer = new Map();
+      for (const r of this.world.roads) this.wayLayer.set(r.p, r.l != null ? r.l : (r.b ? 1 : 0));
+      for (const pa of this.world.paths) this.wayLayer.set(pa.p, pa.l != null ? pa.l : (pa.b ? 1 : 0));
+    }
+    return this.wayLayer.get(p) ?? 0;
+  }
+
+  bridgeProfile(pts: number[]): BridgeProfile {
     let prof = this.bridgeProfiles.get(pts);
     if (prof) return prof;
     const h0 = this.terrain.heightAt(pts[0], pts[1]);
     const h1 = this.terrain.heightAt(pts[pts.length - 2], pts[pts.length - 1]);
     const base = Math.max(h0, h1) + 6;
+    // re-entrant (can't happen under a strict layer order; guard against bad data)
+    if (this.bridgeComputing.has(pts)) return { base, cum: [0], bumps: [], supports: { piers: [], abut: [] } };
+    this.bridgeComputing.add(pts);
+    const myLayer = this.effLayer(pts);
     const cum: number[] = [0];
     for (let i = 0; i + 3 < pts.length; i += 2) {
       cum.push(cum[cum.length - 1] + Math.hypot(pts[i + 2] - pts[i], pts[i + 3] - pts[i + 1]));
@@ -1267,10 +1297,12 @@ export class WorldIndex {
     const total = cum[cum.length - 1];
     const bb = bboxOf(pts);
     const bumps: { t: number; peak: number }[] = [];
-    // every non-bridge way that crosses mid-span demands clearance at the
-    // crossing; intersections at either way's ends are junctions, not underpasses
-    const consider = (q: number[]) => {
-      if (q === pts) return;
+    // a way crossing mid-span demands clearance only if it passes strictly BELOW
+    // this deck (lower OSM layer): a crossed bridge is cleared over its own deck top
+    // (stacked ramps), a crossed road/path over the ground. Intersections at either
+    // way's ends are junctions, not underpasses.
+    const consider = (q: number[], qBridge: boolean, qLayer: number) => {
+      if (q === pts || qLayer >= myLayer) return;
       const qb = bboxOf(q);
       if (qb[2] < bb[0] - 4 || qb[0] > bb[2] + 4 || qb[3] < bb[1] - 4 || qb[1] > bb[3] + 4) return;
       for (let i = 0; i + 3 < pts.length; i += 2) {
@@ -1287,17 +1319,18 @@ export class WorldIndex {
           if (t < 26 || t > total - 26) continue;          // bridge's own approaches
           const tu = (j / 2 === 0 && u < 0.04) || (j + 4 >= q.length && u > 0.96);
           if (tu) continue;                                 // ramp meeting the span
-          const ground = this.terrain.heightAt(ax + r1x * s, ay + r1y * s);
-          const peak = ground + WorldIndex.UNDERPASS_CLEAR;
+          const hx = ax + r1x * s, hy = ay + r1y * s;
+          const under = qBridge ? this.bridgeDeckYAt(q, hx, hy) : this.terrain.heightAt(hx, hy);
+          const peak = under + WorldIndex.UNDERPASS_CLEAR;
           if (peak > base) bumps.push({ t, peak });
         }
       }
     };
     for (const r of this.world.roads) {
-      if (!r.b) consider(r.p);
+      consider(r.p, !!r.b, r.l != null ? r.l : (r.b ? 1 : 0));
     }
     for (const p of this.world.paths) {
-      if (!p.b && p.c !== 'pierline' && p.c !== 'stoneline') consider(p.p);
+      if (p.c !== 'pierline' && p.c !== 'stoneline') consider(p.p, !!p.b, p.l != null ? p.l : (p.b ? 1 : 0));
     }
     // over open water, lift the span to a FLAT height clear of the surface so boats
     // pass beneath, ramping back down to the banks at the water's edges — a flat span,
@@ -1313,8 +1346,53 @@ export class WorldIndex {
       if (this.isWaterAt(wx, wy)) { if (d < ws) ws = d; if (d > we) we = d; }
     }
     const water = we >= ws ? { s: ws, e: we } : undefined;
-    prof = { base, cum, bumps, water };
+    prof = { base, cum, bumps, water, supports: { piers: [], abut: [] } };
     this.bridgeProfiles.set(pts, prof);
+    this.bridgeComputing.delete(pts); // cached now; deeper queries hit the cache, not recursion
+
+    // ---- structural supports: piers along the span + abutments at the banks ----
+    // deck-top height at arc-length t — same math as bridgeDeckYAt, but keyed on t
+    // directly so we don't recurse into bridgeProfile while still building it
+    const deckTopAtT = (tt: number): number => {
+      let deck = base;
+      for (const bump of bumps) {
+        deck = Math.max(deck, bump.peak - (Math.abs(tt - bump.t) / WorldIndex.BRIDGE_RAMP) * (bump.peak - base));
+      }
+      if (water) {
+        const R = 120;
+        const f = tt <= water.s || tt >= water.e ? 0 : Math.max(0, Math.min(1, (tt - water.s) / R, (water.e - tt) / R));
+        deck = Math.max(deck, base + f * WorldIndex.WATER_CLEAR);
+      }
+      return deck;
+    };
+    const xzAtT = (tt: number): [number, number, number, number] => {
+      let seg = 0;
+      while (seg + 1 < cum.length && cum[seg + 1] <= tt) seg++;
+      const segLen = (cum[seg + 1] - cum[seg]) || 1;
+      const f = Math.max(0, Math.min(1, (tt - cum[seg]) / segLen));
+      const ex = pts[seg * 2 + 2] - pts[seg * 2], ez = pts[seg * 2 + 3] - pts[seg * 2 + 1];
+      const el = Math.hypot(ex, ez) || 1;
+      return [pts[seg * 2] + ex * f, pts[seg * 2 + 1] + ez * f, ex / el, ez / el];
+    };
+    const T = WorldIndex.DECK_T;
+    // piers march the whole span (footing on the water surface or the ground), but
+    // never inside a crossing window — that gap stays open so the road passes under.
+    // The Gillis navigation channel is skipped at emission (decor), where its geometry lives.
+    for (let tt = WorldIndex.PIER_SPACING; tt <= total - WorldIndex.PIER_SPACING; tt += WorldIndex.PIER_SPACING) {
+      let inGap = false;
+      for (const b of bumps) { if (Math.abs(tt - b.t) < WorldIndex.CROSS_WINDOW) { inGap = true; break; } }
+      if (inGap) continue;
+      const [x, z, ux, uz] = xzAtT(tt);
+      const topY = deckTopAtT(tt) - T;
+      const footY = this.isWaterAt(x, z) ? WATER_Y - 8 : this.terrain.heightAt(x, z) - 4;
+      if (topY - footY < 10) continue; // deck hugs the grade here — no column to draw
+      prof.supports.piers.push({ x, z, footY, topY, ux, uz });
+    }
+    // abutments seat the deck ends into the banks (close any gap at the lower bank)
+    for (const tEnd of [Math.min(20, total / 2), Math.max(total - 20, total / 2)]) {
+      const [x, z, ux, uz] = xzAtT(tEnd);
+      prof.supports.abut.push({ x, z, footY: this.terrain.heightAt(x, z) - 6, topY: deckTopAtT(tEnd) - T, ux, uz });
+    }
     return prof;
   }
 

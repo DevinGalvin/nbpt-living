@@ -339,6 +339,9 @@ for (const el of raw.elements) {
         for (const run of runsOf(el.geometry)) {
           const seg = { p: simplify(run) };
           if (t.bridge && t.bridge !== 'no') seg.b = 1;
+          // OSM layer: which way is on top where they cross (bridge-over-bridge ramps)
+          const lyr = parseInt(t.layer, 10);
+          if (Number.isFinite(lyr) && lyr !== 0) seg.l = lyr;
           if (t.name) seg.n = t.name;
           if (isRoad) {
             let w = ROAD_W_M[t.highway];

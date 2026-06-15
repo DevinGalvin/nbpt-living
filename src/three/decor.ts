@@ -1012,12 +1012,46 @@ function houseTrim(plain: Bucket, ring: number[], eaveH: number, baseY: number) 
   }
 }
 
+// an oriented rectangular post (bridge pier / abutment): a box turned to the span
+// heading so it doesn't read as an axis-aligned block on diagonal bridges. Builds 4
+// walls + a top face (the foot is under ground/water, so no bottom is needed).
+// ha = half-depth along the span, hc = half-width across it.
+function orientedPost(bk: Bucket, cx: number, cz: number, ux: number, uz: number,
+                      ha: number, hc: number, y0: number, y1: number, hex: string) {
+  const px = -uz, pz = ux; // across-the-span axis
+  const P: [number, number][] = [
+    [cx - ux * ha - px * hc, cz - uz * ha - pz * hc],
+    [cx + ux * ha - px * hc, cz + uz * ha - pz * hc],
+    [cx + ux * ha + px * hc, cz + uz * ha + pz * hc],
+    [cx - ux * ha + px * hc, cz - uz * ha + pz * hc],
+  ];
+  tmp.set(hex); const r = tmp.r, g = tmp.g, b = tmp.b;
+  for (let i = 0; i < 4; i++) {
+    let [x0, z0] = P[i]; let [x1, z1] = P[(i + 1) % 4];
+    const ex = x1 - x0, ez = z1 - z0, el = Math.hypot(ex, ez) || 1;
+    let nx = -ez / el, nz = ex / el;                 // wall normal (left of the edge)
+    const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;    // ...flip to face OUTWARD from the centre
+    if ((mx - cx) * nx + (mz - cz) * nz < 0) { nx = -nx; nz = -nz; const tX = x0, tZ = z0; x0 = x1; z0 = z1; x1 = tX; z1 = tZ; }
+    bk.quad(x0, y0, z0, x1, y0, z1, x1, y1, z1, x0, y1, z0, nx, 0, nz, r * 0.9, g * 0.9, b * 0.9);
+  }
+  bk.quad(P[0][0], y1, P[0][1], P[1][0], y1, P[1][1], P[2][0], y1, P[2][1], P[3][0], y1, P[3][1], 0, 1, 0, r, g, b);
+}
+
+// the oriented rectangle the Gillis bascule occupies — the generic deck and its
+// piers both leave this clear so the custom drawbridge fills it
+function inGillisRect(x: number, z: number): boolean {
+  const dxg = x - gillisCenter.x, dzg = z - gillisCenter.z;
+  const along = dxg * gillisCenter.ux + dzg * gillisCenter.uz;
+  const across = -dxg * gillisCenter.uz + dzg * gillisCenter.ux;
+  return Math.abs(along) < gillisCenter.halfLen && Math.abs(across) < gillisCenter.halfW;
+}
+
 // deck height may vary along the span (overpass clearance humps), so the
-// ribbon takes a height function and subdivides segments to follow it
-// Decks for bridges/overpasses (rails=true → a paved ROAD: dark asphalt top, a
-// dashed center line, concrete skirt + guardrails, all in the untextured PLAIN
-// bucket so it reads as a road, not wood) and for bare docks/piers (rails=false →
-// stays wooden planks in the PLANK bucket).
+// ribbon takes a height function and subdivides segments to follow it.
+// Road bridges (rails=true) build a CLOSED constant-thickness asphalt slab (top +
+// bottom + thin fascia + end caps) held up by discrete piers/abutments emitted by
+// the caller — the underside is open between supports so roads & boats pass beneath.
+// Bare docks / foot-bridges (rails=false) stay wooden planks on a full side skirt.
 function ribbonDeck(buckets: Bucket[], pts: number[], w: number, topYAt: number | ((x: number, z: number) => number),
                     rails: boolean, ox: number, oy: number, skipGillis = false) {
   const isRoad = rails;
@@ -1039,25 +1073,16 @@ function ribbonDeck(buckets: Bucket[], pts: number[], w: number, topYAt: number 
       const x1 = sx0 + (sx1 - sx0) * ((pc + 1) / pieces), z1 = sz0 + (sz1 - sz0) * ((pc + 1) / pieces);
       const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
       if (mx < ox || mx >= ox + CHUNK || mz < oy || mz >= oy + CHUNK) continue;
-      // leave a clean rectangular gap at the Gillis channel — the custom drawbridge
-      // fills it (a circle left holes at the deck corners)
-      if (skipGillis) {
-        const dxg = mx - gillisCenter.x, dzg = mz - gillisCenter.z;
-        const along = dxg * gillisCenter.ux + dzg * gillisCenter.uz;
-        const across = -dxg * gillisCenter.uz + dzg * gillisCenter.ux;
-        if (Math.abs(along) < gillisCenter.halfLen && Math.abs(across) < gillisCenter.halfW) continue;
-      }
+      // leave a clean rectangular gap at the Gillis channel — the custom drawbridge fills it
+      if (skipGillis && inGillisRect(mx, mz)) continue;
       const dx = x1 - x0, dz = z1 - z0;
       const len = Math.hypot(dx, dz);
       if (len < 0.01) continue;
       const nx = -dz / len, nz = dx / len;
       const hw = w / 2;
       const y0 = yAt(x0, z0), y1 = yAt(x1, z1);
-      // a span lifted over water drops its side wall all the way to the surface (no
-      // see-through gap underneath); a low overpass keeps a thin girder so whatever
-      // passes beneath stays clear
-      const bottomY = Math.min(y0, y1) > 22 ? 0 : Math.max(0, Math.min(y0, y1) - 14);
       const u = len / TEX_SCALE, vv = w / TEX_SCALE;
+      // deck TOP surface
       surf.quadUV(
         x0 + nx * hw, y0, z0 + nz * hw, x1 + nx * hw, y1, z1 + nz * hw,
         x1 - nx * hw, y1, z1 - nz * hw, x0 - nx * hw, y0, z0 - nz * hw,
@@ -1073,13 +1098,26 @@ function ribbonDeck(buckets: Bucket[], pts: number[], w: number, topYAt: number 
           0, 1, 0, line.r, line.g, line.b
         );
       }
-      for (const s of [1, -1]) {
+      if (isRoad) {
+        // CLOSED constant-thickness slab: bottom face at y-T + thin fascia sides + end
+        // caps. Discrete piers/abutments (emitted by the caller) hold it up, so the
+        // space *between* supports is open — this is the structural fix for both the
+        // see-through gaps (open underside) and the buried overpass (full-height wall).
+        const T = WorldIndex.DECK_T;
+        const b0 = y0 - T, b1 = y1 - T;
+        // bottom face — normal down, wound opposite the top so it shows from below
         surf.quad(
-          x0 + nx * hw * s, bottomY, z0 + nz * hw * s, x1 + nx * hw * s, bottomY, z1 + nz * hw * s,
-          x1 + nx * hw * s, y1, z1 + nz * hw * s, x0 + nx * hw * s, y0, z0 + nz * hw * s,
-          nx * s, 0, nz * s, skirt.r, skirt.g, skirt.b
+          x0 - nx * hw, b0, z0 - nz * hw, x1 - nx * hw, b1, z1 - nz * hw,
+          x1 + nx * hw, b1, z1 + nz * hw, x0 + nx * hw, b0, z0 + nz * hw,
+          0, -1, 0, skirt.r * 0.9, skirt.g * 0.9, skirt.b * 0.9
         );
-        if (rails) {
+        for (const s of [1, -1]) {
+          // fascia — the deck edge (only T tall), not a wall to the ground
+          surf.quad(
+            x0 + nx * hw * s, b0, z0 + nz * hw * s, x1 + nx * hw * s, b1, z1 + nz * hw * s,
+            x1 + nx * hw * s, y1, z1 + nz * hw * s, x0 + nx * hw * s, y0, z0 + nz * hw * s,
+            nx * s, 0, nz * s, skirt.r, skirt.g, skirt.b
+          );
           // top rail band + posts — reads as a real guardrail
           surf.quad(
             x0 + nx * hw * s, y0 + 3.4, z0 + nz * hw * s, x1 + nx * hw * s, y1 + 3.4, z1 + nz * hw * s,
@@ -1097,6 +1135,33 @@ function ribbonDeck(buckets: Bucket[], pts: number[], w: number, topYAt: number 
               nx * s, 0, nz * s, rail.r * 0.88, rail.g * 0.88, rail.b * 0.88
             );
           }
+        }
+        // END CAPS — close the hollow slab at the polyline's first/last end. The
+        // per-piece chunk cull above means each end is reached in exactly ONE chunk,
+        // so the cap is emitted once (no double-draw across chunk seams).
+        if (i === 0 && pc === 0) {
+          surf.quad(
+            x0 - nx * hw, b0, z0 - nz * hw, x0 + nx * hw, b0, z0 + nz * hw,
+            x0 + nx * hw, y0, z0 + nz * hw, x0 - nx * hw, y0, z0 - nz * hw,
+            -dx / len, 0, -dz / len, skirt.r, skirt.g, skirt.b
+          );
+        }
+        if (i + 4 >= pts.length && pc === pieces - 1) {
+          surf.quad(
+            x1 + nx * hw, b1, z1 + nz * hw, x1 - nx * hw, b1, z1 - nz * hw,
+            x1 - nx * hw, y1, z1 - nz * hw, x1 + nx * hw, y1, z1 + nz * hw,
+            dx / len, 0, dz / len, skirt.r, skirt.g, skirt.b
+          );
+        }
+      } else {
+        // wooden docks / foot-bridges: original full side skirt down to ground/water
+        const bottomY = Math.min(y0, y1) > 22 ? 0 : Math.max(0, Math.min(y0, y1) - 14);
+        for (const s of [1, -1]) {
+          surf.quad(
+            x0 + nx * hw * s, bottomY, z0 + nz * hw * s, x1 + nx * hw * s, bottomY, z1 + nz * hw * s,
+            x1 + nx * hw * s, y1, z1 + nz * hw * s, x0 + nx * hw * s, y0, z0 + nz * hw * s,
+            nx * s, 0, nz * s, skirt.r, skirt.g, skirt.b
+          );
         }
       }
     }
@@ -2542,6 +2607,21 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     // and lifts clear of any water it spans (the Gillis channel is left open for
     // the custom drawbridge)
     ribbonDeck(buckets, r.p, r.w + 4, (x, z) => index.bridgeDeckYAt(r.p, x, z), true, ox, oy, true);
+    // hold the slab up: pier WALLS marching the span (turned across the deck, capped
+    // under the soffit) + full-width abutments at the banks. One (x,z) each + the
+    // chunk cull below ⇒ emitted in exactly one chunk.
+    const sup = index.bridgeProfile(r.p).supports;
+    const hw = (r.w + 4) / 2;
+    for (const p of sup.piers) {
+      if (p.x < ox || p.x >= ox + CHUNK || p.z < oy || p.z >= oy + CHUNK) continue;
+      if (inGillisRect(p.x, p.z)) continue; // the bascule fills the channel itself
+      orientedPost(buckets[PLAIN], p.x, p.z, p.ux, p.uz, 5, hw * 0.62, p.footY, p.topY, '#70737a');       // pier wall
+      orientedPost(buckets[PLAIN], p.x, p.z, p.ux, p.uz, 8, hw * 0.66, p.topY - 4, p.topY + 1, '#7c7f85'); // cap beam
+    }
+    for (const a of sup.abut) {
+      if (a.x < ox || a.x >= ox + CHUNK || a.z < oy || a.z >= oy + CHUNK) continue;
+      orientedPost(buckets[PLAIN], a.x, a.z, a.ux, a.uz, 15, hw * 0.95, a.footY, a.topY, '#666970');
+    }
   }
   for (const pi of bucket.paths) {
     const p = world.paths[pi];
