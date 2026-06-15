@@ -2,6 +2,12 @@ import { Game } from './game/Game';
 import { Terrain } from './world/terrain';
 import type { WorldData } from './world/types';
 
+// Build stamp (injected by Vite — see vite.config.ts). Lets you confirm which
+// source commit is live: open the console, or read `window.__build`.
+declare const __BUILD__: string;
+(window as unknown as { __build?: string }).__build = __BUILD__;
+console.info(`Clipper Town — build ${__BUILD__}`);
+
 async function boot() {
   // single-file share builds inline the map + terrain as globals
   const inline = window as unknown as { __NBPT_WORLD__?: WorldData; __NBPT_HEIGHTS__?: string };
