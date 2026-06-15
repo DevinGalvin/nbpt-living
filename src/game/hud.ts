@@ -377,9 +377,13 @@ const css = `
 }
 #hud .welcome.closing { opacity: 0; }
 #hud .welcome-card {
-  width: min(360px, 90vw); box-sizing: border-box;
+  width: min(360px, 90vw); max-height: 92vh; overflow-y: auto; box-sizing: border-box;
   background: rgba(22,29,38,0.98); border-radius: 22px; border-bottom: 4px solid #d8b94a;
-  padding: 28px 22px 22px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+  padding: 26px 22px 22px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+}
+#hud .welcome-card .wship {
+  display: block; width: 84px; height: 84px; margin: 2px auto 14px; border-radius: 19px;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.45); border: 1px solid rgba(216,185,74,0.45);
 }
 #hud .welcome-card .wtitle { font-family: Georgia, serif; font-size: 31px; letter-spacing: 3px; color: #f6f3e8; }
 #hud .welcome-card .wsub { font-size: 11px; color: #9aa3af; margin: 5px 0 20px; letter-spacing: 2px; text-transform: uppercase; }
@@ -1350,6 +1354,7 @@ export class Hud {
     el.className = 'welcome';
     el.innerHTML = `
       <div class="welcome-card">
+        <img class="wship" src="./icon-180.png" alt="" draggable="false" onerror="this.remove()" />
         <div class="wtitle">CLIPPER TOWN</div>
         <div class="wsub">Newburyport · for real</div>
         <div class="wquest">
@@ -1360,9 +1365,9 @@ export class Hud {
           </div>
         </div>
         <div class="wctrls">
-          <span>🕹️ Drag to move</span>
-          <span>🏃 Tap to run</span>
-          <span>💬 Tap TALK</span>
+          <span>Drag to move</span>
+          <span>Tap 🏃 to run</span>
+          <span>Tap 💬 to talk</span>
         </div>
         <div class="wstart">▶&nbsp;&nbsp;PLAY</div>
       </div>`;
