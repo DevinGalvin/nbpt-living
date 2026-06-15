@@ -297,7 +297,7 @@ export class Game {
     this.quest = new QuestRunner(this.scene, this.index, this.hud, this.audio, () => this.enterTunnel(), () => {
       localStorage.setItem('nbpt-bike', '1');
       this.bikeEarned();
-    }, () => this.boatRide(), () => this.enterStar(), () => this.enterNews());
+    }, () => this.boatRide(), () => this.enterStar(), () => this.enterNews(), () => this.enterDen());
     this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
     this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,

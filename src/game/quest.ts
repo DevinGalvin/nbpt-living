@@ -271,6 +271,7 @@ export class QuestRunner {
   private onBoat: () => void;   // ROW the boat out to the den (Game drives the ride)
   private onStar: () => void;   // ENTER the Custom House cellar (the star room)
   private onNews: () => void;   // ENTER the Daily News newsroom (Chapter 3)
+  private onDen: () => void;    // re-ENTER the den if you stepped out before finishing Ch4
   private ch2: number;
   private ch3: number;
   private ch4: number;
@@ -283,7 +284,7 @@ export class QuestRunner {
   private papers: { m: THREE.Mesh; t: number; from: { x: number; z: number }; to: { x: number; z: number } }[] = [];
 
   constructor(scene: THREE.Scene, index: WorldIndex, hud: Hud, audio: GameAudio, onGoDown: () => void, onBike: () => void,
-              onBoat: () => void, onStar: () => void, onNews: () => void) {
+              onBoat: () => void, onStar: () => void, onNews: () => void, onDen: () => void) {
     this.scene = scene;
     this.index = index;
     this.hud = hud;
@@ -293,6 +294,7 @@ export class QuestRunner {
     this.onBoat = onBoat;
     this.onStar = onStar;
     this.onNews = onNews;
+    this.onDen = onDen;
     this.step = Math.min(6, Math.max(0, parseInt(localStorage.getItem(SAVE_KEY) || '0', 10) || 0));
     this.ch2 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch2-step') || '0', 10) || 0));
     this.ch3 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch3-step') || '0', 10) || 0));
@@ -497,6 +499,10 @@ export class QuestRunner {
         if (this.ch2 >= 4) {
           if (this.ch3 === 0 || (this.ch4 === 1 && !this.bells.has('den'))) {
             c.push({ tag: 'boat', x: BOAT.x, z: BOAT.z, label: '\u{1F6F6} ROW', r: 48 });
+          } else if (this.ch3 >= 1 && this.ch3 < 4) {
+            // stepped out of the den before finishing — the boat's beached at the
+            // door, so let them climb back down instead of being stranded here
+            c.push({ tag: 'reden', x: WDOOR.x, z: WDOOR.z, label: '⬇ GO DOWN', r: 64 });
           }
           // Chapter 5 "The Custom House Star": the keeper, the bells, the cellar
           if (this.ch3 >= 4) {
@@ -861,6 +867,12 @@ export class QuestRunner {
         this.hud.showTalk(null);
         this.nearTag = null;
         this.onNews();   // step inside the Daily News; the editor/morgue beats run there
+        return;
+      }
+      if (it.tag === 'reden') {
+        this.hud.showTalk(null);
+        this.nearTag = null;
+        this.onDen();   // climb straight back down to the den (the boat's already beached)
         return;
       }
       if (it.tag === 'boat') {
