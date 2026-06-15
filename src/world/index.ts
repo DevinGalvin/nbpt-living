@@ -1250,6 +1250,7 @@ export class WorldIndex {
   // mountable on foot. Derived purely from map data + terrain — no per-bridge
   // tuning, so it holds for any town we load, not just Newburyport.
   static readonly UNDERPASS_CLEAR = 46;  // kid (33) + bike (7.5) + margin
+  static readonly WATER_CLEAR = 38;      // lift over open water so boats pass beneath
   private static readonly BRIDGE_RAMP = 150;
   private bridgeProfiles = new Map<number[], { base: number; cum: number[]; bumps: { t: number; peak: number }[] }>();
 
@@ -1297,6 +1298,18 @@ export class WorldIndex {
     }
     for (const p of this.world.paths) {
       if (!p.b && p.c !== 'pierline' && p.c !== 'stoneline') consider(p.p);
+    }
+    // over open water, lift the span well clear of the surface so boats pass
+    // beneath (the banks ramp it back down). Dense samples + the ramp width keep
+    // the deck a sustained height across the channel, not a single point-tent.
+    for (let d = 30; d < total - 30; d += 55) {
+      let seg = 0;
+      while (seg + 1 < cum.length && cum[seg + 1] <= d) seg++;
+      const segLen = (cum[seg + 1] - cum[seg]) || 1;
+      const f = Math.min(1, (d - cum[seg]) / segLen);
+      const wx = pts[seg * 2] + (pts[seg * 2 + 2] - pts[seg * 2]) * f;
+      const wy = pts[seg * 2 + 1] + (pts[seg * 2 + 3] - pts[seg * 2 + 1]) * f;
+      if (this.isWaterAt(wx, wy)) bumps.push({ t: d, peak: base + WorldIndex.WATER_CLEAR });
     }
     prof = { base, cum, bumps };
     this.bridgeProfiles.set(pts, prof);

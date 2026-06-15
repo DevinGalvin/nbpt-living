@@ -1013,14 +1013,20 @@ function houseTrim(plain: Bucket, ring: number[], eaveH: number, baseY: number) 
 
 // deck height may vary along the span (overpass clearance humps), so the
 // ribbon takes a height function and subdivides segments to follow it
-function ribbonDeck(plank: Bucket, pts: number[], w: number, topYAt: number | ((x: number, z: number) => number),
+// Decks for bridges/overpasses (rails=true → a paved ROAD: dark asphalt top, a
+// dashed center line, concrete skirt + guardrails, all in the untextured PLAIN
+// bucket so it reads as a road, not wood) and for bare docks/piers (rails=false →
+// stays wooden planks in the PLANK bucket).
+function ribbonDeck(buckets: Bucket[], pts: number[], w: number, topYAt: number | ((x: number, z: number) => number),
                     rails: boolean, ox: number, oy: number) {
-  const top = new THREE.Color('#cfd2d6');
-  const wood = new THREE.Color('#ffffff');
-  const skirt = new THREE.Color('#8a8d92');
-  const rail = new THREE.Color('#e3e0d6');
   const isRoad = rails;
-  const topC = isRoad ? top : wood;
+  const surf = isRoad ? buckets[PLAIN] : buckets[PLANK];
+  const asphalt = new THREE.Color('#3a3d42');
+  const wood = new THREE.Color('#ffffff');
+  const line = new THREE.Color('#c9a23e');                       // road center line
+  const skirt = new THREE.Color(isRoad ? '#62656b' : '#8a8d92'); // bridge structure side
+  const rail = new THREE.Color(isRoad ? '#b8b3a6' : '#e3e0d6');  // guardrail
+  const topC = isRoad ? asphalt : wood;
   const yAt = typeof topYAt === 'number' ? () => topYAt : topYAt;
   for (let i = 0; i + 3 < pts.length; i += 2) {
     const sx0 = pts[i], sz0 = pts[i + 1], sx1 = pts[i + 2], sz1 = pts[i + 3];
@@ -1040,21 +1046,30 @@ function ribbonDeck(plank: Bucket, pts: number[], w: number, topYAt: number | ((
       const y0 = yAt(x0, z0), y1 = yAt(x1, z1);
       const bottomY = Math.max(0, Math.min(y0, y1) - 30);
       const u = len / TEX_SCALE, vv = w / TEX_SCALE;
-      plank.quadUV(
+      surf.quadUV(
         x0 + nx * hw, y0, z0 + nz * hw, x1 + nx * hw, y1, z1 + nz * hw,
         x1 - nx * hw, y1, z1 - nz * hw, x0 - nx * hw, y0, z0 - nz * hw,
         0, 1, 0, topC.r, topC.g, topC.b,
         0, 0, u, 0, u, vv, 0, vv
       );
+      if (isRoad && pc % 2 === 0 && w > 12) {
+        // dashed yellow center line, laid just over the deck
+        const lw = 1.4;
+        surf.quad(
+          x0 + nx * lw, y0 + 0.3, z0 + nz * lw, x1 + nx * lw, y1 + 0.3, z1 + nz * lw,
+          x1 - nx * lw, y1 + 0.3, z1 - nz * lw, x0 - nx * lw, y0 + 0.3, z0 - nz * lw,
+          0, 1, 0, line.r, line.g, line.b
+        );
+      }
       for (const s of [1, -1]) {
-        plank.quad(
+        surf.quad(
           x0 + nx * hw * s, bottomY, z0 + nz * hw * s, x1 + nx * hw * s, bottomY, z1 + nz * hw * s,
           x1 + nx * hw * s, y1, z1 + nz * hw * s, x0 + nx * hw * s, y0, z0 + nz * hw * s,
           nx * s, 0, nz * s, skirt.r, skirt.g, skirt.b
         );
         if (rails) {
-          // top rail band + posts — reads as a real railing
-          plank.quad(
+          // top rail band + posts — reads as a real guardrail
+          surf.quad(
             x0 + nx * hw * s, y0 + 3.4, z0 + nz * hw * s, x1 + nx * hw * s, y1 + 3.4, z1 + nz * hw * s,
             x1 + nx * hw * s, y1 + 4.8, z1 + nz * hw * s, x0 + nx * hw * s, y0 + 4.8, z0 + nz * hw * s,
             nx * s, 0, nz * s, rail.r, rail.g, rail.b
@@ -1064,7 +1079,7 @@ function ribbonDeck(plank: Bucket, pts: number[], w: number, topYAt: number | ((
             const t = pi2 / posts;
             const py = y0 + (y1 - y0) * t;
             const px2 = x0 + dx * t + nx * hw * s, pz2 = z0 + dz * t + nz * hw * s;
-            plank.quad(
+            surf.quad(
               px2 - dx / len * 0.6, py, pz2 - dz / len * 0.6, px2 + dx / len * 0.6, py, pz2 + dz / len * 0.6,
               px2 + dx / len * 0.6, py + 3.4, pz2 + dz / len * 0.6, px2 - dx / len * 0.6, py + 3.4, pz2 - dz / len * 0.6,
               nx * s, 0, nz * s, rail.r * 0.88, rail.g * 0.88, rail.b * 0.88
@@ -2511,17 +2526,22 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   for (const ri of bucket.roads) {
     const r = world.roads[ri];
     if (!r.b) continue;
-    // deck follows the clearance profile — overpasses hump over what runs under
-    ribbonDeck(buckets[PLANK], r.p, r.w + 4, (x, z) => index.bridgeDeckYAt(r.p, x, z), true, ox, oy);
+    // paved deck following the clearance profile — humps over roads it crosses
+    // and lifts clear of any water it spans
+    ribbonDeck(buckets, r.p, r.w + 4, (x, z) => index.bridgeDeckYAt(r.p, x, z), true, ox, oy);
   }
   for (const pi of bucket.paths) {
     const p = world.paths[pi];
     if (p.c === 'board') {
-      // the boardwalk: stained planks, pilings, water-side railings
+      // the waterfront boardwalk: stained planks, pilings, water-side railings
       boardwalk(buckets, p.p, Math.max(p.w, 22), PIER_DECK_Y, ox, oy, index);
-    } else if (p.c === 'pierline' || (p.b && p.c === 'foot')) {
-      // bare docks stay open
-      ribbonDeck(buckets[PLANK], p.p, Math.max(p.w, 18), PIER_DECK_Y, false, ox, oy);
+    } else if (p.b && p.c !== 'steps' && p.c !== 'side') {
+      // a path BRIDGE (rail trail, foot/cycle bridges) — paved + lifted clear of
+      // water, like the road bridges (not a low wooden dock anymore)
+      ribbonDeck(buckets, p.p, Math.max(p.w + 4, 16), (x, z) => index.bridgeDeckYAt(p.p, x, z), true, ox, oy);
+    } else if (p.c === 'pierline') {
+      // bare docks stay open, low on the water
+      ribbonDeck(buckets, p.p, Math.max(p.w, 18), PIER_DECK_Y, false, ox, oy);
     }
   }
 
