@@ -8,6 +8,7 @@ import { buildWater, WATER_Y } from '../three/water';
 import { Sky } from '../three/sky';
 import { Kid, Dog, Bike } from '../three/actors';
 import { Life } from './life';
+import { GillisBridge } from '../three/gillis';
 import { Hud } from './hud';
 import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
@@ -100,6 +101,7 @@ export class Game {
   private pz = 40;
   private camZoom = 0.82;    // 0.55 (close) .. 2.4 (far)
   private life: Life | null = null;
+  private gillis: GillisBridge | null = null;
   private quest: QuestRunner | null = null;
   private sky!: Sky;
   private tunnel: TunnelScene | null = null;
@@ -233,6 +235,7 @@ export class Game {
     this.waterUpdate = water.update;
 
     this.life = new Life(this.scene, this.index);
+    this.gillis = new GillisBridge(this.scene, this.index, world);
 
     // spawn at Market Square — or, after a season turned the town, exactly where
     // you stood (a one-shot resume point so the re-skin reload doesn't teleport you)
@@ -1016,6 +1019,7 @@ export class Game {
 
     if (this.waterUpdate && !this.inside) this.waterUpdate(t);
     if (this.life && !this.inside) this.life.update(dt, this.px, this.pz, t, Math.sin(this.camAz), Math.cos(this.camAz));
+    if (this.gillis && !this.inside) this.gillis.update(dt);
     if (this.inTunnel) this.tunnel!.update(dt, this.px, this.pz);
     else if (this.interior) this.interior.update(dt, this.px, this.pz);
     else if (this.quest) {

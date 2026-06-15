@@ -4,6 +4,7 @@ import { WorldIndex, CHUNK, centroidOf, walkLine as walkLineD, obbOf, type OBB, 
 import { STYLE, SEASON, TREES, pick, hash32, mulberry32 } from '../world/style';
 import { clapboardTex, shingleTex, brickTex, plankTex } from './textures';
 import { WATER_Y } from './water';
+import { gillisCenter } from './gillis';
 
 // Per-chunk merged decor mesh with 5 textured material groups:
 // 0 plain · 1 clapboard siding · 2 brick · 3 shingle roofing · 4 deck planks.
@@ -1018,7 +1019,7 @@ function houseTrim(plain: Bucket, ring: number[], eaveH: number, baseY: number) 
 // bucket so it reads as a road, not wood) and for bare docks/piers (rails=false →
 // stays wooden planks in the PLANK bucket).
 function ribbonDeck(buckets: Bucket[], pts: number[], w: number, topYAt: number | ((x: number, z: number) => number),
-                    rails: boolean, ox: number, oy: number) {
+                    rails: boolean, ox: number, oy: number, skipGillis = false) {
   const isRoad = rails;
   const surf = isRoad ? buckets[PLAIN] : buckets[PLANK];
   const asphalt = new THREE.Color('#3a3d42');
@@ -1038,6 +1039,8 @@ function ribbonDeck(buckets: Bucket[], pts: number[], w: number, topYAt: number 
       const x1 = sx0 + (sx1 - sx0) * ((pc + 1) / pieces), z1 = sz0 + (sz1 - sz0) * ((pc + 1) / pieces);
       const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
       if (mx < ox || mx >= ox + CHUNK || mz < oy || mz >= oy + CHUNK) continue;
+      // leave a gap at the Gillis channel — the custom drawbridge fills it
+      if (skipGillis && (mx - gillisCenter.x) ** 2 + (mz - gillisCenter.z) ** 2 < gillisCenter.r ** 2) continue;
       const dx = x1 - x0, dz = z1 - z0;
       const len = Math.hypot(dx, dz);
       if (len < 0.01) continue;
@@ -2527,8 +2530,9 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const r = world.roads[ri];
     if (!r.b) continue;
     // paved deck following the clearance profile — humps over roads it crosses
-    // and lifts clear of any water it spans
-    ribbonDeck(buckets, r.p, r.w + 4, (x, z) => index.bridgeDeckYAt(r.p, x, z), true, ox, oy);
+    // and lifts clear of any water it spans (the Gillis channel is left open for
+    // the custom drawbridge)
+    ribbonDeck(buckets, r.p, r.w + 4, (x, z) => index.bridgeDeckYAt(r.p, x, z), true, ox, oy, true);
   }
   for (const pi of bucket.paths) {
     const p = world.paths[pi];
