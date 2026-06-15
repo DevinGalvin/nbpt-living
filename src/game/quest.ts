@@ -154,10 +154,11 @@ const GRAM_CORNERS: Line[] = [
 ];
 const KEEPER_TALK: Line[] = [
   { who: 'Keeper', text: 'Gram’s grandkid. She called ahead — said you’d come carrying three corners of something old.' },
-  { who: 'Keeper', text: 'This building has a room no key opens. Granite below the granite. A star on the 1835 plans — and no door anywhere.' },
-  { who: 'Keeper', text: 'The story the keepers hand down: the Wharf Rats sealed it to sound — three harbor bells, rung together. Ring the harbor home and the stone remembers.' },
-  { who: 'Keeper', text: 'The Coast Guard still keeps one. There’s another at the old wharf. The third, the Rats kept below.' },
-  { who: 'You', text: 'The den’s bell — that’s three. Clipper, let’s ring them.' }
+  { who: 'Keeper', text: 'This building has a room no key opens. A star on the 1835 plans — and no door anywhere.' },
+  { who: 'Keeper', text: 'The old keepers say the Wharf Rats locked it with sound. Ring the harbor’s three bells, and the wall swings open.' },
+  { who: 'Keeper', text: 'One bell’s at the Coast Guard station. One’s at the old wharf. The third, the Rats kept down in their den.' },
+  { who: 'You', text: 'So I ring all three bells, and the door opens.' },
+  { who: 'Keeper', text: 'That’s the story. Go ring them.' }
 ];
 const BELL_RING: Line[] = [
   { who: '', text: 'You ring it once. The note rolls out over the water and hangs there, waiting for its sisters.' }
@@ -512,14 +513,14 @@ export class QuestRunner {
 
   private candidates(): { tag: string; x: number; z: number; label: string; r: number }[] {
     const c: { tag: string; x: number; z: number; label: string; r: number }[] = [];
-    if (this.step === 0 || this.step === 3) c.push({ tag: 'gram', x: GRAM.x, z: GRAM.z, label: '\u{1F4AC} TALK', r: 55 });
-    else if (this.step === 1) c.push({ tag: 'donut', x: DONUT.x, z: DONUT.z, label: '\u{1F4AC} TALK', r: 55 });
-    else if (this.step === 2) c.push({ tag: 'lib', x: LIB.x, z: LIB.z, label: '\u{1F4AC} TALK', r: 55 });
-    else if (this.step === 5) c.push({ tag: 'grate', x: GRATE.x, z: GRATE.z, label: '\u{1F440} LOOK', r: 60 });
+    if (this.step === 0 || this.step === 3) c.push({ tag: 'gram', x: GRAM.x, z: GRAM.z, label: '\u{1F4AC} TALK', r: 90 });
+    else if (this.step === 1) c.push({ tag: 'donut', x: DONUT.x, z: DONUT.z, label: '\u{1F4AC} TALK', r: 90 });
+    else if (this.step === 2) c.push({ tag: 'lib', x: LIB.x, z: LIB.z, label: '\u{1F4AC} TALK', r: 90 });
+    else if (this.step === 5) c.push({ tag: 'grate', x: GRATE.x, z: GRATE.z, label: '\u{1F440} LOOK', r: 90 });
     if (this.step >= 6) {
-      c.push({ tag: 'godown', x: GRATE.x, z: GRATE.z, label: '\u2B07 GO DOWN', r: 72 });
+      c.push({ tag: 'godown', x: GRATE.x, z: GRATE.z, label: '\u2B07 GO DOWN', r: 100 });
       if (this.ch1Done()) {
-        if (this.ch2 === 0 || this.ch2 === 2 || this.ch2 === 3) c.push({ tag: 'news', x: this.editorPos.x, z: this.editorPos.z, label: '\u{1F4F0} ENTER', r: 55 });
+        if (this.ch2 === 0 || this.ch2 === 2 || this.ch2 === 3) c.push({ tag: 'news', x: this.editorPos.x, z: this.editorPos.z, label: '\u{1F4F0} ENTER', r: 90 });
         else if (this.ch2 === 1) {
           for (let i = 0; i < this.stops.length; i++) {
             if (!this.delivered.has(i)) c.push({ tag: 'stop' + i, x: this.stops[i].x, z: this.stops[i].z, label: '\u{1F4F0} THROW', r: 124 });
@@ -529,21 +530,21 @@ export class QuestRunner {
         // for the three corners, and later to ring the den's own bell
         if (this.ch2 >= 4) {
           if (this.ch3 === 0 || (this.ch4 === 1 && !this.bells.has('den'))) {
-            c.push({ tag: 'boat', x: BOAT.x, z: BOAT.z, label: '\u{1F6F6} ROW', r: 48 });
+            c.push({ tag: 'boat', x: BOAT.x, z: BOAT.z, label: '\u{1F6F6} ROW', r: 85 });
           } else if (this.ch3 >= 1 && this.ch3 < 4) {
             // stepped out of the den before finishing — the boat's beached at the
             // door, so let them climb back down instead of being stranded here
-            c.push({ tag: 'reden', x: WDOOR.x, z: WDOOR.z, label: '⬇ GO DOWN', r: 64 });
+            c.push({ tag: 'reden', x: WDOOR.x, z: WDOOR.z, label: '⬇ GO DOWN', r: 95 });
           }
           // Chapter 5 "The Custom House Star": the keeper, the bells, the cellar
           if (this.ch3 >= 4) {
-            if (this.ch4 === 0 && !this.gramSent) c.push({ tag: 'gramcorners', x: GRAM.x, z: GRAM.z, label: '\u{1F4AC} TALK', r: 55 });
-            else if (this.ch4 === 0) c.push({ tag: 'curator', x: KEEPER.x, z: KEEPER.z, label: '\u{1F4AC} TALK', r: 60 });
+            if (this.ch4 === 0 && !this.gramSent) c.push({ tag: 'gramcorners', x: GRAM.x, z: GRAM.z, label: '\u{1F4AC} TALK', r: 90 });
+            else if (this.ch4 === 0) c.push({ tag: 'curator', x: KEEPER.x, z: KEEPER.z, label: '\u{1F4AC} TALK', r: 90 });
             else if (this.ch4 === 1) {
-              if (!this.bells.has('cg')) c.push({ tag: 'cgbell', x: BELL_CG.x, z: BELL_CG.z, label: '\u{1F514} RING', r: 65 });
-              if (!this.bells.has('wharf')) c.push({ tag: 'whbell', x: BELL_WHARF.x, z: BELL_WHARF.z, label: '\u{1F514} RING', r: 65 });
+              if (!this.bells.has('cg')) c.push({ tag: 'cgbell', x: BELL_CG.x, z: BELL_CG.z, label: '\u{1F514} RING', r: 110 });
+              if (!this.bells.has('wharf')) c.push({ tag: 'whbell', x: BELL_WHARF.x, z: BELL_WHARF.z, label: '\u{1F514} RING', r: 110 });
             } else if (this.ch4 === 2 || this.ch4 === 3) {
-              c.push({ tag: 'cellar', x: CELLAR.x, z: CELLAR.z, label: '⭐ ENTER', r: 60 });
+              c.push({ tag: 'cellar', x: CELLAR.x, z: CELLAR.z, label: '⭐ ENTER', r: 90 });
             }
           }
         }
@@ -613,7 +614,7 @@ export class QuestRunner {
         const denLast = this.bells.has('cg') && this.bells.has('wharf');
         this.hud.setObjective(denLast
           ? 'The last bell is in the den \u2014 row back out past the Coast Guard station'
-          : 'Ring the harbor home \u2014 ' + this.bells.size + ' of 3 bells');
+          : 'Ring the three harbor bells \u2014 ' + this.bells.size + ' of 3');
         target = !this.bells.has('cg') ? BELL_CG : !this.bells.has('wharf') ? BELL_WHARF : BOAT;
       } else if (this.ch4 === 2 || this.ch4 === 3) {
         this.hud.setObjective('The stone remembers \u2014 beneath the Custom House');
@@ -744,7 +745,7 @@ export class QuestRunner {
         steps: [
           { label: 'Bring the three corners back to Gram', done: this.gramSent || s4 >= 1 },
           { label: 'Talk to the Custom House keeper', done: s4 >= 1 },
-          { label: 'Ring the harbor home', done: s4 >= 2, count: this.bells.size, total: 3 },
+          { label: 'Ring all three harbor bells', done: s4 >= 2, count: this.bells.size, total: 3 },
           { label: 'Open the room with no door', done: s4 >= 4 }
         ] }
     ];
