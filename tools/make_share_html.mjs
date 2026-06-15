@@ -35,6 +35,7 @@ let out = html
   .replace(srcMatch[0], '')
   .replace(/<link rel="modulepreload"[^>]*>/g, '')
   .replace(/<link rel="icon"[^>]*>/g, '')
+  .replace(/<link rel="manifest"[^>]*>/g, '') // no PWA install from a file:// single-file
   // inject data first, then the bundle, right before </body>
   .replace('</body>', `${dataScript}\n<script type="module">${bundle}</script>\n</body>`);
 
