@@ -582,16 +582,16 @@ function boat(bk: Bucket, x: number, z: number, ang: number, seed: number) {
 function plane(bk: Bucket, x: number, z: number, ang: number, seed: number, g: number) {
   const ca = Math.cos(ang), sa = Math.sin(ang);
   const accent = pick(['#c8453a', '#2e5e9e', '#3a6e4f', '#e0b53c', '#e0b53c'], seed);
-  chamferBox(bk, x, z, 28, 4.5, g + 5.5, g + 12, ang, '#f4f1e8', 2);               // fuselage
-  chamferBox(bk, x + ca * 24, z + sa * 24, 6, 4.1, g + 6, g + 11.5, ang, accent, 2.4); // cowl
-  chamferBox(bk, x + ca * 8, z + sa * 8, 7, 3.8, g + 12, g + 15.5, ang, '#2e3338', 2.4); // canopy
-  chamferBox(bk, x + ca * 5, z + sa * 5, 5, 43, g + 15, g + 16.4, ang, '#f4f1e8', 1.4);  // high wing
-  rotBox(bk, x - ca * 25, z - sa * 25, 5, 0.9, g + 11, g + 20, ang, accent);        // fin
-  chamferBox(bk, x - ca * 25, z - sa * 25, 3.5, 10, g + 11, g + 12.2, ang, '#f4f1e8', 1); // tailplane
-  chamferBox(bk, x + ca * 31, z + sa * 31, 0.9, 1.2, g + 7.5, g + 10, ang, '#23241f', 0.5); // spinner
-  rotBox(bk, x + ca * 31.5, z + sa * 31.5, 0.5, 0.7, g + 3.5, g + 13.5, ang, '#2e3338'); // prop blade
-  for (const [lx, lz] of [[6, -5], [6, 5], [-20, 0]] as const) {
-    chamferBox(bk, x + lx * ca - lz * sa, z + lx * sa + lz * ca, 1.3, 0.9, g, g + 5.5, ang, '#2e3338', 0.5);
+  chamferBox(bk, x, z, 50, 8, g + 10, g + 22, ang, '#f4f1e8', 4);                       // fuselage
+  chamferBox(bk, x + ca * 44, z + sa * 44, 11, 7.4, g + 11, g + 21, ang, accent, 4.4);   // cowl
+  chamferBox(bk, x + ca * 14, z + sa * 14, 13, 6.8, g + 22, g + 28, ang, '#2e3338', 4.4); // canopy
+  chamferBox(bk, x + ca * 9, z + sa * 9, 9, 77, g + 27, g + 29.5, ang, '#f4f1e8', 2.6);   // high wing (≈19 m span)
+  rotBox(bk, x - ca * 45, z - sa * 45, 9, 1.6, g + 20, g + 37, ang, accent);             // fin
+  chamferBox(bk, x - ca * 45, z - sa * 45, 6.3, 18, g + 20, g + 22.2, ang, '#f4f1e8', 1.8); // tailplane
+  chamferBox(bk, x + ca * 56, z + sa * 56, 1.6, 2.2, g + 14, g + 18.5, ang, '#23241f', 0.9); // spinner
+  rotBox(bk, x + ca * 57, z + sa * 57, 0.9, 1.3, g + 6.5, g + 24, ang, '#2e3338');       // prop blade
+  for (const [lx, lz] of [[11, -9], [11, 9], [-36, 0]] as const) {
+    chamferBox(bk, x + lx * ca - lz * sa, z + lx * sa + lz * ca, 2.3, 1.6, g, g + 10, ang, '#2e3338', 0.7); // gear
   }
 }
 
@@ -2892,7 +2892,8 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const obb = obbOf(poly.p);
     const ca2 = Math.cos(obb.ang), sa2 = Math.sin(obb.ang);
     let placed = 0;
-    for (let l0 = -obb.hl + 34; l0 <= obb.hl - 34 && placed < 3; l0 += 95) {
+    // the planes are much bigger now — space them by the new wingspan so they don't overlap
+    for (let l0 = -obb.hl + 89; l0 <= obb.hl - 89 && placed < 3; l0 += 180) {
       const x = obb.cx + l0 * ca2, z = obb.cz + l0 * sa2;
       const h2 = hash32(Math.round(x), Math.round(z), 53);
       if (!pointInPolyD(x, z, poly)) continue;
