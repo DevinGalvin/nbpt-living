@@ -132,6 +132,7 @@ const DEN_LEDGER: Line[] = [
 const DEN_MAP: Line[] = [
   { who: '', text: 'Pinned under a dram glass: the third corner of the map.' },
   { who: '', text: 'The tunnels. The door. And a room beneath the Custom House, marked with a star.' },
+  { who: 'You', text: 'Four corners, four hiding holes. They split it so no one Rat could rob the rest.' },
   { who: 'You', text: 'One corner left.' }
 ];
 const DEN_BELL: Line[] = [
@@ -154,8 +155,9 @@ const GRAM_CORNERS: Line[] = [
 const KEEPER_TALK: Line[] = [
   { who: 'Keeper', text: 'Gram’s grandkid. She called ahead — said you’d come carrying three corners of something old.' },
   { who: 'Keeper', text: 'This building has a room no key opens. Granite below the granite. A star on the 1835 plans — and no door anywhere.' },
-  { who: 'Keeper', text: 'The story the keepers hand down: the Wharf Rats sealed it to sound. Ring the harbor home and the stone remembers.' },
-  { who: 'You', text: 'Bells. The den has one. Clipper — I think I know the others.' }
+  { who: 'Keeper', text: 'The story the keepers hand down: the Wharf Rats sealed it to sound — three harbor bells, rung together. Ring the harbor home and the stone remembers.' },
+  { who: 'Keeper', text: 'The Coast Guard still keeps one. There’s another at the old wharf. The third, the Rats kept below.' },
+  { who: 'You', text: 'The den’s bell — that’s three. Clipper, let’s ring them.' }
 ];
 const BELL_RING: Line[] = [
   { who: '', text: 'You ring it once. The note rolls out over the water and hangs there, waiting for its sisters.' }
@@ -166,7 +168,8 @@ const BELL_LAST: Line[] = [
 ];
 const CORNER_FOUR: Line[] = [
   { who: '', text: 'On the counting desk: the fourth corner. The map is whole — the tunnels, the door, the den, and the star you are standing on.' },
-  { who: 'You', text: 'We found all of it. Every corner.' }
+  { who: 'You', text: 'We found all of it. Every corner.' },
+  { who: 'You', text: 'And whatever they hid is right under us. Real treasure this time, Clipper — has to be.' }
 ];
 const CHEST_OPEN: Line[] = [
   { who: '', text: 'The chest is cedar, banded in brass — and light. Too light for gold.' },
@@ -996,7 +999,7 @@ export class QuestRunner {
       });
     } else if (tag === 'editor' && this.ch2 === 0) {
       this.hud.showDialogue(ED_INTRO, () => {
-        this.hud.chapterCard('CHAPTER 3', 'The Paper Route', 'eight houses \u00b7 one bag \u00b7 mind the history');
+        this.hud.chapterCard('CHAPTER 3', 'The Daily News', 'eight houses \u00b7 one bag \u00b7 mind the history');
         this.setCh2(1);
       });
     } else if (tag === 'editor' && this.ch2 === 2) {
@@ -1008,7 +1011,7 @@ export class QuestRunner {
     } else if (tag === 'morgue' && this.ch2 === 3) {
       this.hud.showDialogue(MORGUE_FIND, () => {
         this.audio.jingle();
-        this.hud.chapterCard('CHAPTER 3 COMPLETE', 'The Paper Route', 'the bike is yours \u00b7 two corners of the map');
+        this.hud.chapterCard('CHAPTER 3 COMPLETE', 'The Daily News', 'the bike is yours \u00b7 two corners of the map');
         this.setCh2(4);
       });
     } else if (tag === 'ledger' && this.ch3 === 1) {
