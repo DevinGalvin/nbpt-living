@@ -15,7 +15,7 @@ import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
 import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
-import { STYLE, SEASON } from '../world/style';
+import { STYLE, SEASON, storySeason, spineComplete } from '../world/style';
 
 const JOG = 200;     // world px/s (8 px = 1 m) — fast, gamey
 const SPRINT = 380;
@@ -224,8 +224,14 @@ export class Game {
 
     this.life = new Life(this.scene, this.index);
 
-    // spawn at Market Square
-    const spawn = this.findFree(0, 40);
+    // spawn at Market Square — or, after a season turned the town, exactly where
+    // you stood (a one-shot resume point so the re-skin reload doesn't teleport you)
+    let sx = 0, sz = 40;
+    try {
+      const r = JSON.parse(localStorage.getItem('nbpt-resume-pos') || 'null');
+      if (r && typeof r.x === 'number' && typeof r.z === 'number') { sx = r.x; sz = r.z; localStorage.removeItem('nbpt-resume-pos'); }
+    } catch { /* ignore */ }
+    const spawn = this.findFree(sx, sz);
     this.px = spawn.x;
     this.pz = spawn.y;
     this.kid.setPos(this.px, this.pz);
@@ -347,7 +353,7 @@ export class Game {
       pos: () => ({ x: this.px, y: this.pz }),
       zoom: (z: number) => { this.camZoom = Math.min(2.4, Math.max(0.55, z)); },
       walk: (x: number, y: number, ms: number) => { this.debugVec = { x, y, until: performance.now() + ms }; },
-      season: (sn: string) => { localStorage.setItem('nbpt-season', sn); location.reload(); },
+      season: (sn: string) => { location.search = '?season=' + sn; },   // dev override (works anytime)
       time: (t: number) => this.sky.setTod(t),            // 0=midnight 0.25=dawn 0.5=noon 0.75=dusk
       weather: (w: number | null) => this.sky.forceWeather(w), // 1=shower 0=clear null=auto
       _quest: this.quest,
@@ -959,6 +965,15 @@ export class Game {
     this.updateCamera(dt);
     this.updateWaypoint();
 
+    // the story turns the season as you finish chapters — fire once the town's
+    // dressing no longer matches your progress and you're calm in the overworld
+    // (not mid-dialogue, not still reading a CHAPTER COMPLETE card). Once the spine
+    // is beaten the picker takes over, so the story never overrides a manual pick.
+    if (!this.inside && !this.boating && !this.seasonTurning && !this.hud.dialogueOpen
+        && !spineComplete() && !document.querySelector('#hud .chapter.show') && storySeason() !== SEASON) {
+      this.turnSeason();
+    }
+
     // polls
     this.pollAcc += dt;
     if (this.pollAcc > 0.45) {
@@ -1053,6 +1068,16 @@ export class Game {
       fog.near = 1300 * z;
       fog.far = 2900 * z + 700;
     }
+  }
+
+  // the live "season turns" beat: stash where you stand, show the card, then fade
+  // and reload the town re-dressed for the new season (you respawn on the spot)
+  private seasonTurning = false;
+  private turnSeason() {
+    this.seasonTurning = true;
+    localStorage.setItem('nbpt-resume-pos', JSON.stringify({ x: Math.round(this.px), z: Math.round(this.pz) }));
+    this.hud.seasonCard(storySeason());
+    setTimeout(() => this.hud.fadeThrough(() => location.reload()), 1900);
   }
 
   // off-screen objective pointer: project the beacon to the screen; if it's

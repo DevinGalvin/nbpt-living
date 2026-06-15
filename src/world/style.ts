@@ -1,14 +1,33 @@
 // NBPT Living visual style — bright stylized-real palette for the 3D look.
 // New England rules: colored clapboard WALLS, dark shingle ROOFS, brick downtown.
 
-// the season dresses the whole town (resolved once at boot; chapters will
-// drive this as the spine advances — ?season= or the travel-panel picker)
+// the season dresses the whole town. The STORY is the calendar: it advances with
+// the chapter spine (summer → fall → winter). The manual picker is a post-game
+// reward — only once the spine is beaten does ?season=/localStorage take over.
 export type Season = 'summer' | 'fall' | 'winter' | 'spring';
+
+const seasonNum = (k: string) => parseInt(localStorage.getItem(k) || '0', 10) || 0;
+const isSeason = (s: string | null): s is Season => s === 'fall' || s === 'winter' || s === 'spring' || s === 'summer';
+
+// the season the story is currently in, from chapter progress (legacy off-by-one
+// keys: ch1-step = Chapter 2 "Door Under Downtown"; ch3-step = Chapter 4 "Low Water")
+export function storySeason(): Season {
+  if (seasonNum('nbpt-ch3-step') >= 4) return 'winter';   // Ch4 done → Ch5 finale
+  if (seasonNum('nbpt-ch1-step') >= 6) return 'fall';     // Ch2 done → Ch3/Ch4
+  return 'summer';                                         // Ch1/Ch2
+}
+// the whole spine is beaten when Chapter 5 (Custom House Star) is done
+export function spineComplete(): boolean { return seasonNum('nbpt-ch4-step') >= 4; }
+
 export const SEASON: Season = (() => {
   try {
-    const q = new URLSearchParams(location.search).get('season');
-    const s = q || localStorage.getItem('nbpt-season') || 'summer';
-    return s === 'fall' || s === 'winter' || s === 'spring' ? s : 'summer';
+    const url = new URLSearchParams(location.search).get('season');   // dev/test absolute override
+    if (isSeason(url)) return url;
+    if (spineComplete()) {                                            // post-game: the unlocked picker
+      const p = localStorage.getItem('nbpt-season');
+      return isSeason(p) ? p : 'winter';                             // default to the finale's winter
+    }
+    return storySeason();                                            // mid-story: follow progress
   } catch {
     return 'summer';
   }

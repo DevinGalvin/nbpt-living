@@ -1,6 +1,6 @@
 import type { Landmark, WorldData } from '../world/types';
 import type { BagItem, Mission, MissionGroup } from './items';
-import { SEASON } from '../world/style';
+import { SEASON, spineComplete } from '../world/style';
 
 // DOM HUD: street pill, landmark banner, help, attribution, virtual joystick.
 
@@ -134,6 +134,11 @@ const css = `
 }
 #hud .season-btn:hover { background: rgba(216, 185, 74, 0.18); }
 #hud .season-btn.cur { background: rgba(216, 185, 74, 0.24); border-color: #d8b94a; }
+#hud .season-hdr { font-size: 12px; color: #c8bd96; margin: 0 0 7px; letter-spacing: 0.4px; text-align: center; }
+#hud .season-hdr b { color: #e8c44f; }
+#hud .season-row.locked { opacity: 0.5; }
+#hud .season-btn.locked { cursor: default; }
+#hud .season-btn.locked:hover { background: rgba(243, 241, 232, 0.07); }
 #hud .fade {
   position: absolute; inset: 0; background: #0c1118; opacity: 0; pointer-events: none;
   transition: opacity 0.22s ease;
@@ -593,22 +598,34 @@ export class Hud {
       });
       grid.appendChild(el);
     }
-    // season picker — the town dresses for the calendar
+    // season picker — locked until you beat the story (then it's the reward: roam
+    // the town in any season). During the story the season follows the spine, and
+    // the current one stays highlighted so you can see where on the calendar you are.
     const card = document.querySelector('#hud .travel-card')!;
+    const unlocked = spineComplete();
+    const seasonHdr = document.createElement('div');
+    seasonHdr.className = 'season-hdr';
+    seasonHdr.innerHTML = unlocked
+      ? '\u{1F5D3}️ <b>Set the season</b>'
+      : '\u{1F512} <b>Finish the story</b> to roam the seasons';
     const row = document.createElement('div');
-    row.className = 'season-row';
+    row.className = 'season-row' + (unlocked ? '' : ' locked');
     for (const [sn, label] of [['spring', '\u{1F338} Spring'], ['summer', '\u2600\uFE0F Summer'], ['fall', '\u{1F383} Fall'], ['winter', '\u{1F384} Winter']] as const) {
       const btn = document.createElement('div');
-      btn.className = 'season-btn' + (SEASON === sn ? ' cur' : '');
+      btn.className = 'season-btn' + (SEASON === sn ? ' cur' : '') + (unlocked ? '' : ' locked');
       btn.textContent = label;
-      btn.addEventListener('click', () => {
-        if (SEASON === sn) return;
-        localStorage.setItem('nbpt-season', sn);
-        location.reload();
-      });
+      if (unlocked) {
+        btn.addEventListener('click', () => {
+          if (SEASON === sn) return;
+          localStorage.setItem('nbpt-season', sn);
+          location.reload();
+        });
+      }
       row.appendChild(btn);
     }
-    card.insertBefore(row, card.querySelector('.travel-search'));
+    const anchor = card.querySelector('.travel-search');
+    card.insertBefore(seasonHdr, anchor);
+    card.insertBefore(row, anchor);
     const hist = document.createElement('div');
     hist.className = 'hist-line';
     card.appendChild(hist);
@@ -675,7 +692,7 @@ export class Hud {
       }
       // a true start-over: also replay the welcome (it says "find Gram in Market
       // Square") and un-tuck the objective, so you're clearly guided again
-      for (const k of ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-historian', 'nbpt-history-read', 'nbpt-welcomed', 'nbpt-obj-min']) localStorage.removeItem(k);
+      for (const k of ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-historian', 'nbpt-history-read', 'nbpt-welcomed', 'nbpt-obj-min', 'nbpt-resume-pos', 'nbpt-season']) localStorage.removeItem(k);
       location.reload();
     });
     jc.appendChild(rb);
@@ -1289,6 +1306,23 @@ export class Hud {
     setTimeout(() => el.classList.remove('show'), 2700);
   }
 
+  // a seasonal-transition beat (reuses the chapter-card overlay) shown as the story
+  // turns the town to a new season — it stays up through the fade + reload that follows
+  seasonCard(season: string) {
+    const meta: Record<string, [string, string, string]> = {
+      fall:   ['\u{1F342} THE SEASON TURNS', 'Autumn', 'the leaves redden over Clipper Town'],
+      winter: ['❄️ THE SEASON TURNS', 'Winter', 'first snow settles over the harbor'],
+      spring: ['\u{1F338} THE SEASON TURNS', 'Spring', 'the marsh wakes up'],
+      summer: ['☀️ THE SEASON TURNS', 'Summer', 'the harbor warms again']
+    };
+    const [kick, big, small] = meta[season] || meta.summer;
+    const el = document.querySelector('#hud .chapter') as HTMLElement;
+    (el.querySelector('.kick') as HTMLElement).textContent = kick;
+    (el.querySelector('.big') as HTMLElement).textContent = big;
+    (el.querySelector('.small') as HTMLElement).textContent = small;
+    el.classList.add('show');
+  }
+
   // first-visit welcome: tells a newcomer what Clipper Town is and how to start
   showWelcome(onStart?: () => void) {
     const el = document.createElement('div');
@@ -1297,7 +1331,7 @@ export class Hud {
       <div class="welcome-card">
         <div class="wtitle">CLIPPER TOWN</div>
         <div class="wsub">A little explorable world on the real map of Newburyport, MA</div>
-        <div class="wbody">You’re a kid out on an errand for your <b>Gram</b>. <b>Find her in Market Square</b> to begin — then go wherever you like. A story unfolds across the seasons, with real town history tucked on plaques around the map and secrets to stumble onto.</div>
+        <div class="wbody">You’re a kid out on an errand for your <b>Gram</b>. <b>Find her in Market Square</b> to begin — then go wherever you like. The story carries you right through the calendar — from a summer errand into the dead of winter — with real town history tucked on plaques around the map and secrets to stumble onto.</div>
         <div class="wctrls">
           🕹️ <b>Move</b> — WASD / arrows, or drag anywhere on screen<br>
           🏃 <b>Run</b> — press R to run (or tap 🏃); hold Shift to sprint<br>
