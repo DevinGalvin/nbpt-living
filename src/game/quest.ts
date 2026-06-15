@@ -349,9 +349,17 @@ export class QuestRunner {
     // gold objective beacon: a TALL pillar of light you can spot from across town —
     // a bright inner shaft, a wider soft halo, a sonar-pinging base ring, and the "!"
     this.beacon = new THREE.Group();
+    // additive glow for the ground disc + sonar ring (great against the ground)
     const beamMat = (op: number) => new THREE.MeshBasicMaterial({
       color: 0xffd24a, transparent: true, opacity: op,
       side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending
+    });
+    // the vertical beam draws on top (depthTest off, NORMAL blending) so it reads
+    // the SAME on any background — additive used to vanish over the dark water and
+    // only "appear" once it crossed into the sky
+    const glowMat = (op: number) => new THREE.MeshBasicMaterial({
+      color: 0xffd863, transparent: true, opacity: op,
+      side: THREE.DoubleSide, depthWrite: false, depthTest: false
     });
     // a soft filled glow disc marks the exact landing spot
     const disc = new THREE.Mesh(new THREE.CircleGeometry(15, 28).rotateX(-Math.PI / 2), beamMat(0.16));
@@ -361,22 +369,17 @@ export class QuestRunner {
     this.beaconRing = new THREE.Mesh(new THREE.RingGeometry(12, 20, 36).rotateX(-Math.PI / 2), beamMat(0.5));
     this.beaconRing.position.y = 0.7;
     this.beacon.add(this.beaconRing);
-    // the tall bright inner shaft (towers well above the rooftops)
-    this.beaconBeam = new THREE.Mesh(new THREE.CylinderGeometry(5, 7.5, 460, 18, 1, true), beamMat(0.42));
-    this.beaconBeam.position.y = 235; // spans ~5 .. 465
-    this.beacon.add(this.beaconBeam);
-    // a wider, fainter halo around the shaft for glow
-    this.beaconHalo = new THREE.Mesh(new THREE.CylinderGeometry(11, 16, 460, 18, 1, true), beamMat(0.12));
+    // three concentric translucent layers (outer halo → mid shaft → brighter core),
+    // all on top so the beam looks consistent over water, sky, and town
+    this.beaconHalo = new THREE.Mesh(new THREE.CylinderGeometry(11, 16, 460, 18, 1, true), glowMat(0.1));
     this.beaconHalo.position.y = 235;
+    this.beaconHalo.renderOrder = 10;
     this.beacon.add(this.beaconHalo);
-    // a SOLID core (normal blending) so the pillar stays visible against bright
-    // sky and open water, where the additive glow washes out to nothing
-    this.beaconCore = new THREE.Mesh(
-      new THREE.CylinderGeometry(4.2, 5.6, 460, 16, 1, true),
-      // depthTest off + a late renderOrder: the core always draws on top, so the
-      // transparent water/fog can't sort in front and tint it away (the old bug)
-      new THREE.MeshBasicMaterial({ color: 0xffd863, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false, depthTest: false })
-    );
+    this.beaconBeam = new THREE.Mesh(new THREE.CylinderGeometry(5, 7.5, 460, 18, 1, true), glowMat(0.2));
+    this.beaconBeam.position.y = 235; // spans ~5 .. 465
+    this.beaconBeam.renderOrder = 11;
+    this.beacon.add(this.beaconBeam);
+    this.beaconCore = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 5.6, 460, 16, 1, true), glowMat(0.45));
     this.beaconCore.position.y = 235;
     this.beaconCore.renderOrder = 12;
     this.beacon.add(this.beaconCore);
@@ -749,9 +752,9 @@ export class QuestRunner {
     this.t += dt;
     // beacon: the shaft + halo breathe; the base ring pings outward like sonar
     const pulse = (Math.sin(this.t * 3.2) + 1) / 2;
-    (this.beaconBeam.material as THREE.MeshBasicMaterial).opacity = 0.3 + 0.22 * pulse;
-    (this.beaconHalo.material as THREE.MeshBasicMaterial).opacity = 0.08 + 0.12 * pulse;
-    (this.beaconCore.material as THREE.MeshBasicMaterial).opacity = 0.52 + 0.14 * pulse;
+    (this.beaconHalo.material as THREE.MeshBasicMaterial).opacity = 0.07 + 0.05 * pulse;
+    (this.beaconBeam.material as THREE.MeshBasicMaterial).opacity = 0.15 + 0.08 * pulse;
+    (this.beaconCore.material as THREE.MeshBasicMaterial).opacity = 0.4 + 0.12 * pulse;
     const ping = (this.t * 0.8) % 1;
     const rs = 1 + ping * 1.7;
     this.beaconRing.scale.set(rs, 1, rs);
