@@ -262,6 +262,7 @@ export class QuestRunner {
   private beaconRing: THREE.Mesh;
   private beaconBeam: THREE.Mesh;
   private beaconHalo: THREE.Mesh;
+  private beaconCore: THREE.Mesh;
   private bang: THREE.Sprite;
   private grate: THREE.Group;
   private grateBars: THREE.Group | null = null;
@@ -368,6 +369,17 @@ export class QuestRunner {
     this.beaconHalo = new THREE.Mesh(new THREE.CylinderGeometry(11, 16, 460, 18, 1, true), beamMat(0.12));
     this.beaconHalo.position.y = 235;
     this.beacon.add(this.beaconHalo);
+    // a SOLID core (normal blending) so the pillar stays visible against bright
+    // sky and open water, where the additive glow washes out to nothing
+    this.beaconCore = new THREE.Mesh(
+      new THREE.CylinderGeometry(4.2, 5.6, 460, 16, 1, true),
+      // depthTest off + a late renderOrder: the core always draws on top, so the
+      // transparent water/fog can't sort in front and tint it away (the old bug)
+      new THREE.MeshBasicMaterial({ color: 0xffd863, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false, depthTest: false })
+    );
+    this.beaconCore.position.y = 235;
+    this.beaconCore.renderOrder = 12;
+    this.beacon.add(this.beaconCore);
     scene.add(this.beacon);
     this.bang = bangSprite();
     scene.add(this.bang);
@@ -739,6 +751,7 @@ export class QuestRunner {
     const pulse = (Math.sin(this.t * 3.2) + 1) / 2;
     (this.beaconBeam.material as THREE.MeshBasicMaterial).opacity = 0.3 + 0.22 * pulse;
     (this.beaconHalo.material as THREE.MeshBasicMaterial).opacity = 0.08 + 0.12 * pulse;
+    (this.beaconCore.material as THREE.MeshBasicMaterial).opacity = 0.88 + 0.08 * pulse;
     const ping = (this.t * 0.8) % 1;
     const rs = 1 + ping * 1.7;
     this.beaconRing.scale.set(rs, 1, rs);
