@@ -1053,7 +1053,10 @@ function ribbonDeck(buckets: Bucket[], pts: number[], w: number, topYAt: number 
       const nx = -dz / len, nz = dx / len;
       const hw = w / 2;
       const y0 = yAt(x0, z0), y1 = yAt(x1, z1);
-      const bottomY = Math.max(0, Math.min(y0, y1) - 30);
+      // a span lifted over water drops its side wall all the way to the surface (no
+      // see-through gap underneath); a low overpass keeps a thin girder so whatever
+      // passes beneath stays clear
+      const bottomY = Math.min(y0, y1) > 22 ? 0 : Math.max(0, Math.min(y0, y1) - 14);
       const u = len / TEX_SCALE, vv = w / TEX_SCALE;
       surf.quadUV(
         x0 + nx * hw, y0, z0 + nz * hw, x1 + nx * hw, y1, z1 + nz * hw,

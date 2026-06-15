@@ -1252,9 +1252,9 @@ export class WorldIndex {
   static readonly UNDERPASS_CLEAR = 46;  // kid (33) + bike (7.5) + margin
   static readonly WATER_CLEAR = 38;      // lift over open water so boats pass beneath
   private static readonly BRIDGE_RAMP = 150;
-  private bridgeProfiles = new Map<number[], { base: number; cum: number[]; bumps: { t: number; peak: number }[] }>();
+  private bridgeProfiles = new Map<number[], { base: number; cum: number[]; bumps: { t: number; peak: number }[]; water?: { s: number; e: number } }>();
 
-  bridgeProfile(pts: number[]): { base: number; cum: number[]; bumps: { t: number; peak: number }[] } {
+  bridgeProfile(pts: number[]): { base: number; cum: number[]; bumps: { t: number; peak: number }[]; water?: { s: number; e: number } } {
     let prof = this.bridgeProfiles.get(pts);
     if (prof) return prof;
     const h0 = this.terrain.heightAt(pts[0], pts[1]);
@@ -1299,19 +1299,21 @@ export class WorldIndex {
     for (const p of this.world.paths) {
       if (!p.b && p.c !== 'pierline' && p.c !== 'stoneline') consider(p.p);
     }
-    // over open water, lift the span well clear of the surface so boats pass
-    // beneath (the banks ramp it back down). Dense samples + the ramp width keep
-    // the deck a sustained height across the channel, not a single point-tent.
-    for (let d = 30; d < total - 30; d += 55) {
+    // over open water, lift the span to a FLAT height clear of the surface so boats
+    // pass beneath, ramping back down to the banks at the water's edges — a flat span,
+    // not the wobbly point-tents this used to be. Find the first/last point over water.
+    let ws = Infinity, we = -Infinity;
+    for (let d = 16; d <= total - 16; d += 18) {
       let seg = 0;
       while (seg + 1 < cum.length && cum[seg + 1] <= d) seg++;
       const segLen = (cum[seg + 1] - cum[seg]) || 1;
       const f = Math.min(1, (d - cum[seg]) / segLen);
       const wx = pts[seg * 2] + (pts[seg * 2 + 2] - pts[seg * 2]) * f;
       const wy = pts[seg * 2 + 1] + (pts[seg * 2 + 3] - pts[seg * 2 + 1]) * f;
-      if (this.isWaterAt(wx, wy)) bumps.push({ t: d, peak: base + WorldIndex.WATER_CLEAR });
+      if (this.isWaterAt(wx, wy)) { if (d < ws) ws = d; if (d > we) we = d; }
     }
-    prof = { base, cum, bumps };
+    const water = we >= ws ? { s: ws, e: we } : undefined;
+    prof = { base, cum, bumps, water };
     this.bridgeProfiles.set(pts, prof);
     return prof;
   }
@@ -1320,7 +1322,7 @@ export class WorldIndex {
   // bumps tented over the crossings
   bridgeDeckYAt(pts: number[], x: number, y: number): number {
     const prof = this.bridgeProfile(pts);
-    if (!prof.bumps.length) return prof.base;
+    if (!prof.bumps.length && !prof.water) return prof.base;
     // arc-length of the closest point on the polyline
     let bestD = Infinity, t = 0;
     for (let i = 0; i + 3 < pts.length; i += 2) {
@@ -1336,6 +1338,12 @@ export class WorldIndex {
     let deck = prof.base;
     for (const bump of prof.bumps) {
       deck = Math.max(deck, bump.peak - (Math.abs(t - bump.t) / WorldIndex.BRIDGE_RAMP) * (bump.peak - prof.base));
+    }
+    if (prof.water) {
+      const { s, e } = prof.water;
+      const R = 120; // ramp from the bank up to the flat span
+      const f = t <= s || t >= e ? 0 : Math.max(0, Math.min(1, (t - s) / R, (e - t) / R));
+      deck = Math.max(deck, prof.base + f * WorldIndex.WATER_CLEAR);
     }
     return deck;
   }
