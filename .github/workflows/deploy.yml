@@ -1,0 +1,78 @@
+name: Deploy to clippertown.io
+
+# Phone-autonomous deploy. Every push to `source` builds the game and publishes
+# the result to the `main` branch, which GitHub Pages serves at clippertown.io.
+# This mirrors `npm run deploy` (tools/deploy_pages.sh) but runs entirely in CI,
+# so shipping never requires a Mac. Uses the built-in GITHUB_TOKEN — no gh CLI.
+
+on:
+  push:
+    branches: [source]
+  workflow_dispatch: {} # lets you trigger a redeploy by hand (e.g. from a phone)
+
+# The publish step commits to `main`. The repo's default token is read-only, so
+# we explicitly grant write here (a workflow-level permission overrides the
+# read-only default — no repo setting change needed).
+permissions:
+  contents: write
+
+# One deploy at a time; the newest source push wins. Prevents two runs racing to
+# push `main` (which would cause a non-fast-forward rejection).
+concurrency:
+  group: deploy-clippertown
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Same build as `npm run deploy`: tsc + vite build, then inline the
+      # single-file ClipperTown.html. Emits dist/ (incl. CNAME from public/).
+      - name: Build game
+        run: npm run share
+
+      # Bring the live branch into ./live so we can update it in place, exactly
+      # like deploy_pages.sh clones the Pages repo to /tmp. persist-credentials
+      # (default) wires GITHUB_TOKEN into ./live/.git so the push below works.
+      - name: Check out live branch (main) into ./live
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: live
+
+      # Replace the live tree with the fresh build, but keep main's own README.md
+      # and .nojekyll — identical to the deploy script's rsync. CNAME is part of
+      # dist/ (from public/CNAME) so the custom domain is preserved automatically.
+      - name: Sync built site into live tree
+        run: |
+          rsync -a --delete \
+            --exclude .git \
+            --exclude README.md \
+            --exclude .nojekyll \
+            dist/ live/
+
+      - name: Commit & push to main
+        working-directory: live
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to deploy — live site already matches this build."
+            exit 0
+          fi
+          git commit -m "deploy: ${GITHUB_SHA::7} via CI"
+          git push origin main
+          echo "Pushed ${GITHUB_SHA::7} to main — GitHub Pages will publish to clippertown.io in ~30-60s."
