@@ -38,16 +38,29 @@ npm install            # first time
 npm run dev            # dev server at http://localhost:5173 (HMR)
 npm run build          # tsc --noEmit && vite build  → dist/
 npm run share          # build + inline single-file dist/NBPT-Living.html
-npm run deploy         # build, then push dist/ to main → live in ~30-60s
+npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see below)
 ```
 
-- **Deploy** (`tools/deploy_pages.sh`): runs `npm run share`, clones the Pages repo
-  to /tmp, `rsync -a --delete dist/` over it, commits + pushes to `main`. The CDN
-  lags ~30-60s; the served bundle hash (`assets/index-XXXX.js`) changing confirms it.
-  (To verify a deploy went live: poll `clippertown.io/index.html?cb=$(date +%s)` for
-  the new `index-XXXX.js` hash — a background `until` loop works well.)
-- **Always** commit source changes to the `source` branch too (keeps it canonical):
-  `git add -A && git commit && git push origin source`.
+- **Shipping is now automatic (CI).** Every push to `source` runs
+  `.github/workflows/deploy.yml` → builds (`npm ci` + `npm run share`) → pushes `dist/` to
+  `main` → GitHub Pages serves it at clippertown.io in ~1–2 min. **No Mac needed.** The
+  normal flow is just: `git add -A && git commit && git push origin source`.
+- **📱 From a phone / cloud Claude session, tell it:**
+  > *"Commit directly to the `source` branch and push to `origin/source` — don't make a
+  > feature branch or open a PR. Pushing to `source` auto-deploys, so that's all you need."*
+
+  (`source` is the repo's default branch and is unprotected, so the push works and triggers
+  the deploy — no PR, no GitHub-app merge. CI runs `tsc` *before* publishing, so a change
+  that doesn't compile fails the build and never reaches the live site.) **Never edit
+  `dist/` or the `main` branch** — they're generated output.
+- **Verify it went live:** the build stamps its commit at `window.__build` (open the
+  console), or poll the served hash — `curl -s "clippertown.io/index.html?cb=$(date +%s)"`
+  for a new `assets/index-XXXX.js`, then
+  `curl -s clippertown.io/assets/index-XXXX.js | grep -o '__build="[^"]*"'`.
+- **Manual deploy (Mac fallback):** `npm run deploy` (`tools/deploy_pages.sh`) still builds
+  + pushes `dist/` to `main` via `gh`, but it's redundant with CI now (and would race a CI
+  run if used at the same moment — same result). It refuses to run unless `source` is the
+  checked-out branch.
 - **In-browser debug hooks** (great for verifying): `window.nbpt` → `go(x,z)`,
   `travel(id)`, `find(q)`, `pos()`, `zoom(z)`, `season('summer'|'fall'|'winter')`,
   `time(0–1)` (0=midnight·.25=dawn·.5=noon·.75=dusk), `weather(1=storm|0=clear|null=auto)`,
@@ -117,6 +130,16 @@ npm run deploy         # build, then push dist/ to main → live in ~30-60s
 ---
 
 ## 5. Recent work
+
+**June 15, 2026:**
+- **Phone-autonomous deploys (CI).** Added `.github/workflows/deploy.yml`: every push to
+  `source` builds + publishes to clippertown.io via GitHub Actions (built-in `GITHUB_TOKEN`,
+  no `gh`). `npm run deploy` is now just an optional Mac fallback. Verified end-to-end. See §3.
+- **Default branch → `source`** (was `main`) so phone/cloud sessions branch off the real
+  code, not the built output (which caused the old "dist edits off main" mess). GitHub Pages
+  still serves `main` — that's a separate setting, unaffected.
+- **Build stamp:** `window.__build` now reports the live source commit (quick deploy check).
+- CI actions pinned to `@v6` (Node 24 runtime).
 
 **June 14, 2026 (all deployed):**
 - **Day–night reshaped** — long days + lingering golden sunrise/sunset, only a brief,
