@@ -615,7 +615,8 @@ export class QuestRunner {
         this.hud.setObjective(denLast
           ? 'The last bell is in the den \u2014 row back out past the Coast Guard station'
           : 'Ring the three harbor bells \u2014 ' + this.bells.size + ' of 3');
-        target = !this.bells.has('cg') ? BELL_CG : !this.bells.has('wharf') ? BELL_WHARF : BOAT;
+        target = !this.bells.has('cg') ? BELL_CG : !this.bells.has('wharf') ? BELL_WHARF
+          : this.hud.boating ? WDOOR : BOAT;   // once rowing, the beam leads to the den, not the launch
       } else if (this.ch4 === 2 || this.ch4 === 3) {
         this.hud.setObjective('The stone remembers \u2014 beneath the Custom House');
         target = CELLAR;

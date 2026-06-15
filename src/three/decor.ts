@@ -1039,8 +1039,14 @@ function ribbonDeck(buckets: Bucket[], pts: number[], w: number, topYAt: number 
       const x1 = sx0 + (sx1 - sx0) * ((pc + 1) / pieces), z1 = sz0 + (sz1 - sz0) * ((pc + 1) / pieces);
       const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
       if (mx < ox || mx >= ox + CHUNK || mz < oy || mz >= oy + CHUNK) continue;
-      // leave a gap at the Gillis channel — the custom drawbridge fills it
-      if (skipGillis && (mx - gillisCenter.x) ** 2 + (mz - gillisCenter.z) ** 2 < gillisCenter.r ** 2) continue;
+      // leave a clean rectangular gap at the Gillis channel — the custom drawbridge
+      // fills it (a circle left holes at the deck corners)
+      if (skipGillis) {
+        const dxg = mx - gillisCenter.x, dzg = mz - gillisCenter.z;
+        const along = dxg * gillisCenter.ux + dzg * gillisCenter.uz;
+        const across = -dxg * gillisCenter.uz + dzg * gillisCenter.ux;
+        if (Math.abs(along) < gillisCenter.halfLen && Math.abs(across) < gillisCenter.halfW) continue;
+      }
       const dx = x1 - x0, dz = z1 - z0;
       const len = Math.hypot(dx, dz);
       if (len < 0.01) continue;
@@ -2539,13 +2545,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     if (p.c === 'board') {
       // the waterfront boardwalk: stained planks, pilings, water-side railings
       boardwalk(buckets, p.p, Math.max(p.w, 22), PIER_DECK_Y, ox, oy, index);
-    } else if (p.b && p.c !== 'steps' && p.c !== 'side') {
-      // a path BRIDGE (rail trail, foot/cycle bridges) — paved + lifted clear of
-      // water, like the road bridges (not a low wooden dock anymore)
-      ribbonDeck(buckets, p.p, Math.max(p.w + 4, 16), (x, z) => index.bridgeDeckYAt(p.p, x, z), true, ox, oy);
-    } else if (p.c === 'pierline') {
-      // bare docks stay open, low on the water
-      ribbonDeck(buckets, p.p, Math.max(p.w, 18), PIER_DECK_Y, false, ox, oy);
+    } else if (p.c === 'pierline' || (p.b && (p.c === 'foot' || p.c === 'cycle' || p.c === 'track' || p.c === 'ped'))) {
+      // foot / cycle / rail-trail bridges + bare docks: wooden planks, low — NOT
+      // paved roads (only actual road bridges get asphalt + a centre line + a lift)
+      ribbonDeck(buckets, p.p, Math.max(p.w, 16), PIER_DECK_Y, false, ox, oy);
     }
   }
 

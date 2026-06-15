@@ -9,10 +9,10 @@ import type { WorldData } from '../world/types';
 // channel (see decor.ts GILLIS_SKIP) so the lift exposes a real gap.
 
 export const GILLIS_PT = { x: -2421, z: -3599 };
-// The real span centre (snapped to the road) + the radius within which the generic
-// deck is suppressed. Filled in by the GillisBridge constructor; decor.ts reads it
-// so the carved gap lines up exactly with the custom span.
-export const gillisCenter = { x: GILLIS_PT.x, z: GILLIS_PT.z, r: 78 };
+// The real span centre + heading + the half-extents of the gap the generic deck
+// must leave for the custom span. Filled in by the GillisBridge constructor; decor.ts
+// carves an oriented RECTANGLE (not a circle, which left holes at the corners).
+export const gillisCenter = { x: GILLIS_PT.x, z: GILLIS_PT.z, ux: 1, uz: 0, halfLen: 78, halfW: 50 };
 
 const GREEN = '#2f5d46', GREEN_D = '#23492f', STONE = '#9c968b', STONE_D = '#857f74';
 const ASPH = '#3a3d42', RAIL = '#bdb8ab', LINE = '#c9a23e';
@@ -51,6 +51,7 @@ export class GillisBridge {
     const deckY = index.bridgeDeckYAt(pts, cx, cz);
 
     gillisCenter.x = cx; gillisCenter.z = cz;      // so decor.ts carves the gap here
+    gillisCenter.ux = ux; gillisCenter.uz = uz;    // (oriented to the road heading)
     this.root.position.set(cx, 0, cz);
     this.root.rotation.y = Math.atan2(-uz, ux);   // local +X = road heading, +Z = across
 

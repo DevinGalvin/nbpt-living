@@ -854,7 +854,12 @@ export class Game {
 
     const half = 5;   // a slightly slimmer footprint so narrow streets stay passable
     const free = this.boating
-      ? () => true // open water — row freely out to the door
+      // keep the boat on the water — never onto land — with slack at the launch and
+      // the den door it beaches at (so the route in/out is never blocked)
+      ? (x: number, y: number) =>
+          this.index.isWaterAt(x, y)
+          || Math.hypot(x - 3481, y + 221) < 90
+          || Math.hypot(x - BOAT_DOOR.x, y - BOAT_DOOR.z) < 150
       : this.inTunnel
       ? (x: number, y: number) => this.tunnel!.free(x, y)
       : this.interior
