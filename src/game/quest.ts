@@ -489,7 +489,7 @@ export class QuestRunner {
         if (this.ch2 === 0 || this.ch2 === 2 || this.ch2 === 3) c.push({ tag: 'news', x: this.editorPos.x, z: this.editorPos.z, label: '\u{1F4F0} ENTER', r: 55 });
         else if (this.ch2 === 1) {
           for (let i = 0; i < this.stops.length; i++) {
-            if (!this.delivered.has(i)) c.push({ tag: 'stop' + i, x: this.stops[i].x, z: this.stops[i].z, label: '\u{1F4F0} THROW', r: 62 });
+            if (!this.delivered.has(i)) c.push({ tag: 'stop' + i, x: this.stops[i].x, z: this.stops[i].z, label: '\u{1F4F0} THROW', r: 124 });
           }
         }
         // Chapter 4 "Low Water": the rowboat is the only way to the den —
