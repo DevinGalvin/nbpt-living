@@ -122,11 +122,19 @@ export class Kid {
     hair.position.y = 4.7;
     const bangs = rbox(8.4, 2, 1.6, 0.7, HAIR);
     bangs.position.set(0, 5.4, 4);
-    this.eyeL = sph(0.78, '#23201c');
-    this.eyeR = sph(0.78, '#23201c');
-    this.eyeL.position.set(-2.1, 3.2, 4.35);
-    this.eyeR.position.set(2.1, 3.2, 4.35);
-    this.headGrp.add(head, hair, bangs, this.eyeL, this.eyeR);
+    this.eyeL = sph(0.85, '#23201c');
+    this.eyeR = sph(0.85, '#23201c');
+    this.eyeL.position.set(-2.05, 3.2, 4.4);
+    this.eyeR.position.set(2.05, 3.2, 4.4);
+    // catchlights — tiny white glints that make the eyes feel alive (blink with them)
+    for (const e of [this.eyeL, this.eyeR]) { const g = sph(0.3, '#ffffff'); g.position.set(-0.28, 0.34, 0.58); e.add(g); }
+    // a friendly face: soft brows, a button nose, a little smile, rosy cheeks
+    const brow = (sx: number) => { const b = rbox(2.2, 0.62, 0.6, 0.26, HAIR); b.position.set(sx * 2.05, 4.55, 4.2); b.rotation.z = sx * 0.1; return b; };
+    const knose = sph(0.62, '#e3a878', 1, 0.82, 1); knose.position.set(0, 2.35, 5.0);
+    const smile = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.22, 6, 12, Math.PI), mat('#8a4b40'));
+    smile.rotation.z = Math.PI; smile.position.set(0, 1.25, 4.55);
+    const cheek = (sx: number) => { const c = sph(0.95, '#e89a86', 1, 0.66, 0.45); c.position.set(sx * 3.15, 1.85, 4.05); const m = c.material as THREE.MeshLambertMaterial; m.transparent = true; m.opacity = 0.6; return c; };
+    this.headGrp.add(head, hair, bangs, this.eyeL, this.eyeR, brow(-1), brow(1), knose, smile, cheek(-1), cheek(1));
 
     const mkArm = (sx: number): [THREE.Group, THREE.Group] => {
       const upper = new THREE.Group();
@@ -349,10 +357,14 @@ export class Dog {
     snout.position.set(0, -0.2, 6.6);
     const nose = sph(0.95, '#2b2420', 1.1, 0.9, 0.9);
     nose.position.set(0, 0.3, 8.8);
-    const eyeL = sph(0.62, '#23201c');
-    const eyeR = sph(0.62, '#23201c');
-    eyeL.position.set(-1.95, 2.6, 5.5);
-    eyeR.position.set(1.95, 2.6, 5.5);
+    const eyeL = sph(0.72, '#23201c');
+    const eyeR = sph(0.72, '#23201c');
+    eyeL.position.set(-1.95, 2.7, 5.5);
+    eyeR.position.set(1.95, 2.7, 5.5);
+    for (const e of [eyeL, eyeR]) { const g = sph(0.24, '#ffffff'); g.position.set(-0.2, 0.28, 0.5); e.add(g); }
+    // a happy lolling tongue hanging from the mouth
+    const tongue = rbox(1.4, 0.45, 2.3, 0.4, '#e07f88');
+    tongue.position.set(0, -1.5, 7.8); tongue.rotation.x = 0.55;
     const mkEar = (sx: number): THREE.Group => {
       const grp = new THREE.Group();
       grp.position.set(sx * 3.3, 5.4, 1.5);
@@ -364,7 +376,7 @@ export class Dog {
     };
     this.earL = mkEar(-1);
     this.earR = mkEar(1);
-    this.headGroup.add(head, snout, nose, eyeL, eyeR, this.earL, this.earR);
+    this.headGroup.add(head, snout, nose, eyeL, eyeR, this.earL, this.earR, tongue);
 
     // tail: two soft segments for a whippy wag
     this.tail = new THREE.Group();
@@ -377,7 +389,11 @@ export class Dog {
     this.tail.add(tailBase, this.tailTip);
     this.tail.rotation.x = -2.4;
 
-    this.trunk.add(body, chest, rump, this.headGroup, this.tail);
+    // a red collar with a little gold tag — Clipper's got an owner
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(3.7, 0.55, 8, 18), mat('#b5402f'));
+    collar.position.set(0, 4.0, 12.7); collar.scale.set(1.05, 0.9, 1);
+    const tag = sph(0.7, '#e8c44f'); tag.position.set(0, 0.9, 13.1);
+    this.trunk.add(body, chest, rump, this.headGroup, this.tail, collar, tag);
 
     // legs stay under the heading so the trunk can pitch without lifting paws
     const legPos: [number, number][] = [[-3.2, 6.5], [3.2, 6.5], [-3.2, -6.5], [3.2, -6.5]];
