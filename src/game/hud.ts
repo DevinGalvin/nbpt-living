@@ -202,7 +202,13 @@ const css = `
 #hud .dlg.open { display: block; }
 #hud .dlg .who { font-size: 11.5px; letter-spacing: 1.6px; color: #e8c44f; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; min-height: 13px; }
 #hud .dlg .line { font-size: 15.5px; line-height: 1.45; color: #f3f1e8; min-height: 46px; }
-#hud .dlg .more { text-align: right; font-size: 10.5px; color: #c8bd96; margin-top: 2px; letter-spacing: 1px; }
+#hud .dlg .dlg-foot { text-align: right; margin-top: 7px; }
+#hud .dlg .dlg-next {
+  display: inline-block; background: rgba(216,185,74,0.95); color: #1c2430;
+  font-weight: 800; font-size: 13px; letter-spacing: 0.8px; padding: 6px 17px;
+  border-radius: 15px; border: 1.5px solid #f0d27a;
+}
+#hud .dlg .dlg-next:hover { background: #f0d27a; }
 #hud .talk-btn {
   position: absolute; right: 18px; bottom: 122px; min-width: 58px; height: 58px;
   border-radius: 29px; background: rgba(216, 185, 74, 0.92); color: #1c2430;
@@ -287,7 +293,8 @@ const css = `
   transform: translateY(18px) scale(0.95); transition: transform 0.26s cubic-bezier(0.2, 0.85, 0.3, 1.12);
 }
 #hud .bag-panel.show .bag-card { transform: translateY(0) scale(1); }
-#hud .bag-head { font-size: 14px; letter-spacing: 3px; color: #e8c44f; font-weight: 800; margin-bottom: 4px; }
+#hud .bag-head { display: flex; align-items: center; gap: 10px; font-size: 14px; letter-spacing: 3px; color: #e8c44f; font-weight: 800; margin-bottom: 4px; }
+#hud .bag-head .bag-emoji { font-size: 34px; line-height: 1; letter-spacing: 0; }
 #hud .bag-empty { font-size: 12.5px; color: #8b8678; line-height: 1.5; margin-top: 10px; }
 #hud .bag-sec.empty { display: none; }
 #hud .bag-sectitle { font-size: 11.5px; letter-spacing: 2px; color: #e8c44f; font-weight: 800; margin: 13px 0 7px; }
@@ -406,6 +413,7 @@ export class Hud {
   private dlgEl!: HTMLElement;
   private dlgWho!: HTMLElement;
   private dlgLine!: HTMLElement;
+  private dlgNext!: HTMLElement;
   private dlgLines: { who: string; text: string }[] = [];
   private dlgIdx = 0;
   private dlgDone: (() => void) | null = null;
@@ -466,7 +474,7 @@ export class Hud {
       <div class="objective"><span class="q">◈</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
       <div class="runtip"></div>
-      <div class="dlg"><div class="who"></div><div class="line"></div><div class="more">tap · E</div></div>
+      <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-next">Next ▸</span></div></div>
       <div class="talk-btn">💬 TALK</div>
       <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div></div>
       <div class="hcard"><div class="ht"></div><div class="hy"></div><div class="hb"></div><div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="close">tap to close</div></div></div>
@@ -483,6 +491,7 @@ export class Hud {
     this.dlgEl = hud.querySelector('.dlg')!;
     this.dlgWho = hud.querySelector('.dlg .who')!;
     this.dlgLine = hud.querySelector('.dlg .line')!;
+    this.dlgNext = hud.querySelector('.dlg .dlg-next')!;
 
     this.dlgEl.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
@@ -835,7 +844,7 @@ export class Hud {
     const card = document.createElement('div');
     card.className = 'bag-card';
     card.innerHTML = '<div class="modal-x">✕</div>'
-      + '<div class="bag-head">🎒 YOUR BACKPACK</div>'
+      + '<div class="bag-head"><span class="bag-emoji">🎒</span>YOUR BACKPACK</div>'
       + '<div class="bag-empty">Your bag is empty for now — go find some treasure!</div>'
       + '<div class="bag-sec" data-sec="carry"><div class="bag-sectitle">CARRYING NOW</div><div class="bag-grid"></div></div>'
       + '<div class="bag-sec" data-sec="treasure"><div class="bag-sectitle">TREASURES &amp; TOOLS</div><div class="bag-grid"></div></div>'
@@ -1240,6 +1249,7 @@ export class Hud {
     const l = this.dlgLines[this.dlgIdx];
     this.dlgWho.textContent = l.who;
     this.dlgLine.textContent = l.text;
+    this.dlgNext.textContent = this.dlgIdx >= this.dlgLines.length - 1 ? 'Got it ✓' : 'Next ▸';
   }
 
   private advanceDlg() {
