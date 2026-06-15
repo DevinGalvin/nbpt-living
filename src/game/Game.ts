@@ -124,6 +124,11 @@ export class Game {
   private chunks = new Map<string, ChunkEntry>();
   private pending: string[] = [];
   private lastTime = 0;
+  // perf: weak/software GPU detected at startup; dynamic-resolution sampler state
+  private lowGPU = false;
+  private dynScale = 0; // current dynamic pixel ratio (0 = not yet initialised)
+  private fpsAccum = 0; // seconds accumulated in the current FPS sample window
+  private fpsFrames = 0; // frames counted in the current FPS sample window
   private pollAcc = 0;
   private sprinting = false;
   private debugVec: { x: number; y: number; until: number } | null = null;
@@ -154,7 +159,10 @@ export class Game {
     this.terrain = terrain;
     this.index = new WorldIndex(world, terrain);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    // weak/integrated GPUs can't afford MSAA; skip it there. The dynamic-resolution
+    // loop (see updateDynamicResolution) handles everything in between at runtime.
+    this.lowGPU = Game.detectLowGPU();
+    this.renderer = new THREE.WebGLRenderer({ antialias: !this.lowGPU });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.setSize(innerWidth, innerHeight);
     this.renderer.setClearColor(STYLE.sky);
@@ -171,7 +179,9 @@ export class Game {
       : new THREE.HemisphereLight('#e3f2fd', '#90a06c', 0.5);
     this.sun = new THREE.DirectionalLight(SEASON === 'winter' ? '#ffe0b0' : SEASON === 'fall' ? '#ffd9a0' : '#fff2d8', SEASON === 'summer' ? 1.5 : 1.4);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    // 1024² is a quarter of the shadow texels — a big win on weak GPUs
+    const shadowRes = this.lowGPU ? 1024 : 2048;
+    this.sun.shadow.mapSize.set(shadowRes, shadowRes);
     this.sun.shadow.camera.left = -1500;
     this.sun.shadow.camera.right = 1500;
     this.sun.shadow.camera.top = 1500;
@@ -753,9 +763,54 @@ export class Game {
     return g;
   }
 
+  // Probe once at startup for a clearly weak GPU: a software renderer (browser
+  // fallback) or genuinely low core/memory counts. Intentionally strict so we
+  // don't degrade capable mid-range machines — those are covered by the runtime
+  // dynamic-resolution loop instead.
+  private static detectLowGPU(): boolean {
+    try {
+      const c = document.createElement('canvas');
+      const gl = (c.getContext('webgl') || c.getContext('experimental-webgl')) as WebGLRenderingContext | null;
+      if (!gl) return true;
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      const renderer = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)).toLowerCase() : '';
+      if (/swiftshader|llvmpipe|softpipe|software|basic render/.test(renderer)) return true;
+      const cores = navigator.hardwareConcurrency || 8;
+      const mem = (navigator as unknown as { deviceMemory?: number }).deviceMemory ?? 8;
+      return cores <= 2 || (cores <= 4 && mem <= 4);
+    } catch {
+      return false;
+    }
+  }
+
+  // Dynamic resolution: sample FPS once a second and scale the drawing-buffer
+  // resolution to keep weak GPUs smooth. Steps down (to as low as 0.5x) below
+  // 45 FPS and eases back toward the device cap above 57. Hysteresis plus the
+  // asymmetric step sizes prevent oscillation; full-speed machines never move.
+  private updateDynamicResolution(dt: number) {
+    const cap = Math.min(devicePixelRatio || 1, 2);
+    if (this.dynScale === 0) this.dynScale = cap;
+    this.fpsAccum += dt;
+    this.fpsFrames++;
+    if (this.fpsAccum < 1) return;
+    const fps = this.fpsFrames / this.fpsAccum;
+    this.fpsAccum = 0;
+    this.fpsFrames = 0;
+    const floor = Math.max(0.5, cap * 0.5);
+    if (fps < 45 && this.dynScale > floor) {
+      this.dynScale = Math.max(floor, this.dynScale - 0.25);
+    } else if (fps > 57 && this.dynScale < cap) {
+      this.dynScale = Math.min(cap, this.dynScale + 0.1);
+    }
+    if (Math.abs(this.renderer.getPixelRatio() - this.dynScale) > 1e-3) {
+      this.renderer.setPixelRatio(this.dynScale);
+    }
+  }
+
   private frame(t: number) {
     const dt = Math.min(0.05, (t - this.lastTime) / 1000 || 0.016);
     this.lastTime = t;
+    this.updateDynamicResolution(dt);
 
     const k = this.keys;
     // screen-space input ...
