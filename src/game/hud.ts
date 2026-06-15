@@ -5,19 +5,27 @@ import { SEASON, spineComplete } from '../world/style';
 // DOM HUD: street pill, landmark banner, help, attribution, virtual joystick.
 
 const css = `
+/* ── Town theme tokens ─────────────────────────────────────────────
+   Newburyport = maroon + gold. Swap these to re-theme for another town. */
+:root {
+  --panel: linear-gradient(177deg, rgba(58,29,37,0.985), rgba(42,20,25,0.985) 58%, rgba(30,14,20,0.985));
+  --maroon: 46, 22, 28;      /* chrome chips / buttons (use as rgba(var(--maroon), a)) */
+  --maroon-lt: 60, 30, 38;   /* lighter chips & cards */
+  --gold: #d8b94a;
+}
 #hud { position: fixed; pointer-events: none; font-family: system-ui, sans-serif; z-index: 10;
   top: env(safe-area-inset-top, 0px); right: env(safe-area-inset-right, 0px);
   bottom: env(safe-area-inset-bottom, 0px); left: env(safe-area-inset-left, 0px); }
 #hud .pill {
   position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
-  background: rgba(24, 32, 42, 0.78); color: #f3f1e8; font-size: 13px; font-weight: 600;
+  background: rgba(var(--maroon-lt), 0.78); color: #f3f1e8; font-size: 13px; font-weight: 600;
   letter-spacing: 1.5px; padding: 7px 16px 7px 13px; border-radius: 16px;
   display: none; align-items: center; gap: 7px; white-space: nowrap;
 }
 #hud .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: #e8c44f; }
 #hud .banner {
   position: absolute; top: 58px; left: 50%; transform: translate(-50%, -8px);
-  background: rgba(20, 28, 38, 0.84); border-radius: 12px; padding: 13px 34px 11px;
+  background: rgba(var(--maroon), 0.84); border-radius: 12px; padding: 13px 34px 11px;
   text-align: center; opacity: 0; transition: opacity 0.45s ease, transform 0.45s ease;
   border-bottom: 2px solid #d8b94a;
 }
@@ -29,30 +37,30 @@ const css = `
 #hud .help { left: 8px; }
 #hud .attr { right: 8px; font-size: 10px; }
 #hud .stick-base, #hud .stick-knob { position: absolute; border-radius: 50%; display: none; }
-#hud .stick-base { width: 96px; height: 96px; background: rgba(20, 28, 38, 0.22); border: 2px solid rgba(243,241,232,0.5); }
+#hud .stick-base { width: 96px; height: 96px; background: rgba(var(--maroon), 0.22); border: 2px solid rgba(243,241,232,0.5); }
 #hud .stick-knob { width: 44px; height: 44px; background: rgba(243,241,232,0.55); }
 #hud .compass {
   position: absolute; top: 14px; right: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(20, 28, 38, 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
   display: flex; align-items: center; justify-content: center;
 }
 #hud .compass .needle { font-size: 15px; font-weight: 700; color: #f0d27a; will-change: transform; }
 #hud .travel-btn {
   position: absolute; top: 14px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(20, 28, 38, 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer;
 }
 #hud .sound-btn {
   position: absolute; top: 66px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(20, 28, 38, 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
   display: flex; align-items: center; justify-content: center; font-size: 19px;
   pointer-events: auto; cursor: pointer;
 }
 #hud .sound-btn.off { opacity: 0.55; }
 #hud .run-btn {
   position: absolute; right: 18px; bottom: 52px; width: 58px; height: 58px; border-radius: 50%;
-  background: rgba(20, 28, 38, 0.65); border: 2px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
   display: none; align-items: center; justify-content: center; font-size: 26px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
@@ -60,7 +68,7 @@ const css = `
 #hud .run-btn.on { background: rgba(216, 185, 74, 0.45); border-color: #e8c44f; }
 #hud .bike-btn {
   position: absolute; right: 18px; bottom: 192px; width: 58px; height: 58px; border-radius: 50%;
-  background: rgba(20, 28, 38, 0.65); border: 2px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
   display: none; align-items: center; justify-content: center; font-size: 26px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
@@ -73,7 +81,7 @@ const css = `
 #hud .travel-panel.open { display: flex; }
 #hud .travel-card {
   position: relative;
-  background: rgba(22, 29, 38, 0.97); border-radius: 14px; border-bottom: 3px solid #d8b94a;
+  background: var(--panel); border-radius: 14px; border-bottom: 3px solid #d8b94a;
   padding: 18px 20px 14px; width: min(560px, 92vw); max-height: 78vh; overflow-y: auto;
 }
 /* a tappable close on every modal card — mobile has little backdrop to tap */
@@ -154,7 +162,7 @@ const css = `
 #hud .vignette.on { opacity: 1; }
 #hud .hcard {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -52%);
-  width: min(520px, 92vw); background: rgba(22, 28, 37, 0.97); border-radius: 14px;
+  width: min(520px, 92vw); background: var(--panel); border-radius: 14px;
   border-bottom: 3px solid #d8b94a; padding: 20px 22px 14px; display: none;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
@@ -185,7 +193,7 @@ const css = `
 }
 #hud .objective {
   position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
-  background: rgba(24, 32, 42, 0.84); border: 1px solid rgba(216, 185, 74, 0.55);
+  background: rgba(var(--maroon-lt), 0.84); border: 1px solid rgba(216, 185, 74, 0.55);
   color: #f3f1e8; font-size: 12.5px; font-weight: 600; letter-spacing: 0.4px;
   padding: 8px 15px; border-radius: 16px; display: none; align-items: center; gap: 8px;
   max-width: 70vw; text-align: center; pointer-events: auto; cursor: pointer;
@@ -197,7 +205,7 @@ const css = `
 #hud .objective.min .otxt { display: none; }
 #hud .dlg {
   position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%);
-  width: min(580px, 93vw); background: rgba(20, 27, 36, 0.96); border-radius: 13px;
+  width: min(580px, 93vw); background: var(--panel); border-radius: 13px;
   border-bottom: 3px solid #d8b94a; padding: 13px 17px 9px; display: none;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
@@ -221,7 +229,7 @@ const css = `
 #hud .talk-btn.show { display: flex; }
 #hud .journey-btn {
   position: absolute; top: 118px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(20, 28, 38, 0.78); border: 1.5px solid rgba(216,185,74,0.6);
+  background: rgba(var(--maroon), 0.78); border: 1.5px solid rgba(216,185,74,0.6);
   display: flex; align-items: center; justify-content: center; font-size: 22px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
   z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
@@ -239,7 +247,7 @@ const css = `
 /* ---------- Backpack 🎒: a button that springs in on your first item ---------- */
 #hud .bag-btn {
   position: absolute; top: 170px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(20, 28, 38, 0.78); border: 1.5px solid rgba(216,185,74,0.6);
+  background: rgba(var(--maroon), 0.78); border: 1.5px solid rgba(216,185,74,0.6);
   display: none; align-items: center; justify-content: center; font-size: 22px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
   z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
@@ -273,7 +281,7 @@ const css = `
 }
 #hud .bag-btn.wiggle { animation: nbpt-bag-wiggle 0.55s ease-in-out; }
 #hud .bag-tip {
-  position: absolute; top: 178px; left: 66px; background: rgba(24,32,42,0.94);
+  position: absolute; top: 178px; left: 66px; background: rgba(var(--maroon-lt),0.94);
   border: 1px solid rgba(216,185,74,0.55); color: #f3f1e8; font-size: 12.5px; font-weight: 600;
   padding: 7px 12px; border-radius: 14px; white-space: nowrap; pointer-events: none;
   opacity: 0; transform: translateX(-8px); z-index: 12;
@@ -290,7 +298,7 @@ const css = `
 #hud .bag-panel.show { pointer-events: auto; opacity: 1; }
 #hud .bag-card {
   position: relative; width: min(420px, 90vw); max-height: 82vh; overflow: auto;
-  background: #141b24; border-radius: 14px; border-bottom: 3px solid #d8b94a;
+  background: var(--panel); border-radius: 14px; border-bottom: 3px solid #d8b94a;
   padding: 18px 20px 16px; color: #f3f1e8;
   transform: translateY(18px) scale(0.95); transition: transform 0.26s cubic-bezier(0.2, 0.85, 0.3, 1.12);
 }
@@ -360,7 +368,7 @@ const css = `
 /* one-time nudge that you can run — shown a few seconds into the first walk */
 #hud .runtip {
   position: absolute; bottom: 104px; left: 50%; transform: translate(-50%, 10px);
-  background: rgba(24,32,42,0.92); border: 1px solid rgba(216,185,74,0.55);
+  background: rgba(var(--maroon-lt),0.92); border: 1px solid rgba(216,185,74,0.55);
   color: #f3f1e8; font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
   padding: 9px 16px; border-radius: 18px; white-space: nowrap; pointer-events: none;
   opacity: 0; transition: opacity 0.35s ease, transform 0.35s ease; z-index: 12;
@@ -378,7 +386,7 @@ const css = `
 #hud .welcome.closing { opacity: 0; }
 #hud .welcome-card {
   width: min(360px, 90vw); max-height: 92vh; overflow-y: auto; box-sizing: border-box;
-  background: rgba(22,29,38,0.98); border-radius: 22px; border-bottom: 4px solid #d8b94a;
+  background: var(--panel); border-radius: 22px; border-bottom: 4px solid #d8b94a;
   padding: 26px 22px 22px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,0.55);
 }
 #hud .welcome-card .wship {
@@ -698,7 +706,7 @@ export class Hud {
     jp.className = 'journey-panel';   // reuse the modal styling + show/hide animation
     const jc = document.createElement('div');
     jc.className = 'journey-card';
-    jc.style.cssText = 'position:relative;width:min(420px,90vw);max-height:82vh;overflow:auto;background:#141b24;border-radius:14px;border-bottom:3px solid #d8b94a;padding:18px 20px 14px;color:#f3f1e8;';
+    jc.style.cssText = 'position:relative;width:min(420px,90vw);max-height:82vh;overflow:auto;background:var(--panel);border-radius:14px;border-bottom:3px solid #d8b94a;padding:18px 20px 14px;color:#f3f1e8;';
     jc.innerHTML = '<div class="modal-x">✕</div><div style="font-size:14px;letter-spacing:3px;color:#e8c44f;font-weight:800;margin-bottom:10px;">MISSIONS</div>'
       + '<div class="j-obj" style="font-size:14.5px;line-height:1.5;margin-bottom:4px;"></div>'
       + '<div class="j-dir" style="font-size:12.5px;color:#9fb8cc;margin-bottom:6px;"></div>'
@@ -995,7 +1003,7 @@ export class Hud {
       ap.className = 'journey-panel album-panel';   // reuse the modal styling
       const ac = document.createElement('div');
       ac.className = 'journey-card';
-      ac.style.cssText = 'position:relative;width:min(420px,90vw);max-height:82vh;overflow:auto;background:#141b24;border-radius:14px;border-bottom:3px solid #d8b94a;padding:18px 20px 14px;color:#f3f1e8;';
+      ac.style.cssText = 'position:relative;width:min(420px,90vw);max-height:82vh;overflow:auto;background:var(--panel);border-radius:14px;border-bottom:3px solid #d8b94a;padding:18px 20px 14px;color:#f3f1e8;';
       ac.innerHTML = '<div class="modal-x">✕</div>'
         + '<div style="font-size:14px;letter-spacing:3px;color:#e8c44f;font-weight:800;margin-bottom:4px;">\u{1F4DC} TOWN STORIES</div>'
         + '<div class="alb-tally" style="font-size:12.5px;color:#c8bd96;margin:4px 0 12px;"></div>'
