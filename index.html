@@ -40,10 +40,10 @@
       -webkit-user-select: none;
       user-select: none;
     }
-    #game {
-      width: 100%;
-      height: 100%;
-    }
+    /* full-bleed: cover the whole device incl. safe areas (fixes iOS home-screen
+       dark bars). The HUD insets itself by the safe areas; the canvas does not. */
+    #game { position: fixed; inset: 0; }
+    #game canvas { display: block; width: 100%; height: 100%; }
     #loading {
       position: absolute;
       inset: 0;

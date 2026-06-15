@@ -5,7 +5,9 @@ import { SEASON, spineComplete } from '../world/style';
 // DOM HUD: street pill, landmark banner, help, attribution, virtual joystick.
 
 const css = `
-#hud { position: fixed; inset: 0; pointer-events: none; font-family: system-ui, sans-serif; z-index: 10; }
+#hud { position: fixed; pointer-events: none; font-family: system-ui, sans-serif; z-index: 10;
+  top: env(safe-area-inset-top, 0px); right: env(safe-area-inset-right, 0px);
+  bottom: env(safe-area-inset-bottom, 0px); left: env(safe-area-inset-left, 0px); }
 #hud .pill {
   position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
   background: rgba(24, 32, 42, 0.78); color: #f3f1e8; font-size: 13px; font-weight: 600;
@@ -375,26 +377,35 @@ const css = `
 }
 #hud .welcome.closing { opacity: 0; }
 #hud .welcome-card {
-  width: min(440px, 94vw); max-height: 90vh; overflow-y: auto; box-sizing: border-box;
-  background: rgba(22,29,38,0.98); border-radius: 16px; border-bottom: 3px solid #d8b94a;
-  padding: 24px 24px 20px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+  width: min(360px, 90vw); box-sizing: border-box;
+  background: rgba(22,29,38,0.98); border-radius: 22px; border-bottom: 4px solid #d8b94a;
+  padding: 28px 22px 22px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,0.55);
 }
-#hud .welcome-card .wtitle { font-family: Georgia, serif; font-size: 27px; letter-spacing: 3px; color: #f6f3e8; }
-#hud .welcome-card .wsub { font-size: 12.5px; color: #c8bd96; margin: 6px 0 16px; letter-spacing: 0.6px; }
-#hud .welcome-card .wbody { font-size: 14.5px; line-height: 1.6; color: #e8e4d8; text-align: left; }
-#hud .welcome-card .wbody b { color: #f0d27a; }
-#hud .welcome-card .wctrls {
-  font-size: 13px; line-height: 1.95; color: #d9d2c0; text-align: left;
-  margin: 15px 0 2px; border-top: 1px solid rgba(243,241,232,0.12); padding-top: 13px;
+#hud .welcome-card .wtitle { font-family: Georgia, serif; font-size: 31px; letter-spacing: 3px; color: #f6f3e8; }
+#hud .welcome-card .wsub { font-size: 11px; color: #9aa3af; margin: 5px 0 20px; letter-spacing: 2px; text-transform: uppercase; }
+/* the gamified first-quest card */
+#hud .welcome-card .wquest {
+  display: flex; align-items: center; gap: 13px; text-align: left;
+  background: rgba(216,185,74,0.12); border: 1px solid rgba(216,185,74,0.42);
+  border-radius: 15px; padding: 13px 15px; margin-bottom: 18px;
 }
-#hud .welcome-card .wctrls b { color: #f3f1e8; }
+#hud .welcome-card .wquest .wq-icon { font-size: 27px; line-height: 1; }
+#hud .welcome-card .wquest .wq-kick { font-size: 10px; letter-spacing: 1.6px; color: #d8b94a; font-weight: 700; }
+#hud .welcome-card .wquest .wq-goal { font-size: 17px; color: #f6f3e8; font-weight: 600; margin-top: 3px; }
+/* three control chips */
+#hud .welcome-card .wctrls { display: flex; justify-content: center; gap: 7px; flex-wrap: wrap; margin-bottom: 22px; }
+#hud .welcome-card .wctrls span {
+  font-size: 12.5px; color: #dfe4ea; background: rgba(243,241,232,0.08);
+  border-radius: 20px; padding: 8px 13px; white-space: nowrap;
+}
 #hud .welcome-card .wstart {
-  margin-top: 20px; display: inline-block; cursor: pointer; user-select: none; -webkit-user-select: none;
-  background: rgba(216,185,74,0.95); color: #1c2430; font-weight: 800; letter-spacing: 1px;
-  font-size: 15px; padding: 12px 28px; border-radius: 26px; border: 2px solid #f0d27a;
-  transition: background 0.15s ease;
+  display: block; width: 100%; box-sizing: border-box; cursor: pointer; user-select: none; -webkit-user-select: none;
+  background: #d8b94a; color: #1c2430; font-weight: 800; letter-spacing: 1.5px;
+  font-size: 18px; padding: 16px; border-radius: 30px; border: none;
+  transition: transform 0.12s ease, background 0.15s ease;
 }
 #hud .welcome-card .wstart:hover { background: #f0d27a; }
+#hud .welcome-card .wstart:active { transform: scale(0.97); }
 `;
 
 export class Hud {
@@ -1340,16 +1351,20 @@ export class Hud {
     el.innerHTML = `
       <div class="welcome-card">
         <div class="wtitle">CLIPPER TOWN</div>
-        <div class="wsub">A little explorable world on the real map of Newburyport, MA</div>
-        <div class="wbody">You’re a kid out on an errand for your <b>Gram</b>. <b>Find her in Market Square</b> to begin — then go wherever you like. The story carries you right through the calendar — from a summer errand into the dead of winter — with real town history tucked on plaques around the map and secrets to stumble onto.</div>
-        <div class="wctrls">
-          🕹️ <b>Move</b> — WASD / arrows, or drag anywhere on screen<br>
-          🏃 <b>Run</b> — press R to run (or tap 🏃); hold Shift to sprint<br>
-          💬 <b>Talk &amp; look</b> — walk up and press E (or tap TALK)<br>
-          ✨ <b>Follow the golden beam</b> — it marks your next stop<br>
-          🗺️ travel anywhere · 🧭 your journey so far
+        <div class="wsub">Newburyport · for real</div>
+        <div class="wquest">
+          <span class="wq-icon">🎯</span>
+          <div>
+            <div class="wq-kick">YOUR FIRST QUEST</div>
+            <div class="wq-goal">Find Gram in Market Square</div>
+          </div>
         </div>
-        <div class="wstart">Start exploring →</div>
+        <div class="wctrls">
+          <span>🕹️ Drag to move</span>
+          <span>🏃 Tap to run</span>
+          <span>💬 Tap TALK</span>
+        </div>
+        <div class="wstart">▶&nbsp;&nbsp;PLAY</div>
       </div>`;
     document.querySelector('#hud')!.appendChild(el);
     let done = false;

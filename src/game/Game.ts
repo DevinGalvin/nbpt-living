@@ -164,7 +164,7 @@ export class Game {
     this.lowGPU = Game.detectLowGPU();
     this.renderer = new THREE.WebGLRenderer({ antialias: !this.lowGPU });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    this.renderer.setSize(innerWidth, innerHeight);
+    this.renderer.setSize(innerWidth, innerHeight, false); // false: let CSS size the canvas (full-bleed)
     this.renderer.setClearColor(STYLE.sky);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -349,11 +349,23 @@ export class Game {
     window.addEventListener('wheel', (e) => {
       this.camZoom = Math.min(2.4, Math.max(0.55, this.camZoom * (1 + Math.sign(e.deltaY) * 0.09)));
     }, { passive: true });
-    window.addEventListener('resize', () => {
-      this.renderer.setSize(innerWidth, innerHeight);
-      this.camera.aspect = innerWidth / innerHeight;
+    // Re-fit the drawing buffer to the canvas's real displayed size. Using the
+    // canvas client size (CSS-driven, full-bleed) instead of innerHeight dodges the
+    // iOS standalone bug where innerHeight is wrong until the viewport settles.
+    const onResize = () => {
+      const c = this.renderer.domElement;
+      const w = c.clientWidth || innerWidth, h = c.clientHeight || innerHeight;
+      this.renderer.setSize(w, h, false);
+      this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
-    });
+    };
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', () => setTimeout(onResize, 120));
+    window.visualViewport?.addEventListener('resize', onResize);
+    // home-screen launches report the viewport late — re-fit after it settles
+    onResize();
+    setTimeout(onResize, 200);
+    setTimeout(onResize, 700);
 
     // debug/demo hooks
     (window as unknown as Record<string, unknown>).nbpt = {
