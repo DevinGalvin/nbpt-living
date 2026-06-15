@@ -4,6 +4,16 @@
 # Usage: npm run deploy   (builds, then pushes dist/ to the Pages repo)
 set -e
 cd "$(dirname "$0")/.."
+
+# Deploy only from the editable 'source' branch — 'main' is generated output.
+# Guards a phone/cloud session from building + shipping the wrong tree.
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')
+if [ "$branch" != "source" ]; then
+  echo "✋ Refusing to deploy from '$branch'."
+  echo "   Run 'git checkout source' first — 'main' is the built site; the code lives on 'source'."
+  exit 1
+fi
+
 npm run share
 
 D=/tmp/nbpt-pages-live
