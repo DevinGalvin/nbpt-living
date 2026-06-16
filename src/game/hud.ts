@@ -496,6 +496,8 @@ export class Hud {
   private joyBaseY = 0;
   private bannerTimer = 0;
   private pointers = new Set<number>();
+  onTap?: (x: number, y: number) => void;   // a quick tap/click on the world (drives tap-to-pet)
+  private tapDown: { x: number; y: number; id: number; t: number; moved: boolean } | null = null;
 
   constructor() {
     const style = document.createElement('style');
@@ -592,8 +594,11 @@ export class Hud {
   }
 
   private onDown(e: PointerEvent) {
+    const onUI = !!(e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .sound-btn, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard');
+    // remember a press on the world (not UI), any pointer type, for tap-to-pet
+    this.tapDown = onUI ? null : { x: e.clientX, y: e.clientY, id: e.pointerId, t: performance.now(), moved: false };
     if (e.pointerType !== 'touch') return;
-    if ((e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .sound-btn, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard')) return; // UI, not joystick
+    if (onUI) return; // UI, not joystick
     this.pointers.add(e.pointerId);
     if (this.joyId === -1) {
       this.joyId = e.pointerId;
@@ -607,6 +612,7 @@ export class Hud {
   }
 
   private onMove(e: PointerEvent) {
+    if (this.tapDown && e.pointerId === this.tapDown.id && Math.hypot(e.clientX - this.tapDown.x, e.clientY - this.tapDown.y) > 12) this.tapDown.moved = true;
     if (e.pointerId !== this.joyId) return;
     let dx = e.clientX - this.joyBaseX, dy = e.clientY - this.joyBaseY;
     // a bigger throw = finer steering (small finger moves no longer swing the
@@ -626,6 +632,10 @@ export class Hud {
   }
 
   private onUp(e: PointerEvent) {
+    if (this.tapDown && e.pointerId === this.tapDown.id) {
+      const td = this.tapDown; this.tapDown = null;
+      if (!td.moved && performance.now() - td.t < 500) this.onTap?.(e.clientX, e.clientY);
+    }
     this.pointers.delete(e.pointerId);
     if (e.pointerId === this.joyId) {
       this.joyId = -1;

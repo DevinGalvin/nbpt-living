@@ -319,6 +319,9 @@ export class Game {
       () => this.goldenHoodie()
     );
 
+    // tap (or click) Clipper to pet him — replaces the old always-on PET button
+    this.hud.onTap = (sx, sy) => this.tryPetTap(sx, sy);
+
     if (SEASON === 'winter') {
       // the big tree in Market Square (snow now falls from the Sky weather system)
       this.scene.add(this.buildHolidayTree(-100, -48));
@@ -525,6 +528,19 @@ export class Game {
     this.riding = false;
     this.bike.root.visible = false;
     this.hud.setBikeState(false);
+  }
+
+  /** Tap-to-pet: a tap/click near Clipper on screen pets him (hearts + the secret).
+   *  Replaces the always-on PET button — the dog's screen position is hit-tested. */
+  private tryPetTap(sx: number, sy: number) {
+    if (!this.eggs || this.hud.dialogueOpen) return;
+    const p = this.dog.root.position.clone();
+    p.y += 6;                       // aim at the dog's body, not his feet
+    p.project(this.camera);
+    if (p.z > 1) return;            // dog is behind the camera
+    const dx = (p.x * 0.5 + 0.5) * window.innerWidth;
+    const dy = (-p.y * 0.5 + 0.5) * window.innerHeight;
+    if (Math.hypot(sx - dx, sy - dy) < 75) this.eggs.petDog();
   }
 
   // surfaces the button the moment the bike is earned

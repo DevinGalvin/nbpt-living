@@ -1248,14 +1248,19 @@ export class EggRunner {
       if (!this.foundSet.has(s.id)) consider(s.id, s.x, s.z, '🗿 RECOVER', 58);
     }
     for (const p of this.pools) consider('marco', p.x, p.z, '💬 MARCO', 62);
-    if (!best) {
-      const d = this.dogPos();
-      const dd = Math.hypot(px - d.x, pz - d.z);
-      // only when you actually stop and stand with Clipper — not constantly while
-      // walking (he heels within 42px, so this used to show the whole time).
-      if (dd < 42 && this.stillT > 1) best = { tag: 'pet', x: d.x, z: d.z, label: '🐾 PET', r: 42 };
-    }
+    // Petting Clipper is no longer a context action — it used to hog the action
+    // button the whole time (he heels right next to you). Tap the dog to pet him.
     return best;
+  }
+
+  /** Pet Clipper: bark, pink hearts, and the one-time secret card. Triggered by
+   *  tapping the dog directly (see Game.tryPetTap), not a persistent button. */
+  petDog() {
+    if (this.hud.dialogueOpen) return;
+    this.audio.bark();
+    const d = this.dogPos();
+    this.hearts(d.x, this.index.heightAtPx(d.x, d.z) + 16, d.z);
+    if (this.found('pet')) this.showCard(CARDS.pet, true);
   }
 
   update(dt: number, px: number, pz: number, suppressed: boolean) {
@@ -1309,14 +1314,6 @@ export class EggRunner {
       return;
     }
     switch (it.tag) {
-      case 'pet': {
-        this.audio.bark();
-        const d = this.dogPos();
-        this.hearts(d.x, this.index.heightAtPx(d.x, d.z) + 16, d.z);
-        const isNew = this.found('pet');
-        if (isNew) this.showCard(CARDS.pet, true);
-        break;
-      }
       case 'bell': {
         this.audio.toll(2);
         this.showCard(CARDS.bell, this.found('bell'));
