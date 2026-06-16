@@ -245,7 +245,16 @@ const css = `
 #hud .dlg.open { display: block; }
 #hud .dlg .who { font-size: 11.5px; letter-spacing: 1.6px; color: #e8c44f; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; min-height: 13px; }
 #hud .dlg .line { font-size: 15.5px; line-height: 1.45; color: #f3f1e8; min-height: 46px; }
-#hud .dlg .dlg-foot { text-align: right; margin-top: 7px; }
+#hud .dlg .dlg-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 7px; }
+/* secondary, ghosted next to the gold Next pill; hidden on the first line (no prior to
+   go back to), pushed to the far left so Next stays anchored right */
+#hud .dlg .dlg-back {
+  display: none; margin-right: auto; background: transparent; color: #cdbf9a;
+  font-weight: 700; font-size: 13px; letter-spacing: 0.8px; padding: 6px 14px;
+  border-radius: 15px; border: 1.5px solid rgba(216,185,74,0.45); cursor: pointer;
+}
+#hud .dlg .dlg-back.show { display: inline-block; }
+#hud .dlg .dlg-back:hover { background: rgba(216,185,74,0.14); color: #f0d27a; }
 #hud .dlg .dlg-next {
   display: inline-block; background: rgba(216,185,74,0.95); color: #1c2430;
   font-weight: 800; font-size: 13px; letter-spacing: 0.8px; padding: 6px 17px;
@@ -470,6 +479,7 @@ export class Hud {
   private dlgWho!: HTMLElement;
   private dlgLine!: HTMLElement;
   private dlgNext!: HTMLElement;
+  private dlgBack!: HTMLElement;
   private dlgLines: { who: string; text: string }[] = [];
   private dlgIdx = 0;
   private dlgDone: (() => void) | null = null;
@@ -534,7 +544,7 @@ export class Hud {
       <div class="objective"><span class="q">◈</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
       <div class="runtip"></div>
-      <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-next">Next ▸</span></div></div>
+      <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
       <div class="talk-btn">💬 TALK</div>
       <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div></div>
       <div class="hcard"><div class="ht"></div><div class="hy"></div><div class="hb"></div><div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="close">tap to close</div></div></div>
@@ -560,6 +570,11 @@ export class Hud {
     this.dlgWho = hud.querySelector('.dlg .who')!;
     this.dlgLine = hud.querySelector('.dlg .line')!;
     this.dlgNext = hud.querySelector('.dlg .dlg-next')!;
+    this.dlgBack = hud.querySelector('.dlg .dlg-back')!;
+    this.dlgBack.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();   // intercept before the dlg box's tap-to-advance handler
+      this.backDlg();
+    });
 
     this.dlgEl.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
@@ -591,6 +606,9 @@ export class Hud {
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyE' || e.code === 'NumpadEnter') {
         e.preventDefault();
         this.advanceDlg();
+      } else if (e.code === 'Backspace' || e.code === 'ArrowLeft') {
+        e.preventDefault();
+        this.backDlg();   // step back to re-read the previous line
       }
     });
 
@@ -1353,6 +1371,7 @@ export class Hud {
     this.dlgWho.textContent = l.who;
     this.dlgLine.textContent = l.text;
     this.dlgNext.textContent = this.dlgIdx >= this.dlgLines.length - 1 ? 'Got it ✓' : 'Next ▸';
+    this.dlgBack.classList.toggle('show', this.dlgIdx > 0);   // no "back" on the first line
   }
 
   private advanceDlg() {
@@ -1367,6 +1386,14 @@ export class Hud {
     const done = this.dlgDone;
     this.dlgDone = null;
     done?.();
+  }
+
+  // step back to re-read the previous line — pure: the dlgDone callback only fires on
+  // advancing PAST the last line, so going back has no side effects, it just re-renders.
+  private backDlg() {
+    if (!this.dlgEl.classList.contains('open') || this.dlgIdx <= 0) return;
+    this.dlgIdx--;
+    this.renderDlg();
   }
 
   showTalk(label: string | null, cb?: () => void) {
