@@ -348,10 +348,20 @@ function heartSprite(): THREE.Sprite {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d')!;
-  g.font = '52px serif';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillText('❤', 32, 36);
+  // draw the heart as a filled path, NOT the ❤ glyph: the glyph renders black on a
+  // desktop canvas but a color emoji on mobile, so the color was platform-dependent.
+  // A path is the same warm pink everywhere.
+  g.fillStyle = '#ff5da2';
+  g.beginPath();
+  g.moveTo(32, 25);
+  g.bezierCurveTo(32, 19, 24, 12, 16, 12);
+  g.bezierCurveTo(5, 12, 5, 26, 5, 26);
+  g.bezierCurveTo(5, 35, 16, 45, 32, 55);
+  g.bezierCurveTo(48, 45, 59, 35, 59, 26);
+  g.bezierCurveTo(59, 26, 59, 12, 48, 12);
+  g.bezierCurveTo(40, 12, 32, 19, 32, 25);
+  g.closePath();
+  g.fill();
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthTest: false }));
   sp.scale.set(7, 7, 1);
   return sp;

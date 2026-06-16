@@ -517,7 +517,7 @@ export class Hud {
       <div class="bag-tip"></div>
       <div class="sound-btn" title="Sound">🔊</div>
       <div class="run-btn" title="Run">🏃</div>
-      <div class="bike-btn" title="Bike (B)">🚲</div>
+      <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg></div>
       <div class="season-toggle" title="Season">🍂</div>
       <div class="season-pop"></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
@@ -687,7 +687,12 @@ export class Hud {
       sPop.appendChild(Object.assign(document.createElement('div'), {
         className: 'sp-item' + (SEASON === sn ? ' cur' : ''),
         textContent: label,
-        onclick: sUnlocked ? () => { if (SEASON !== sn) { localStorage.setItem('nbpt-season', sn); location.reload(); } } : null,
+        onclick: sUnlocked ? () => { if (SEASON !== sn) {
+          // keep the player where they are: write a one-shot resume point (same as the
+          // story's auto season-turn) so the reload continues here, not back at the start
+          localStorage.setItem('nbpt-resume-pos', JSON.stringify({ x: Math.round(this.lastKnownPos.x), z: Math.round(this.lastKnownPos.z) }));
+          localStorage.setItem('nbpt-season', sn); location.reload();
+        } } : null,
       }));
     }
     if (!sUnlocked) {
@@ -1264,7 +1269,9 @@ export class Hud {
     }
   }
 
+  private lastKnownPos = { x: 0, z: 0 };   // latest player pos (fed every poll) — the season picker reads it for resume-pos
   setMiniPos(x: number, z: number) {
+    this.lastKnownPos.x = x; this.lastKnownPos.z = z;
     if (!this.miniDot || !this.miniScale) return;
     this.miniDot.style.left = (x - this.miniMinX) * this.miniScale + 'px';
     this.miniDot.style.top = (z - this.miniMinY) * this.miniScale + 'px';
