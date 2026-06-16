@@ -31,38 +31,49 @@ const GRAM_TALK: Line[] = [
   { who: 'Gram', text: 'There you are. Two jobs today. Take Clipper, the dog — he’s in charge.' },
   { who: 'Gram', text: 'One: donuts from the Angry Donut, on Inn Street. Tell them they’re for Gram.' },
   { who: 'Gram', text: 'Two: this book goes back to the library. It was due in March.' },
-  { who: 'Gram', text: '…of last year.' },
-  { who: 'You', text: 'Gram!' },
+  { who: 'Gram', text: '…of last year. It was your grandfather’s. He never did finish it.' },
+  { who: '', text: 'Pressed into the cracked leather cover, almost worn away: an anchor, inside a circle.' },
+  { who: 'You', text: 'Gram — what’s this mark on the—' },
+  { who: 'Gram', text: 'Just get it back on the shelf. And don’t go reading other people’s margins.' },
   { who: 'Gram', text: 'Go on. This town isn’t getting any younger, and neither am I.' }
 ];
 const DONUT_TALK: Line[] = [
   { who: 'Donut Maker', text: 'Gram’s order? Brave kid.' },
   { who: 'Donut Maker', text: 'One dozen, extra angry. Careful with the box.' },
-  { who: 'Donut Maker', text: 'And watch the gulls out there. They have a system.' }
+  { who: 'Donut Maker', text: 'That book under your arm — haven’t seen one bound like that in years.' },
+  { who: '', text: 'He tips his head at the floor by the door. Set into the old tile: an anchor in a circle. The same mark.' },
+  { who: 'Donut Maker', text: 'Came with the building. Nobody’ll say who laid it. Watch the gulls out there — they’ve got a system.' }
 ];
 const LIB_TALK: Line[] = [
-  { who: 'Librarian', text: 'One library book, one year late. We won’t make a scene.' },
-  { who: 'Librarian', text: 'You know, George Washington slept in this building. 1789.' },
-  { who: 'Librarian', text: 'He returned things on time.' },
-  { who: 'Librarian', text: 'Here — a library card of your own. Use it better than your grandmother does.' }
+  { who: 'Librarian', text: 'One book, a year late. We won’t make a scene.' },
+  { who: '', text: 'She turns it over for the stamp — and stops. No card. No spine label. Hand-bound.' },
+  { who: 'Librarian', text: 'This was never ours, dear. Someone made it to look like a library book.' },
+  { who: 'Librarian', text: 'There’s a list in the back margin. Fair. Federal. Lime. Temple. And that mark — an anchor, in a ring.' },
+  { who: 'You', text: 'Those are all streets.' },
+  { who: 'Librarian', text: 'Your grandfather drew that anchor on everything. Sat in this very room for years — said the old Tracy house kept a door nobody had opened.' },
+  { who: 'Librarian', text: 'Washington slept here in 1789. Even he never found it. Here — a card of your own. Mind your due dates better than he minded his.' }
 ];
 const GRATE_TALK: Line[] = [
   { who: 'You', text: 'Clipper? What’ve you got, bud—' },
   { who: '', text: 'Through the bars: old brick. An archway. Stairs, going down into the dark.' },
+  { who: '', text: 'And set in the pavement at your feet, worn nearly smooth under the leaves: an anchor in a circle. Again.' },
   { who: 'Passer-by', text: 'Storm drain.' },
   { who: '', text: 'He doesn’t look up from his coffee.' },
-  { who: 'You', text: '…That is not a storm drain.' }
+  { who: 'You', text: 'Storm drains don’t come with the mark.' },
+  { who: 'You', text: 'The book. The donut shop. Here. It’s the same one, Clipper — it’s a door.' }
 ];
 const GRAM_END: Line[] = [
   { who: 'Gram', text: 'Donuts safe, book returned. And you’ve got the look.' },
   { who: 'You', text: 'What look?' },
   { who: 'Gram', text: 'Your grandfather’s look. He always had it right before the harbormaster called.' },
-  { who: 'Gram', text: 'Keep the card, kid. Newburyport is full of doors.' }
+  { who: 'You', text: 'The librarian says he drew that anchor everywhere. It’s in the donut floor. What was he into, Gram?' },
+  { who: 'Gram', text: '…' },
+  { who: 'Gram', text: 'Keep the card, kid. Newburyport is full of doors. He used to say that too.' }
 ];
 const FLAVOR: Record<string, Line[]> = {
-  gram: [{ who: 'Gram', text: 'Doors, kid. Everywhere.' }],
+  gram: [{ who: 'Gram', text: 'Doors, kid. Everywhere. He’d know.' }],
   donut: [{ who: 'Donut Maker', text: 'Next batch comes out angrier.' }],
-  lib: [{ who: 'Librarian', text: 'We open at nine. Washington was never late.' }]
+  lib: [{ who: 'Librarian', text: 'The margins are yours to read now. We open at nine.' }]
 };
 
 // Chapter 2 — the paper route (real addresses; the last stop is Garrison's street)
@@ -242,6 +253,39 @@ function npcMesh(skin: string, shirt: string, pants: string, hair: string, extra
   return g;
 }
 
+// the recurring clue — a bronze "anchor in a circle" medallion set into the
+// pavement. Chapter 1 plants it at the donut shop, the library, and the grate so
+// the PLAYER (not the dog) connects the mark across town to the door under it.
+function anchorMedallionTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 128;
+  const g = c.getContext('2d')!;
+  const cx = 64, cy = 64;
+  g.beginPath();                                  // bronze disc
+  g.arc(cx, cy, 60, 0, Math.PI * 2);
+  g.fillStyle = '#9c7a40';
+  g.fill();
+  g.lineWidth = 6;                                // engraved outer ring
+  g.strokeStyle = '#5f4922';
+  g.beginPath();
+  g.arc(cx, cy, 50, 0, Math.PI * 2);
+  g.stroke();
+  g.strokeStyle = '#463417';                      // the anchor, engraved dark
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.lineWidth = 7;
+  g.beginPath(); g.moveTo(cx, 36); g.lineTo(cx, 94); g.stroke();             // shank
+  g.beginPath(); g.moveTo(cx - 18, 50); g.lineTo(cx + 18, 50); g.stroke();   // stock
+  g.beginPath(); g.arc(cx, 32, 7, 0, Math.PI * 2); g.stroke();               // top ring
+  g.beginPath(); g.arc(cx, 70, 28, Math.PI * 0.12, Math.PI * 0.88); g.stroke(); // arms
+  g.beginPath(); g.moveTo(cx - 27, 80); g.lineTo(cx - 34, 64); g.stroke();   // fluke tips
+  g.beginPath(); g.moveTo(cx + 27, 80); g.lineTo(cx + 34, 64); g.stroke();
+  const tex = new THREE.CanvasTexture(c);
+  tex.anisotropy = 4;
+  return tex;
+}
+
 function bangSprite(): THREE.Sprite {
   const c = document.createElement('canvas');
   c.width = 64;
@@ -363,6 +407,13 @@ export class QuestRunner {
     // to return the book (that wall used to show only a window)
     scene.add(this.buildLibraryDoor());
 
+    // the anchor-in-a-circle clue, seeded in the pavement at the three Chapter 1
+    // stops — the donut shop floor, the library step, and beside the grate
+    const medTex = anchorMedallionTexture();
+    this.placeMedallion(medTex, DONUT.x + 18, DONUT.z - 10);
+    this.placeMedallion(medTex, LIB.x + 8, LIB.z);
+    this.placeMedallion(medTex, GRATE.x, GRATE.z + 15);
+
     // gold objective beacon: a TALL pillar of light you can spot from across town —
     // a bright inner shaft, a wider soft halo, a sonar-pinging base ring, and the "!"
     this.beacon = new THREE.Group();
@@ -411,6 +462,19 @@ export class QuestRunner {
   private place(g: THREE.Group, x: number, z: number, face: number) {
     g.position.set(x, this.index.heightAtPx(x, z), z);
     g.rotation.y = face;
+  }
+
+  // a bronze medallion laid flat into the pavement (shared texture, slight lift so
+  // it reads over the ground canvas without z-fighting)
+  private placeMedallion(tex: THREE.CanvasTexture, x: number, z: number) {
+    const m = new THREE.Mesh(
+      new THREE.CircleGeometry(7, 28).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false })
+    );
+    m.position.set(x, this.index.heightAtPx(x, z) + 0.35, z);
+    m.rotation.y = Math.random() * Math.PI;
+    m.renderOrder = 2;
+    this.scene.add(m);
   }
 
   private buildGrate(): THREE.Group {
