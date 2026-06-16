@@ -865,6 +865,10 @@ export class Game {
     this.sprinting = this.autoRun || k.has('ShiftLeft') || k.has('ShiftRight') || this.hud.sprintTouch;
     let speed = this.riding ? 530 : this.sprinting ? SPRINT : JOG;
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
+    // mobile: ease the on-foot top speed when steering with the joystick so narrow
+    // streets are controllable. The joystick still gives proportional speed below
+    // this; desktop (WASD) and the run button keep the full, gamey pace.
+    if (this.hud.joyActive && !this.sprinting && !this.riding) speed *= 0.72;
 
     const half = 5;   // a slightly slimmer footprint so narrow streets stay passable
     const free = this.boating
