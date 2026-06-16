@@ -32,48 +32,48 @@ const GRAM_TALK: Line[] = [
   { who: 'Gram', text: 'One: donuts from the Angry Donut, on Inn Street. Tell them they’re for Gram.' },
   { who: 'Gram', text: 'Two: this book goes back to the library. It was due in March.' },
   { who: 'Gram', text: '…of last year. It was your grandfather’s. He never did finish it.' },
-  { who: '', text: 'Pressed into the cracked leather cover, almost worn away: an anchor, inside a circle.' },
-  { who: 'You', text: 'Gram — what’s this mark on the—' },
-  { who: 'Gram', text: 'Just get it back on the shelf. And don’t go reading other people’s margins.' },
+  { who: '', text: 'On the worn leather cover, almost rubbed away: an anchor, inside a circle.' },
+  { who: 'You', text: 'Gram — what’s this little mark on the cover?' },
+  { who: 'Gram', text: 'Never you mind. Somebody scribbled all over the back pages, too. Leave it be.' },
   { who: 'Gram', text: 'Go on. This town isn’t getting any younger, and neither am I.' }
 ];
 const DONUT_TALK: Line[] = [
   { who: 'Donut Maker', text: 'Gram’s order? Brave kid.' },
   { who: 'Donut Maker', text: 'One dozen, extra angry. Careful with the box.' },
-  { who: 'Donut Maker', text: 'That book under your arm — haven’t seen one bound like that in years.' },
-  { who: '', text: 'He tips his head at the floor by the door. Set into the old tile: an anchor in a circle. The same mark.' },
-  { who: 'Donut Maker', text: 'Came with the building. Nobody’ll say who laid it. Watch the gulls out there — they’ve got a system.' }
+  { who: 'Donut Maker', text: 'That old book under your arm — haven’t seen one made like that in years.' },
+  { who: '', text: 'He points at the floor by the door. Built right into the old tiles: an anchor in a circle. The same mark.' },
+  { who: 'Donut Maker', text: 'That was here before me. Nobody knows who put it there. Watch the gulls out there — they’ve got a system.' }
 ];
 const LIB_TALK: Line[] = [
-  { who: 'Librarian', text: 'One book, a year late. We won’t make a scene.' },
-  { who: '', text: 'She turns it over for the stamp — and stops. No card. No spine label. Hand-bound.' },
-  { who: 'Librarian', text: 'This was never ours, dear. Someone made it to look like a library book.' },
-  { who: 'Librarian', text: 'There’s a list in the back margin. Fair. Federal. Lime. Temple. And that mark — an anchor, in a ring.' },
-  { who: 'You', text: 'Those are all streets.' },
-  { who: 'Librarian', text: 'Your grandfather drew that anchor on everything. Sat in this very room for years — said the old Tracy house kept a door nobody had opened.' },
-  { who: 'Librarian', text: 'Washington slept here in 1789. Even he never found it. Here — a card of your own. Mind your due dates better than he minded his.' }
+  { who: 'Librarian', text: 'One book, a year late. We won’t make a fuss.' },
+  { who: '', text: 'She turns it over to scan it — and stops. No barcode. No card in the back. No stamp anywhere.' },
+  { who: 'Librarian', text: 'This was never ours, dear. Someone made it to LOOK like a library book.' },
+  { who: 'Librarian', text: 'And look — somebody wrote a list on the last page. Fair. Federal. Lime. Temple. Right next to that same little anchor.' },
+  { who: 'You', text: 'Those are all street names.' },
+  { who: 'Librarian', text: 'Your grandfather drew that anchor on everything. He sat in this very room for years — said this old house had a door nobody could open.' },
+  { who: 'Librarian', text: 'George Washington even slept here, way back in 1789. Here — a library card, all your own. Bring this one back on time, hm?' }
 ];
 const GRATE_TALK: Line[] = [
   { who: 'You', text: 'Clipper? What’ve you got, bud—' },
-  { who: '', text: 'Through the bars: old brick. An archway. Stairs, going down into the dark.' },
-  { who: '', text: 'And set in the pavement at your feet, worn nearly smooth under the leaves: an anchor in a circle. Again.' },
+  { who: '', text: 'Through the bars: old brick. A round stone doorway. Stairs, going down into the dark.' },
+  { who: '', text: 'And right by your feet, half-hidden under the leaves: an anchor in a circle. Again.' },
   { who: 'Passer-by', text: 'Storm drain.' },
-  { who: '', text: 'He doesn’t look up from his coffee.' },
-  { who: 'You', text: 'Storm drains don’t come with the mark.' },
-  { who: 'You', text: 'The book. The donut shop. Here. It’s the same one, Clipper — it’s a door.' }
+  { who: '', text: 'He doesn’t even look up from his coffee.' },
+  { who: 'You', text: 'Storm drains don’t have a mark like that.' },
+  { who: 'You', text: 'The book. The donut shop. Now here. It’s the same one, Clipper — it’s a door.' }
 ];
 const GRAM_END: Line[] = [
   { who: 'Gram', text: 'Donuts safe, book returned. And you’ve got the look.' },
   { who: 'You', text: 'What look?' },
   { who: 'Gram', text: 'Your grandfather’s look. He always had it right before the harbormaster called.' },
-  { who: 'You', text: 'The librarian says he drew that anchor everywhere. It’s in the donut floor. What was he into, Gram?' },
+  { who: 'You', text: 'Gram — the librarian says Grandpa drew that anchor everywhere. It’s even on the donut shop floor. What was he up to?' },
   { who: 'Gram', text: '…' },
-  { who: 'Gram', text: 'Keep the card, kid. Newburyport is full of doors. He used to say that too.' }
+  { who: 'Gram', text: 'Keep the card, kid. Newburyport is full of doors. He used to say that, too.' }
 ];
 const FLAVOR: Record<string, Line[]> = {
   gram: [{ who: 'Gram', text: 'Doors, kid. Everywhere. He’d know.' }],
   donut: [{ who: 'Donut Maker', text: 'Next batch comes out angrier.' }],
-  lib: [{ who: 'Librarian', text: 'The margins are yours to read now. We open at nine.' }]
+  lib: [{ who: 'Librarian', text: 'Read those back pages all you like now. We open at nine.' }]
 };
 
 // Chapter 2 — the paper route (real addresses; the last stop is Garrison's street)
@@ -85,26 +85,26 @@ const ED_INTRO: Line[] = [
   { who: 'Editor', text: 'You’re the kid who found a tunnel. News travels.' },
   { who: 'You', text: 'How did—' },
   { who: 'Editor', text: 'Small city. Big paper.' },
-  { who: 'Editor', text: 'My paper boy quit to crew a lobster boat. Eight houses in the South End need today’s paper.' },
-  { who: 'Editor', text: 'Deliver them all, and I’ll unlock the morgue for you.' },
-  { who: 'You', text: 'The… morgue?' },
-  { who: 'Editor', text: 'It’s where a newspaper keeps everything it ever printed. Old maps. Older rumors.' },
-  { who: 'Editor', text: 'Last house is on School Street. Mind the history.' }
+  { who: 'Editor', text: 'My paper kid quit to go work on a lobster boat. Eight houses in the South End need today’s paper.' },
+  { who: 'Editor', text: 'Deliver them all, and I’ll let you into the morgue.' },
+  { who: 'You', text: 'The… morgue?! Like, bodies?' },
+  { who: 'Editor', text: 'Ha! No. It’s just our funny name for the room where we keep every paper we ever printed. Old maps. Older secrets.' },
+  { who: 'Editor', text: 'Last house is on School Street. Keep your eyes open.' }
 ];
 const ED_BIKE: Line[] = [
   { who: 'Editor', text: 'Eight for eight, every paper on a porch. You’re hired forever.' },
-  { who: 'Editor', text: 'The paper boy gets the bike. Garrison did this route on foot — you get the upgrade.' },
-  { who: 'Editor', text: 'Morgue’s open. Mind the dust — it’s older than your grandmother.' }
+  { who: 'Editor', text: 'The paper kid gets the bike. Garrison did this route on foot — you get the upgrade.' },
+  { who: 'Editor', text: 'Morgue’s open. Watch the dust — it’s older than your grandmother.' }
 ];
 const MORGUE_FIND: Line[] = [
   { who: '', text: 'Boxes of old yellow paper. Maps. And a folder marked WHARF RATS — 1808.' },
-  { who: '', text: 'Inside: another corner of the smugglers’ map. It shows a door below State Street, right at the water.' },
-  { who: '', text: 'Beside it, in old ink: “passable only at the low water.”' },
+  { who: '', text: 'Inside: another corner of the smugglers’ map. It shows a door below State Street, right down at the water.' },
+  { who: '', text: 'Next to it, in old ink: “only open at the low water.”' },
   { who: 'You', text: 'Low tide, Clipper. We need a boat.' }
 ];
 const SCHOOL_ST: Line[] = [
-  { who: '', text: 'Last house. A small plaque by the door: a paper boy grew up here — William Lloyd Garrison.' },
-  { who: 'You', text: 'Same route.' }
+  { who: '', text: 'Last house. A little sign by the door: a paper kid grew up here — William Lloyd Garrison.' },
+  { who: 'You', text: 'Same route as me.' }
 ];
 
 const STEP_OBJECTIVE: (string | null)[] = [
@@ -121,27 +121,27 @@ const STEP_CHIPS: string[][] = [[], ['\u{1F4D5}'], ['\u{1F4D5}', '\u{1F369}'], [
 
 // Chapter 4 — "Low Water": the rowboat to the Wharf Rats' den below State Street
 const BOAT_TALK: Line[] = [
-  { who: '', text: 'A weathered rowboat under the wharf, oars shipped. The tide is out — the flats shine like pewter.' },
-  { who: 'You', text: '“Passable only at the low water.” That’s now, Clipper.' },
+  { who: '', text: 'An old rowboat under the dock, oars tucked inside. The tide is out — the mud shines silver in the sun.' },
+  { who: 'You', text: '“Only open at the low water.” That’s right now, Clipper.' },
   { who: '', text: 'Clipper jumped in first. Of course he did.' }
 ];
 export const BOAT_ARRIVE: Line[] = [
-  { who: '', text: 'Oars creak. The town slides by above the seawall — chimneys, then gulls, then quiet.' },
-  { who: '', text: 'You beach the boat on the flats. Half-sunk in weed and barnacle: an iron door. An anchor in a circle, carved deep.' },
+  { who: '', text: 'The oars creak. The town slides by above the stone wall — chimneys, then gulls, then quiet.' },
+  { who: '', text: 'You pull the boat up onto the mud. Half-buried in seaweed and barnacles: an iron door. An anchor in a circle, carved deep.' },
   { who: 'You', text: 'Same mark as the tunnel. We found it.' }
 ];
 const SEAWALL_LOOK: Line[] = [
-  { who: '', text: 'You lean over the rail. Far below, half-lost in weed and shadow, the seawall drops sheer to the flats.' },
-  { who: 'You', text: 'No ladder. No stairs. Twenty feet of slick stone.' },
-  { who: 'You', text: '“Passable only at the low water.” From the river, Clipper — we need that rowboat.' }
+  { who: '', text: 'You lean over the railing. Far below, half-lost in seaweed and shadow, the stone wall drops straight down to the mud.' },
+  { who: 'You', text: 'No ladder. No stairs. Twenty feet of slippery stone.' },
+  { who: 'You', text: '“Only open at the low water.” From the river, Clipper — we need that rowboat.' }
 ];
 const DEN_LEDGER: Line[] = [
-  { who: '', text: 'Dry brick, above the tideline. Crates stamped 1808 — two hundred years of nobody.' },
-  { who: '', text: 'On a barrel-top: a ledger. WHARF RATS, in faded ink. A list of names below.' },
+  { who: '', text: 'Dry brick, up where the water never reaches. Crates stamped 1808 — two hundred years of nobody.' },
+  { who: '', text: 'On top of a barrel: an old notebook. WHARF RATS, in faded ink. A list of names below.' },
   { who: 'You', text: 'Clipper — I know these names. They’re street names. They’re half the town.' }
 ];
 const DEN_MAP: Line[] = [
-  { who: '', text: 'Pinned under a dram glass: the third corner of the map.' },
+  { who: '', text: 'Pinned under a little glass: the third corner of the map.' },
   { who: '', text: 'The tunnels. The door. And a room beneath the Custom House, marked with a star.' },
   { who: 'You', text: 'Four corners, four hiding holes. They split it so no one Rat could rob the rest.' },
   { who: 'You', text: 'One corner left.' }
@@ -165,9 +165,9 @@ const GRAM_CORNERS: Line[] = [
 ];
 const KEEPER_TALK: Line[] = [
   { who: 'Keeper', text: 'Gram’s grandkid. She called ahead — said you’d come carrying three corners of something old.' },
-  { who: 'Keeper', text: 'This building has a room no key opens. A star on the 1835 plans — and no door anywhere.' },
+  { who: 'Keeper', text: 'This building has a room no key opens. A star on the old building plans, drawn back in 1835 — and no door anywhere.' },
   { who: 'Keeper', text: 'The old keepers say the Wharf Rats locked it with sound. Ring the harbor’s three bells, and the wall swings open.' },
-  { who: 'Keeper', text: 'One bell’s at the Coast Guard station. One’s at the old wharf. The third, the Rats kept down in their den.' },
+  { who: 'Keeper', text: 'One bell’s at the Coast Guard station. One’s at the old docks. The third, the Rats kept down in their den.' },
   { who: 'You', text: 'So I ring all three bells, and the door opens.' },
   { who: 'Keeper', text: 'That’s the story. Go ring them.' }
 ];
@@ -179,13 +179,13 @@ const BELL_LAST: Line[] = [
   { who: 'You', text: 'The Custom House. GO!' }
 ];
 const CORNER_FOUR: Line[] = [
-  { who: '', text: 'On the counting desk: the fourth corner. The map is whole — the tunnels, the door, the den, and the star you are standing on.' },
+  { who: '', text: 'On the old desk: the fourth corner. The map is whole — the tunnels, the door, the den, and the star you’re standing on.' },
   { who: 'You', text: 'We found all of it. Every corner.' },
   { who: 'You', text: 'And whatever they hid is right under us. Real treasure this time, Clipper — has to be.' }
 ];
 const CHEST_OPEN: Line[] = [
-  { who: '', text: 'The chest is cedar, banded in brass — and light. Too light for gold.' },
-  { who: '', text: 'Inside: papers. Pledges in faded ink — a wharf for the town. A school. A library, signed with names you walk down every day.' },
+  { who: '', text: 'The chest is wood, banded in brass — and light. Way too light for gold.' },
+  { who: '', text: 'Inside: papers. Promises, written in faded ink — a new dock for the town. A school. A library, signed with names you walk down every day.' },
   { who: 'You', text: 'There’s no treasure… because they spent it. On all of it. Clipper — the treasure was the town.' }
 ];
 
