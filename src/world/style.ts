@@ -18,6 +18,10 @@ export function storySeason(): Season {
 }
 // the whole spine is beaten when Chapter 5 (Custom House Star) is done
 export function spineComplete(): boolean { return seasonNum('nbpt-ch4-step') >= 4; }
+// the season picker (the post-game reward) unlocks once the finale's CLIMAX is reached
+// — the four corners in the Custom House cellar — so "I finished the story" is honored
+// even before the very last chest-open.
+export function seasonsUnlocked(): boolean { return seasonNum('nbpt-ch4-step') >= 3; }
 
 export const SEASON: Season = (() => {
   try {

@@ -7,7 +7,9 @@ import { isFreezableWater, WATER_Y } from '../three/water';
 // the deck-TOP height profile plus the discrete supports that hold the slab up
 type BridgeSupport = { x: number; z: number; footY: number; topY: number; ux: number; uz: number };
 type BridgeProfile = {
-  base: number;
+  g0: number;       // deck height where the span meets the START bank (terrain + 6)
+  g1: number;       // deck height where it meets the END bank — deck rides a grade between
+  total: number;    // span length (arc), so height can be evaluated at any arc-length t
   cum: number[];
   bumps: { t: number; peak: number }[];
   water?: { s: number; e: number };
@@ -1285,9 +1287,12 @@ export class WorldIndex {
     if (prof) return prof;
     const h0 = this.terrain.heightAt(pts[0], pts[1]);
     const h1 = this.terrain.heightAt(pts[pts.length - 2], pts[pts.length - 1]);
-    const base = Math.max(h0, h1) + 6;
+    const g0 = h0 + 6, g1 = h1 + 6;            // deck meets EACH bank's approach grade
     // re-entrant (can't happen under a strict layer order; guard against bad data)
-    if (this.bridgeComputing.has(pts)) return { base, cum: [0], bumps: [], supports: { piers: [], abut: [] } };
+    if (this.bridgeComputing.has(pts)) {
+      const fb = Math.max(g0, g1);
+      return { g0: fb, g1: fb, total: 1, cum: [0], bumps: [], supports: { piers: [], abut: [] } };
+    }
     this.bridgeComputing.add(pts);
     const myLayer = this.effLayer(pts);
     const cum: number[] = [0];
@@ -1295,6 +1300,9 @@ export class WorldIndex {
       cum.push(cum[cum.length - 1] + Math.hypot(pts[i + 2] - pts[i], pts[i + 3] - pts[i + 1]));
     }
     const total = cum[cum.length - 1];
+    // the deck rides a LINEAR grade from g0 to g1, so each end meets its approach road
+    // instead of floating at the higher bank; features lift ABOVE this grade
+    const gradeAt = (tt: number) => g0 + (g1 - g0) * Math.max(0, Math.min(1, tt / Math.max(1, total)));
     const bb = bboxOf(pts);
     const bumps: { t: number; peak: number }[] = [];
     // a way crossing mid-span demands clearance only if it passes strictly BELOW
@@ -1322,7 +1330,7 @@ export class WorldIndex {
           const hx = ax + r1x * s, hy = ay + r1y * s;
           const under = qBridge ? this.bridgeDeckYAt(q, hx, hy) : this.terrain.heightAt(hx, hy);
           const peak = under + WorldIndex.UNDERPASS_CLEAR;
-          if (peak > base) bumps.push({ t, peak });
+          if (peak > gradeAt(t)) bumps.push({ t, peak });
         }
       }
     };
@@ -1346,25 +1354,12 @@ export class WorldIndex {
       if (this.isWaterAt(wx, wy)) { if (d < ws) ws = d; if (d > we) we = d; }
     }
     const water = we >= ws ? { s: ws, e: we } : undefined;
-    prof = { base, cum, bumps, water, supports: { piers: [], abut: [] } };
+    prof = { g0, g1, total, cum, bumps, water, supports: { piers: [], abut: [] } };
     this.bridgeProfiles.set(pts, prof);
     this.bridgeComputing.delete(pts); // cached now; deeper queries hit the cache, not recursion
 
     // ---- structural supports: piers along the span + abutments at the banks ----
-    // deck-top height at arc-length t — same math as bridgeDeckYAt, but keyed on t
-    // directly so we don't recurse into bridgeProfile while still building it
-    const deckTopAtT = (tt: number): number => {
-      let deck = base;
-      for (const bump of bumps) {
-        deck = Math.max(deck, bump.peak - (Math.abs(tt - bump.t) / WorldIndex.BRIDGE_RAMP) * (bump.peak - base));
-      }
-      if (water) {
-        const R = 120;
-        const f = tt <= water.s || tt >= water.e ? 0 : Math.max(0, Math.min(1, (tt - water.s) / R, (water.e - tt) / R));
-        deck = Math.max(deck, base + f * WorldIndex.WATER_CLEAR);
-      }
-      return deck;
-    };
+    // (deck-top height comes from the shared deckHeightAtT, now that prof is cached)
     const xzAtT = (tt: number): [number, number, number, number] => {
       let seg = 0;
       while (seg + 1 < cum.length && cum[seg + 1] <= tt) seg++;
@@ -1383,7 +1378,7 @@ export class WorldIndex {
       for (const b of bumps) { if (Math.abs(tt - b.t) < WorldIndex.CROSS_WINDOW) { inGap = true; break; } }
       if (inGap) continue;
       const [x, z, ux, uz] = xzAtT(tt);
-      const topY = deckTopAtT(tt) - T;
+      const topY = this.deckHeightAtT(prof, tt) - T;
       const footY = this.isWaterAt(x, z) ? WATER_Y - 8 : this.terrain.heightAt(x, z) - 4;
       if (topY - footY < 10) continue; // deck hugs the grade here — no column to draw
       prof.supports.piers.push({ x, z, footY, topY, ux, uz });
@@ -1391,17 +1386,36 @@ export class WorldIndex {
     // abutments seat the deck ends into the banks (close any gap at the lower bank)
     for (const tEnd of [Math.min(20, total / 2), Math.max(total - 20, total / 2)]) {
       const [x, z, ux, uz] = xzAtT(tEnd);
-      prof.supports.abut.push({ x, z, footY: this.terrain.heightAt(x, z) - 6, topY: deckTopAtT(tEnd) - T, ux, uz });
+      prof.supports.abut.push({ x, z, footY: this.terrain.heightAt(x, z) - 6, topY: this.deckHeightAtT(prof, tEnd) - T, ux, uz });
     }
     return prof;
   }
 
-  // deck height at a point on (or under) the span: base, plus any clearance
-  // bumps tented over the crossings
+  // deck-top height at arc-length t: the bank-to-bank grade, lifted only where a
+  // feature demands it — a flat span clear of the water, or a clearance tent over a
+  // crossed road — each ramping back DOWN to the grade so the ends meet their approaches
+  private deckHeightAtT(prof: BridgeProfile, t: number): number {
+    const grade = prof.g0 + (prof.g1 - prof.g0) * Math.max(0, Math.min(1, t / Math.max(1, prof.total)));
+    let deck = grade;
+    for (const bump of prof.bumps) {
+      const out = Math.abs(t - bump.t);
+      if (out < WorldIndex.BRIDGE_RAMP) deck = Math.max(deck, bump.peak - (out / WorldIndex.BRIDGE_RAMP) * (bump.peak - grade));
+    }
+    if (prof.water) {
+      const { s, e } = prof.water;
+      const flatH = WATER_Y + WorldIndex.WATER_CLEAR; // flat, clear of the surface for boats
+      let wy: number;
+      if (t <= s) wy = grade + (flatH - grade) * (s > 0 ? Math.min(1, t / s) : 1);             // ramp up from the start bank
+      else if (t >= e) wy = grade + (flatH - grade) * (prof.total > e ? Math.min(1, (prof.total - t) / (prof.total - e)) : 1); // down to the end bank
+      else wy = flatH;                                                                          // flat across the channel
+      deck = Math.max(deck, wy);
+    }
+    return deck;
+  }
+
+  // deck height at a world point: project to the nearest arc-length, then evaluate
   bridgeDeckYAt(pts: number[], x: number, y: number): number {
     const prof = this.bridgeProfile(pts);
-    if (!prof.bumps.length && !prof.water) return prof.base;
-    // arc-length of the closest point on the polyline
     let bestD = Infinity, t = 0;
     for (let i = 0; i + 3 < pts.length; i += 2) {
       const ax = pts[i], ay = pts[i + 1];
@@ -1411,19 +1425,9 @@ export class WorldIndex {
       s = Math.max(0, Math.min(1, s));
       const px2 = ax + ex * s, py2 = ay + ey * s;
       const d = (x - px2) ** 2 + (y - py2) ** 2;
-      if (d < bestD) { bestD = d; t = prof.cum[i / 2] + Math.sqrt(len2) * s; }
+      if (d < bestD) { bestD = d; t = (prof.cum[i / 2] ?? 0) + Math.sqrt(len2) * s; }
     }
-    let deck = prof.base;
-    for (const bump of prof.bumps) {
-      deck = Math.max(deck, bump.peak - (Math.abs(t - bump.t) / WorldIndex.BRIDGE_RAMP) * (bump.peak - prof.base));
-    }
-    if (prof.water) {
-      const { s, e } = prof.water;
-      const R = 120; // ramp from the bank up to the flat span
-      const f = t <= s || t >= e ? 0 : Math.max(0, Math.min(1, (t - s) / R, (e - t) / R));
-      deck = Math.max(deck, prof.base + f * WorldIndex.WATER_CLEAR);
-    }
-    return deck;
+    return this.deckHeightAtT(prof, t);
   }
 
   // the surface an actor stands on: decks are *ridden* (entered where they

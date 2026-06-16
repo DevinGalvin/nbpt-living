@@ -48,16 +48,34 @@ export class GillisBridge {
     const pts = best || [GILLIS_PT.x - 100, GILLIS_PT.z, GILLIS_PT.x + 100, GILLIS_PT.z];
     let ux = pts[bi + 2] - pts[bi], uz = pts[bi + 3] - pts[bi + 1];
     const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul;
+    // The Gillis crossing is a DIVIDED highway — the channel must span BOTH carriageways,
+    // not just the one nearest road. Measure the across-extent of every bridge road
+    // through the channel, recentre on their median, and size the span to the full width.
+    const perpx = -uz, perpz = ux;
+    let acMin = -52, acMax = 52;
+    for (const r of world.roads) {
+      if (!r.b) continue;
+      for (let i = 0; i + 1 < r.p.length; i += 2) {
+        const dX = r.p[i] - cx, dZ = r.p[i + 1] - cz;
+        if (Math.abs(dX * ux + dZ * uz) > 85) continue;        // only the channel crossing
+        const across = dX * perpx + dZ * perpz, hw = (r.w + 4) / 2;
+        acMin = Math.min(acMin, across - hw);
+        acMax = Math.max(acMax, across + hw);
+      }
+    }
+    const acCenter = (acMin + acMax) / 2;
+    cx += perpx * acCenter; cz += perpz * acCenter;            // recentre on the median
+    const HW = Math.max(52, Math.min(110, (acMax - acMin) / 2 + 4)); // half the FULL deck width
     const deckY = index.bridgeDeckYAt(pts, cx, cz);
 
     gillisCenter.x = cx; gillisCenter.z = cz;      // so decor.ts carves the gap here
     gillisCenter.ux = ux; gillisCenter.uz = uz;    // (oriented to the road heading)
-    this.root.position.set(cx, 0, cz);
-    this.root.rotation.y = Math.atan2(-uz, ux);   // local +X = road heading, +Z = across
-
-    const HW = 52;        // half deck width
     const GAP = 80;       // tower offset from centre = each leaf's length
     const TOWER_H = 50;   // gantry height above the deck
+    gillisCenter.halfW = HW;        // carve the deck to the full bascule width
+    gillisCenter.halfLen = GAP + 6; // ...and its full length, so no deck peeks through
+    this.root.position.set(cx, 0, cz);
+    this.root.rotation.y = Math.atan2(-uz, ux);   // local +X = road heading, +Z = across
 
     // ---- stone piers + green gantry towers at ±GAP ----
     for (const sgn of [-1, 1]) {

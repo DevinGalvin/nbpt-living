@@ -2114,17 +2114,39 @@ function buildPolice(buckets: Bucket[], b: Building, g: number, index: WorldInde
   );
 }
 
-// Anna Jaques Hospital — pale modern masses, glass entry canopy, red cross sign
+// Anna Jaques Hospital — red brick with white beltlines + trim and rows of windows,
+// the way the real campus reads, with a glass entry canopy + red-cross pylon by the drive
 function buildHospital(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
-  walls(buckets[PLAIN], b.p, g - 14, g + 58, '#ddd8cd', 0);
-  walls(buckets[PLAIN], b.p, g + 54, g + 58, '#c2bdb2', 0);
-  flatRoof(buckets[PLAIN], b.p, g + 58, '#6e7274');
-  facades(buckets[PLAIN], b.p, g + 58, 3, 1884, false, false, false, g, 420);
+  const top = g + 60;
+  walls(buckets[BRICK], b.p, g - 14, top, '#f6ece2');           // real brick texture, warm tint
+  // white trim: a water table at grade, two beltlines between floors, a cornice
+  const v = ringToVec2(b.p);
+  const band = (y0: number, y1: number) => {
+    tmp.set(STYLE.building.trim);
+    for (let i = 0; i < v.length; i++) {
+      const a = v[i], bb = v[(i + 1) % v.length];
+      const ex = bb.x - a.x, ey = bb.y - a.y, len = Math.hypot(ex, ey);
+      if (len < 0.01) continue;
+      const nx = ey / len, nz = ex / len;
+      buckets[PLAIN].quad(
+        a.x + nx * 0.5, y0, -a.y, bb.x + nx * 0.5, y0, -bb.y,
+        bb.x + nx * 0.5, y1, -bb.y, a.x + nx * 0.5, y1, -a.y,
+        nx, 0, nz, tmp.r, tmp.g, tmp.b
+      );
+    }
+  };
+  band(g - 14, g - 9);    // white water table at grade
+  band(g + 15, g + 17);   // beltline between floors
+  band(g + 37, g + 39);   // beltline between floors
+  band(top - 4, top);     // white cornice
+  flatRoof(buckets[PLAIN], b.p, top, '#5f6365');
+  // tons of white-trimmed windows on every face — a tall, glassy campus (5 rows)
+  facades(buckets[PLAIN], b.p, top, 5, 1884, false, false, false, g);
   const f = heroFront(b, index);
   // white entry canopy on posts, sized for the campus scale
-  rotBox(buckets[PLAIN], f.x + f.nx * 13, f.z + f.nz * 13, 22, 13, g + 16, g + 19, Math.atan2(f.tz, f.tx), '#f1eee6');
+  rotBox(buckets[PLAIN], f.x + f.nx * 13, f.z + f.nz * 13, 22, 13, g + 16, g + 19, Math.atan2(f.tz, f.tx), '#f4f1e8');
   for (const s of [-1, 1]) {
-    buckets[PLAIN].box(f.x + f.tx * 17 * s + f.nx * 22, f.z + f.tz * 17 * s + f.nz * 22, 1.2, 1.2, g, g + 16, '#b9b4a9');
+    buckets[PLAIN].box(f.x + f.tx * 17 * s + f.nx * 22, f.z + f.tz * 17 * s + f.nz * 22, 1.2, 1.2, g, g + 16, '#e8e4d8');
   }
   tmp.set('#4a565c');
   buckets[PLAIN].quad(
