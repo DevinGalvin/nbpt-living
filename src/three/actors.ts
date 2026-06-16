@@ -161,7 +161,7 @@ export class Kid {
   }
 
   // vx/vz = velocity in world px/s
-  update(dt: number, vx: number, vz: number, sprinting: boolean, riding = false) {
+  update(dt: number, vx: number, vz: number, sprinting: boolean, riding = false, boating = false) {
     this.t += dt;
     const speed = Math.hypot(vx, vz);
     const moving = speed > 1;
@@ -239,6 +239,24 @@ export class Kid {
       this.tilt.position.y = Math.sin(this.phase * 2) * 0.2;
       this.bodyGroup.scale.y = 1;
       this.headGrp.rotation.x = -0.06;
+    }
+    if (boating) {
+      // seated in the rowboat: legs braced forward, a slow rhythmic pull on the oars
+      // (overrides the walk/run stride — the boat moves, the kid doesn't run)
+      const row = Math.sin(this.t * 2.0);
+      this.tilt.rotation.x = 0.10 + row * 0.14;
+      this.thighL.rotation.x = 0.85;
+      this.thighR.rotation.x = 0.85;
+      this.shinL.rotation.x = 0.15;
+      this.shinR.rotation.x = 0.15;
+      this.upperL.rotation.x = -0.6 + row * 0.45;
+      this.upperR.rotation.x = -0.6 + row * 0.45;
+      this.foreL.rotation.x = -0.55;
+      this.foreR.rotation.x = -0.55;
+      this.bodyGroup.rotation.y = 0;
+      this.tilt.position.y = 0;
+      this.bodyGroup.scale.y = 1;
+      this.headGrp.rotation.x = -0.04;
     }
 
     // blink

@@ -972,7 +972,7 @@ export class Game {
     this.px = nx;
     this.pz = nz;
     this.kid.setPos(this.px, this.pz);
-    this.kid.update(dt, realVx, realVz, this.sprinting, this.riding);
+    this.kid.update(dt, realVx, realVz, this.sprinting, this.riding, this.boating);
 
     // ride the real terrain, bridge decks, and docks (the tunnel floor is flat).
     // Decks are entered where they meet the grade — passing beneath a raised
