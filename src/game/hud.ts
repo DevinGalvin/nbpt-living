@@ -1,6 +1,6 @@
 import type { Landmark, WorldData } from '../world/types';
 import type { BagItem, Mission, MissionGroup } from './items';
-import { SEASON, spineComplete } from '../world/style';
+import { SEASON, seasonsUnlocked } from '../world/style';
 
 // DOM HUD: street pill, landmark banner, help, attribution, virtual joystick.
 
@@ -37,7 +37,7 @@ const css = `
 #hud .help { left: 8px; }
 #hud .attr { right: 8px; font-size: 10px; }
 #hud .stick-base, #hud .stick-knob { position: absolute; border-radius: 50%; display: none; }
-#hud .stick-base { width: 96px; height: 96px; background: rgba(var(--maroon), 0.22); border: 2px solid rgba(243,241,232,0.5); }
+#hud .stick-base { width: 128px; height: 128px; background: rgba(var(--maroon), 0.22); border: 2px solid rgba(243,241,232,0.5); }
 #hud .stick-knob { width: 44px; height: 44px; background: rgba(243,241,232,0.55); }
 #hud .compass {
   position: absolute; top: 14px; right: 14px; width: 44px; height: 44px; border-radius: 50%;
@@ -58,6 +58,30 @@ const css = `
   pointer-events: auto; cursor: pointer;
 }
 #hud .sound-btn.off { opacity: 0.55; }
+#hud .season-toggle {
+  position: absolute; top: 222px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+#hud .season-toggle:hover { border-color: #d8b94a; }
+#hud .season-pop {
+  position: absolute; top: 222px; left: 66px; min-width: 152px;
+  background: var(--panel); border: 1.5px solid rgba(216,185,74,0.5); border-radius: 12px;
+  padding: 7px; z-index: 40; display: none; pointer-events: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+#hud .season-pop.open { display: block; }
+#hud .season-pop .sp-hdr { font-size: 11px; color: #e8c44f; font-weight: 700; padding: 2px 5px 7px; letter-spacing: 0.3px; }
+#hud .season-pop .sp-item {
+  display: flex; align-items: center; padding: 8px 10px; border-radius: 8px;
+  font-size: 13.5px; color: #f0ece0; cursor: pointer; white-space: nowrap;
+}
+#hud .season-pop .sp-item:hover { background: rgba(216,185,74,0.18); }
+#hud .season-pop .sp-item.cur { background: rgba(216,185,74,0.26); color: #fff; font-weight: 700; }
+#hud .season-pop.locked .sp-item { opacity: 0.45; cursor: default; }
+#hud .season-pop.locked .sp-item:hover { background: none; }
+#hud .season-pop .sp-lock { font-size: 11px; color: #c9a23e; padding: 7px 5px 2px; line-height: 1.45; max-width: 158px; }
 #hud .run-btn {
   position: absolute; right: 18px; bottom: 52px; width: 58px; height: 58px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
@@ -492,6 +516,8 @@ export class Hud {
       <div class="sound-btn" title="Sound">🔊</div>
       <div class="run-btn" title="Run">🏃</div>
       <div class="bike-btn" title="Bike (B)">🚲</div>
+      <div class="season-toggle" title="Season">🍂</div>
+      <div class="season-pop"></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q">◈</span><span class="otxt"></span></div>
@@ -573,10 +599,12 @@ export class Hud {
   private onMove(e: PointerEvent) {
     if (e.pointerId !== this.joyId) return;
     let dx = e.clientX - this.joyBaseX, dy = e.clientY - this.joyBaseY;
-    const d = Math.hypot(dx, dy), max = 48;
+    // a bigger throw = finer steering (small finger moves no longer swing the
+    // heading), and a wider walk→run range so you can creep through tight streets
+    const d = Math.hypot(dx, dy), max = 64;
     if (d > max) { dx = (dx / d) * max; dy = (dy / d) * max; }
     this.placeStick(this.joyBaseX, this.joyBaseY, this.joyBaseX + dx, this.joyBaseY + dy);
-    const dead = 0.16;
+    const dead = 0.1;
     const mag = Math.min(1, Math.hypot(dx, dy) / max);
     if (mag < dead) { this.joyX = 0; this.joyY = 0; }
     else {
@@ -603,8 +631,8 @@ export class Hud {
   private placeStick(bx: number, by: number, kx: number, ky: number) {
     this.stickBase.style.display = 'block';
     this.stickKnob.style.display = 'block';
-    this.stickBase.style.left = bx - 48 + 'px';
-    this.stickBase.style.top = by - 48 + 'px';
+    this.stickBase.style.left = bx - 64 + 'px';
+    this.stickBase.style.top = by - 64 + 'px';
     this.stickKnob.style.left = kx - 22 + 'px';
     this.stickKnob.style.top = ky - 22 + 'px';
   }
@@ -630,34 +658,37 @@ export class Hud {
       });
       grid.appendChild(el);
     }
-    // season picker — locked until you beat the story (then it's the reward: roam
-    // the town in any season). During the story the season follows the spine, and
-    // the current one stays highlighted so you can see where on the calendar you are.
     const card = document.querySelector('#hud .travel-card')!;
-    const unlocked = spineComplete();
-    const seasonHdr = document.createElement('div');
-    seasonHdr.className = 'season-hdr';
-    seasonHdr.innerHTML = unlocked
-      ? '\u{1F5D3}️ <b>Set the season</b>'
-      : '\u{1F512} <b>Finish the story</b> to roam the seasons';
-    const row = document.createElement('div');
-    row.className = 'season-row' + (unlocked ? '' : ' locked');
-    for (const [sn, label] of [['spring', '\u{1F338} Spring'], ['summer', '\u2600\uFE0F Summer'], ['fall', '\u{1F383} Fall'], ['winter', '\u{1F384} Winter']] as const) {
-      const btn = document.createElement('div');
-      btn.className = 'season-btn' + (SEASON === sn ? ' cur' : '') + (unlocked ? '' : ' locked');
-      btn.textContent = label;
-      if (unlocked) {
-        btn.addEventListener('click', () => {
-          if (SEASON === sn) return;
-          localStorage.setItem('nbpt-season', sn);
-          location.reload();
-        });
-      }
-      row.appendChild(btn);
+    // season picker — a left HUD icon (the current season's emoji) + popout menu, not
+    // buried in Fast Travel. Post-game reward: roam any season once the finale's climax
+    // is reached; during the story it follows the spine.
+    const seasonEmoji: Record<string, string> = { spring: '🌸', summer: '☀️', fall: '🎃', winter: '🎄' };
+    const sToggle = document.querySelector('#hud .season-toggle') as HTMLElement;
+    const sPop = document.querySelector('#hud .season-pop') as HTMLElement;
+    const sUnlocked = seasonsUnlocked();
+    sToggle.textContent = seasonEmoji[SEASON] || '🍂';
+    sPop.classList.toggle('locked', !sUnlocked);
+    const sHdr = document.createElement('div');
+    sHdr.className = 'sp-hdr';
+    sHdr.textContent = sUnlocked ? '🗓 Set the season' : '🔒 Seasons — locked';
+    sPop.appendChild(sHdr);
+    const sList = [['spring', '\u{1F338} Spring'], ['summer', '☀️ Summer'], ['fall', '\u{1F383} Fall'], ['winter', '\u{1F384} Winter']] as const;
+    for (const [sn, label] of sList) {
+      sPop.appendChild(Object.assign(document.createElement('div'), {
+        className: 'sp-item' + (SEASON === sn ? ' cur' : ''),
+        textContent: label,
+        onclick: sUnlocked ? () => { if (SEASON !== sn) { localStorage.setItem('nbpt-season', sn); location.reload(); } } : null,
+      }));
     }
-    const anchor = card.querySelector('.travel-search');
-    card.insertBefore(seasonHdr, anchor);
-    card.insertBefore(row, anchor);
+    if (!sUnlocked) {
+      const lk = document.createElement('div');
+      lk.className = 'sp-lock';
+      lk.textContent = 'Finish the story to roam the seasons.';
+      sPop.appendChild(lk);
+    }
+    sToggle.addEventListener('click', (e) => { e.stopPropagation(); sPop.classList.toggle('open'); });
+    sPop.addEventListener('click', (e) => e.stopPropagation());
+    window.addEventListener('click', () => sPop.classList.remove('open'));
     const hist = document.createElement('div');
     hist.className = 'hist-line';
     card.appendChild(hist);

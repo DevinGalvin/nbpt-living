@@ -141,6 +141,7 @@ export class Game {
   private dogY = 0;
   private fov = 55;
   private camAz = Math.PI;          // camera azimuth (behind-the-back chase)
+  private aimX = 0; private aimZ = 0; // smoothed heading — kids hold a line, turns round off
   private camClamp = 1;             // occlusion pull-in (1 = full distance)
   private chaseCam = true;          // C toggles chase <-> north-up map view
   private autoRun = false;          // R toggles always-run
@@ -832,8 +833,11 @@ export class Game {
     let ix = (k.has('KeyA') || k.has('ArrowLeft') ? -1 : 0) + (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0);
     let iz = (k.has('KeyW') || k.has('ArrowUp') ? -1 : 0) + (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
     if (this.hud.joyActive && (this.hud.joyX || this.hud.joyY)) {
-      ix = this.hud.joyX;
-      iz = this.hud.joyY;
+      // a small deadzone so resting/jittery fingers don't nudge the heading (the
+      // joystick already deadzones; keep this tiny so slow, precise moves still register)
+      const jm = Math.hypot(this.hud.joyX, this.hud.joyY);
+      if (jm > 0.08) { ix = this.hud.joyX; iz = this.hud.joyY; }
+      else { ix = 0; iz = 0; }
     }
     // ...mapped through the camera azimuth (W = away from camera)
     const fwdX = Math.sin(this.camAz), fwdZ = Math.cos(this.camAz);
@@ -847,6 +851,16 @@ export class Game {
     if (this.hud.dialogueOpen) { vx = 0; vz = 0; }
     const mag = Math.hypot(vx, vz);
     if (mag > 1) { vx /= mag; vz /= mag; }
+    // ease the heading toward the input so small wobbles don't twitch the path — a kid
+    // can hold a straight line, and turns round off instead of snapping. Full input
+    // still reaches full speed; mid-turn the shorter vector just eases the pace down.
+    // The bike steers lazier than on foot (it was the worst offender).
+    const turnK = this.riding ? 3.6 : 6.5;
+    const ke = Math.min(1, dt * turnK);
+    this.aimX += (vx - this.aimX) * ke;
+    this.aimZ += (vz - this.aimZ) * ke;
+    if (mag < 0.01) { this.aimX = 0; this.aimZ = 0; }  // crisp stop on release — no floaty glide
+    vx = this.aimX; vz = this.aimZ;
 
     this.sprinting = this.autoRun || k.has('ShiftLeft') || k.has('ShiftRight') || this.hud.sprintTouch;
     let speed = this.riding ? 530 : this.sprinting ? SPRINT : JOG;
@@ -1033,7 +1047,7 @@ export class Game {
       // eggs speak last: quest beats, then history markers, then secrets
       if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.quest.nearActive || (this.history ? this.history.nearActive : false));
     }
-    this.audio.update(dt, movingNow, this.sprinting, () =>
+    this.audio.update(dt, movingNow && !this.riding, this.sprinting, () =>
       this.inside ? 'hard'
         : surfY > terrainY + 0.5 ? 'wood'
         : this.index.onPavedAt(this.px, this.pz) ? 'hard' : 'soft');
