@@ -531,6 +531,14 @@ export class Hud {
       <div class="fade"></div>
     `;
     document.body.appendChild(hud);
+    // the bottom hint defaults to desktop keys; on a phone/tablet there's no
+    // keyboard or mouse wheel, so show the on-screen touch controls instead.
+    // Kept compact (icon + verb, no "Tap…to") so it clears the OSM attribution
+    // on the same bottom line at phone widths.
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      (hud.querySelector('.help') as HTMLElement).textContent =
+        'Drag to move · 🏃 Run · 💬 Talk';
+    }
     this.pill = hud.querySelector('.pill')!;
     this.banner = hud.querySelector('.banner')!;
     this.bannerName = hud.querySelector('.banner .name')!;
