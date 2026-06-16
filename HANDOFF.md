@@ -3,6 +3,18 @@
 A cozy, all-ages Zelda-like set on the **exact map of Newburyport, MA**. Three.js +
 TypeScript + Vite. Live at **https://clippertown.io**.
 
+> ## 🚀 LAUNCHED — June 16, 2026
+> Posted to **r/Newburyport** and well-received — the "find your own house" hook landed
+> (*"Wow this is sick I found my house!!!"*). The game is **live and stable**; latest
+> gameplay deploy `029d634` (this handoff is a doc-only commit on top).
+>
+> **Next session, do these first:**
+> 1. **Watch the r/Newburyport thread** for feedback. "You're missing X / my street's
+>    wrong" → fix it fast and reply *"added it, check again."* The map is real OSM, so
+>    footprints/streets are accurate; the *architecture* is stylized.
+> 2. One unfinished todo: the **5th promo screenshot** (snowy Inn Street) — see §6.
+> 3. Scaling headroom + the Cloudflare fallback if it surges — see §6.
+
 ---
 
 ## 1. The one thing to know
@@ -131,6 +143,31 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
 
 ## 5. Recent work
 
+**June 16, 2026 — LAUNCH DAY (all deployed):**
+- **Launched to r/Newburyport** — wrote the promo post + scouted a hero-shot tour
+  (Market Square / High St / boardwalk / Plum Island Light). Going well.
+- **tap-to-pet** — removed the always-on "PET" action button (the dog heels next to you, so
+  it showed constantly). Tap/click Clipper directly to pet him (`Game.tryPetTap` hit-tests
+  the dog's screen pos → `eggs.petDog()`); the action button is now real interactions only.
+- **Cars no longer freeze the player** — the unstick safety-net only checked walls, so a car
+  (life obstacle, ~20px radius) could pin you with no escape. Now checks walls OR life
+  obstacles and rings outward to push you to open ground.
+- **Refresh resumes your position** — saved every poll (overworld only) + restored on load
+  (kept, not consumed), so a refresh/crash drops you where you were, not at Market Square.
+- **Boat ride** — kid now **sits and rows** (seated pose in `actors.ts`, `Game` passes
+  `boating` to `Kid.update`) instead of running in place; **Clipper faces the water**
+  (`Dog.faceTo` drives the heading sub-group + clears the stray root spin).
+- **Plum Island = sand** (east of `PLUM_X` in `index.ts`: grassy polys + chunk base →
+  sand) and **marshes got tall reed beds** (wetland plantings in `treesFor` + reed geometry
+  in `decor.ts`).
+- **Driveways draw UNDER the roads** now (they were bleeding gray onto the asphalt).
+- **Mobile/UX:** season switch keeps your map spot; the bottom hint shows touch controls on
+  phones (not WASD); bike button is a high-contrast cream SVG (was a low-contrast blue
+  emoji); pet hearts are pink on every platform (drawn as a path, not the ❤ glyph).
+- **Analytics reconnected** — GoatCounter, site code **`clipper`** (it was on `main` only
+  and got wiped by each deploy; now in `source/index.html` so it survives). **Don't drop
+  that `<script>`** — see the `nbpt-analytics` memory.
+
 **June 15, 2026:**
 - **Phone-autonomous deploys (CI).** Added `.github/workflows/deploy.yml`: every push to
   `source` builds + publishes to clippertown.io via GitHub Actions (built-in `GITHUB_TOKEN`,
@@ -171,6 +208,20 @@ ponds; **13 Fox Run Drive** (navy house, red door, pool).
 
 ## 6. Known gaps / follow-ups
 
+- **🔴 Watch the r/Newburyport launch thread** for feedback — turn "missing X / wrong
+  street" reports into fast fixes + "added it, check again" replies (locals love that).
+- **Unfinished: the 5th promo screenshot** (snowy Inn Street, winter night). Photos #1–4
+  were captured (Market Square summer / High St fall / boardwalk sunset / Plum Island Light
+  winter); #5 was paused. Capture tips (in `nbpt-preview-verification`): viewport **≤768px**
+  for a full capture (≥1280 paints only ~800px — a preview artifact), the **real** sunset is
+  `nbpt.time(0.91–0.94)` (the hook's "0.75=dusk" is wrong vs the `SUN_T`/`SUN_E` curve),
+  night ≈0.97–0.03; **reload before each `nbpt.travel`** (a 2nd travel renders stale chunks),
+  hide overlays via injected CSS (`#hud .help,#hud .mini{display:none}`).
+- **Scaling (back-pocket):** it's a static CDN site, so **concurrency is a non-issue** —
+  no server to overload. The only ceiling is GitHub Pages' ~100 GB/mo soft cap ≈ **~28k
+  unique visitors/month** (each first load ~3.7 MB: world.json 2.1 + heights.bin 1.3 + JS
+  0.3; repeat visits are cached). If it ever surges → move to **Cloudflare Pages** (free,
+  *unlimited* bandwidth, same static deploy, just repoint clippertown.io).
 - **The Tannery** building (a lost cloud-line feature) is still NOT here — rebuild as a
   `decor.ts` HERO if wanted (needs a reference photo). The **Daily News** newsroom, the
   other lost interior, has now been rebuilt (`NewsroomScene`).
