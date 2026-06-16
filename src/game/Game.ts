@@ -16,7 +16,7 @@ import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
 import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
-import { STYLE, SEASON, storySeason, spineComplete } from '../world/style';
+import { STYLE, SEASON, storySeason, seasonsUnlocked } from '../world/style';
 
 const JOG = 200;     // world px/s (8 px = 1 m) — fast, gamey
 const SPRINT = 380;
@@ -1055,7 +1055,7 @@ export class Game {
 
     // day–night cycle drives the sun, sky dome, and weather; the shadow
     // window rides with the player
-    const sky = this.sky.update(dt, this.px, this.pz, t);
+    const sky = this.sky.update(dt, this.px, this.pz, t, this.camera.position);
     const sunD = 950;
     this.sun.position.set(this.px + sky.sunDir.x * sunD, sky.sunDir.y * sunD + 80, this.pz + sky.sunDir.z * sunD);
     this.sun.target.position.set(this.px, 0, this.pz);
@@ -1105,10 +1105,10 @@ export class Game {
 
     // the story turns the season as you finish chapters — fire once the town's
     // dressing no longer matches your progress and you're calm in the overworld
-    // (not mid-dialogue, not still reading a CHAPTER COMPLETE card). Once the spine
-    // is beaten the picker takes over, so the story never overrides a manual pick.
+    // (not mid-dialogue, not still reading a CHAPTER COMPLETE card). Once the seasons
+    // unlock (finale climax) the picker takes over, so the story never overrides a manual pick.
     if (!this.inside && !this.boating && !this.seasonTurning && !this.hud.dialogueOpen
-        && !spineComplete() && !document.querySelector('#hud .chapter.show') && storySeason() !== SEASON) {
+        && !seasonsUnlocked() && !document.querySelector('#hud .chapter.show') && storySeason() !== SEASON) {
       this.turnSeason();
     }
 

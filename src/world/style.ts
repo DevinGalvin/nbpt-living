@@ -16,18 +16,19 @@ export function storySeason(): Season {
   if (seasonNum('nbpt-ch1-step') >= 6) return 'fall';     // Ch2 done → Ch3/Ch4
   return 'summer';                                         // Ch1/Ch2
 }
-// the whole spine is beaten when Chapter 5 (Custom House Star) is done
-export function spineComplete(): boolean { return seasonNum('nbpt-ch4-step') >= 4; }
-// the season picker (the post-game reward) unlocks once the finale's CLIMAX is reached
-// — the four corners in the Custom House cellar — so "I finished the story" is honored
-// even before the very last chest-open.
+// the season picker (the post-game reward) unlocks — AND a manual pick starts being
+// honored — once the finale's CLIMAX is reached: the four corners in the Custom House
+// cellar (ch4 step 3), so "I finished the story" counts even before the very last
+// chest-open. This is the ONE gate for everything season-related: the picker UI (hud),
+// whether SEASON honors the saved pick (below), and whether the story still auto-turns
+// the season (Game). They must agree, or the picker unlocks but a pick won't take.
 export function seasonsUnlocked(): boolean { return seasonNum('nbpt-ch4-step') >= 3; }
 
 export const SEASON: Season = (() => {
   try {
     const url = new URLSearchParams(location.search).get('season');   // dev/test absolute override
     if (isSeason(url)) return url;
-    if (spineComplete()) {                                            // post-game: the unlocked picker
+    if (seasonsUnlocked()) {                                          // post-climax: the unlocked picker
       const p = localStorage.getItem('nbpt-season');
       return isSeason(p) ? p : 'winter';                             // default to the finale's winter
     }

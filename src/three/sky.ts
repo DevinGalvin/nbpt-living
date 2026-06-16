@@ -34,6 +34,15 @@ function sunAltitude(tod: number): number {
   return SUN_E[SUN_E.length - 1];
 }
 
+// the sun & moon discs ride this far from the CAMERA (not the player), pinned just
+// inside the 6000 far plane. Anchoring to the camera fixes their depth at every zoom, so
+// ALL terrain/buildings (necessarily nearer than the far plane) occlude them normally
+// instead of the disc punching through the horizon. The old player-relative 3000 let
+// anything farther than 3000 show through — and when zoomed out the chase cam sat far
+// enough back that the disc landed past the far plane. Radii are sized to this distance
+// to keep the discs' on-screen size.
+const SKY_DIST = 5600;
+
 export interface SkyState {
   sunDir: THREE.Vector3;        // unit vector toward the sun (for the directional light)
   sunColor: THREE.Color;
@@ -96,9 +105,9 @@ export class Sky {
     this.dome.renderOrder = -1;
 
     // sun & moon discs (unlit, unfogged) ride far out in their sky directions
-    this.sun = new THREE.Mesh(new THREE.SphereGeometry(115, 16, 12),
+    this.sun = new THREE.Mesh(new THREE.SphereGeometry(215, 16, 12),
       new THREE.MeshBasicMaterial({ color: '#fff2c8', fog: false, transparent: true, depthWrite: false }));
-    this.moon = new THREE.Mesh(new THREE.SphereGeometry(78, 16, 12),
+    this.moon = new THREE.Mesh(new THREE.SphereGeometry(146, 16, 12),
       new THREE.MeshBasicMaterial({ color: '#eef1f6', fog: false, transparent: true, depthWrite: false }));
     this.sun.renderOrder = -1; this.moon.renderOrder = -1;
 
@@ -150,7 +159,7 @@ export class Sky {
   // force a shower (1) / clear (0) / release back to auto (null)
   forceWeather(w: number | null) { this.forced = w; }
 
-  update(dt: number, px: number, pz: number, t: number): SkyState {
+  update(dt: number, px: number, pz: number, t: number, camPos: THREE.Vector3): SkyState {
     this.tod = (this.tod + dt / this.period) % 1;
 
     // ---- weather: only winter precipitates (snow). No rain in the other seasons. ----
@@ -223,12 +232,14 @@ export class Sky {
 
     // ---- sun & moon discs ----
     const trueDir = new THREE.Vector3(Math.sin(az) * horiz, elev, Math.cos(az) * horiz).normalize();
-    this.sun.position.set(px + trueDir.x * 3000, trueDir.y * 3000, pz + trueDir.z * 3000);
+    this.sun.position.set(camPos.x + trueDir.x * SKY_DIST, camPos.y + trueDir.y * SKY_DIST, camPos.z + trueDir.z * SKY_DIST);
     (this.sun.material as THREE.MeshBasicMaterial).color.copy(s.sunColor);
     (this.sun.material as THREE.MeshBasicMaterial).opacity = clamp((elev + 0.06) / 0.12, 0, 1);
     this.sun.visible = elev > -0.06;
-    // moon opposite the sun
-    this.moon.position.set(px - trueDir.x * 3000, -elev * 3000, pz - trueDir.z * 3000);
+    // moon opposite the sun (its own direction: horizontally opposite, height mirrors
+    // the sun's elevation), pinned at the same camera-relative far distance
+    const moonDir = new THREE.Vector3(-trueDir.x, -elev, -trueDir.z).normalize();
+    this.moon.position.set(camPos.x + moonDir.x * SKY_DIST, camPos.y + moonDir.y * SKY_DIST, camPos.z + moonDir.z * SKY_DIST);
     (this.moon.material as THREE.MeshBasicMaterial).opacity = clamp((-elev + 0.04) / 0.18, 0, 1) * 0.95;
     this.moon.visible = elev < 0.04;
 
