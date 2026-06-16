@@ -432,6 +432,15 @@ export class Dog {
     this.root.add(this.heading, blobShadow(7));
   }
 
+  // face a fixed heading without walking (e.g. seated in the boat): drives the same
+  // heading group Dog.update turns, and clears any leftover root spin so it doesn't
+  // stack on top of the body's facing
+  faceTo(angle: number) {
+    this.faceAngle = angle;
+    this.heading.rotation.y = angle;
+    this.root.rotation.y = 0;
+  }
+
   // follows a target point (behind-left of the kid); no collision — dogs weave
   update(dt: number, targetX: number, targetZ: number) {
     this.t += dt;

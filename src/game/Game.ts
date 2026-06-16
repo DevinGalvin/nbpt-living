@@ -1002,9 +1002,9 @@ export class Game {
 
     const still = Math.hypot(realVx, realVz) < 1;
     if (this.boating) {
-      // Clipper rides up in the bow, facing the heading
+      // Clipper rides up in the bow, facing the water ahead (the boat's heading)
       this.dog.root.position.set(this.px + Math.sin(this.boatAz) * 17, this.kidY + 7.4, this.pz + Math.cos(this.boatAz) * 17);
-      this.dog.root.rotation.y = this.boatAz;
+      this.dog.faceTo(this.boatAz);
     } else {
       // dog heels behind-left of the kid's heading — unless the quest has
       // somewhere Clipper needs to be (the grate beat)
