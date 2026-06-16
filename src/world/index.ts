@@ -37,6 +37,8 @@ function tint(hex: string, amt: number): string {
 }
 
 const GRASSY = new Set(['land', 'grass', 'park', 'cemetery', 'pitch', 'reserve', 'wood', 'scrub', 'island', 'wetland', 'airfield']);
+// east of here is Plum Island + the barrier beaches — the grassy upland reads as sand
+const PLUM_X = 29000;
 
 // asphalt with aggregate, cracks, and repair patches — per road-class color
 export function roadFill(hex: string): CanvasPattern {
@@ -259,6 +261,7 @@ export interface Tree {
   y: number;     // world "south" axis (becomes z in 3D)
   r: number;
   bush: boolean;
+  reed?: boolean;   // marsh reed tuft (wetland) — rendered as tall thin blades
 }
 
 export interface Driveway {
@@ -402,7 +405,7 @@ export class WorldIndex {
     if (cached) return cached;
     const [cx, cy] = key.split(',').map(Number);
     const ox = cx * CHUNK, oy = cy * CHUNK;
-    const density: Record<string, number> = { wood: 1.3, scrub: 0.9, park: 0.6, cemetery: 0.55, island: 0.5, reserve: 0.4 };
+    const density: Record<string, number> = { wood: 1.3, scrub: 0.9, park: 0.6, cemetery: 0.55, island: 0.5, reserve: 0.4, wetland: 1.2 };
     const out: Tree[] = [];
     const cell = 96;
     const bucket = this.bucket(key);
@@ -431,6 +434,7 @@ export class WorldIndex {
       const y0 = Math.max(oy, by0), y1 = Math.min(oy + CHUNK, by1);
       if (x1 <= x0 || y1 <= y0) continue;
       const isBush = poly.k === 'scrub';
+      const isReed = poly.k === 'wetland';   // marshes read as thick reed beds, not flat green
       for (let gy = Math.floor(y0 / cell); gy * cell < y1; gy++) {
         for (let gx = Math.floor(x0 / cell); gx * cell < x1; gx++) {
           const rng = mulberry32(hash32(pi + 7777, gx, gy));
@@ -445,8 +449,8 @@ export class WorldIndex {
             if (this.onClearedGround(x, y, bucket)) continue;
             if (this.isWaterAt(x, y)) continue; // wood/marsh polys overlap tidal water
             if (nearReal(x, y)) continue;
-            const r = isBush ? 5 + rng() * 4 : 9 + rng() * 7;
-            out.push({ x, y, r, bush: isBush });
+            const r = isReed ? 2.5 + rng() * 2 : isBush ? 5 + rng() * 4 : 9 + rng() * 7;
+            out.push({ x, y, r, bush: isBush, reed: isReed });
           }
         }
       }
@@ -793,7 +797,7 @@ export class WorldIndex {
     ctx.save();
     ctx.translate(-ox, -oy);
 
-    ctx.fillStyle = terrainFill('land');
+    ctx.fillStyle = terrainFill(ox + CHUNK / 2 > PLUM_X ? 'sand' : 'land');   // Plum Island base reads as sand, not lawn
     ctx.fillRect(ox, oy, CHUNK, CHUNK);
 
     const waterPolys: Poly[] = [];
@@ -875,9 +879,16 @@ export class WorldIndex {
   }
 
   private fillPoly(ctx: CanvasRenderingContext2D, poly: Poly, pi = -1) {
+    // Plum Island + the barrier beaches read as sand, not lawn: east of PLUM_X recolor
+    // grassy upland to sand. Marshes (wetland) keep their green so the reeds still read.
+    let k = poly.k;
+    if (GRASSY.has(k) && k !== 'wetland' && k !== 'pitch') {
+      const bb = bboxOf(poly.p);
+      if ((bb[0] + bb[2]) / 2 > PLUM_X) k = 'sand';
+    }
     // grass-surface aprons read as worn turf, not asphalt; frozen ponds go to ice
     ctx.fillStyle = (SEASON === 'winter' && poly.k === 'water' && isFreezableWater(poly)) ? '#c8dde8'
-      : poly.k === 'apron' && poly.s === 'grass' ? '#abbd84' : terrainFill(poly.k);
+      : poly.k === 'apron' && poly.s === 'grass' ? '#abbd84' : terrainFill(k);
     tracePoly(ctx, poly);
     ctx.fill('evenodd');
     if (poly.k === 'plaza') {

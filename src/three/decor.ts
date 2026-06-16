@@ -3082,6 +3082,22 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const g = index.heightAtPx(t.x, t.y);
     const h1 = hash32(Math.round(t.x), Math.round(t.y));
     const variation = 0.84 + (h1 % 100) / 100 * 0.32;
+    if (t.reed) {
+      // marsh reeds: a tuft of tall thin blades with a pale seed-head tip, so wetlands
+      // read as thick, tall reed beds instead of flat green (straw-toned in winter)
+      const green = new THREE.Color(SEASON === 'winter' ? '#bcaa78' : '#9aac63').multiplyScalar(variation);
+      const blades = 3 + (h1 % 3);
+      for (let b = 0; b < blades; b++) {
+        const a = (b / blades) * 6.283 + (h1 % 7);
+        const off = 0.8 + (b % 2) * 1.4;
+        const bx = t.x + Math.cos(a) * off, by = t.y + Math.sin(a) * off;
+        const bh = 13 + ((h1 >> b) % 100) / 100 * 10;
+        cone(buckets[PLAIN], bx, g, by, 0.7, bh, green);
+        tmp.set('#cbb87a');
+        cone(buckets[PLAIN], bx, g + bh * 0.78, by, 0.42, bh * 0.28, tmp.clone());
+      }
+      continue;
+    }
     if (t.bush) {
       const c = new THREE.Color(TREES.bush).multiplyScalar(variation);
       octoCanopy(buckets[PLAIN], t.x, g + t.r * 1.1, t.y, t.r * 1.12, c);
