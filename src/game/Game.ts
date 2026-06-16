@@ -22,6 +22,14 @@ const JOG = 200;     // world px/s (8 px = 1 m) — fast, gamey
 const SPRINT = 380;
 const BOAT_DOOR = { x: -224, z: -1183 }; // the waterline den door — rowing near it beaches you
 
+// ✈️ scenic flight from Plum Island Airport (real Runway 10/28). Board at the east
+// threshold, roll + take off west (28) out over downtown + the harbor. Cozy + can't
+// crash — the point is seeing the town from the air.
+const RUNWAY_START = { x: 21560, z: 14114 };  // east threshold (depart 28 / westbound)
+const RUNWAY_HDG = -1.517;                    // runway 10/28 axis, heading ≈ due west
+const CRUISE_ALT = 540;                       // hold ~a few hundred ft over the ground
+const CRUISE_SPEED = 860;                     // forward px/s — quicker than the bike, still gentle
+
 // micro-detail grain multiplied over every ground chunk (keeps surfaces textured up close)
 let _detail: THREE.CanvasTexture | null = null;
 const DETAIL_REPEATS = (CHUNK / 48).toFixed(1);
@@ -122,6 +130,18 @@ export class Game {
   private rideBoat: THREE.Group | null = null;
   private boatAz = 0;
   private boatReturn = { x: 0, z: 0 };
+  // ✈️ scenic flight (Plum Island Airport): a free overground flight mode
+  private flying = false;
+  private ridePlane: THREE.Group | null = null;
+  private ridePlaneProp: THREE.Object3D | null = null;
+  private flyY = 0;            // plane altitude (world Y)
+  private planeAz = 0;         // heading (yaw)
+  private planeRoll = 0;       // visual bank into turns, eased
+  private planePitch = 0;      // visual pitch, eased
+  private flySpeed = 0;        // forward speed, ramps up for takeoff
+  private flyPhase: 'roll' | 'climb' | 'cruise' = 'roll';
+  private flyPrompt = false;   // edge state for the airport "✈️ FLY" action button
+  private flightDev = false;   // flight is private for now — only opted-in devices (see ?fly)
   private keys = new Set<string>();
   private chunks = new Map<string, ChunkEntry>();
   private pending: string[] = [];
@@ -331,6 +351,7 @@ export class Game {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return; // typing an address, not playing
       this.keys.add(e.code);
       if (e.code === 'KeyC') this.chaseCam = !this.chaseCam;
+      if (e.code === 'KeyL' && this.flying) this.land();
       if (e.code === 'KeyE' && !this.hud.dialogueOpen) {
         if (this.inTunnel) this.tunnel?.tryInteract(this.px, this.pz);
         else if (this.interior) this.interior.tryInteract(this.px, this.pz);
@@ -375,6 +396,14 @@ export class Game {
     setTimeout(onResize, 700);
 
     // debug/demo hooks
+    // ✈️ flight is a private dev feature for now: enabled only on devices opted in via
+    // the ?fly=1 URL (which latches into localStorage), so the public never sees the FLY
+    // prompt. Nothing links to it — just don't share that URL.
+    try {
+      if (new URLSearchParams(location.search).has('fly')) localStorage.setItem('nbpt-fly', '1');
+      this.flightDev = localStorage.getItem('nbpt-fly') === '1';
+    } catch { this.flightDev = false; }
+
     (window as unknown as Record<string, unknown>).nbpt = {
       travel: (id: string) => this.travelTo(id),
       go: (x: number, y: number) => this.travelToXY(x, y),
@@ -385,6 +414,8 @@ export class Game {
       season: (sn: string) => { location.search = '?season=' + sn; },   // dev override (works anytime)
       time: (t: number) => this.sky.setTod(t),            // 0=midnight 0.25=dawn 0.5=noon 0.75=dusk
       weather: (w: number | null) => this.sky.forceWeather(w), // 1=shower 0=clear null=auto
+      fly: () => this.enterPlane(),                       // ✈️ board the plane at Plum Island Airport
+      land: () => this.land(),
       _quest: this.quest,
       landmarks: world.landmarks.map((l) => l.id),
       _game: this,
@@ -661,6 +692,110 @@ export class Game {
     return R;
   }
 
+  // ✈️ the scenic-flight plane: a friendly high-wing taildragger (yellow Cub), built
+  // from boxes like the rowboat. Faces +z (forward). The prop spins in the frame loop.
+  private buildRidePlane(): THREE.Group {
+    const R = new THREE.Group();
+    const YEL = '#f2c14e', YEL2 = '#e0ad3c', DARK = '#33343a', GLASS = '#2b3a4a', TIRE = '#222226';
+    const b = (w: number, h: number, d: number, x: number, y: number, z: number, hex: string) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: hex }));
+      m.position.set(x, y, z); m.castShadow = true; R.add(m); return m;
+    };
+    b(7, 7.5, 30, 0, 9, 0, YEL);                 // fuselage
+    b(6, 6, 6, 0, 9, 16.5, YEL2);                // engine cowl (front)
+    b(6.6, 4.2, 7, 0, 12.2, 2.5, GLASS);         // cockpit windscreen
+    b(46, 1.5, 9, 0, 15.4, 1, YEL);              // high wing
+    b(1.3, 1.3, 8, -7, 12.4, 1, YEL2);           // wing struts
+    b(1.3, 1.3, 8, 7, 12.4, 1, YEL2);
+    b(1.5, 9, 7, 0, 14.5, -14.5, YEL2);          // vertical tail fin
+    b(17, 1.2, 6, 0, 10.5, -14.5, YEL);          // horizontal stabilizer
+    b(1.4, 5, 1.4, -6, 5, 6, DARK); b(1.4, 5, 1.4, 6, 5, 6, DARK);  // main gear legs
+    const tire = (x: number) => { const t = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 1.8, 12).rotateZ(Math.PI / 2), new THREE.MeshLambertMaterial({ color: TIRE })); t.position.set(x, 2.6, 6); t.castShadow = true; R.add(t); };
+    tire(-6); tire(6);
+    b(1.4, 1.4, 1.4, 0, 3.5, -13.5, DARK);       // tail-wheel leg
+    const tw = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.4, 1.2, 10).rotateZ(Math.PI / 2), new THREE.MeshLambertMaterial({ color: TIRE })); tw.position.set(0, 2.2, -13.8); R.add(tw);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(2.1, 12, 10), new THREE.MeshLambertMaterial({ color: '#eec39a' })); head.position.set(0, 13.4, 2); R.add(head);
+    b(4.5, 4, 4, 0, 10.6, 2, '#b03a32');         // pilot torso (crimson, like the kid)
+    const prop = new THREE.Group();
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(1.2, 18, 0.7), new THREE.MeshLambertMaterial({ color: '#3a3a3e' }));
+    const blade2 = blade.clone(); blade2.rotation.z = Math.PI / 2;
+    prop.add(blade, blade2); prop.position.set(0, 9, 20);
+    R.add(prop);
+    this.ridePlaneProp = prop;
+    this.scene.add(R);
+    return R;
+  }
+
+  // ---- enter / exit the scenic flight ----
+  enterPlane() {
+    if (this.flying || !this.flightDev) return;   // flight is opt-in only (see ?fly)
+    this.hud.fadeThrough(() => this.startFlight());
+  }
+  private startFlight() {
+    this.flying = true;
+    if (this.riding) this.toggleBike();
+    if (!this.ridePlane) this.ridePlane = this.buildRidePlane();
+    this.ridePlane.visible = true;
+    this.px = RUNWAY_START.x; this.pz = RUNWAY_START.z;
+    this.planeAz = RUNWAY_HDG; this.camAz = RUNWAY_HDG;
+    this.flyY = this.terrain.heightAt(this.px, this.pz) + 3;   // wheels on the tarmac
+    this.kidY = this.flyY;
+    this.flySpeed = 0; this.flyPhase = 'roll';
+    this.planeRoll = 0; this.planePitch = 0;
+    this.kid.root.visible = false; this.dog.root.visible = false;   // the plane is the avatar
+    this.kid.setPos(this.px, this.pz);
+    this.updateCamera(0, true);   // snap behind the plane, down the runway
+    this.hud.setObjective('✈️ Lifting off Runway 28 — steer to bank over town · press L to land');
+    this.audio.gull();
+    this.quest?.refresh();
+  }
+  land() {
+    if (!this.flying) return;
+    this.hud.fadeThrough(() => {
+      this.flying = false;
+      if (this.ridePlane) this.ridePlane.visible = false;
+      this.kid.root.visible = true; this.dog.root.visible = true;
+      this.kidY = this.terrain.heightAt(this.px, this.pz);   // set down where you are
+      this.flySpeed = 0;
+      this.updateCamera(0, true);
+      this.quest?.refresh();
+    });
+  }
+
+  // ✈️ flight step: forward at cruise, steer to turn, pitch to climb/descend. Returns
+  // the new world (x,z); altitude + bank land on fields. Uncrashable (soft ground floor).
+  private stepFlight(dt: number, ix: number, iz: number): { nx: number; nz: number } {
+    const steer = ix;        // -1..1 left/right
+    const pitch = -iz;       // push up on the stick (iz<0) => climb
+    const groundY = this.terrain.heightAt(this.px, this.pz);
+    if (this.flyPhase === 'roll') {
+      this.flySpeed += 430 * dt;                         // accelerate down the runway
+      if (this.flySpeed > 560) this.flyPhase = 'climb';  // rotate / lift off
+    } else {
+      this.flySpeed += (CRUISE_SPEED - this.flySpeed) * Math.min(1, dt * 0.8);
+    }
+    const turnK = this.flyPhase === 'roll' ? 0.15 : 1.0; // barely steer on the ground
+    if (this.flySpeed > 40) this.planeAz += steer * turnK * dt;
+    if (this.flyPhase === 'climb') {
+      this.flyY += 240 * dt;
+      if (this.flyY > groundY + CRUISE_ALT) this.flyPhase = 'cruise';
+    } else if (this.flyPhase === 'cruise') {
+      const target = groundY + CRUISE_ALT + pitch * 280; // pitch nudges the hold altitude
+      this.flyY += (target - this.flyY) * Math.min(1, dt * 1.1);
+    }
+    this.flyY = Math.max(groundY + 16, this.flyY);       // soft floor — never crash
+    this.planeRoll += (-steer * 0.5 - this.planeRoll) * Math.min(1, dt * 4);
+    const pitchTarget = this.flyPhase === 'climb' ? 0.2 : -pitch * 0.14;
+    this.planePitch += (pitchTarget - this.planePitch) * Math.min(1, dt * 3);
+    let d = this.planeAz - this.camAz;                   // camera eases behind the heading
+    while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+    this.camAz += d * Math.min(1, dt * 2.2);
+    return {
+      nx: this.px + Math.sin(this.planeAz) * this.flySpeed * dt,
+      nz: this.pz + Math.cos(this.planeAz) * this.flySpeed * dt,
+    };
+  }
+
   // ---------- Chapter 4/5 interiors (den, star room) — reuse the tunnel swap ----------
 
   private enterInterior(scene: Interior, vignette: boolean) {
@@ -866,6 +1001,13 @@ export class Game {
       if (jm > 0.08) { ix = this.hud.joyX; iz = this.hud.joyY; }
       else { ix = 0; iz = 0; }
     }
+
+    // ✈️ flight is its own movement path (forward at cruise + steer, no ground
+    // collision); the on-foot / boat block below is skipped while flying.
+    let nx = this.px, nz = this.pz;
+    if (this.flying) {
+      ({ nx, nz } = this.stepFlight(dt, ix, iz));
+    } else {
     // ...mapped through the camera azimuth (W = away from camera)
     const fwdX = Math.sin(this.camAz), fwdZ = Math.cos(this.camAz);
     const rightX = -Math.cos(this.camAz), rightZ = Math.sin(this.camAz);
@@ -923,7 +1065,7 @@ export class Game {
     const moveX = vx * speed * dt, moveZ = vz * speed * dt;
     const steps = Math.max(1, Math.ceil(Math.hypot(moveX, moveZ) / 4));
     const stepX = moveX / steps, stepZ = moveZ / steps;
-    let nx = this.px, nz = this.pz;
+    nx = this.px; nz = this.pz;
     const slip = 3;   // how far to nudge sideways to clear a corner each sub-step
     for (let s = 0; s < steps; s++) {
       const okX = stepX !== 0 && free(nx + stepX, nz);
@@ -961,6 +1103,7 @@ export class Game {
         }
       }
     }
+    }   // end of the on-foot / boat movement (skipped while flying)
 
     if (!this.inside) {
       const b = this.world.meta.bounds;
@@ -981,6 +1124,7 @@ export class Game {
     const terrainY = this.inside ? 0 : this.boating ? WATER_Y : this.terrain.heightAt(this.px, this.pz);
     const surfY = this.inside ? 0 : this.boating ? WATER_Y : this.index.surfaceYAt(this.px, this.pz, this.kidY);
     this.kidY += (surfY - this.kidY) * Math.min(1, dt * 12);
+    if (this.flying) this.kidY = this.flyY;   // ✈️ altitude overrides the terrain-follow
     // hop low fences/hedges (they no longer block) — a quick arc as you cross one
     const nearFence = !this.inside && !this.boating && this.index.lowBarrierNear(this.px, this.pz);
     if (Math.hypot(realVx, realVz) > 4 && nearFence && !this.wasNearFence && this.hopT <= 0) this.hopT = 0.5;
@@ -1000,9 +1144,17 @@ export class Game {
       this.rideBoat.rotation.y = this.boatAz;
       if (!this.beached && Math.hypot(this.px - BOAT_DOOR.x, this.pz - BOAT_DOOR.z) < 120) this.endBoat();
     }
+    // ✈️ scenic flight: the plane rides at altitude, banks into turns, prop spins
+    if (this.flying && this.ridePlane) {
+      this.ridePlane.position.set(this.px, this.flyY, this.pz);
+      this.ridePlane.rotation.set(this.planePitch, this.planeAz, this.planeRoll, 'YXZ');
+      if (this.ridePlaneProp) this.ridePlaneProp.rotation.z += dt * 38;
+    }
 
     const still = Math.hypot(realVx, realVz) < 1;
-    if (this.boating) {
+    if (this.flying) {
+      // Clipper waits at the airport during the flight (hidden); rejoined on landing
+    } else if (this.boating) {
       // Clipper rides up in the bow, facing the water ahead (the boat's heading)
       this.dog.root.position.set(this.px + Math.sin(this.boatAz) * 17, this.kidY + 7.4, this.pz + Math.cos(this.boatAz) * 17);
       this.dog.faceTo(this.boatAz);
@@ -1045,7 +1197,9 @@ export class Game {
         this.hud.showRunTip();
       }
     }
-    if (this.chaseCam) {
+    if (this.flying) {
+      // stepFlight already eases the camera behind the plane's heading
+    } else if (this.chaseCam) {
       if (movingNow) this.camAz = lerpAngle(this.camAz, Math.atan2(realVx, realVz), Math.min(1, dt * 2.2));
     } else {
       this.camAz = lerpAngle(this.camAz, Math.PI, Math.min(1, dt * 3));
@@ -1116,6 +1270,16 @@ export class Game {
     this.pollAcc += dt;
     if (this.pollAcc > 0.45) {
       this.pollAcc = 0;
+      // ✈️ board prompt: on foot near the airport runway, offer to fly. Edge-triggered
+      // like the quest's action button, and the airport sits far from any quest
+      // candidate, so the two never fight over the button.
+      const nearRunway = this.flightDev && !this.flying && !this.inside && !this.boating
+        && Math.hypot(this.px - RUNWAY_START.x, this.pz - RUNWAY_START.z) < 280;
+      if (nearRunway !== this.flyPrompt) {
+        this.flyPrompt = nearRunway;
+        if (nearRunway) this.hud.showTalk('✈️ FLY', () => this.enterPlane());
+        else this.hud.showTalk(null);
+      }
       this.hud.setStreet(this.inTunnel ? 'the tunnels' : this.interior ? this.interior.name : this.index.nearestRoadName(this.px, this.pz, 170));
       if (!this.inside) {
         // tunnel coords overlap downtown's — minimap dot, gull logic, and
@@ -1161,6 +1325,23 @@ export class Game {
   }
 
   private updateCamera(dt: number, snap = false) {
+    // ✈️ flight: a wide chase cam high + behind the plane, looking ahead and down over
+    // the town. No building-occlusion clamp (you're in the air); fog opened for the vista.
+    if (this.flying) {
+      const fx = Math.sin(this.camAz), fz = Math.cos(this.camAz);
+      const tx = this.px - fx * 250, ty = this.flyY + 155, tz = this.pz - fz * 250;
+      if (snap) this.camera.position.set(tx, ty, tz);
+      else {
+        const f = 1 - Math.exp(-4 * dt);
+        this.camera.position.x += (tx - this.camera.position.x) * f;
+        this.camera.position.y += (ty - this.camera.position.y) * f;
+        this.camera.position.z += (tz - this.camera.position.z) * f;
+      }
+      this.camera.lookAt(this.px + fx * 360, this.flyY - 60, this.pz + fz * 360);
+      const ffog = this.scene.fog as THREE.Fog;
+      ffog.near = 1100; ffog.far = 5400;
+      return;
+    }
     // interiors (tunnel/den/star) use a steep, close dungeon camera so the room
     // walls between the camera and the kid never occlude
     const z = this.inside ? 0.52 : this.camZoom;
