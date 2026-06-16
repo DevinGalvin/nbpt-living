@@ -223,21 +223,22 @@ export class Kid {
     this.headGrp.rotation.y = this.glanceY;
 
     if (riding) {
-      // pedal circles instead of strides; hands on the bars
+      // seated on the bike: a gentle lean (kids ride fairly upright), thighs hanging
+      // to the cranks just below the hips and pedalling in circles, hands on the bars
       const pa = this.phase;
-      this.thighL.rotation.x = 0.6 + Math.sin(pa) * 0.5;
-      this.thighR.rotation.x = 0.6 + Math.sin(pa + Math.PI) * 0.5;
-      this.shinL.rotation.x = 0.45 + Math.max(0, -Math.cos(pa)) * 0.55;
-      this.shinR.rotation.x = 0.45 + Math.max(0, -Math.cos(pa + Math.PI)) * 0.55;
-      this.upperL.rotation.x = -0.95;
-      this.upperR.rotation.x = -0.95;
-      this.foreL.rotation.x = -0.32;
-      this.foreR.rotation.x = -0.32;
+      this.tilt.rotation.x = 0.12;
+      this.thighL.rotation.x = 0.28 + Math.sin(pa) * 0.4;
+      this.thighR.rotation.x = 0.28 + Math.sin(pa + Math.PI) * 0.4;
+      this.shinL.rotation.x = 0.55 + Math.max(0, -Math.cos(pa)) * 0.6;
+      this.shinR.rotation.x = 0.55 + Math.max(0, -Math.cos(pa + Math.PI)) * 0.6;
+      this.upperL.rotation.x = -0.55;
+      this.upperR.rotation.x = -0.55;
+      this.foreL.rotation.x = -0.28;
+      this.foreR.rotation.x = -0.28;
       this.bodyGroup.rotation.y = 0;
-      this.tilt.position.y = Math.sin(this.phase * 2) * 0.3;
+      this.tilt.position.y = Math.sin(this.phase * 2) * 0.2;
       this.bodyGroup.scale.y = 1;
-      this.tilt.rotation.x = 0.34;
-      this.headGrp.rotation.x = -0.22;
+      this.headGrp.rotation.x = -0.06;
     }
 
     // blink
