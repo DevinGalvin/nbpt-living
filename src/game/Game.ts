@@ -243,7 +243,7 @@ export class Game {
     let sx = 0, sz = 40;
     try {
       const r = JSON.parse(localStorage.getItem('nbpt-resume-pos') || 'null');
-      if (r && typeof r.x === 'number' && typeof r.z === 'number') { sx = r.x; sz = r.z; localStorage.removeItem('nbpt-resume-pos'); }
+      if (r && typeof r.x === 'number' && typeof r.z === 'number') { sx = r.x; sz = r.z; }   // keep it: the poll keeps it current, so any refresh resumes here; a story reset clears it
     } catch { /* ignore */ }
     const spawn = this.findFree(sx, sz);
     this.px = spawn.x;
@@ -942,11 +942,23 @@ export class Game {
         }
       }
     }
-    // safety net: nothing should ever trap you fully inside a wall — if it does
-    // (a car, the bounds clamp, a teleport), nudge out to the nearest open ground
-    if (!this.inside && !this.boating && this.index.isBlocked(nx, nz)) {
-      for (const [dx, dz] of [[6, 0], [-6, 0], [0, 6], [0, -6], [10, 10], [-10, 10], [10, -10], [-10, -10]] as const) {
-        if (!this.index.isBlocked(nx + dx, nz + dz)) { nx += dx; nz += dz; break; }
+    // safety net: nothing should ever trap you fully — a wall, the bounds clamp, a
+    // teleport, OR a car/pedestrian that drove onto you (life obstacles). The old
+    // version only checked walls with tiny nudges, so a car (radius ~20) could pin
+    // you with no escape. Now: push out to the nearest open ground, ringing outward
+    // far enough to clear a car.
+    if (!this.inside && !this.boating) {
+      const stuck = (x: number, z: number) => this.index.isBlocked(x, z) || !!(this.life && this.life.obstacleAt(x, z));
+      if (stuck(nx, nz)) {
+        for (const r of [10, 18, 26, 34, 44] as const) {
+          let freed = false;
+          for (let a = 0; a < 8; a++) {
+            const ang = (a / 8) * Math.PI * 2;
+            const tx = nx + Math.cos(ang) * r, tz = nz + Math.sin(ang) * r;
+            if (!stuck(tx, tz)) { nx = tx; nz = tz; freed = true; break; }
+          }
+          if (freed) break;
+        }
       }
     }
 
@@ -1108,6 +1120,8 @@ export class Game {
         // tunnel coords overlap downtown's — minimap dot, gull logic, and
         // landmark banners would all lie underground
         this.hud.setMiniPos(this.px, this.pz);
+        // remember where you are so a refresh (or a crash) resumes here, not at the start
+        if (!this.boating) localStorage.setItem('nbpt-resume-pos', JSON.stringify({ x: Math.round(this.px), z: Math.round(this.pz) }));
         this.updateLampSpots();
         this.nearWater = this.index.isWaterAt(this.px, this.pz - 230)
           || this.index.isWaterAt(this.px + 230, this.pz) || this.index.isWaterAt(this.px - 230, this.pz)
