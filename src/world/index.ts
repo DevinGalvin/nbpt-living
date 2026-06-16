@@ -818,27 +818,9 @@ export class WorldIndex {
     for (const ri of bucket.rails) this.drawRail(ctx, w.rails[ri].p);
 
     const roads = bucket.roads.map((i) => w.roads[i]).sort((a, b) => (ROAD_RANK[a.c] || 0) - (ROAD_RANK[b.c] || 0));
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    for (const r of roads) {
-      ctx.strokeStyle = r.b ? STYLE.road.bridgeCasing : STYLE.road.casing;
-      ctx.lineWidth = r.w + (r.b ? 8 : 5);
-      strokeLine(ctx, r.p);
-    }
-    for (const r of roads) {
-      ctx.strokeStyle = roadFill(STYLE.road[r.c] || STYLE.road.residential);
-      ctx.lineWidth = r.w;
-      strokeLine(ctx, r.p);
-    }
-    ctx.setLineDash([16, 26]);
-    ctx.strokeStyle = STYLE.road.centerline;
-    ctx.lineWidth = 2.5;
-    for (const r of roads) {
-      if (r.c === 'primary' || r.c === 'secondary' || r.c === 'trunk') strokeLine(ctx, r.p);
-    }
-    ctx.setLineDash([]);
-
-    // driveways (this chunk + neighbors, so they cross chunk borders seamlessly)
+    // driveways go down FIRST, under the roads (this chunk + neighbors, so they cross
+    // chunk borders) — the road casing/fill then paints over the curb overlap, so a
+    // driveway meets the street cleanly instead of bleeding onto the asphalt.
     ctx.lineCap = 'butt';
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
@@ -865,6 +847,24 @@ export class WorldIndex {
       }
     }
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const r of roads) {
+      ctx.strokeStyle = r.b ? STYLE.road.bridgeCasing : STYLE.road.casing;
+      ctx.lineWidth = r.w + (r.b ? 8 : 5);
+      strokeLine(ctx, r.p);
+    }
+    for (const r of roads) {
+      ctx.strokeStyle = roadFill(STYLE.road[r.c] || STYLE.road.residential);
+      ctx.lineWidth = r.w;
+      strokeLine(ctx, r.p);
+    }
+    ctx.setLineDash([16, 26]);
+    ctx.strokeStyle = STYLE.road.centerline;
+    ctx.lineWidth = 2.5;
+    for (const r of roads) {
+      if (r.c === 'primary' || r.c === 'secondary' || r.c === 'trunk') strokeLine(ctx, r.p);
+    }
+    ctx.setLineDash([]);
 
     for (const pi of bucket.paths) this.drawPath(ctx, w.paths[pi]);
 
