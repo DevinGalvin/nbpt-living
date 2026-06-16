@@ -940,6 +940,11 @@ export class Hud {
   // the quest sets the whole bag every apply(); this drives the button's spring-in/wiggle
   setBag(items: BagItem[]) {
     this.bagItems = items;
+    // visibility is a plain invariant: the 🎒 button is shown whenever the bag has
+    // anything. Recomputed every call so a reload (e.g. a season change) always
+    // re-reveals a non-empty bag, independent of the pop/new-item bookkeeping below
+    // (which only drives the one-time spring-in, the wiggle, and the NEW badge).
+    if (items.length) (document.querySelector('#hud .bag-btn') as HTMLElement | null)?.classList.add('show');
     const ids = items.map((i) => i.id);
     // the very first call is the constructor's mount: if a loaded save already has
     // items, reveal the button silently (no pop) and remember them as already-seen
@@ -964,9 +969,9 @@ export class Hud {
   }
 
   private revealBag(pop: boolean) {
-    this.bagEverShown = true;
     const btn = document.querySelector('#hud .bag-btn') as HTMLElement | null;
-    if (!btn) return;
+    if (!btn) return;                 // never latch bagEverShown if the button isn't mounted yet
+    this.bagEverShown = true;
     btn.classList.add('show');
     if (pop) {
       requestAnimationFrame(() => {
