@@ -939,7 +939,7 @@ export class Game {
     this.wasNearFence = nearFence;
     if (this.hopT > 0) this.hopT = Math.max(0, this.hopT - dt);
     const hop = this.hopT > 0 ? Math.sin((1 - this.hopT / 0.5) * Math.PI) * 8 : 0;
-    this.kid.root.position.y = this.kidY + hop + (this.riding ? 7.5 : 0);
+    this.kid.root.position.y = this.kidY + hop + (this.riding ? 2 : 0);
     if (this.riding) {
       this.bike.root.position.set(this.px, this.kidY, this.pz);
       this.bike.update(dt, Math.hypot(realVx, realVz), this.kid.facing);
