@@ -973,6 +973,7 @@ export class Game {
     this.pz = nz;
     this.kid.setPos(this.px, this.pz);
     this.kid.update(dt, realVx, realVz, this.sprinting, this.riding, this.boating);
+    this.kid.setBackpack(this.hud.hasBackpack());   // worn pack appears once the 🎒 is earned
 
     // ride the real terrain, bridge decks, and docks (the tunnel floor is flat).
     // Decks are entered where they meet the grade — passing beneath a raised

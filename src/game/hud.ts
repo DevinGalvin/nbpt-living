@@ -63,10 +63,17 @@ const css = `
   background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: top 0.3s ease;
 }
 #hud .season-toggle:hover { border-color: #d8b94a; }
+/* the 🎒 backpack button (top:170) stays hidden until the player earns it; while it's
+   absent, slide the season toggle (and its popover) up into that slot so the button sits
+   flush under the compass instead of leaving a gap. Both ease back down once it appears. */
+#hud .bag-btn:not(.show) ~ .season-toggle,
+#hud .bag-btn:not(.show) ~ .season-pop { top: 170px; }
 #hud .season-pop {
   position: absolute; top: 222px; left: 66px; min-width: 152px;
+  transition: top 0.3s ease;
   background: var(--panel); border: 1.5px solid rgba(216,185,74,0.5); border-radius: 12px;
   padding: 7px; z-index: 40; display: none; pointer-events: auto;
   box-shadow: 0 8px 24px rgba(0,0,0,0.45);
@@ -982,6 +989,10 @@ export class Hud {
     if (gotNew) this.paintBagBadge();
     if (this.bagPanelOpen) this.renderBag();
   }
+
+  // has the player earned the backpack? (latches once the 🎒 is first revealed) —
+  // the Kid mirrors this to render a pack on his back. See Kid.setBackpack.
+  hasBackpack(): boolean { return this.bagEverShown; }
 
   private revealBag(pop: boolean) {
     const btn = document.querySelector('#hud .bag-btn') as HTMLElement | null;

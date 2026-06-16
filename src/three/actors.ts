@@ -62,6 +62,7 @@ export class Kid {
   private tilt = new THREE.Group();    // forward lean + bounce
   private bodyGroup = new THREE.Group();
   private headGrp = new THREE.Group();
+  private pack = new THREE.Group();    // worn backpack — hidden until earned (setBackpack)
   private thighL: THREE.Group;
   private thighR: THREE.Group;
   private shinL: THREE.Group;
@@ -152,13 +153,31 @@ export class Kid {
     [this.upperL, this.foreL] = mkArm(-1);
     [this.upperR, this.foreR] = mkArm(1);
 
-    this.bodyGroup.add(body, hood, pocket, this.headGrp, this.upperL, this.upperR);
+    // a little backpack — worn once the player earns it (Kid.setBackpack), so the 🎒
+    // you carry shows on your back. Amber/gold to echo the gold-ringed bag button and
+    // pop against the crimson hoodie; brown straps over the shoulders sell it from the
+    // front too. Sits on the torso's back (-z) so it rides + bobs with the body.
+    const PACK = '#c2912f', PACK_DK = '#9c6f24', STRAP = '#5f4a2a', BUCKLE = '#e8c44f';
+    const packBody = rbox(8.6, 10, 4.2, 1.5, PACK);   packBody.position.set(0, 18.4, -5.2);
+    const packLid = rbox(9, 3.6, 4.6, 1.4, PACK_DK);  packLid.position.set(0, 22.2, -5.0);
+    const packPocket = rbox(5.6, 4.6, 1.6, 1, PACK_DK); packPocket.position.set(0, 16.6, -7.4);
+    const buckle = rbox(2.4, 1.1, 0.8, 0.4, BUCKLE);  buckle.position.set(0, 18.2, -8.3);
+    const strap = (sx: number) => { const s = rbox(1.7, 11.5, 1.5, 0.7, STRAP); s.position.set(sx * 2.9, 19.4, 3.6); s.rotation.z = sx * 0.05; return s; };
+    const overShoulder = (sx: number) => { const s = rbox(1.7, 1.6, 7.4, 0.7, STRAP); s.position.set(sx * 2.9, 24.6, 0); return s; };
+    this.pack.add(packBody, packLid, packPocket, buckle, strap(-1), strap(1), overShoulder(-1), overShoulder(1));
+    this.pack.visible = false;
+
+    this.bodyGroup.add(body, hood, pocket, this.pack, this.headGrp, this.upperL, this.upperR);
     this.tilt.add(this.thighL, this.thighR, this.bodyGroup);
     this.bank.add(this.tilt);
     this.heading.add(this.bank);
     this.heading.rotation.y = this.faceAngle;
     this.root.add(this.heading, blobShadow(9));
   }
+
+  // show/hide the worn backpack (earned via the 🎒). Idempotent — Game pushes this
+  // every frame from hud.hasBackpack().
+  setBackpack(on: boolean) { this.pack.visible = on; }
 
   // vx/vz = velocity in world px/s
   update(dt: number, vx: number, vz: number, sprinting: boolean, riding = false, boating = false) {
