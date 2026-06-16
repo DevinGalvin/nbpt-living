@@ -140,7 +140,7 @@ export class Game {
   private planePitch = 0;      // visual pitch, eased
   private flySpeed = 0;        // forward speed, ramps up for takeoff
   private flyPhase: 'roll' | 'climb' | 'cruise' = 'roll';
-  private flyPrompt = false;   // edge state for the airport "✈️ FLY" action button
+  private flyAct: 'fly' | 'land' | null = null;   // edge state for the FLY / LAND action button
   private flightDev = false;   // flight is private for now — only opted-in devices (see ?fly)
   private keys = new Set<string>();
   private chunks = new Map<string, ChunkEntry>();
@@ -733,6 +733,7 @@ export class Game {
   }
   private startFlight() {
     this.flying = true;
+    this.hud.flying = true;
     if (this.riding) this.toggleBike();
     if (!this.ridePlane) this.ridePlane = this.buildRidePlane();
     this.ridePlane.visible = true;
@@ -753,6 +754,7 @@ export class Game {
     if (!this.flying) return;
     this.hud.fadeThrough(() => {
       this.flying = false;
+      this.hud.flying = false;
       if (this.ridePlane) this.ridePlane.visible = false;
       this.kid.root.visible = true; this.dog.root.visible = true;
       this.kidY = this.terrain.heightAt(this.px, this.pz);   // set down where you are
@@ -1270,14 +1272,18 @@ export class Game {
     this.pollAcc += dt;
     if (this.pollAcc > 0.45) {
       this.pollAcc = 0;
-      // ✈️ board prompt: on foot near the airport runway, offer to fly. Edge-triggered
-      // like the quest's action button, and the airport sits far from any quest
-      // candidate, so the two never fight over the button.
-      const nearRunway = this.flightDev && !this.flying && !this.inside && !this.boating
-        && Math.hypot(this.px - RUNWAY_START.x, this.pz - RUNWAY_START.z) < 280;
-      if (nearRunway !== this.flyPrompt) {
-        this.flyPrompt = nearRunway;
-        if (nearRunway) this.hud.showTalk('✈️ FLY', () => this.enterPlane());
+      // ✈️ flight action button (dev only): LAND while flying, FLY on the runway. The
+      // quest yields its own action button while flying (QuestRunner), so no conflict.
+      let flyAct: 'fly' | 'land' | null = null;
+      if (this.flightDev) {
+        if (this.flying) flyAct = 'land';
+        else if (!this.inside && !this.boating
+          && Math.hypot(this.px - RUNWAY_START.x, this.pz - RUNWAY_START.z) < 280) flyAct = 'fly';
+      }
+      if (flyAct !== this.flyAct) {
+        this.flyAct = flyAct;
+        if (flyAct === 'land') this.hud.showTalk('🛬 LAND', () => this.land());
+        else if (flyAct === 'fly') this.hud.showTalk('✈️ FLY', () => this.enterPlane());
         else this.hud.showTalk(null);
       }
       this.hud.setStreet(this.inTunnel ? 'the tunnels' : this.interior ? this.interior.name : this.index.nearestRoadName(this.px, this.pz, 170));

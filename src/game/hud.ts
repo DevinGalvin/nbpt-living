@@ -474,6 +474,7 @@ export class Hud {
   guide: { x: number; z: number } | null = null;
   // true while rowing the boat out at low tide (Chapter 4) — quest UI keys off it
   boating = false;
+  flying = false;   // ✈️ scenic flight — the quest yields its action button so LAND owns it
 
   private dlgEl!: HTMLElement;
   private dlgWho!: HTMLElement;
