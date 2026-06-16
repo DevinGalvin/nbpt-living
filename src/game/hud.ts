@@ -98,6 +98,8 @@ const css = `
 }
 #hud .bike-btn.show { display: flex; }
 #hud .bike-btn.on { background: rgba(216, 185, 74, 0.45); border-color: #e8c44f; }
+/* indoors (tunnels + interiors) is walk-only — hide the run + bike buttons there */
+#hud.indoors .run-btn, #hud.indoors .bike-btn { display: none !important; }
 #hud .travel-panel {
   position: absolute; inset: 0; background: rgba(12, 17, 24, 0.72); z-index: 60;
   display: none; align-items: center; justify-content: center; pointer-events: auto;
@@ -1126,6 +1128,12 @@ export class Hud {
   setRunState(on: boolean) {
     const btn = document.querySelector('#hud .run-btn') as HTMLElement | null;
     btn?.classList.toggle('on', on);
+  }
+
+  // walk-only indoors: tag #hud so CSS hides the run + bike buttons (Game pushes
+  // this every frame; classList.toggle is a no-op when the state is unchanged)
+  setIndoors(on: boolean) {
+    document.getElementById('hud')?.classList.toggle('indoors', on);
   }
 
   // ---------- address bar ----------

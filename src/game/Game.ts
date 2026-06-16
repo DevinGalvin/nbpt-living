@@ -517,6 +517,16 @@ export class Game {
     this.audio.bell();
   }
 
+  /** Take the bike off, unconditionally. The tunnel/interior entries flip their
+   *  indoor flag before dismounting, so the guarded toggleBike() above would
+   *  no-op there — this path always works (and skips the bell). */
+  private dismount() {
+    if (!this.riding) return;
+    this.riding = false;
+    this.bike.root.visible = false;
+    this.hud.setBikeState(false);
+  }
+
   // surfaces the button the moment the bike is earned
   bikeEarned() {
     this.hud.showBike(true);
@@ -542,7 +552,7 @@ export class Game {
       this.dogY = 0;
       this.dog.root.position.set(this.px + 14, 0, this.pz - 8);
       this.camAz = Math.PI; // face down the corridor
-      if (this.riding) this.toggleBike();
+      this.dismount();
       this.audio.setUnderground(true);
       this.audio.stoneScrape();
       this.hud.setVignette(true);
@@ -650,7 +660,7 @@ export class Game {
     this.dogY = 0;
     this.dog.root.position.set(this.px + 12, 0, this.pz - 6);
     this.camAz = Math.PI;
-    if (this.riding) this.toggleBike();
+    this.dismount();
     this.hud.setVignette(vignette);
     this.updateCamera(0.016, true);
   }
@@ -827,6 +837,7 @@ export class Game {
     const dt = Math.min(0.05, (t - this.lastTime) / 1000 || 0.016);
     this.lastTime = t;
     this.updateDynamicResolution(dt);
+    this.hud.setIndoors(this.inside);   // walk-only spaces hide the run + bike buttons
 
     const k = this.keys;
     // screen-space input ...
@@ -863,7 +874,11 @@ export class Game {
     vx = this.aimX; vz = this.aimZ;
 
     this.sprinting = this.autoRun || k.has('ShiftLeft') || k.has('ShiftRight') || this.hud.sprintTouch;
-    let speed = this.riding ? 530 : this.sprinting ? SPRINT : JOG;
+    // indoors (tunnels + hand-built interiors) is walk-only: no run, no sprint,
+    // no bike — the rooms are small and a kid mashing run shouldn't rocket around
+    // them. Force a walk regardless of the run toggle or any stray riding state.
+    if (this.inside) this.sprinting = false;
+    let speed = this.inside ? JOG : this.riding ? 530 : this.sprinting ? SPRINT : JOG;
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
     // streets are controllable. The joystick still gives proportional speed below
