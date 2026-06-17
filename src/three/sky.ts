@@ -248,13 +248,15 @@ export class Sky {
     this.sun.position.set(camPos.x + trueDir.x * SKY_DIST, camPos.y + trueDir.y * SKY_DIST, camPos.z + trueDir.z * SKY_DIST);
     (this.sun.material as THREE.MeshBasicMaterial).color.copy(s.sunColor);
     (this.sun.material as THREE.MeshBasicMaterial).opacity = clamp((elev + 0.06) / 0.12, 0, 1);
-    this.sun.visible = elev > -0.06;
+    // hide the sun disc during the cinematic dusk (the birdwatcher cutaway) so you never
+    // watch it travel down — the sky + lighting still ease to dusk, but no disc moves
+    this.sun.visible = elev > -0.06 && !this.cine;
     // moon opposite the sun (its own direction: horizontally opposite, height mirrors
     // the sun's elevation), pinned at the same camera-relative far distance
     const moonDir = new THREE.Vector3(-trueDir.x, -elev, -trueDir.z).normalize();
     this.moon.position.set(camPos.x + moonDir.x * SKY_DIST, camPos.y + moonDir.y * SKY_DIST, camPos.z + moonDir.z * SKY_DIST);
     (this.moon.material as THREE.MeshBasicMaterial).opacity = clamp((-elev + 0.04) / 0.18, 0, 1) * 0.95;
-    this.moon.visible = elev < 0.04;
+    this.moon.visible = elev < 0.04 && !this.cine;   // …and no moon rising mid-cutaway either
 
     // ---- precipitation ----
     this.rainMat.opacity = clamp(wet * 1.15, 0, 1) * (this.snowMode ? 0.85 : 0.6);
