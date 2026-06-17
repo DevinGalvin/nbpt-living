@@ -7,19 +7,26 @@ TypeScript + Vite. Live at **https://clippertown.io**.
 > (the "I found my house!" hook landed). A LOT has shipped since launch — see §5. Every
 > build stamps its commit at `window.__build`.
 >
-> **🎯 LEVEL 2 — DECIDED & BUILDING (gated).** "The Light That Walks": a cozy lighthouse
-> mystery, fall→winter→Christmas. The arc is now **land→sea→sky** (L1 land/summer = shipped;
-> L2 sea/winter; L3 sky/spring). **Flight moved to Level 3** (its spring / post-game home —
-> finally a reason for the dev-gated plane). L2 kid spine: a spooky light off **Joppa Flats**
-> (earn **binoculars**) → **kayak** to the river mouth (the lighthouse *walked* — real NBPT
-> history) → the channel shifted + a storm's coming → **"Bring the light home"**: the big
-> stormy night with **NO peril and NO player-rescues** (Devin cut that — it breaks the
-> kind-by-default pillar) — you relight the lighthouse, sweep the beam to *find* the boats,
-> and the town lights up in answer → Christmas morning. **Built + verified so far: Ch 6
-> beat 1** (the Joppa birdwatcher + binoculars + the mystery-light reveal). **GATED exactly
-> like flight:** `?l2=1` latches `localStorage nbpt-l2`; all Level 2 sits behind the
+> **🎯 LEVEL 2 "The Light That Walks" — Chapters 1 + 2 BUILT & verified (gated).** A cozy
+> lighthouse mystery, fall→winter→Christmas. The arc is **land→sea→sky** (L1 land/summer =
+> shipped; L2 sea/winter; L3 sky/spring). **Flight moved to Level 3** (its spring/post-game
+> home). **Gated like flight:** `?l2=1` latches `localStorage nbpt-l2`; all L2 sits behind the
 > `quest.l2` flag, so the public game still ends at the Custom House (verified gate-off).
-> **Don't un-gate until we publish.** Next = beat 2 (the kayak). See the `nbpt-level2` memory.
+> **Don't un-gate until we publish.**
+> - **Ch1 "The False Light"** — the Joppa Flats birdwatcher (with a clamming-heritage beat) hands
+>   you **binoculars**, then a cinematic cutaway swings the camera out to sea, dips the sky to
+>   dusk, and reveals a mystery light glowing on the dark water.
+> - **Ch2 "The Walking Light"** — home to **Gram (who now lives in Joppa)** → take your late
+>   grandfather's **kayak** at the Joppa slip → paddle way out → the "light" is a drowned granite
+>   lighthouse foundation: it *walked* (real NBPT history). Hook → "so who's been lighting it?"
+> - **The free-roam KAYAK** (earned in Ch2, key `nbpt-kayak`): a 🛶 KAYAK button at any water's
+>   edge launches you; paddle the open sea (water OR submerged ground); 🛶 HOP OUT to any shore.
+> - The **Journey panel** ("JOURNEY") is reorganized: story grouped by named **Level** (L1 "The
+>   Smugglers' Map", L2 "The Light That Walks"), chapters renumber within each, + a **Story |
+>   Collections** tab toggle. The objective pill's icon is now a live steering **arrow**.
+> - **NEXT: Chapter 3** — who/what is lighting the ghost (mooncusser/keeper thread → the storm
+>   /Christmas finale; planned beats: channel shifted, "Bring the light home" — cozy, NO rescue).
+>   See the `nbpt-level2` memory. Legacy chapter keys continue: Ch1 = `nbpt-ch5-step`, Ch2 = `nbpt-ch6-step`.
 >
 > Also live but **private/dev-gated**: a **scenic flight** from Plum Island Airport
 > (`clippertown.io/?fly=1` to enable on a device) — see §5 + the `nbpt-flight-prototype` memory.
@@ -101,9 +108,13 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
   (applies `Sky`'s palette to sun/hemi/fog each frame), a **street-lamp light pool**
   (16 warm PointLights + glow discs that follow the nearest lamps, on only at night),
   the interior scene-swap (`enterNews`/`enterDen`/`enterStar`/tunnel), the
-  first-visit welcome card + one-time "press R to run" toast, and **✈️ scenic flight**
+  first-visit welcome card + one-time "press R to run" toast, **✈️ scenic flight**
   (`enterPlane`/`startFlight`/`stepFlight`, a `flying` branch in `frame()` + `updateCamera`,
-  the ground **skirt** for the horizon, the worn-backpack toggle; dev-gated via `?fly`).
+  the ground **skirt** for the horizon, the worn-backpack toggle; dev-gated via `?fly`),
+  the **🛶 free-roam kayak** (`enterKayak`/`exitKayak`/`buildKayak`, a `kayaking` mode + the
+  `onWater` getter; water-confined `free`; the unstick net is land-only), and the Level 2
+  **"look out to sea" cinematic** (`cineLook` + `lookOutToSea`/`endLookOut`; movement freeze;
+  far-plane/fog opened on water).
 - `src/world/index.ts` — **WorldIndex**: spatial buckets, the painted **ground canvas**
   (`fillPoly`/`terrainFill`), the **collision grid** (`buildCollision`, red=blocked),
   `isWaterAt`/`frozenWaterAt`/`isBlocked`/`surfaceYAt`/`lowBarrierNear`, shop signs,
@@ -129,7 +140,9 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
   hand-shaped curve (`SUN_T`/`SUN_E`) — long midday, lingering golden sunrise/sunset, and
   only a brief, shallow, *brighter* night (lamps come on then). Owns `tod` (0–1, `period`
   ≈420s), returns a per-frame lighting palette + a `night` factor `Game` uses for lamps.
-  Debug: `nbpt.time(0–1)`, `nbpt.weather(1|0|null)`.
+  Debug: `nbpt.time(0–1)`, `nbpt.weather(1|0|null)`. Has a **cinematic dusk** override
+  (`duskIn`/`duskOut` — a `cine` field that holds `tod≈0.955` then eases back; sun/moon discs
+  hidden while active) used by the Level 2 reveal cutaway.
 - `src/game/interiors.ts` — hand-built **Interior** scenes (scene-swap, follow-light,
   gold marker, exit by walking south): **NewsroomScene** (the Daily News — Chapter 3
   plays inside), **DenScene** (Ch4), **StarRoomScene** (Ch5). The tunnel (Ch1/2) is its
@@ -139,13 +152,18 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
 - `src/three/textures.ts` — procedural material textures.
 - `src/game/quest.ts` — **QuestRunner**: NPCs, the objective beacon, dialogue, the
   chapter spine + persistence (note the legacy keys: `nbpt-ch0-step` = player-facing
-  **Chapter 1 "Overdue"**, `nbpt-ch2-step` = Chapter 3 "Daily News", etc.), the library
-  door, the boat ride, the `'news'` ENTER door at the Daily News, and the `s2`/`s3`/`s4`
-  getters + `interact(tag)` the interior scenes call back into.
-- `src/game/hud.ts` — DOM HUD: objective pill, dialogue, TALK button, travel modal,
-  the **journey panel** (🧭 compass toggles it with a slide/fade; holds the carried
-  ITEMS — `setChips` just tracks the list, no HUD tray anymore — plus chapters as
-  colored dots + a "found N of M" town-history list), first-visit **welcome card**,
+  **Chapter 1 "Overdue"**, `nbpt-ch2-step` = Chapter 3 "Daily News", etc. — the off-by-one
+  continues into Level 2: `nbpt-ch5-step` = L2 Ch1 "The False Light", `nbpt-ch6-step` = L2 Ch2
+  "The Walking Light"), the library door, the boat ride, the `'news'` ENTER door, and the
+  `s2`/`s3`/`s4` getters + `interact(tag)` the interior scenes call back into. **Level 2** lives
+  here too (gated by `this.l2`): the Joppa birdwatcher + mystery light + foundation, **Gram's
+  Joppa relocation** (`gramSpot()`/`buildL2Props`), the slip dock, and the cinematic-reveal +
+  kayak-grant callbacks (`onLookSea`/`onLookEnd`/`onKayak`).
+- `src/game/hud.ts` — DOM HUD: objective pill (its icon is a live **steering arrow** pointing
+  at the beacon — `setObjectiveArrow`), dialogue, TALK button, travel modal, the **journey
+  panel** ("JOURNEY", 🧭 toggles it) — story grouped by **named Level** with chapters renumbered
+  within each (mission `level`/`levelName`/`chapter`), a **Story | Collections** tab toggle
+  (`journeyTab`), mission cards with ↻ replay, the backpack, first-visit **welcome card**,
   one-time **run-tip** toast, landmark banner, history cards, joystick.
 - `src/game/eggs.ts` — the 24 hidden secrets (`xyzzy`, statues, Marco/pet, etc.).
 - `src/game/history.ts` — gravestone/landmark "READ" plaques (true stories).
@@ -160,7 +178,37 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
 
 ## 5. Recent work
 
-**June 17, 2026 (all deployed):**
+**June 17, 2026 — LEVEL 2 build (later same day; all deployed, gated behind `?l2`):**
+- **Decided Level 2 = "The Light That Walks"** (cozy lighthouse mystery). Whole-game arc is now
+  **land→sea→sky** across L1/L2/L3; **flight moved to L3** (spring/post-game). Spine + design in
+  the top banner + the `nbpt-level2` memory.
+- **`?l2` dev-gate** (mirrors `?fly`): latches `localStorage nbpt-l2`; ALL Level 2 sits behind the
+  `quest.l2` flag — the public game is unchanged (still ends at the Custom House). Test gotcha:
+  `?l2` re-latches across reloads, so navigate to a clean URL to simulate a public visitor.
+- **Ch1 "The False Light"** (`quest.ts`) — Joppa birdwatcher + a clamming-heritage beat → earn
+  **binoculars** → a **cinematic reveal**: dialogue splits intro→(cutaway)→reveal, the camera
+  swings out over the water (`Game.cineLook` + `lookOutToSea`/`endLookOut`), the sky dips to dusk
+  (`Sky.duskIn`/`duskOut` — sun/moon discs hidden so the sun never visibly travels), and a fog-less
+  **mystery light** glows far out on the dark water (it shrinks as you approach → resolves into the
+  foundation).
+- **Ch2 "The Walking Light"** — **Gram relocated to a Joppa home** (post-L1, `gramSpot()`) → take
+  grandfather's **kayak** at the **Joppa slip** (visible plank dock + tied kayak) → paddle out to
+  the light → reaching it reveals a drowned granite **foundation**: the lighthouse *walked*.
+- **The free-roam KAYAK** (`Game.ts`, key `nbpt-kayak`) — an earnable, launch-anywhere water
+  vehicle (player-driven cousin of the Ch4 boat ride): `🛶 KAYAK`/`🛶 HOP OUT` buttons, seated
+  rowing pose, Clipper in the bow, ~80×16 box hull. Moves on water OR open sea (`free` = `isWaterAt
+  || terrain < WATER_Y`); the on-foot **unstick net is excluded on water** (it read open sea past
+  the built chunks as "blocked" and walled the kayak in — the "invisible wall" bug). Light pushed
+  way out at `LIGHT (12000,-2200)`; camera far-plane + fog open while kayaking/cutaway so it renders.
+- **Journey panel reorg** (`hud.ts`, `items.ts`) — story grouped by named **Level** (chapters
+  renumber within each), **Story | Collections** tab toggle, objective pill icon is now a live
+  steering **arrow** (was a static ◈). Mission model gained `level`/`levelName`/`chapter`.
+- **Fixes:** `findFree` avoids water (fast-travel never drops you in the sea — marches to the
+  nearest shore); scrolling a HUD modal no longer zooms the world; removed the false **"Joppa =
+  JOP-pee" pronunciation** (per Devin — untrue) from the plaque + docs.
+- **NEXT: Chapter 3** (who's lighting the ghost → the storm/Christmas finale, cozy & no-rescue).
+
+**June 17, 2026 (earlier same day — all deployed):**
 - **✈️ Scenic flight from Plum Island Airport** — a whole new vehicle/mode on the real
   **Runway 10/28**. Walk to the airfield → **✈️ FLY**, take off west over town, bank
   around, **🛬 LAND** (touch buttons; lands you where you are). Cozy + uncrashable. It's
@@ -258,16 +306,18 @@ ponds; **13 Fox Run Drive** (navy house, red door, pool).
 
 ## 6. Known gaps / follow-ups
 
-- **🎯 DECIDE "Level 2" (the next main chapter).** Open design call — see the banner at the
-  top. Leading idea: **"The Long Night"** nor'easter (present-day, no re-render, uses every
-  system; the Ridge = the real high ground). Dexter's statues = a good *side-quest*, not a
-  main level. Bring Devin options or build the storm.
-- **✈️ Flight — make it real.** Currently a working but **private prototype** (dev-gated
-  `?fly`). Next: the **1910 first-flight Echo** at the airfield (earns the plane); a proper
-  **story/post-game gate** (GAME_CONCEPT frames it as a post-game/Spring capstone); polish
-  (Clipper as co-pilot; land back at the runway instead of wherever you are; tune
-  speed/alt/camera; if it's heavy on phones, trim the flight streaming radius — the skirt
-  covers the void). See the `nbpt-flight-prototype` memory.
+- **🎯 Level 2 "The Light That Walks" — DECIDED & Chapters 1–2 built (gated `?l2`).** See the
+  banner + the `nbpt-level2` memory. **NEXT: Chapter 3** — who/what lights the ghost, toward a
+  cozy storm/Christmas finale (planned: channel-shifted recon, then **"Bring the light home"** —
+  the stormy night with **NO peril, NO player-rescues**, per the kind-by-default pillar; "The Long
+  Night" nor'easter folded in as the warm light-the-town-home climax, not a disaster). Then polish
+  the full level and decide when to **un-gate** (publish L2). Dexter's statues remain a good
+  *side-quest*; a "Clam Digger of Joppa" minigame is a natural Joppa side-activity.
+- **✈️ Flight — make it real (now earmarked as Level 3's tool).** Working but **private prototype**
+  (dev-gated `?fly`). **Level 3 = sky/spring** is its home: the **1910 first-flight Echo** at the
+  airfield earns the plane, opening the Wild Port nature layer (plovers/eagles/whales, binocular
+  bird-log). Polish: Clipper as co-pilot; land back at the runway; tune speed/alt/camera; trim
+  streaming if heavy (the skirt covers the void). See `nbpt-flight-prototype` + `nbpt-level2`.
 - **Marketing:** launched on Reddit (r/Newburyport). **Next channel = Facebook** + more subs
   (r/Massachusetts, r/WebGames, etc.) — hold the bigger pushes until the **mobile / FB
   in-app-browser** experience is verified and the build's polished. Reuse locals' phrasing
