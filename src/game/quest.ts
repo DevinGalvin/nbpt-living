@@ -206,7 +206,10 @@ const WATCHER_INTRO: Line[] = [
   { who: 'Birdwatcher', text: 'You’re the kid who found the doors under downtown. Figures you’d turn up out here at the end of the world.' },
   { who: 'You', text: 'Is that what Joppa is?' },
   { who: 'Birdwatcher', text: 'Joppa Flats. Best birding in the state — and the mud will take your boot clean off if you sass it.' },
-  { who: 'Birdwatcher', text: 'Here. My spare binoculars. I count the eider ducks; you count whatever’s been keeping you up at night.' },
+  { who: 'Birdwatcher', text: 'These flats fed the whole town once. Low tide, all of Joppa was out here in the muck, digging clams by the bushel.' },
+  { who: 'You', text: 'People dug dinner out of the mud?' },
+  { who: 'Birdwatcher', text: 'Bushels of it — best clams in New England came off these flats. Ask anyone old enough to remember.' },
+  { who: 'Birdwatcher', text: 'Anyway. Here — my spare binoculars. I count the eider ducks; you count whatever’s been keeping you up at night.' },
   { who: 'Birdwatcher', text: 'See the lighthouse, out at the river mouth? Good. Now look a little to the left of it…' }
 ];
 // shown AFTER the camera swings out to the light, so you're seeing it as she names it
