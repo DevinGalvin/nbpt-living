@@ -145,6 +145,7 @@ export class Game {
   private flySpeed = 0;        // forward speed, ramps up for takeoff
   private flyPhase: 'roll' | 'climb' | 'cruise' = 'roll';
   private flyAct: 'fly' | 'land' | null = null;   // edge state for the FLY / LAND action button
+  private skirt: THREE.Mesh | null = null;        // ✈️ ground skirt — fills the far void while flying
   private flightDev = false;   // flight is private for now — only opted-in devices (see ?fly)
   private keys = new Set<string>();
   private chunks = new Map<string, ChunkEntry>();
@@ -441,11 +442,19 @@ export class Game {
   private ensureRect(sync = false) {
     const z = this.camZoom;
     const fx = Math.sin(this.camAz), fz = Math.cos(this.camAz);
-    // cover around the player and ahead along the camera's forward direction
-    const centers: [number, number, number][] = [
-      [this.px, this.pz, 1150 * z],
-      [this.px + fx * 1250 * z, this.pz + fz * 1250 * z, 1150 * z]
-    ];
+    // cover around the player and ahead along the camera's forward direction. Flight
+    // sees far + moves fast, so load a big ring + a long forward corridor — the town is
+    // rendered before you reach it instead of popping in at the nose.
+    const centers: [number, number, number][] = this.flying
+      ? [
+          [this.px, this.pz, 1950],
+          [this.px + fx * 2200, this.pz + fz * 2200, 1650],
+          [this.px + fx * 4300, this.pz + fz * 4300, 1250],
+        ]
+      : [
+          [this.px, this.pz, 1150 * z],
+          [this.px + fx * 1250 * z, this.pz + fz * 1250 * z, 1150 * z]
+        ];
     for (const [mx, mz, rad] of centers) {
       const x0 = Math.floor((mx - rad) / CHUNK), x1 = Math.floor((mx + rad) / CHUNK);
       const z0 = Math.floor((mz - rad) / CHUNK), z1 = Math.floor((mz + rad) / CHUNK);
@@ -466,11 +475,12 @@ export class Game {
         const [bx, by] = b.split(',').map(Number);
         return ((ax - pcx) ** 2 + (ay - pcy) ** 2) - ((bx - pcx) ** 2 + (by - pcy) ** 2);
       });
-      let budget = 2;
+      let budget = this.flying ? 4 : 2;   // build the flight corridor faster
       while (budget-- > 0 && this.pending.length) this.buildChunk(this.pending.shift()!);
     }
-    // evict farthest
-    while (this.chunks.size > 110) {
+    // evict farthest — keep a much larger working set in flight so the big ring + forward
+    // corridor stay loaded instead of evicting + reloading (the "watching it render")
+    while (this.chunks.size > (this.flying ? 200 : 110)) {
       let worstKey = '', worstD = -1;
       for (const key of this.chunks.keys()) {
         const [cx, cy] = key.split(',').map(Number);
@@ -741,6 +751,8 @@ export class Game {
     if (this.riding) this.toggleBike();
     if (!this.ridePlane) this.ridePlane = this.buildRidePlane();
     this.ridePlane.visible = true;
+    if (!this.skirt) this.skirt = this.buildSkirt();
+    this.skirt.visible = true;
     this.px = RUNWAY_START.x; this.pz = RUNWAY_START.z;
     this.planeAz = RUNWAY_HDG; this.camAz = RUNWAY_HDG;
     this.flyY = this.terrain.heightAt(this.px, this.pz) + 3;   // wheels on the tarmac
@@ -750,7 +762,9 @@ export class Game {
     this.kid.root.visible = false; this.dog.root.visible = false;   // the plane is the avatar
     this.kid.setPos(this.px, this.pz);
     this.updateCamera(0, true);   // snap behind the plane, down the runway
-    this.hud.setObjective('✈️ Lifting off Runway 28 — steer to bank over town · press L to land');
+    this.hud.setObjective('✈️ Lifting off Runway 28 — steer to bank over town');
+    this.hud.showTalk('🛬 LAND', () => this.land());   // ready from the first second, always
+    this.flyAct = 'land';
     this.audio.gull();
     this.quest?.refresh();
   }
@@ -760,12 +774,26 @@ export class Game {
       this.flying = false;
       this.hud.flying = false;
       if (this.ridePlane) this.ridePlane.visible = false;
+      if (this.skirt) this.skirt.visible = false;
       this.kid.root.visible = true; this.dog.root.visible = true;
       this.kidY = this.terrain.heightAt(this.px, this.pz);   // set down where you are
       this.flySpeed = 0;
       this.updateCamera(0, true);
       this.quest?.refresh();
     });
+  }
+
+  // ✈️ a big ground-coloured plane that rides under the plane and fills the far
+  // distance, so flying out over un-streamed map reads as hazy land fading into the
+  // sky — not a white void. Cheap (one plane); real chunks render on top near you.
+  private buildSkirt(): THREE.Mesh {
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(60000, 60000).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: STYLE.land })
+    );
+    m.renderOrder = -2;
+    this.scene.add(m);
+    return m;
   }
 
   // ✈️ flight step: forward at cruise, steer to turn, pitch to climb/descend. Returns
@@ -1155,6 +1183,7 @@ export class Game {
       this.ridePlane.position.set(this.px, this.flyY, this.pz);
       this.ridePlane.rotation.set(this.planePitch, this.planeAz, this.planeRoll, 'YXZ');
       if (this.ridePlaneProp) this.ridePlaneProp.rotation.z += dt * 38;
+      if (this.skirt) this.skirt.position.set(this.px, this.terrain.heightAt(this.px, this.pz) - 4, this.pz);
     }
 
     const still = Math.hypot(realVx, realVz) < 1;
@@ -1251,9 +1280,9 @@ export class Game {
     else if (this.interior) this.interior.update(dt, this.px, this.pz);
     else if (this.quest) {
       this.quest.update(dt, this.px, this.pz);
-      if (this.history) this.history.update(dt, this.px, this.pz, this.quest.nearActive);
+      if (this.history) this.history.update(dt, this.px, this.pz, this.quest.nearActive || this.flying);
       // eggs speak last: quest beats, then history markers, then secrets
-      if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.quest.nearActive || (this.history ? this.history.nearActive : false));
+      if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.flying || this.quest.nearActive || (this.history ? this.history.nearActive : false));
     }
     this.audio.update(dt, movingNow && !this.riding, this.sprinting, () =>
       this.inside ? 'hard'
