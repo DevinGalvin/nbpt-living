@@ -380,6 +380,10 @@ export class Game {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('wheel', (e) => {
+      // don't zoom the world when scrolling inside an open HUD panel — let the panel
+      // scroll natively (panels are pointer-events:none when closed, so this only
+      // matches while one is actually open)
+      if ((e.target as HTMLElement)?.closest?.('.journey-panel, .bag-panel, .travel-panel, .album-panel')) return;
       this.camZoom = Math.min(2.4, Math.max(0.55, this.camZoom * (1 + Math.sign(e.deltaY) * 0.09)));
     }, { passive: true });
     // Re-fit the drawing buffer to the canvas's real displayed size. Using the
