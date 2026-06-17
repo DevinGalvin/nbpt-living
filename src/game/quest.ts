@@ -167,9 +167,9 @@ const KEEPER_TALK: Line[] = [
   { who: 'Keeper', text: 'Gram’s grandkid. She called ahead — said you’d come carrying three corners of something old.' },
   { who: 'Keeper', text: 'This building has a room no key opens. A star on the old building plans, drawn back in 1835 — and no door anywhere.' },
   { who: 'Keeper', text: 'The old keepers say the Wharf Rats locked it with sound. Ring the harbor’s three bells, and the wall swings open.' },
-  { who: 'Keeper', text: 'One bell’s at the Coast Guard station. One’s at the old docks. The third, the Rats kept down in their den.' },
-  { who: 'You', text: 'So I ring all three bells, and the door opens.' },
-  { who: 'Keeper', text: 'That’s the story. Go ring them.' }
+  { who: 'Keeper', text: 'One bell’s at the Coast Guard station. One’s at the old docks. The third the Rats kept in their den — but you’ve already been down there, haven’t you? You rang it.' },
+  { who: 'You', text: 'So I just need the other two.' },
+  { who: 'Keeper', text: 'That’s the story. Go ring them — and listen for the third to answer.' }
 ];
 const BELL_RING: Line[] = [
   { who: '', text: 'You ring it once. The note rolls out over the water and hangs there, waiting for its sisters.' }
@@ -366,6 +366,10 @@ export class QuestRunner {
     } catch {
       this.bells = new Set();
     }
+    // the den's bell rang as the final Ch4 beat — it's the first of the three. Count it
+    // once Ch4 is done (also migrates old saves that rang it before it counted, so they
+    // don't get stuck needing a fourth bell).
+    if (this.ch3 >= 4) this.bells.add('den');
     try {
       this.delivered = new Set(JSON.parse(localStorage.getItem('nbpt-ch2-stops') || '[]'));
     } catch {
@@ -593,7 +597,7 @@ export class QuestRunner {
         // Chapter 4 "Low Water": the rowboat is the only way to the den —
         // for the three corners, and later to ring the den's own bell
         if (this.ch2 >= 4) {
-          if (this.ch3 === 0 || (this.ch4 === 1 && !this.bells.has('den'))) {
+          if (this.ch3 === 0) {
             c.push({ tag: 'boat', x: BOAT.x, z: BOAT.z, label: '\u{1F6F6} ROW', r: 85 });
           } else if (this.ch3 >= 1 && this.ch3 < 4) {
             // stepped out of the den before finishing — the boat's beached at the
@@ -673,14 +677,10 @@ export class QuestRunner {
         this.hud.setObjective('The last corner \u2014 the Custom House, Water Street');
         target = KEEPER;
       } else if (this.ch4 === 1) {
-        // the den's bell is the third \u2014 you row back out to it, so once the two
-        // harbor-post bells are rung the beam points at the boat, not the door
-        const denLast = this.bells.has('cg') && this.bells.has('wharf');
-        this.hud.setObjective(denLast
-          ? 'The last bell is in the den \u2014 row back out past the Coast Guard station'
-          : 'Ring the three harbor bells \u2014 ' + this.bells.size + ' of 3');
-        target = !this.bells.has('cg') ? BELL_CG : !this.bells.has('wharf') ? BELL_WHARF
-          : this.hud.boating ? WDOOR : BOAT;   // once rowing, the beam leads to the den, not the launch
+        // the den's bell already rang in Ch4 (the keeper reveals it counted as the first)
+        // \u2014 only the two harbor-post bells remain; no second trip back out to the den
+        this.hud.setObjective('Ring the harbor bells \u2014 ' + this.bells.size + ' of 3');
+        target = !this.bells.has('cg') ? BELL_CG : !this.bells.has('wharf') ? BELL_WHARF : KEEPER;
       } else if (this.ch4 === 2 || this.ch4 === 3) {
         this.hud.setObjective('The stone remembers \u2014 beneath the Custom House');
         target = CELLAR;
@@ -696,14 +696,12 @@ export class QuestRunner {
     // feed the two HUD systems from this one sync point: the backpack + missions log
     this.hud.setBag(this.buildBag());
     this.hud.setMissions(this.buildMissions());
-    // the rowboat waits on the bank during Chapter 4 — and again for Chapter 5's
-    // den bell (you row back out to ring it), parked at the launch bank both times
+    // the rowboat waits on the launch bank during Chapter 4 (the one-time den discovery row)
     this.ensureRowboat();
-    const needDenBell = this.ch3 >= 4 && this.ch4 === 1 && !this.bells.has('den');
-    const showBoat = this.step >= 6 && this.ch2 >= 4 && (this.ch3 < 4 || needDenBell) && !this.hud.boating;
+    const showBoat = this.step >= 6 && this.ch2 >= 4 && this.ch3 < 4 && !this.hud.boating;
     this.rowboat!.visible = showBoat;
     if (showBoat) {
-      const atLaunch = this.ch3 === 0 || needDenBell;   // launch bank vs. parked by the den door
+      const atLaunch = this.ch3 === 0;   // launch bank vs. parked by the den door
       const rx = atLaunch ? BOAT.x + 9 : -200;
       const rz = atLaunch ? BOAT.z - 26 : -1172;
       this.rowboat!.position.set(rx, this.index.heightAtPx(rx, rz) + 0.5, rz);
@@ -810,7 +808,7 @@ export class QuestRunner {
         steps: [
           { label: 'Bring the three corners back to Gram', done: this.gramSent || s4 >= 1 },
           { label: 'Talk to the Custom House keeper', done: s4 >= 1 },
-          { label: 'Ring all three harbor bells', done: s4 >= 2, count: this.bells.size, total: 3 },
+          { label: 'Ring the three harbor bells (den + two more)', done: s4 >= 2, count: this.bells.size, total: 3 },
           { label: 'Open the room with no door', done: s4 >= 4 }
         ] }
     ];
@@ -1088,6 +1086,8 @@ export class QuestRunner {
     } else if (tag === 'bell' && this.ch3 === 3) {
       this.hud.showDialogue(DEN_BELL, () => {
         this.audio.jingle();
+        this.bells.add('den');   // this soft ring is the first of the three (revealed in Ch5)
+        localStorage.setItem('nbpt-ch4-bells', JSON.stringify([...this.bells]));
         this.hud.chapterCard('CHAPTER 4 COMPLETE', 'Low Water', 'three corners found \u00b7 the Custom House keeps the last');
         this.setCh3(4);
       });
