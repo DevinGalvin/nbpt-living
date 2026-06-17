@@ -824,7 +824,7 @@ export class QuestRunner {
         this.hud.setObjective('Out past the flats \u2014 find the birdwatcher at Joppa');
         target = { x: JOPPA.x, z: JOPPA.z };
       } else if (this.l2 && this.ch6 === 0) {
-        this.hud.setObjective('Head home \u2014 ask Gram about the light (Joppa)');
+        this.hud.setObjective('Ask Gram about the light \u2014 her house in Joppa');
         target = { x: GRAM_HOME.x, z: GRAM_HOME.z };
       } else if (this.l2 && this.ch6 === 1) {
         this.hud.setObjective('Your grandfather\u2019s kayak \u2014 the Joppa slip');
