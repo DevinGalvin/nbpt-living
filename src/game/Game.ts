@@ -344,7 +344,7 @@ export class Game {
       localStorage.setItem('nbpt-bike', '1');
       this.bikeEarned();
     }, () => this.boatRide(), () => this.enterStar(), () => this.enterNews(), () => this.enterDen(),
-      (x: number, z: number) => this.lookOutToSea(x, z), () => this.endLookOut());
+      (x: number, z: number) => this.lookOutToSea(x, z), () => this.endLookOut(), () => this.enterKayak());
     this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
     this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,
@@ -1183,9 +1183,11 @@ export class Game {
 
     const half = 5;   // a slightly slimmer footprint so narrow streets stay passable
     const free = this.kayaking
-      // the free-roam kayak: confined to water, no slack — you launch from a shore
-      // cell and hop out onto land via the HOP OUT button, never paddle onto land
-      ? (x: number, y: number) => this.index.isWaterAt(x, y)
+      // the free-roam kayak rides mapped water OR any open sea (submerged ground below
+      // sea level) — so the edge of the water polygons never reads as an invisible wall
+      // out on the harbor/sea. Only land + above-water sandbars (terrain ≥ sea level) stop
+      // you; you leave the water via the HOP OUT button.
+      ? (x: number, y: number) => this.index.isWaterAt(x, y) || this.terrain.heightAt(x, y) < WATER_Y
       : this.boating
       // keep the boat on the water — never onto land — with slack at the launch and
       // the den door it beaches at (so the route in/out is never blocked)

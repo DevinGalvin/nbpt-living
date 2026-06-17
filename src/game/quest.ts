@@ -395,6 +395,7 @@ export class QuestRunner {
   private onDen: () => void;    // re-ENTER the den if you stepped out before finishing Ch4
   private onLookSea: (x: number, z: number) => void;   // Level 2: cinematic cutaway to the mystery light
   private onLookEnd: () => void;                        // …and back to the normal chase cam
+  private onKayak: () => void;                          // launch the player into the kayak (take it at the slip)
   private ch2: number;
   private ch3: number;
   private ch4: number;
@@ -404,6 +405,7 @@ export class QuestRunner {
   private l2built = false;      // lazily spawn the Joppa props once Level 1 ends
   private mysteryLight: THREE.Group | null = null;   // the light out on the water (Ch1 reveal → Ch2 target)
   private foundation: THREE.Group | null = null;     // the old lighthouse base under the light (Ch2 reveal)
+  private tiedKayak: THREE.Group | null = null;      // the kayak tied at the Joppa slip (hidden once taken)
   private bells: Set<string>;
   private rowboat: THREE.Group | null = null;
   private c5built = false;
@@ -415,7 +417,7 @@ export class QuestRunner {
 
   constructor(scene: THREE.Scene, index: WorldIndex, hud: Hud, audio: GameAudio, onGoDown: () => void, onBike: () => void,
               onBoat: () => void, onStar: () => void, onNews: () => void, onDen: () => void,
-              onLookSea: (x: number, z: number) => void, onLookEnd: () => void) {
+              onLookSea: (x: number, z: number) => void, onLookEnd: () => void, onKayak: () => void) {
     this.scene = scene;
     this.index = index;
     this.hud = hud;
@@ -428,6 +430,7 @@ export class QuestRunner {
     this.onDen = onDen;
     this.onLookSea = onLookSea;
     this.onLookEnd = onLookEnd;
+    this.onKayak = onKayak;
     this.step = Math.min(6, Math.max(0, parseInt(localStorage.getItem(SAVE_KEY) || '0', 10) || 0));
     this.ch2 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch2-step') || '0', 10) || 0));
     this.ch3 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch3-step') || '0', 10) || 0));
@@ -701,6 +704,31 @@ export class QuestRunner {
     g.visible = this.ch5 >= 1;
     this.mysteryLight = g;
     this.scene.add(g);
+
+    // the Joppa slip: a low plank dock out into the water, grandpa's kayak tied at the
+    // end (the tied prop hides once you take it in Ch2 and launch the real kayak)
+    const dock = new THREE.Group();
+    const deck = box(8, 1.4, 64, '#7a5a36');
+    deck.position.set(0, 3, 26);
+    dock.add(deck);
+    for (const dz of [2, 26, 50]) for (const dx of [-3.4, 3.4]) {
+      const pile = box(1.8, 16, 1.8, '#5e4628');
+      pile.position.set(dx, -3, dz);
+      dock.add(pile);
+    }
+    const tied = new THREE.Group();
+    const th = box(9, 4, 36, '#d8533a'); th.position.y = 3; tied.add(th);
+    const tp = box(1.6, 1.6, 28, '#caa46a'); tp.position.set(0, 5.5, 2); tp.rotation.y = 0.4; tied.add(tp);
+    tied.position.set(7.5, -2.5, 50);
+    tied.rotation.y = 0.15;
+    tied.visible = this.ch6 < 2;       // still tied up until you've taken it
+    this.tiedKayak = tied;
+    dock.add(tied);
+    // anchor at the waterline (~40px NE of the slip shore, which is ~9 high), not the
+    // bank itself, so the dock sits on the water instead of burying in the slope
+    dock.position.set(7972, WATER_Y, 4408);
+    dock.rotation.y = 2.36;            // deck (+z) points NE into the water (the harbor)
+    this.scene.add(dock);
   }
 
   // current interactable: tag + spot + verb for the TALK button
@@ -1341,7 +1369,9 @@ export class QuestRunner {
       this.hud.showDialogue(SLIP_TAKE, () => {
         localStorage.setItem('nbpt-kayak', '1');   // the kayak is yours — free-roam from here on
         this.audio.jingle();
+        if (this.tiedKayak) this.tiedKayak.visible = false;   // you took it off the dock
         this.setCh6(2);
+        this.onKayak();   // "Hop in" — drop straight into the kayak on the water (no standing on land)
       });
     }
   }
