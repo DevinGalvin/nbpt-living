@@ -968,49 +968,23 @@ export class WorldIndex {
     ctx.lineJoin = 'round';
     if (p.c === 'runway') {
       ctx.lineCap = 'butt';
-      if (p.s === 'grass') {
-        // the real 2B2 turf strip: mowed band + white edge dashes
-        ctx.strokeStyle = '#9fbd72';
-        ctx.lineWidth = p.w;
-        strokeLine(ctx, p.p);
-        ctx.setLineDash([10, 34]);
-        ctx.strokeStyle = 'rgba(248, 250, 244, 0.85)';
-        ctx.lineWidth = 2.5;
-        for (const s of [1, -1]) {
-          ctx.beginPath();
-          walkLine(p.p, 11, (x, y, nx, ny) => {
-            const off = (p.w / 2 - 4) * s;
-            ctx.lineTo(x - ny * off, y + nx * off);
-          });
-          ctx.stroke();
-        }
-        ctx.setLineDash([]);
-      } else {
-        ctx.strokeStyle = '#54565a';
-        ctx.lineWidth = p.w;
-        strokeLine(ctx, p.p);
-        ctx.setLineDash([18, 22]);
-        ctx.strokeStyle = 'rgba(246, 244, 234, 0.85)';
-        ctx.lineWidth = 2.5;
-        strokeLine(ctx, p.p);
-        ctx.setLineDash([]);
-        // threshold bars at both ends
-        const n = p.p.length;
-        for (const [ex, ey, ix, iy] of [[p.p[0], p.p[1], p.p[2], p.p[3]], [p.p[n - 2], p.p[n - 1], p.p[n - 4], p.p[n - 3]]] as const) {
-          const dx = ix - ex, dy = iy - ey;
-          const len = Math.hypot(dx, dy) || 1;
-          const ux = dx / len, uy = dy / len;
-          ctx.strokeStyle = 'rgba(246, 244, 234, 0.9)';
-          ctx.lineWidth = 3.2;
-          ctx.beginPath();
-          for (const t of [-0.34, -0.17, 0.17, 0.34]) {
-            const bx = ex + ux * 10 + -uy * p.w * t, by = ey + uy * 10 + ux * p.w * t;
-            ctx.moveTo(bx - ux * 6, by - uy * 6);
-            ctx.lineTo(bx + ux * 14, by + uy * 14);
-          }
-          ctx.stroke();
-        }
+      // Plum Island is a turf field — every runway renders as the real mowed grass strip
+      // (OSM tags 10/28 as asphalt, wrong on the ground), never paved. Mowed band + edge dashes.
+      ctx.strokeStyle = '#9fbd72';
+      ctx.lineWidth = p.w;
+      strokeLine(ctx, p.p);
+      ctx.setLineDash([10, 34]);
+      ctx.strokeStyle = 'rgba(248, 250, 244, 0.85)';
+      ctx.lineWidth = 2.5;
+      for (const s of [1, -1]) {
+        ctx.beginPath();
+        walkLine(p.p, 11, (x, y, nx, ny) => {
+          const off = (p.w / 2 - 4) * s;
+          ctx.lineTo(x - ny * off, y + nx * off);
+        });
+        ctx.stroke();
       }
+      ctx.setLineDash([]);
       ctx.lineCap = 'round';
       return;
     }
