@@ -280,7 +280,7 @@ function ringAreaPx2(ring: number[]): number {
 // real roof massing: rectangular footprints get one gable; L/T-shaped footprints
 // split at their concavity into wings, each with its own correctly-oriented gable
 function complexGable(shin: Bucket, clap: Bucket, ring: number[], eaveAbs: number,
-                      roofHex: string, wallHex: string, depth = 0) {
+                      roofHex: string, wallHex: string, depth = 0, split = true) {
   const obb = obbOf(ring);
   const fill = ringAreaPx2(ring) / Math.max(1, 4 * obb.hl * obb.hw);
   const simple = () => {
@@ -299,7 +299,9 @@ function complexGable(shin: Bucket, clap: Bucket, ring: number[], eaveAbs: numbe
     const ridgeH = Math.max(7, Math.min(22, obb.hw * 0.55));
     gableRoof(shin, clap, ring, obb, eaveAbs, ridgeH, 4, roofHex, wallHex);
   };
-  if (fill >= 0.72 || depth >= 2 || obb.hw < 6 || ring.length < 10) return simple();
+  // Accessory structures (garages/sheds) are single volumes — never split them
+  // into two gabled wings (the "my one-car garage looks like two buildings" report).
+  if (!split || fill >= 0.72 || depth >= 2 || obb.hw < 6 || ring.length < 10) return simple();
 
   const ax = Math.cos(obb.ang), az = Math.sin(obb.ang);
   const v = ringToVec2(ring); // CCW in (x, -z)
@@ -1205,9 +1207,18 @@ function buildingDims(b: Building, areaM2: number): { eave: number; lvEff: numbe
   let lv = Math.max(1, Math.min(5, b.lv || 1.5));
   switch (b.k) {
     case 'shed': return { eave: 16, lvEff: 1 };
-    case 'house':
-      if (areaM2 > 110) lv = Math.max(lv, 2.2);   // Newburyport colonials are tall
+    case 'house': {
+      // Honor explicit OSM levels; otherwise infer height from the footprint.
+      // Newburyport's housing stock skews tall — dense 2.5–3 story Federal/
+      // Victorian homes downtown and through the South End — so untagged houses
+      // (the vast majority; OSM rarely tags levels here) shouldn't default to a
+      // squat 1.5 stories. build_world bakes 1.5 as the untagged-house default,
+      // so a value at ~1.5 means "unknown" and we lift it by size; a genuine
+      // tagged level (e.g. a 1-story ranch or a tagged 3-decker) is kept as-is.
+      const untagged = Math.abs((b.lv || 1.5) - 1.5) < 0.01;
+      if (untagged) lv = areaM2 < 55 ? 1.8 : areaM2 < 100 ? 2.3 : areaM2 < 175 ? 2.7 : 3;
       return { eave: 12 + lv * 15, lvEff: lv };
+    }
     case 'church': return { eave: 30, lvEff: 2 };
     case 'commercial':
     case 'civic':
@@ -2669,7 +2680,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const obb = obbOf(b.p);
       const ridgeH = Math.max(7, Math.min(22, obb.hw * 0.55));
       const roofHex = pick(STYLE.building.roofs, seed);
-      complexGable(buckets[SHINGLE], beachShake ? buckets[SHINGLE] : buckets[CLAP], b.p, eaveAbs, roofHex, wallHex);
+      complexGable(buckets[SHINGLE], beachShake ? buckets[SHINGLE] : buckets[CLAP], b.p, eaveAbs, roofHex, wallHex, 0, b.k !== 'shed');
       if (b.k === 'house') {
         houseTrim(buckets[PLAIN], b.p, eaveAbs, base);
         if (rng() < 0.7 && obb.hl > 18) {
