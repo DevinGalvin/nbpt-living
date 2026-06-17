@@ -1174,7 +1174,7 @@ export class Game {
     // no bike — the rooms are small and a kid mashing run shouldn't rocket around
     // them. Force a walk regardless of the run toggle or any stray riding state.
     if (this.inside) this.sprinting = false;
-    let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 360 : this.sprinting ? SPRINT : JOG;
+    let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
     // streets are controllable. The joystick still gives proportional speed below
@@ -1553,8 +1553,14 @@ export class Game {
     }
     if (!this.inside) {
       const fog = this.scene.fog as THREE.Fog;
-      fog.near = 1300 * z;
-      fog.far = 2900 * z + 700;
+      // open the far plane + fog out over the water while kayaking or during the
+      // look-out-to-sea cutaway, so the far light (and its beacon) render past the
+      // normal 6000 cull; restored to the zoom-based values back on land.
+      const seaView = this.kayaking || !!this.cineLook;
+      const wantFar = seaView ? 11000 : 6000;
+      if (this.camera.far !== wantFar) { this.camera.far = wantFar; this.camera.updateProjectionMatrix(); }
+      if (seaView) { fog.near = 3200; fog.far = 9500; }
+      else { fog.near = 1300 * z; fog.far = 2900 * z + 700; }
     }
   }
 

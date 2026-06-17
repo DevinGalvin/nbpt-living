@@ -35,7 +35,7 @@ const BELL_WHARF = { x: 40, z: -905 }; // harbor bell at the wharf
 // Chapter 6 "The Light That Walks" (Level 2 — gated behind ?l2 / localStorage
 // nbpt-l2). A light out past the river mouth that shouldn't be there.
 const JOPPA = { x: 7200, z: 3950, face: -2.2 };  // the birdwatcher at Joppa Flats
-const LIGHT = { x: 9300, z: 700 };               // the mystery light, out on the dark water NE of Joppa
+const LIGHT = { x: 12000, z: -2200 };            // the mystery light, way out on the dark water NE of Joppa
 // Chapter 2 "The Walking Light" — Gram's Joppa home, the slip her late husband's kayak
 // is tied at, and the old lighthouse foundation out at the light.
 const GRAM_HOME = { x: 7450, z: 4250, face: 2.4 };  // Gram lives in Joppa now (post Level 1)
@@ -686,7 +686,7 @@ export class QuestRunner {
     // halo (fog-less, so it reads as a clear distant light). Hidden until the reveal
     // (ch5 >= 1 keeps it on across reloads); later it's the Chapter 2 kayak target.
     const g = new THREE.Group();
-    const core = new THREE.Mesh(new THREE.SphereGeometry(22, 14, 12), new THREE.MeshBasicMaterial({ color: '#fff6e0', fog: false }));
+    const core = new THREE.Mesh(new THREE.SphereGeometry(30, 14, 12), new THREE.MeshBasicMaterial({ color: '#fff6e0', fog: false }));
     g.add(core);
     const cv = document.createElement('canvas');
     cv.width = cv.height = 64;
@@ -698,7 +698,7 @@ export class QuestRunner {
     g2.fillStyle = grd;
     g2.fillRect(0, 0, 64, 64);
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, fog: false, depthWrite: false }));
-    halo.scale.set(380, 380, 1);
+    halo.scale.set(520, 520, 1);
     g.add(halo);
     g.position.set(LIGHT.x, WATER_Y + 7, LIGHT.z);
     g.visible = this.ch5 >= 1;
@@ -1073,9 +1073,12 @@ export class QuestRunner {
       const g = this.npcs[k];
       g.rotation.y += Math.sin(this.t * 1.3 + g.position.x) * 0.0006;
     }
-    // the mystery light breathes slowly out on the dark water
+    // the mystery light breathes, and SHRINKS as you paddle up to it — the bright glow
+    // that drew you out resolves into just the drowned foundation once you arrive
     if (this.mysteryLight && this.mysteryLight.visible) {
-      this.mysteryLight.scale.setScalar(0.85 + 0.18 * Math.sin(this.t * 1.8));
+      const dpl = Math.hypot(px - LIGHT.x, pz - LIGHT.z);
+      const near = Math.max(0.12, Math.min(1, (dpl - 180) / 1600));
+      this.mysteryLight.scale.setScalar(near * (0.9 + 0.12 * Math.sin(this.t * 1.8)));
     }
 
     // step 4: following Clipper, you close on the grate he's found
