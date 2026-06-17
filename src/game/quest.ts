@@ -13,6 +13,10 @@ type Line = { who: string; text: string };
 
 const SAVE_KEY = 'nbpt-ch0-step';
 
+// the story is organized into named LEVELS; chapters renumber within each level.
+const L1_NAME = 'The Smugglers’ Map';   // Level 1 — the five shipped chapters
+const L2_NAME = 'The Light That Walks'; // Level 2 — the gated lighthouse arc
+
 // world-px anchors (verified against world.json / in-game)
 const GRAM = { x: -48, z: 4, face: 0.9 };
 const DONUT = { x: -608, z: 756, face: 0.78 };
@@ -26,6 +30,10 @@ const KEEPER = { x: 1087, z: -500 };   // the Custom House keeper
 const CELLAR = { x: 986, z: -438 };    // the Custom House cellar — the star room
 const BELL_CG = { x: 3030, z: 75 };    // harbor bell by the Coast Guard station
 const BELL_WHARF = { x: 40, z: -905 }; // harbor bell at the wharf
+
+// Chapter 6 "The Light That Walks" (Level 2 — gated behind ?l2 / localStorage
+// nbpt-l2). A light out past the river mouth that shouldn't be there.
+const JOPPA = { x: 7200, z: 3950, face: -2.2 };  // the birdwatcher at Joppa Flats
 
 const GRAM_TALK: Line[] = [
   { who: 'Gram', text: 'There you are. Two jobs today. Take Clipper, the dog — he’s in charge.' },
@@ -189,6 +197,23 @@ const CHEST_OPEN: Line[] = [
   { who: 'You', text: 'There’s no treasure… because they spent it. On all of it. Clipper — the treasure was the town.' }
 ];
 
+// Chapter 6 "The Light That Walks" — beat 1: the Joppa Flats birdwatcher hands over
+// her spare binoculars, and you spot a light out past the lighthouse that shouldn't
+// be there. Earns the binoculars; sends you to Gram. (Level 2 — gated.)
+const WATCHER_TALK: Line[] = [
+  { who: 'Birdwatcher', text: 'You’re the kid who found the doors under downtown. Figures you’d turn up out here at the end of the world.' },
+  { who: 'You', text: 'Is that what Joppa is?' },
+  { who: 'Birdwatcher', text: 'Joppa Flats. Best birding in the state — and the mud will take your boot clean off if you sass it.' },
+  { who: 'Birdwatcher', text: 'Here. My spare binoculars. I count the eider ducks; you count whatever’s been keeping you up at night.' },
+  { who: '', text: 'You raise them out over the water, toward the river mouth, where the lighthouse keeps its slow, steady watch.' },
+  { who: 'Birdwatcher', text: 'See the lighthouse? Good. Now look a little to the left of it.' },
+  { who: '', text: 'There. Far out past the lighthouse, low over the dark water — another light. Small. Steady. Right where the map says there is nothing at all.' },
+  { who: 'You', text: 'There’s no lighthouse out there.' },
+  { who: 'Birdwatcher', text: '…No. There isn’t.' },
+  { who: 'Birdwatcher', text: 'Comes on after dark, gone by morning. A week of it now, and nobody on these flats will say a word.' },
+  { who: 'Birdwatcher', text: 'But your grandmother might. She’s watched this town do stranger things than this.' }
+];
+
 function cap(r: number, h: number, hex: string): THREE.Mesh {
   const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, h, 3, 10), new THREE.MeshLambertMaterial({ color: hex }));
   m.castShadow = true;
@@ -334,6 +359,9 @@ export class QuestRunner {
   private ch2: number;
   private ch3: number;
   private ch4: number;
+  private ch5: number;          // Chapter 6 "The Light That Walks" (Level 2, gated)
+  private l2: boolean;          // Level 2 gate (?l2 → localStorage nbpt-l2)
+  private l2built = false;      // lazily spawn the Joppa birdwatcher once Level 1 ends
   private bells: Set<string>;
   private rowboat: THREE.Group | null = null;
   private c5built = false;
@@ -359,6 +387,14 @@ export class QuestRunner {
     this.ch2 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch2-step') || '0', 10) || 0));
     this.ch3 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch3-step') || '0', 10) || 0));
     this.ch4 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch4-step') || '0', 10) || 0));
+    // Level 2 is gated: ?l2=1 latches localStorage nbpt-l2 (mirrors the ?fly flight
+    // gate), so the public never sees Chapter 6+. Chapter 6 = the legacy "ch5-step"
+    // (the off-by-one chapter keys continue: ch0-step = player Ch1 … ch5-step = Ch6).
+    try {
+      if (new URLSearchParams(location.search).has('l2')) localStorage.setItem('nbpt-l2', '1');
+      this.l2 = localStorage.getItem('nbpt-l2') === '1';
+    } catch { this.l2 = false; }
+    this.ch5 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch5-step') || '0', 10) || 0));
     // already past the keeper on an old save? treat the Gram beat as done (no backtrack)
     this.gramSent = localStorage.getItem('nbpt-ch5-gram') === '1' || this.ch4 >= 1;
     try {
@@ -574,6 +610,15 @@ export class QuestRunner {
     bellPost(BELL_WHARF.x, BELL_WHARF.z);
   }
 
+  // Level 2 — the Joppa Flats birdwatcher (Chapter 6 beat 1). Gated behind nbpt-l2,
+  // spawned once Level 1 is finished so she's never present during the first arc.
+  private buildL2Props() {
+    const w = npcMesh('#d9b48f', '#3f5e4a', '#4a4640', '#6a6258', 'cap');
+    this.npcs.watcher = w;
+    this.place(w, JOPPA.x, JOPPA.z, JOPPA.face);
+    this.scene.add(w);
+  }
+
   // current interactable: tag + spot + verb for the TALK button
   private ch1Done(): boolean {
     return (parseInt(localStorage.getItem('nbpt-ch1-step') || '0', 10) || 0) >= 6;
@@ -613,6 +658,9 @@ export class QuestRunner {
               if (!this.bells.has('wharf')) c.push({ tag: 'whbell', x: BELL_WHARF.x, z: BELL_WHARF.z, label: '\u{1F514} RING', r: 110 });
             } else if (this.ch4 === 2 || this.ch4 === 3) {
               c.push({ tag: 'cellar', x: CELLAR.x, z: CELLAR.z, label: '⭐ ENTER', r: 90 });
+            } else if (this.l2 && this.ch5 === 0) {
+              // Level 2, Chapter 6 — the birdwatcher at Joppa Flats (gated)
+              c.push({ tag: 'watcher', x: JOPPA.x, z: JOPPA.z, label: '\u{1F4AC} TALK', r: 95 });
             }
           }
         }
@@ -684,8 +732,11 @@ export class QuestRunner {
       } else if (this.ch4 === 2 || this.ch4 === 3) {
         this.hud.setObjective('The stone remembers \u2014 beneath the Custom House');
         target = CELLAR;
+      } else if (this.l2 && this.ch5 === 0) {
+        this.hud.setObjective('Out past the flats \u2014 find the birdwatcher at Joppa');
+        target = { x: JOPPA.x, z: JOPPA.z };
       } else {
-        this.hud.setObjective(null);
+        this.hud.setObjective(null);   // Level 1 done (+ Ch6 beat 1, when gated)
       }
     } else {
       this.hud.setObjective(STEP_OBJECTIVE[this.step]);
@@ -709,6 +760,8 @@ export class QuestRunner {
     }
     // once the den is cleared, the Custom House keeper and the two harbor bells appear
     if (this.ch3 >= 4 && !this.c5built) { this.c5built = true; this.buildC5Props(); }
+    // Level 2 (gated): the Joppa birdwatcher appears once Level 1 is finished
+    if (this.l2 && this.ch4 >= 4 && !this.l2built) { this.l2built = true; this.buildL2Props(); }
     // the bars swing aside once the chapter ends
     if (this.grateBars) {
       const open = this.step >= 6;
@@ -752,6 +805,7 @@ export class QuestRunner {
       add('card');                                             // treasures you keep forever
       if (ch1 >= 2) add('lantern');
       if (localStorage.getItem('nbpt-bike') === '1') add('bike');
+      if (this.l2 && this.ch5 >= 1) add('binocs');   // Level 2: earned from the birdwatcher
       const cc = this.cornerCount();
       if (cc > 0) add('mapcorners', { count: cc, total: 4 });
     } else {
@@ -770,9 +824,9 @@ export class QuestRunner {
     const ch1 = parseInt(localStorage.getItem('nbpt-ch1-step') || '0', 10) || 0;
     const s2 = this.ch2, s3 = this.ch3, s4 = this.ch4;
     // which chapter currently owns the objective beacon (mirrors apply()'s cascade)
-    const active = s0 < 6 ? 1 : ch1 < 6 ? 2 : s2 < 4 ? 3 : s3 < 4 ? 4 : s4 < 4 ? 5 : 0;
-    return [
-      { id: 'ch1', group: 'story', kicker: 'Chapter 1', title: 'Overdue',
+    const active = s0 < 6 ? 1 : ch1 < 6 ? 2 : s2 < 4 ? 3 : s3 < 4 ? 4 : s4 < 4 ? 5 : (this.l2 && this.ch5 < 2) ? 6 : 0;
+    const missions: Mission[] = [
+      { id: 'ch1', group: 'story', level: 1, levelName: L1_NAME, chapter: 1, title: 'Overdue',
         state: s0 >= 6 ? 'done' : 'active', active: active === 1, replay: 0, reward: 'Library card',
         steps: [
           { label: 'Find Gram in Market Square', done: s0 > 0 },
@@ -781,21 +835,21 @@ export class QuestRunner {
           { label: 'Bring Gram her donuts', done: s0 > 3 },
           { label: 'Follow Clipper to what he found', done: s0 >= 6 }
         ] },
-      { id: 'ch2', group: 'story', kicker: 'Chapter 2', title: 'The Door Under Downtown',
+      { id: 'ch2', group: 'story', level: 1, levelName: L1_NAME, chapter: 2, title: 'The Door Under Downtown',
         state: ch1 >= 6 ? 'done' : s0 >= 6 ? 'active' : 'locked', active: active === 2, replay: 1, reward: 'Lantern',
         steps: [
           { label: 'Go down through the grate', done: ch1 > 0 },
           { label: 'Light the way and find the smuggler’s mark', done: ch1 >= 2 },
           { label: 'Find the torn map corner', done: ch1 >= 4 }
         ] },
-      { id: 'ch3', group: 'story', kicker: 'Chapter 3', title: 'The Daily News',
+      { id: 'ch3', group: 'story', level: 1, levelName: L1_NAME, chapter: 3, title: 'The Daily News',
         state: s2 >= 4 ? 'done' : ch1 >= 6 ? 'active' : 'locked', active: active === 3, replay: 2, reward: 'Bicycle',
         steps: [
           { label: 'Talk to the Editor on Liberty Street', done: s2 >= 1 },
           { label: 'Deliver the papers', done: s2 >= 2, count: this.delivered.size, total: this.stops.length },
           { label: 'Search the morgue', done: s2 >= 4 }
         ] },
-      { id: 'ch4', group: 'story', kicker: 'Chapter 4', title: 'Low Water',
+      { id: 'ch4', group: 'story', level: 1, levelName: L1_NAME, chapter: 4, title: 'Low Water',
         state: s3 >= 4 ? 'done' : s2 >= 4 ? 'active' : 'locked', active: active === 4, replay: 3, reward: 'Third map corner',
         steps: [
           { label: 'Row out to the waterline door', done: s3 >= 1 },
@@ -803,7 +857,7 @@ export class QuestRunner {
           { label: 'Find the third map corner', done: s3 >= 3 },
           { label: 'Ring the den’s bell', done: s3 >= 4 }
         ] },
-      { id: 'ch5', group: 'story', kicker: 'Chapter 5', title: 'The Custom House Star',
+      { id: 'ch5', group: 'story', level: 1, levelName: L1_NAME, chapter: 5, title: 'The Custom House Star',
         state: s4 >= 4 ? 'done' : s3 >= 4 ? 'active' : 'locked', active: active === 5, replay: 4,
         steps: [
           { label: 'Bring the three corners back to Gram', done: this.gramSent || s4 >= 1 },
@@ -812,6 +866,19 @@ export class QuestRunner {
           { label: 'Open the room with no door', done: s4 >= 4 }
         ] }
     ];
+    // Level 2 (gated): Chapter 6 only appears for opted-in devices (nbpt-l2)
+    if (this.l2) {
+      missions.push({
+        id: 'ch6', group: 'story', level: 2, levelName: L2_NAME, chapter: 1, title: 'The False Light',
+        state: this.ch5 >= 2 ? 'done' : s4 >= 4 ? 'active' : 'locked', active: active === 6,
+        reward: 'Binoculars',
+        steps: [
+          { label: 'Find the birdwatcher at Joppa Flats', done: this.ch5 >= 1 },
+          { label: 'Chase the light out to the river mouth', done: this.ch5 >= 2 }
+        ]
+      });
+    }
+    return missions;
   }
 
   // ch0's own step targets (pre-spine-completion)
@@ -953,6 +1020,12 @@ export class QuestRunner {
   private setCh4(s4: number) {
     this.ch4 = s4;
     localStorage.setItem('nbpt-ch4-step', String(s4));
+    this.apply();
+  }
+
+  private setCh5(s5: number) {
+    this.ch5 = s5;
+    localStorage.setItem('nbpt-ch5-step', String(s5));
     this.apply();
   }
 
@@ -1109,6 +1182,12 @@ export class QuestRunner {
         this.audio.jingle();
         this.hud.chapterCard('CHAPTER 5 COMPLETE', 'The Custom House Star', 'the map is whole \u00b7 the treasure was the town');
         this.setCh4(4);
+      });
+    } else if (tag === 'watcher' && this.l2 && this.ch5 === 0) {
+      this.hud.showDialogue(WATCHER_TALK, () => {
+        this.audio.jingle();
+        this.hud.chapterCard('LEVEL 2 · CHAPTER 1', 'The False Light', 'a light where no light should be');
+        this.setCh5(1);   // binoculars earned; Chapter 6 beat 2 (the kayak) comes next
       });
     }
   }

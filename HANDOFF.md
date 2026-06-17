@@ -7,16 +7,19 @@ TypeScript + Vite. Live at **https://clippertown.io**.
 > (the "I found my house!" hook landed). A LOT has shipped since launch — see §5. Every
 > build stamps its commit at `window.__build`.
 >
-> **The biggest open item is a DESIGN call, not code: what is "Level 2"?**
-> Undecided. Devin rejected *Lord Dexter's 40 statues* (too silly for a *main* level —
-> but it's a great SIDE-quest collectible, already seeded in GAME_CONCEPT) and the
-> *Clipper launch*. The leading pitch is **"The Long Night"** — a present-day
-> **nor'easter** that floods the real town: row the flooded streets, run neighbors up to
-> the **Ridge** (High St is the literal high ground), **fly** to spot the stranded, keep
-> the lights on, dawn over a battered-but-standing town. It needs **zero historical
-> re-render** (the modern map IS the stage), uses **every system** (seasons, day/night,
-> flight, boat, lighthouse), and map-exactness becomes the emotion. **Not committed** —
-> riff with Devin or build it. See §6.
+> **🎯 LEVEL 2 — DECIDED & BUILDING (gated).** "The Light That Walks": a cozy lighthouse
+> mystery, fall→winter→Christmas. The arc is now **land→sea→sky** (L1 land/summer = shipped;
+> L2 sea/winter; L3 sky/spring). **Flight moved to Level 3** (its spring / post-game home —
+> finally a reason for the dev-gated plane). L2 kid spine: a spooky light off **Joppa Flats**
+> (earn **binoculars**) → **kayak** to the river mouth (the lighthouse *walked* — real NBPT
+> history) → the channel shifted + a storm's coming → **"Bring the light home"**: the big
+> stormy night with **NO peril and NO player-rescues** (Devin cut that — it breaks the
+> kind-by-default pillar) — you relight the lighthouse, sweep the beam to *find* the boats,
+> and the town lights up in answer → Christmas morning. **Built + verified so far: Ch 6
+> beat 1** (the Joppa birdwatcher + binoculars + the mystery-light reveal). **GATED exactly
+> like flight:** `?l2=1` latches `localStorage nbpt-l2`; all Level 2 sits behind the
+> `quest.l2` flag, so the public game still ends at the Custom House (verified gate-off).
+> **Don't un-gate until we publish.** Next = beat 2 (the kayak). See the `nbpt-level2` memory.
 >
 > Also live but **private/dev-gated**: a **scenic flight** from Plum Island Airport
 > (`clippertown.io/?fly=1` to enable on a device) — see §5 + the `nbpt-flight-prototype` memory.

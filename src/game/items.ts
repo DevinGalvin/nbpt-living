@@ -38,7 +38,10 @@ export interface Mission {
   id: string;
   group: MissionGroup;
   title: string;
-  kicker?: string;        // small label over the title — "Chapter 3" / "Town Job"
+  kicker?: string;        // small label over the title — "Collection" / "Town Job"
+  level?: number;         // story: which Level this chapter belongs to (1, 2, …)
+  levelName?: string;     // story: the Level's display name (e.g. "The Smugglers’ Map")
+  chapter?: number;       // story: the chapter number WITHIN its level (1-based)
   state: MissionState;
   steps: SubStep[];       // the expandable checklist
   reward?: string;        // shown as a small "Reward · 🚲 Bike" line
@@ -64,6 +67,8 @@ export const ITEMS: Record<string, Omit<BagItem, 'count' | 'total'>> = {
              name: 'The smugglers’ lantern', desc: 'Found in the tunnel under downtown.' },
   bike:    { id: 'bike',    emoji: '\u{1F6B2}', kind: 'treasure',
              name: 'Your bicycle', desc: 'Press B to hop on and ride.' },
+  binocs:  { id: 'binocs',  emoji: '\u{1F52D}', kind: 'treasure',
+             name: 'Binoculars', desc: 'A birdwatcher’s spare — for spotting what others miss.' },
   // the map corners are ONE collection (x of 4), not four copies of a chip
   mapcorners: { id: 'mapcorners', emoji: '\u{1F9E9}', kind: 'collection',
              name: 'Smugglers’ map', desc: 'Torn corners of an old hand-drawn map.' }

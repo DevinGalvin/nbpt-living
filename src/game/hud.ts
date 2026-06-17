@@ -1,5 +1,5 @@
 import type { Landmark, WorldData } from '../world/types';
-import type { BagItem, Mission, MissionGroup } from './items';
+import type { BagItem, Mission } from './items';
 import { SEASON, seasonsUnlocked } from '../world/style';
 
 // DOM HUD: street pill, landmark banner, help, attribution, virtual joystick.
@@ -372,6 +372,14 @@ const css = `
 }
 /* ---------- Missions cards: grouped, tappable, with a sub-step checklist ---------- */
 #hud .m-group { font-size: 11.5px; letter-spacing: 2px; color: #e8c44f; font-weight: 800; margin: 15px 0 7px; }
+/* a named Level header above its chapters (Story tab) */
+#hud .m-level { font-size: 13.5px; color: #f0d27a; font-weight: 800; margin: 16px 0 8px; letter-spacing: 0.3px; border-bottom: 1px solid rgba(232,196,79,0.25); padding-bottom: 6px; }
+#hud .m-level:first-child { margin-top: 4px; }
+#hud .m-level .m-lk { font-size: 10.5px; letter-spacing: 2px; color: #c9a84e; }
+/* Story | Collections tab toggle */
+#hud .j-tabs { display: flex; gap: 6px; margin: 0 0 12px; }
+#hud .j-tab { flex: 1; text-align: center; padding: 7px 0; border-radius: 8px; font-size: 12.5px; letter-spacing: 0.6px; cursor: pointer; user-select: none; -webkit-user-select: none; border: 1px solid rgba(232,196,79,0.28); color: #cbb86a; }
+#hud .j-tab.on { background: rgba(232,196,79,0.16); border-color: #e8c44f; color: #f6e9b0; font-weight: 700; }
 #hud .m-card {
   border: 1px solid rgba(216,185,74,0.28); background: rgba(216,185,74,0.06);
   border-radius: 10px; padding: 8px 11px; margin: 0 0 6px;
@@ -498,6 +506,7 @@ export class Hud {
   private bagPanelOpen = false;
   // ---- Missions (🧭) state ----
   private missions: Mission[] = [];
+  private journeyTab: 'story' | 'collections' = 'story';   // journey panel: Story | Collections
   // history markers (for the Town-stories collection + its album), shared by bag + missions
   private histMarkers: { id: string; title: string; year: string; body: string; stamp?: string }[] = [];
   private albumPanel: HTMLElement | null = null;
@@ -789,9 +798,10 @@ export class Hud {
     const jc = document.createElement('div');
     jc.className = 'journey-card';
     jc.style.cssText = 'position:relative;width:min(420px,90vw);max-height:82vh;overflow:auto;background:var(--panel);border-radius:14px;border-bottom:3px solid #d8b94a;padding:18px 20px 14px;color:#f3f1e8;';
-    jc.innerHTML = '<div class="modal-x">✕</div><div style="font-size:14px;letter-spacing:3px;color:#e8c44f;font-weight:800;margin-bottom:10px;">MISSIONS</div>'
+    jc.innerHTML = '<div class="modal-x">✕</div><div style="font-size:14px;letter-spacing:3px;color:#e8c44f;font-weight:800;margin-bottom:10px;">JOURNEY</div>'
       + '<div class="j-obj" style="font-size:14.5px;line-height:1.5;margin-bottom:4px;"></div>'
-      + '<div class="j-dir" style="font-size:12.5px;color:#9fb8cc;margin-bottom:6px;"></div>'
+      + '<div class="j-dir" style="font-size:12.5px;color:#9fb8cc;margin-bottom:8px;"></div>'
+      + '<div class="j-tabs"><div class="j-tab" data-tab="story">Story</div><div class="j-tab" data-tab="collections">Collections</div></div>'
       + '<div class="m-groups"></div>';
     // restart: a two-tap arm so a stray click can't wipe a save (kept at the bottom)
     const rb = document.createElement('div');
@@ -813,6 +823,12 @@ export class Hud {
     jp.appendChild(jc);
     document.querySelector('#hud')!.appendChild(jp);
     (jc.querySelector('.modal-x') as HTMLElement).addEventListener('click', (e) => { e.stopPropagation(); jp.classList.remove('show'); });
+    // Story | Collections tab toggle
+    jc.querySelectorAll('.j-tab').forEach((t) => t.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.journeyTab = ((t as HTMLElement).dataset.tab as 'story' | 'collections') || 'story';
+      this.renderMissions();
+    }));
 
     const jt = () => {
       const objTxt = (document.querySelector('#hud .objective .otxt') as HTMLElement | null)?.textContent || '';
@@ -849,28 +865,50 @@ export class Hud {
     if (document.querySelector('#hud .journey-panel.show:not(.album-panel)')) this.renderMissions();
   }
 
-  // draw the grouped mission cards (Story / Town Jobs / Collections)
+  // draw the journey panel's active tab: STORY (grouped by named Level, chapters
+  // renumbered within each) or COLLECTIONS (its own thing now). Mission data comes
+  // from the QuestRunner (setMissions); the Town-stories set is Hud-owned.
   private renderMissions() {
     const root = document.querySelector('#hud .journey-panel .m-groups') as HTMLElement | null;
     if (!root) return;
+    // keep the tab toggle's highlight in sync with the active tab
+    const card = root.closest('.journey-card');
+    card?.querySelectorAll('.j-tab').forEach((t) =>
+      t.classList.toggle('on', (t as HTMLElement).dataset.tab === this.journeyTab));
     root.innerHTML = '';
-    // the Town-stories collection is Hud-owned (it tracks the history markers) — show
-    // it as a standing goal in Collections, even at 0 found, opening the album on tap
-    const extra: Mission[] = [{
-      id: 'stories', group: 'collections', title: 'Town stories', kicker: 'Collection',
-      state: 'active', steps: [], opens: 'history-album',
-      count: this.histReadCount(), total: this.histMarkers.length
-    }];
-    const missions = this.missions.concat(extra);
-    const groups: [MissionGroup, string][] = [['story', 'STORY'], ['jobs', 'TOWN JOBS'], ['collections', 'COLLECTIONS']];
-    for (const [g, label] of groups) {
-      const ms = missions.filter((m) => m.group === g);
-      if (!ms.length) continue;
+
+    if (this.journeyTab === 'collections') {
+      // the Town-stories collection is Hud-owned (it tracks the history markers) — a
+      // standing goal even at 0 found, opening the album on tap
+      const stories: Mission = {
+        id: 'stories', group: 'collections', title: 'Town stories', kicker: 'Collection',
+        state: 'active', steps: [], opens: 'history-album',
+        count: this.histReadCount(), total: this.histMarkers.length
+      };
+      for (const m of this.missions.filter((m) => m.group === 'collections')) root.appendChild(this.missionCard(m));
+      root.appendChild(this.missionCard(stories));
+      return;
+    }
+
+    // STORY tab — one header per Level (named), chapters listed under it
+    const story = this.missions.filter((m) => m.group === 'story');
+    const levels = [...new Set(story.map((m) => m.level ?? 1))].sort((a, b) => a - b);
+    for (const lv of levels) {
+      const inLv = story.filter((m) => (m.level ?? 1) === lv);
+      const h = document.createElement('div');
+      h.className = 'm-level';
+      h.innerHTML = '<span class="m-lk">LEVEL ' + lv + '</span> · ' + (inLv[0].levelName || '');
+      root.appendChild(h);
+      for (const m of inLv) root.appendChild(this.missionCard(m));
+    }
+    // Town Jobs (none yet) still live under the Story tab when they exist
+    const jobs = this.missions.filter((m) => m.group === 'jobs');
+    if (jobs.length) {
       const h = document.createElement('div');
       h.className = 'm-group';
-      h.textContent = label;
+      h.textContent = 'TOWN JOBS';
       root.appendChild(h);
-      for (const m of ms) root.appendChild(this.missionCard(m));
+      for (const m of jobs) root.appendChild(this.missionCard(m));
     }
   }
 
@@ -880,7 +918,7 @@ export class Hud {
     card.className = 'm-card ' + m.state + (m.active ? ' expanded' : '');
     const dotCol = m.state === 'done' ? '#9ec98a' : m.state === 'active' ? '#f0d27a' : '#565c68';
     const dotCh = m.state === 'locked' ? '○' : '●';
-    const title = (m.kicker ? m.kicker + ' · ' : '') + m.title;
+    const title = (m.chapter != null ? 'Chapter ' + m.chapter + ' · ' : m.kicker ? m.kicker + ' · ' : '') + m.title;
     const prog = (m.count != null && m.total != null) ? '<span class="m-prog">' + m.count + '/' + m.total + '</span>' : '';
     const rep = (m.replay != null && m.state !== 'locked') ? '<span class="m-rep" data-c="' + m.replay + '">↻</span>' : '';
     const opensAlbum = m.opens === 'history-album';
