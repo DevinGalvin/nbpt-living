@@ -41,6 +41,7 @@ const LIGHT = { x: 12000, z: -2200 };            // the mystery light, way out o
 // is tied at, and the old lighthouse foundation out at the light.
 const GRAM_HOME = { x: 7450, z: 4250, face: 2.4 };  // Gram lives in Joppa now (post Level 1)
 const SLIP = { x: 7950, z: 4430 };                  // the Joppa slip — the kayak is tied here
+const LOBSTER = { x: 7958, z: 4434, face: 2.4 };    // the lobsterman, hauling traps at the water's edge by the slip (Ch3)
 
 const GRAM_TALK: Line[] = [
   { who: 'Gram', text: 'There you are. Two jobs today. Take Clipper, the dog — he’s in charge.' },
@@ -252,6 +253,38 @@ const WALK_REVEAL: Line[] = [
   { who: 'You', text: 'So who’s been lighting it?' }
 ];
 
+// Chapter 3 "The Mooncusser" — beat 1: a salty lobsterman at the slip explains what a
+// mooncusser is (kid-clear, in his own voice) and warns a storm is coming. He knew grandpa.
+const LOBSTER_MOONCUSSER: Line[] = [
+  { who: '', text: 'A lobsterman stands at the end of the slip, stacking traps, his oilskins beaded with spray. He doesn’t look up.' },
+  { who: 'Lobsterman', text: 'You’re the one paddlin’ your grandfather’s kayak. Figured you’d come askin’ about that light. Three nights runnin’ now, out where no light belongs.' },
+  { who: 'You', text: 'So who’s lighting it?' },
+  { who: 'Lobsterman', text: 'Word my grandfather had for it was mooncusser. Wicked old trade, that.' },
+  { who: 'You', text: 'A… moon-cusser?' },
+  { who: 'Lobsterman', text: 'Sets a lamp out on the rocks on a black night. A boat way offshore sees it and thinks: there’s the harbor, there’s safe water. Steers right for it.' },
+  { who: 'You', text: 'But it’s not the harbor. It’s the rocks.' },
+  { who: 'Lobsterman', text: 'Now you’re learnin’. She piles up on the sandbar, and the wrecker walks the beach come mornin’, helpin’ himself to whatever washed in.' },
+  { who: 'You', text: 'That’s robbery! With a LAMP!' },
+  { who: 'Lobsterman', text: 'Heh. And here’s the moon part: a clear bright night, the captain spots the real shore and the trick’s no good. So the old wreckers’d stand on the dunes and cuss that moon black and blue.' },
+  { who: 'You', text: 'They yelled at the MOON for spoiling their robbing.' },
+  { who: 'Lobsterman', text: 'Mooncussers. Ayuh. And the glass is droppin’ like a stone — big blow comin’ by tomorrow night. I wouldn’t row out there for love nor money.' },
+  { who: 'You', text: 'But there are boats still out there.' },
+  { who: 'Lobsterman', text: '…You’ve got that look. Same one he had. Go on then — quiet as you can, and keep that dog close. Don’t let ’em see you comin’.' }
+];
+// beat 2: you paddle out and catch the mooncusser at the false light — snuff it, no peril.
+const MOONCUSSER_CATCH: Line[] = [
+  { who: '', text: 'The light burns again on the old foundation — and this close, it’s no ghost. It’s a lantern, hooded against the wind, and someone is crouched behind it.' },
+  { who: 'You', text: 'HEY! That light’s a fake!' },
+  { who: 'Mooncusser', text: '…A kid. In a kayak. Of all the rotten luck on the water tonight.' },
+  { who: 'You', text: 'You’re a mooncusser. You’re trying to trick the boats onto the bar!' },
+  { who: 'Mooncusser', text: 'Trick? I light a lamp. The sandbar does the rest, and the tide brings me my pay. Family business, going way back.' },
+  { who: 'Clipper', text: 'GRRRRRR—' },
+  { who: 'Mooncusser', text: 'Call off the dog. You can’t watch the whole river mouth, child. One little paddle-boat against a whole coast?' },
+  { who: '', text: 'You reach across and snuff the lantern. The false light dies. The mooncusser hisses something at the moon and melts away into the dusk.' },
+  { who: 'You', text: 'One fake light out. But tomorrow night, in that storm…' },
+  { who: 'You', text: 'If the real lighthouse stays dark, the boats won’t have anything true to steer for. We have to bring the light home, Clipper.' }
+];
+
 function cap(r: number, h: number, hex: string): THREE.Mesh {
   const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, h, 3, 10), new THREE.MeshLambertMaterial({ color: hex }));
   m.castShadow = true;
@@ -402,6 +435,7 @@ export class QuestRunner {
   private ch4: number;
   private ch5: number;          // Level 2 Chapter 1 "The False Light" (legacy key nbpt-ch5-step)
   private ch6: number;          // Level 2 Chapter 2 "The Walking Light" (legacy key nbpt-ch6-step)
+  private ch7: number;          // Level 2 Chapter 3 "The Mooncusser" (legacy key nbpt-ch7-step)
   private l2: boolean;          // Level 2 gate (?l2 → localStorage nbpt-l2)
   private l2built = false;      // lazily spawn the Joppa props once Level 1 ends
   private mysteryLight: THREE.Group | null = null;   // the light out on the water (Ch1 reveal → Ch2 target)
@@ -445,6 +479,7 @@ export class QuestRunner {
     } catch { this.l2 = false; }
     this.ch5 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch5-step') || '0', 10) || 0));
     this.ch6 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch6-step') || '0', 10) || 0));
+    this.ch7 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch7-step') || '0', 10) || 0));
     // already past the keeper on an old save? treat the Gram beat as done (no backtrack)
     this.gramSent = localStorage.getItem('nbpt-ch5-gram') === '1' || this.ch4 >= 1;
     try {
@@ -706,7 +741,7 @@ export class QuestRunner {
     halo.scale.set(520, 520, 1);
     g.add(halo);
     g.position.set(LIGHT.x, WATER_Y + 7, LIGHT.z);
-    g.visible = this.ch5 >= 1;
+    g.visible = this.ch5 >= 1 && this.ch7 < 2;   // the false light burns until you snuff it in Ch3
     this.mysteryLight = g;
     this.scene.add(g);
 
@@ -734,6 +769,54 @@ export class QuestRunner {
     dock.position.set(7972, WATER_Y, 4408);
     dock.rotation.y = 2.36;            // deck (+z) points NE into the water (the harbor)
     this.scene.add(dock);
+
+    // the mooncusser (Chapter 3): a hooded figure crouched on the drowned foundation,
+    // tending the false lantern. Hidden until you go to catch them (apply() toggles on
+    // ch7===1); placed on the near (south) edge of the ring so you see them on approach.
+    const moon = npcMesh('#c7a98a', '#23271f', '#1b1d21', '#2c281f', 'cap');
+    const lantern = new THREE.Mesh(
+      new THREE.BoxGeometry(3.2, 4.4, 3.2),
+      new THREE.MeshBasicMaterial({ color: '#ffd56a', fog: false })
+    );
+    lantern.position.set(4, 9.5, 3);
+    moon.add(lantern);
+    // a small warm glow on the lantern so the "false light" reads up close (the big
+    // mystery glow shrinks to nothing as you arrive; this is what's left — just a lamp)
+    const lcv = document.createElement('canvas');
+    lcv.width = lcv.height = 64;
+    const lc = lcv.getContext('2d')!;
+    const lg = lc.createRadialGradient(32, 32, 0, 32, 32, 32);
+    lg.addColorStop(0, 'rgba(255,236,170,1)');
+    lg.addColorStop(0.45, 'rgba(255,210,120,0.5)');
+    lg.addColorStop(1, 'rgba(255,200,110,0)');
+    lc.fillStyle = lg;
+    lc.fillRect(0, 0, 64, 64);
+    const lglow = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(lcv), transparent: true, fog: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+    lglow.scale.set(70, 70, 1);
+    lglow.position.set(4, 10, 3);
+    moon.add(lglow);
+    moon.position.set(LIGHT.x, WATER_Y + 11, LIGHT.z + 50);   // standing on the ring, near side
+    moon.rotation.y = Math.PI;          // facing south, toward the kid paddling up
+    moon.visible = false;
+    this.npcs.mooncusser = moon;
+    this.scene.add(moon);
+
+    // the lobsterman (Chapter 3): a salty waterman in oilskins, hauling traps by the slip.
+    // Appears once Ch2 is done (ch6>=3) and stays on as a recurring Level 2 character.
+    const lob = npcMesh('#c69a76', '#d6a23a', '#3a3e44', '#574d44', 'cap');
+    const traps = new THREE.Group();
+    for (const [tx, ty, tz] of [[0, 2.5, 0], [9, 2.5, 1], [4.5, 7, 0.5]] as const) {
+      const trap = box(8, 5, 6, '#7d6a4a');     // weathered slat-and-wire lobster trap
+      trap.position.set(tx, ty, tz);
+      traps.add(trap);
+    }
+    traps.position.set(LOBSTER.x + 11, this.index.heightAtPx(LOBSTER.x + 11, LOBSTER.z - 4), LOBSTER.z - 4);
+    traps.rotation.y = LOBSTER.face;
+    this.scene.add(traps);
+    this.place(lob, LOBSTER.x, LOBSTER.z, LOBSTER.face);
+    lob.visible = false;                          // apply() shows him from Ch3 on
+    this.npcs.lobster = lob;
+    this.scene.add(lob);
   }
 
   // current interactable: tag + spot + verb for the TALK button
@@ -782,6 +865,9 @@ export class QuestRunner {
               c.push({ tag: 'gramkayak', x: GRAM_HOME.x, z: GRAM_HOME.z, label: '\u{1F4AC} TALK', r: 90 });
             } else if (this.l2 && this.ch5 >= 1 && this.ch6 === 1) {
               c.push({ tag: 'slip', x: SLIP.x, z: SLIP.z, label: '\u{1F6F6} TAKE IT', r: 95 });
+            } else if (this.l2 && this.ch6 >= 3 && this.ch7 === 0) {
+              // Level 2 Ch3 — the lobsterman at the slip explains the mooncusser (catch is auto)
+              c.push({ tag: 'lobster', x: LOBSTER.x, z: LOBSTER.z, label: '\u{1F4AC} TALK', r: 95 });
             }
           }
         }
@@ -865,6 +951,12 @@ export class QuestRunner {
       } else if (this.l2 && this.ch6 === 2) {
         this.hud.setObjective('Paddle out to the light');
         target = { x: LIGHT.x, z: LIGHT.z };
+      } else if (this.l2 && this.ch6 >= 3 && this.ch7 === 0) {
+        this.hud.setObjective('Ask the lobsterman at the Joppa slip about the light');
+        target = { x: LOBSTER.x, z: LOBSTER.z };
+      } else if (this.l2 && this.ch7 === 1) {
+        this.hud.setObjective('Paddle out — catch the mooncusser at the false light');
+        target = { x: LIGHT.x, z: LIGHT.z };
       } else {
         this.hud.setObjective(null);   // Level 1 done + Level 2 done (so far)
       }
@@ -892,6 +984,15 @@ export class QuestRunner {
     if (this.ch3 >= 4 && !this.c5built) { this.c5built = true; this.buildC5Props(); }
     // Level 2 (gated): the Joppa birdwatcher appears once Level 1 is finished
     if (this.l2 && this.ch4 >= 4 && !this.l2built) { this.l2built = true; this.buildL2Props(); }
+    // Ch3: the mooncusser only stands on the foundation while you're going to catch them
+    if (this.npcs.mooncusser) this.npcs.mooncusser.visible = this.l2 && this.ch6 >= 3 && this.ch7 === 1;
+    // the lobsterman arrives at the slip once Ch2 is done and stays on (recurring waterman)
+    if (this.npcs.lobster) this.npcs.lobster.visible = this.l2 && this.ch6 >= 3;
+    // the drowned foundation is built once, the instant Level 1 ends (ch5 still 0) — so
+    // re-assert its visibility here, or it stays hidden all the way to the Ch2 reveal on a
+    // no-reload playthrough (its build-time gate never re-runs, and nothing else shows it).
+    // The mystery light has its own explicit reveal (the watcher cutaway), so leave it be.
+    if (this.foundation) this.foundation.visible = this.ch5 >= 1;
     // the bars swing aside once the chapter ends
     if (this.grateBars) {
       const open = this.step >= 6;
@@ -959,7 +1060,7 @@ export class QuestRunner {
     const s2 = this.ch2, s3 = this.ch3, s4 = this.ch4;
     // which chapter currently owns the objective beacon (mirrors apply()'s cascade)
     const active = s0 < 6 ? 1 : ch1 < 6 ? 2 : s2 < 4 ? 3 : s3 < 4 ? 4 : s4 < 4 ? 5
-      : (this.l2 && this.ch5 < 1) ? 6 : (this.l2 && this.ch6 < 3) ? 7 : 0;
+      : (this.l2 && this.ch5 < 1) ? 6 : (this.l2 && this.ch6 < 3) ? 7 : (this.l2 && this.ch7 < 2) ? 8 : 0;
     const missions: Mission[] = [
       { id: 'ch1', group: 'story', level: 1, levelName: L1_NAME, chapter: 1, title: 'Overdue',
         state: s0 >= 6 ? 'done' : 'active', active: active === 1, replay: 0, reward: 'Library card',
@@ -1020,6 +1121,14 @@ export class QuestRunner {
           { label: 'Ask Gram about the light', done: this.ch6 >= 1 },
           { label: 'Take grandpa’s kayak from the Joppa slip', done: this.ch6 >= 2 },
           { label: 'Paddle out to the light', done: this.ch6 >= 3 }
+        ]
+      });
+      missions.push({
+        id: 'l2c3', group: 'story', level: 2, levelName: L2_NAME, chapter: 3, title: 'The Mooncusser',
+        state: this.ch7 >= 2 ? 'done' : this.ch6 >= 3 ? 'active' : 'locked', active: active === 8, replay: 7,
+        steps: [
+          { label: 'Ask the lobsterman at the slip about the light', done: this.ch7 >= 1 },
+          { label: 'Catch the mooncusser at the false light', done: this.ch7 >= 2 }
         ]
       });
     }
@@ -1101,6 +1210,11 @@ export class QuestRunner {
     if (this.l2 && this.ch5 >= 1 && this.ch6 === 2 && this.hud.kayaking
         && !this.hud.dialogueOpen && Math.hypot(px - LIGHT.x, pz - LIGHT.z) < 130) {
       this.revealWalk();
+    }
+    // Level 2 Ch3: paddling back out to the relit false light catches the mooncusser (auto)
+    if (this.l2 && this.ch6 >= 3 && this.ch7 === 1 && this.hud.kayaking
+        && !this.hud.dialogueOpen && Math.hypot(px - LIGHT.x, pz - LIGHT.z) < 130) {
+      this.catchMooncusser();
     }
 
     // newspapers in flight
@@ -1198,6 +1312,12 @@ export class QuestRunner {
   private setCh6(s6: number) {
     this.ch6 = s6;
     localStorage.setItem('nbpt-ch6-step', String(s6));
+    this.apply();
+  }
+
+  private setCh7(s7: number) {
+    this.ch7 = s7;
+    localStorage.setItem('nbpt-ch7-step', String(s7));
     this.apply();
   }
 
@@ -1384,6 +1504,11 @@ export class QuestRunner {
         this.setCh6(2);
         this.onKayak();   // "Hop in" — drop straight into the kayak on the water (no standing on land)
       });
+    } else if (tag === 'lobster' && this.l2 && this.ch6 >= 3 && this.ch7 === 0) {
+      this.hud.showDialogue(LOBSTER_MOONCUSSER, () => {
+        this.hud.chapterCard('LEVEL 2 · CHAPTER 3', 'The Mooncusser', 'a false light on the old rocks');
+        this.setCh7(1);
+      });
     }
   }
 
@@ -1396,6 +1521,19 @@ export class QuestRunner {
       this.audio.jingle();
       this.hud.chapterCard('LEVEL 2 · CHAPTER 2 COMPLETE', 'The Walking Light', 'the light moved — and now you know it');
       this.setCh6(3);
+    });
+  }
+
+  // Level 2 Ch3: you've paddled out to the relit false light and caught the mooncusser
+  private catchMooncusser() {
+    this.beacon.visible = false;
+    this.bang.visible = false;
+    this.hud.showDialogue(MOONCUSSER_CATCH, () => {
+      this.audio.jingle();
+      if (this.npcs.mooncusser) this.npcs.mooncusser.visible = false;   // melts into the dusk
+      if (this.mysteryLight) this.mysteryLight.visible = false;         // false light snuffed for good
+      this.hud.chapterCard('LEVEL 2 · CHAPTER 3 COMPLETE', 'The Mooncusser', 'the false light is out — but a storm is coming');
+      this.setCh7(2);
     });
   }
 
