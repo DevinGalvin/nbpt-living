@@ -2222,8 +2222,8 @@ function buildLGSchoolhouse(buckets: Bucket[], b: Building, g: number, index: Wo
 // storeys on a granite base, a steep slate mansard with pedimented dormers, and a
 // columned front porch facing the High/State corner. Keyed by b.n in HEROES.
 function buildResidencesRidge(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
-  const CREAM = '#e9e0c8', TRIM = '#f7f2e4', SLATE = '#3d414a', SLATE2 = '#494e57',
-        STONE = '#8e887b', GLASS = '#2b3a44', PORCH = '#f4efe1';
+  const CREAM = '#f9f5ec', TRIM = '#fefdf9', SLATE = '#3d414a', SLATE2 = '#494e57',
+        STONE = '#8e887b', GLASS = '#2b3a44', PORCH = '#fbf8ef';
   const ring = b.p;
   const base = g + 6, eave = g + 42, top = eave + 23;
   walls(buckets[PLAIN], ring, g - 12, base, STONE, 0);           // granite retaining base (flat grey)
