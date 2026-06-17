@@ -649,7 +649,15 @@ export class Game {
   // ---------- Chapter 4: the boat ride out to the Wharf Rats' den ----------
 
   boatRide() {
-    this.hud.fadeThrough(() => this.startBoat());
+    // The first trip out is the authored discovery: a manual row + the BOAT_ARRIVE
+    // narration. Once the den's been found, going back to ring its bell shouldn't replay
+    // either — slip straight down (enterDen does its own fade), no re-row, no repeat.
+    if (this.quest?.denDiscovered) {
+      this.boatReturn = { x: this.px, z: this.pz };  // land back on this bank when done
+      this.enterDen();
+    } else {
+      this.hud.fadeThrough(() => this.startBoat());
+    }
   }
 
   private startBoat() {

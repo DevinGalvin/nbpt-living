@@ -1122,4 +1122,7 @@ export class QuestRunner {
   interact(tag: string) { this.runStepDialogue(tag); }
   // the boat beaches at the den door — first trip starts Chapter 4's interior
   beachDen() { if (this.ch3 === 0) this.setCh3(1); }
+  // the den's been found (rowed to at least once) — later trips back skip the discovery
+  // row + the BOAT_ARRIVE narration and just slip you down into it
+  get denDiscovered(): boolean { return this.ch3 >= 1; }
 }
