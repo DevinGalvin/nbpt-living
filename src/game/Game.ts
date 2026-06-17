@@ -6,7 +6,7 @@ import { buildChunkDecor } from '../three/decor';
 import { detailTex } from '../three/textures';
 import { buildWater, WATER_Y } from '../three/water';
 import { Sky } from '../three/sky';
-import { Kid, Dog, Bike } from '../three/actors';
+import { Kid, Dog, Bike, buildKayak } from '../three/actors';
 import { Life } from './life';
 import { GillisBridge } from '../three/gillis';
 import { Hud } from './hud';
@@ -621,7 +621,7 @@ export class Game {
     this.dismount();
     this.kayaking = true;
     this.hud.kayaking = true;           // the quest yields its action button (HOP OUT owns it)
-    if (!this.kayak) this.kayak = this.buildKayak();
+    if (!this.kayak) { this.kayak = buildKayak(); this.scene.add(this.kayak); }
     this.kayak.visible = true;
     this.kayakAz = this.camAz;
     this.px = lx; this.pz = lz;
@@ -654,34 +654,6 @@ export class Game {
       if (!this.index.isWaterAt(x, y) && !this.index.isBlocked(x, y)) return true;
     }
     return false;
-  }
-
-  // a long red sea kayak (boxes, like the rowboat but bigger + slimmer + pointed).
-  // The kid sits in the open cockpit; the group faces +z (forward).
-  private buildKayak(): THREE.Group {
-    const R = new THREE.Group();
-    const RED = '#d8533a', RED2 = '#bf4630', DARK = '#2e2f28';
-    const b = (w: number, h: number, d: number, x: number, y: number, z: number, hex: string) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: hex }));
-      m.position.set(x, y, z);
-      m.castShadow = true;
-      R.add(m);
-    };
-    b(16, 4, 56, 0, 2.6, 0, RED);          // hull bottom
-    b(2, 6.5, 54, -7.7, 5.4, 0, RED2);     // left gunwale
-    b(2, 6.5, 54, 7.7, 5.4, 0, RED2);      // right gunwale
-    b(11, 6.5, 10, 0, 5.4, 29, RED);       // bow shoulder
-    b(5, 6.5, 10, 0, 5.4, 36, RED2);       // pointed bow tip
-    b(11, 6.5, 10, 0, 5.4, -29, RED);      // stern shoulder
-    b(5, 6.5, 10, 0, 5.4, -36, RED2);      // pointed stern tip
-    b(13, 1.8, 22, 0, 6.8, -3, DARK);      // cockpit coaming (the kid sits here)
-    const paddle = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 52), new THREE.MeshLambertMaterial({ color: '#caa46a' }));
-    paddle.position.set(0, 9.5, 1);
-    paddle.rotation.y = 0.42;
-    paddle.rotation.z = 0.26;
-    R.add(paddle);
-    this.scene.add(R);
-    return R;
   }
 
   // true whenever the player is in any hand-built interior (tunnel/den/star)

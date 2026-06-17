@@ -4,6 +4,7 @@ import { Hud } from './hud';
 import { GameAudio } from './audio';
 import { ITEMS, EMOJI_TO_ID, type BagItem, type Mission } from './items';
 import { WATER_Y } from '../three/water';
+import { buildKayak } from '../three/actors';
 
 // Chapter 1 — "Overdue" (the player-facing first chapter; its save key is the
 // legacy "nbpt-ch0-step"). Gram's errand: get donuts + return the overdue book,
@@ -405,7 +406,7 @@ export class QuestRunner {
   private l2built = false;      // lazily spawn the Joppa props once Level 1 ends
   private mysteryLight: THREE.Group | null = null;   // the light out on the water (Ch1 reveal → Ch2 target)
   private foundation: THREE.Group | null = null;     // the old lighthouse base under the light (Ch2 reveal)
-  private tiedKayak: THREE.Group | null = null;      // grandpa's kayak — always tied at the Joppa slip (a permanent fixture)
+  private tiedKayak: THREE.Group | null = null;      // the ride kayak parked at the Joppa slip; update() hides it while you're paddling
   private bells: Set<string>;
   private rowboat: THREE.Group | null = null;
   private c5built = false;
@@ -720,12 +721,12 @@ export class QuestRunner {
       pile.position.set(dx, -3, dz);
       dock.add(pile);
     }
-    const tied = new THREE.Group();
-    const th = box(9, 4, 36, '#d8533a'); th.position.y = 3; tied.add(th);
-    const tp = box(1.6, 1.6, 28, '#caa46a'); tp.position.set(0, 5.5, 2); tp.rotation.y = 0.4; tied.add(tp);
-    tied.position.set(7.5, -2.5, 50);
+    // the SAME boat you ride, tied alongside the slip and floating at the waterline.
+    // update() hides it whenever you're out paddling (so you never see two kayaks) and
+    // shows it again when you're back on foot — the dock always has your kayak waiting.
+    const tied = buildKayak();
+    tied.position.set(10, -1.4, 26);   // floats at the waterline alongside the deck (just below the rail)
     tied.rotation.y = 0.15;
-    tied.visible = true;               // always at the slip — locked until Gram says to use it, then free-roam forever
     this.tiedKayak = tied;
     dock.add(tied);
     // anchor at the waterline (~40px NE of the slip shore, which is ~9 high), not the
@@ -1084,6 +1085,9 @@ export class QuestRunner {
       const near = Math.max(0.12, Math.min(1, (dpl - 180) / 1600));
       this.mysteryLight.scale.setScalar(near * (0.9 + 0.12 * Math.sin(this.t * 1.8)));
     }
+    // the slip's kayak IS the boat you ride — park it at the dock when you're on foot,
+    // hide it while you're paddling so the two never show at once
+    if (this.tiedKayak) this.tiedKayak.visible = !this.hud.kayaking;
 
     // step 4: following Clipper, you close on the grate he's found
     if (this.step === 4 && Math.hypot(px - GRATE.x, pz - GRATE.z) < 290) {

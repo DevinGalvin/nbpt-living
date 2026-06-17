@@ -346,6 +346,35 @@ export class Bike {
   }
 }
 
+// the free-roam sea kayak (Level 2): a long red box-built hull with gunwales,
+// pointed bow/stern, an open cockpit, and a stowed paddle. Faces +z; the kid sits
+// in the cockpit. Shared by the kayak you ride AND the one tied at the Joppa slip,
+// so they're always the same boat. The caller adds it to the scene.
+export function buildKayak(): THREE.Group {
+  const R = new THREE.Group();
+  const RED = '#d8533a', RED2 = '#bf4630', DARK = '#2e2f28';
+  const b = (w: number, h: number, d: number, x: number, y: number, z: number, hex: string) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: hex }));
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    R.add(m);
+  };
+  b(16, 4, 56, 0, 2.6, 0, RED);          // hull bottom
+  b(2, 6.5, 54, -7.7, 5.4, 0, RED2);     // left gunwale
+  b(2, 6.5, 54, 7.7, 5.4, 0, RED2);      // right gunwale
+  b(11, 6.5, 10, 0, 5.4, 29, RED);       // bow shoulder
+  b(5, 6.5, 10, 0, 5.4, 36, RED2);       // pointed bow tip
+  b(11, 6.5, 10, 0, 5.4, -29, RED);      // stern shoulder
+  b(5, 6.5, 10, 0, 5.4, -36, RED2);      // pointed stern tip
+  b(13, 1.8, 22, 0, 6.8, -3, DARK);      // cockpit coaming (the kid sits here)
+  const paddle = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 52), new THREE.MeshLambertMaterial({ color: '#caa46a' }));
+  paddle.position.set(0, 9.5, 1);
+  paddle.rotation.y = 0.42;
+  paddle.rotation.z = 0.26;
+  R.add(paddle);
+  return R;
+}
+
 export class Dog {
   root = new THREE.Group();
   private heading = new THREE.Group();
