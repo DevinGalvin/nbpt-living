@@ -793,12 +793,13 @@ const addrMap = new Map();
 // and curb-clearance-checked against the State St / High St geometry.
 // Remove an entry once OSM picks the building up, or it'll render twice.
 const MANUAL_BUILDINGS = [
-  // The Residences on the Ridge — 95 High St, the SE corner of State & High.
-  // Built on the long-vacant former State Street Mobil lot: a 3-story Victorian/
-  // Italianate infill (4 homes = this main block + the rear carriage house).
-  { p: [-1284, 3747, -1188, 3825, -1243, 3893, -1339, 3815], k: 'house', lv: 3, style: 'queen_anne', n: 'The Residences on the Ridge' },
+  // The Residences on the Ridge — 95 High St, the SE corner of State & High. Built on
+  // the long-vacant former State Street Mobil lot: a cream Second Empire (mansard-roof)
+  // block + a rear carriage house. Footprints set back ~55px south off the sidewalk into
+  // the lot. The look is a hand-modeled hero (HEROES['The Residences on the Ridge']).
+  { p: [-1276, 3802, -1180, 3880, -1235, 3948, -1331, 3870], k: 'house', lv: 3, style: 'queen_anne', n: 'The Residences on the Ridge' },
   // the rear carriage house (the 4th home)
-  { p: [-1329, 3827, -1273, 3873, -1308, 3916, -1364, 3871], k: 'house', lv: 1.5 },
+  { p: [-1321, 3882, -1265, 3928, -1300, 3971, -1356, 3926], k: 'house', lv: 1.5 },
 ];
 for (const b of MANUAL_BUILDINGS) world.buildings.push(b);
 
