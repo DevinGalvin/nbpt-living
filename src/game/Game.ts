@@ -1233,7 +1233,9 @@ export class Game {
     // version only checked walls with tiny nudges, so a car (radius ~20) could pin
     // you with no escape. Now: push out to the nearest open ground, ringing outward
     // far enough to clear a car.
-    if (!this.inside && !this.boating) {
+    if (!this.inside && !this.onWater) {   // not while kayaking either — the collision
+      // grid reads "blocked" out past the built chunks, which would shove the kayak back
+      // from open sea (the invisible wall); on the water the isWaterAt free() is enough
       const stuck = (x: number, z: number) => this.index.isBlocked(x, z) || !!(this.life && this.life.obstacleAt(x, z));
       if (stuck(nx, nz)) {
         for (const r of [10, 18, 26, 34, 44] as const) {
