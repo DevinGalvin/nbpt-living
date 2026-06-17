@@ -787,6 +787,21 @@ const addrMap = new Map();
   world.pois = kept;
 }
 
+// ---------- manual infill: real buildings newer than the OSM snapshot ----------
+// Hand-placed structures that exist on the ground but aren't yet in the OSM
+// extract (data/raw/overpass.json). Footprints are in world px, street-aligned
+// and curb-clearance-checked against the State St / High St geometry.
+// Remove an entry once OSM picks the building up, or it'll render twice.
+const MANUAL_BUILDINGS = [
+  // The Residences on the Ridge — 95 High St, the SE corner of State & High.
+  // Built on the long-vacant former State Street Mobil lot: a 3-story Victorian/
+  // Italianate infill (4 homes = this main block + the rear carriage house).
+  { p: [-1284, 3747, -1188, 3825, -1243, 3893, -1339, 3815], k: 'house', lv: 3, style: 'queen_anne', n: 'The Residences on the Ridge' },
+  // the rear carriage house (the 4th home)
+  { p: [-1329, 3827, -1273, 3873, -1308, 3916, -1364, 3871], k: 'house', lv: 1.5 },
+];
+for (const b of MANUAL_BUILDINGS) world.buildings.push(b);
+
 // ---------- sort, QA, write ----------
 
 world.polys.sort((a, b) => (a.z - b.z) || (Math.abs(ringArea(b.p)) - Math.abs(ringArea(a.p))));

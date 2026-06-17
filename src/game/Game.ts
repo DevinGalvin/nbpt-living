@@ -27,6 +27,10 @@ const BOAT_DOOR = { x: -224, z: -1183 }; // the waterline den door — rowing ne
 // crash — the point is seeing the town from the air.
 const RUNWAY_START = { x: 21560, z: 14114 };  // east threshold (depart 28 / westbound)
 const RUNWAY_HDG = -1.517;                    // runway 10/28 axis, heading ≈ due west
+// the whole-airfield zone the FLY prompt covers — centered on the runway, big enough to
+// reach both ends (±~2200) AND the airport landmark you arrive at (~1250 N of center), so
+// walking anywhere on the field offers the flight (boarding teleports you to the threshold).
+const AIRPORT = { x: 19468, z: 14228, r: 2300 };
 const CRUISE_ALT = 540;                       // hold ~a few hundred ft over the ground
 const CRUISE_SPEED = 860;                     // forward px/s — quicker than the bike, still gentle
 
@@ -1278,7 +1282,7 @@ export class Game {
       if (this.flightDev) {
         if (this.flying) flyAct = 'land';
         else if (!this.inside && !this.boating
-          && Math.hypot(this.px - RUNWAY_START.x, this.pz - RUNWAY_START.z) < 280) flyAct = 'fly';
+          && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) flyAct = 'fly';
       }
       if (flyAct !== this.flyAct) {
         this.flyAct = flyAct;
