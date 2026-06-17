@@ -799,7 +799,7 @@ const MANUAL_BUILDINGS = [
   // the lot. The look is a hand-modeled hero (HEROES['The Residences on the Ridge']).
   { p: [-1270, 3880, -1174, 3958, -1229, 4026, -1325, 3948], k: 'house', lv: 3, style: 'queen_anne', n: 'The Residences on the Ridge' },
   // the rear carriage house (the 4th home)
-  { p: [-1315, 3960, -1259, 4006, -1294, 4049, -1350, 4004], k: 'house', lv: 1.5 },
+  { p: [-1315, 3960, -1259, 4006, -1294, 4049, -1350, 4004], k: 'house', lv: 1.5, n: 'Ridge Carriage House' },
 ];
 for (const b of MANUAL_BUILDINGS) world.buildings.push(b);
 

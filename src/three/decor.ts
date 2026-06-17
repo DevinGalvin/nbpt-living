@@ -2218,26 +2218,30 @@ function buildLGSchoolhouse(buckets: Bucket[], b: Building, g: number, index: Wo
   cone(buckets[PLAIN], tX, g + 31, tZ, 3.6, 4.5, tmp.clone());
 }
 
-// The Residences on the Ridge (95 High St) — a cream Second Empire: two clapboard
-// storeys on a granite base, a steep slate mansard with pedimented dormers, and a
-// columned front porch facing the High/State corner. Keyed by b.n in HEROES.
-function buildResidencesRidge(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
-  const CREAM = '#f9f5ec', TRIM = '#fefdf9', SLATE = '#3d414a', SLATE2 = '#494e57',
-        STONE = '#8e887b', GLASS = '#2b3a44', PORCH = '#fbf8ef';
-  const ring = b.p;
-  const base = g + 6, eave = g + 42, top = eave + 23;
-  walls(buckets[PLAIN], ring, g - 12, base, STONE, 0);           // granite retaining base (flat grey)
-  walls(buckets[CLAP], ring, base, eave, CREAM);                 // cream clapboard, two storeys
-  walls(buckets[PLAIN], ring, eave - 2.5, eave + 0.6, TRIM, 0);  // white cornice
-  facades(buckets[PLAIN], ring, eave, 2, 1888, false, true, false, base, 33);  // windows + door
-
-  // steep slate mansard — a frustum from the eave ring up to an inset top ring
-  const run = 7;
+// like walls() but with a soft shade floor, so the cream stays light in shadow (a white
+// house reads white, not grey, on its shaded road-facing front)
+function clad(bk: Bucket, ring: number[], y0: number, y1: number, hex: string) {
   const v = ringToVec2(ring);
-  let vcx = 0, vcy = 0; for (const p of v) { vcx += p.x; vcy += p.y; } vcx /= v.length; vcy /= v.length;
-  const iv = v.map((p) => { const dx = vcx - p.x, dy = vcy - p.y, d = Math.hypot(dx, dy) || 1;
+  tmp.set(hex);
+  const r = tmp.r, g = tmp.g, b = tmp.b;
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i], bb = v[(i + 1) % v.length];
+    const ex = bb.x - a.x, ey = bb.y - a.y, len = Math.hypot(ex, ey) || 1;
+    const nx = ey / len, nz = ex / len;
+    const shade = 0.86 + 0.14 * Math.max(0, nx * 0.35 + nz * 0.85);
+    const u = len / TEX_SCALE, v0 = y0 / TEX_SCALE, v1 = y1 / TEX_SCALE;
+    bk.quadUV(a.x, y0, -a.y, bb.x, y0, -bb.y, bb.x, y1, -bb.y, a.x, y1, -a.y,
+      nx, 0, nz, r * shade, g * shade, b * shade, 0, v0, u, v0, u, v1, 0, v1);
+  }
+}
+
+// a steep slate mansard: a frustum from the footprint (eave) up to an inset top ring + cap
+function mansard(buckets: Bucket[], ring: number[], eave: number, top: number, run: number, slope: string, cap: string) {
+  const v = ringToVec2(ring);
+  let cx = 0, cy = 0; for (const p of v) { cx += p.x; cy += p.y; } cx /= v.length; cy /= v.length;
+  const iv = v.map((p) => { const dx = cx - p.x, dy = cy - p.y, d = Math.hypot(dx, dy) || 1;
     return new THREE.Vector2(p.x + (dx / d) * run, p.y + (dy / d) * run); });
-  tmp.set(SLATE);
+  tmp.set(slope);
   for (let i = 0; i < v.length; i++) {
     const a = v[i], bb = v[(i + 1) % v.length], a2 = iv[i], b2 = iv[(i + 1) % v.length];
     const ex = bb.x - a.x, ey = bb.y - a.y, len = Math.hypot(ex, ey) || 1;
@@ -2246,28 +2250,86 @@ function buildResidencesRidge(buckets: Bucket[], b: Building, g: number, index: 
     buckets[SHINGLE].quad(a.x, eave, -a.y, bb.x, eave, -bb.y, b2.x, top, -b2.y, a2.x, top, -a2.y,
       nx * 0.5, 0.72, nz * 0.5, tmp.r * sh, tmp.g * sh, tmp.b * sh);
   }
-  const insetWorld: number[] = []; for (const p of iv) insetWorld.push(p.x, -p.y);
-  flatRoof(buckets[SHINGLE], insetWorld, top, SLATE2);          // shallow slate cap
+  const iw: number[] = []; for (const p of iv) iw.push(p.x, -p.y);
+  flatRoof(buckets[SHINGLE], iw, top, cap);
+}
 
-  // pedimented dormers + a columned front porch toward High Street
+// a triangular pediment/gable face at (cx,cz), half-base hw, base y0 → apex y1, facing (nx,nz)
+function gableEnd(bk: Bucket, cx: number, cz: number, hw: number, y0: number, y1: number, ang: number, nx: number, nz: number, hex: string) {
+  tmp.set(hex);
+  const tx = Math.cos(ang), tz = Math.sin(ang);
+  bk.triUV(cx - tx * hw, y0, -(cz - tz * hw), cx + tx * hw, y0, -(cz + tz * hw), cx, y1, -cz,
+    nx, 0, nz, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0);
+}
+
+// The Residences on the Ridge (95 High St) — a cream Second Empire: two clapboard storeys
+// on a granite base, a steep slate mansard with pedimented dormers, a two-storey canted
+// bay, and a railed columned porch facing High St. Keyed by b.n in HEROES.
+function buildResidencesRidge(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const CREAM = '#f9f5ec', TRIM = '#fefdf9', SLATE = '#3d414a', SLATE2 = '#494e57',
+        STONE = '#8b857a', GLASS = '#2b3a44';
+  const ring = b.p;
+  const base = g + 6, eave = g + 42, top = eave + 23;
+  walls(buckets[PLAIN], ring, g - 12, base, STONE, 0);           // granite base
+  clad(buckets[CLAP], ring, base, eave, CREAM);                  // cream clapboard
+  walls(buckets[PLAIN], ring, eave - 2.5, eave + 0.6, TRIM, 0);  // cornice
+  facades(buckets[PLAIN], ring, eave, 2, 1888, false, true, false, base, 33);
+  mansard(buckets, ring, eave, top, 7, SLATE, SLATE2);
+
   const f = heroFront(b, index, { road: 'High Street' });
   const ang = Math.atan2(f.tz, f.tx);
+
+  // two-storey canted bay window, off to one side of the entry
+  const bcx = f.x + f.tx * 22, bcz = f.z + f.tz * 22, bw = 6.5, proj = 7;
+  const bay: number[] = [];
+  const BP = (tt: number, no: number) => bay.push(bcx + f.tx * tt + f.nx * no, bcz + f.tz * tt + f.nz * no);
+  BP(-bw, 0); BP(-bw * 0.5, proj); BP(bw * 0.5, proj); BP(bw, 0);
+  clad(buckets[CLAP], bay, base, eave - 1, CREAM);
+  rotBox(buckets[PLAIN], bcx + f.nx * (proj + 0.3), bcz + f.nz * (proj + 0.3), bw * 0.5, 0.5, base + 7, eave - 5, ang, GLASS);
+  flatRoof(buckets[SHINGLE], bay, eave - 1, SLATE);
+
+  // three pedimented dormers across the mansard front
   for (const s of [-1, 0, 1]) {
     const ox = f.x + f.tx * s * 21 + f.nx * 1.5, oz = f.z + f.tz * s * 21 + f.nz * 1.5;
-    rotBox(buckets[CLAP], ox, oz, 5, 4.5, eave + 3, eave + 15, ang, TRIM);                       // dormer face
-    rotBox(buckets[PLAIN], ox + f.nx * 1.4, oz + f.nz * 1.4, 2.6, 0.5, eave + 5, eave + 13, ang, GLASS);  // window
-    rotBox(buckets[SHINGLE], ox, oz, 5.7, 4.9, eave + 15, eave + 16.8, ang, SLATE);              // pediment
+    rotBox(buckets[CLAP], ox, oz, 5, 4.5, eave + 3, eave + 14, ang, TRIM);
+    rotBox(buckets[PLAIN], ox + f.nx * 1.4, oz + f.nz * 1.4, 2.6, 0.5, eave + 5, eave + 12, ang, GLASS);
+    rotBox(buckets[SHINGLE], ox, oz, 5.4, 4.8, eave + 14, eave + 15, ang, SLATE);
+    gableEnd(buckets[PLAIN], ox + f.nx * 1.6, oz + f.nz * 1.6, 5, eave + 14, eave + 18, ang, f.nx, f.nz, TRIM);
   }
-  const pw = Math.min(f.len * 0.42, 28);
+
+  // railed, columned front porch with a slate roof
+  const pw = Math.min(f.len * 0.4, 26), pout = 12;
   for (const s of [-1, -0.34, 0.34, 1]) {
-    rotBox(buckets[PLAIN], f.x + f.tx * s * pw + f.nx * 12, f.z + f.tz * s * pw + f.nz * 12, 1.1, 1.1, base, base + 16, ang, PORCH);  // porch posts
+    rotBox(buckets[PLAIN], f.x + f.tx * s * pw + f.nx * pout, f.z + f.tz * s * pw + f.nz * pout, 1.1, 1.1, base, base + 16, ang, TRIM);  // posts
   }
-  rotBox(buckets[PLAIN], f.x + f.nx * 9, f.z + f.nz * 9, pw + 2, 7, base + 16, base + 17.4, ang, PORCH);  // porch roof
+  rotBox(buckets[PLAIN], f.x + f.nx * (pout - 2.5), f.z + f.nz * (pout - 2.5), pw + 1.5, 1.1, base + 9, base + 10, ang, TRIM);            // railing
+  rotBox(buckets[SHINGLE], f.x + f.nx * (pout - 2), f.z + f.nz * (pout - 2), pw + 2.5, 7.5, base + 16, base + 17, ang, SLATE);            // roof
+  rotBox(buckets[PLAIN], f.x + f.nx * (pout + 5.2), f.z + f.nz * (pout + 5.2), pw + 2.5, 0.8, base + 15, base + 17, ang, TRIM);           // fascia
+}
+
+// the rear carriage house — same cream-and-slate language, scaled down, one dormer
+function buildRidgeCarriage(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const CREAM = '#f9f5ec', TRIM = '#fefdf9', SLATE = '#3d414a', SLATE2 = '#494e57', STONE = '#8b857a', GLASS = '#2b3a44';
+  const ring = b.p;
+  const base = g + 4, eave = g + 26, top = eave + 14;
+  walls(buckets[PLAIN], ring, g - 10, base, STONE, 0);
+  clad(buckets[CLAP], ring, base, eave, CREAM);
+  walls(buckets[PLAIN], ring, eave - 2, eave + 0.5, TRIM, 0);
+  facades(buckets[PLAIN], ring, eave, 1, 1892, false, true, false, base, 28);
+  mansard(buckets, ring, eave, top, 5, SLATE, SLATE2);
+  const f = heroFront(b, index);
+  const ang = Math.atan2(f.tz, f.tx);
+  const ox = f.x + f.nx * 1.5, oz = f.z + f.nz * 1.5;
+  rotBox(buckets[CLAP], ox, oz, 4, 4, eave + 2, eave + 9, ang, TRIM);
+  rotBox(buckets[PLAIN], ox + f.nx * 1.2, oz + f.nz * 1.2, 2, 0.5, eave + 3.5, eave + 7.5, ang, GLASS);
+  rotBox(buckets[SHINGLE], ox, oz, 4.4, 4.4, eave + 9, eave + 10, ang, SLATE);
+  gableEnd(buckets[PLAIN], ox + f.nx * 1.6, oz + f.nz * 1.6, 4, eave + 9, eave + 12, ang, f.nx, f.nz, TRIM);
 }
 
 const HEROES: Record<string, HeroBuilder> = {
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
+  'Ridge Carriage House': buildRidgeCarriage,
   'First Religious Society': buildFRS,
   'Custom House Maritime Museum': buildCustomHouse,
   'Firehouse Center For The Arts': buildFirehouse,
