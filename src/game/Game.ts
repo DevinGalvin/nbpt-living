@@ -169,6 +169,7 @@ export class Game {
   private aimX = 0; private aimZ = 0; // smoothed heading — kids hold a line, turns round off
   private camClamp = 1;             // occlusion pull-in (1 = full distance)
   private chaseCam = true;          // C toggles chase <-> north-up map view
+  private cineLook: { x: number; z: number } | null = null;  // scripted "look out to sea" cutaway (the birdwatcher reveal)
   private autoRun = false;          // R toggles always-run
   private runTipShown = localStorage.getItem('nbpt-run-tip') === '1'; // one-time "press R to run" nudge
   private walkAccum = 0;
@@ -336,7 +337,8 @@ export class Game {
     this.quest = new QuestRunner(this.scene, this.index, this.hud, this.audio, () => this.enterTunnel(), () => {
       localStorage.setItem('nbpt-bike', '1');
       this.bikeEarned();
-    }, () => this.boatRide(), () => this.enterStar(), () => this.enterNews(), () => this.enterDen());
+    }, () => this.boatRide(), () => this.enterStar(), () => this.enterNews(), () => this.enterDen(),
+      (x: number, z: number) => this.lookOutToSea(x, z), () => this.endLookOut());
     this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
     this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,
@@ -1063,7 +1065,7 @@ export class Game {
       if (performance.now() > this.debugVec.until) this.debugVec = null;
       else { vx = this.debugVec.x; vz = this.debugVec.y; }
     }
-    if (this.hud.dialogueOpen) { vx = 0; vz = 0; }
+    if (this.hud.dialogueOpen || this.cineLook) { vx = 0; vz = 0; }   // freeze during dialogue + the look-out-to-sea cutaway
     const mag = Math.hypot(vx, vz);
     if (mag > 1) { vx /= mag; vz /= mag; }
     // ease the heading toward the input so small wobbles don't twitch the path — a kid
@@ -1246,6 +1248,9 @@ export class Game {
     }
     if (this.flying) {
       // stepFlight already eases the camera behind the plane's heading
+    } else if (this.cineLook) {
+      // swing the chase cam to look out at the mystery light (the birdwatcher reveal)
+      this.camAz = lerpAngle(this.camAz, Math.atan2(this.cineLook.x - this.px, this.cineLook.z - this.pz), Math.min(1, dt * 2.4));
     } else if (this.chaseCam) {
       if (movingNow) this.camAz = lerpAngle(this.camAz, Math.atan2(realVx, realVz), Math.min(1, dt * 2.2));
     } else {
@@ -1433,8 +1438,13 @@ export class Game {
       this.camera.position.z += (tz - this.camera.position.z) * f;
     }
     // pulled-in cameras aim at the kid, not past them — keeps them in frame
-    const ahead = this.inside ? 60 : 190 * z * this.camClamp;
-    this.camera.lookAt(this.px + fx * ahead, this.kidY + 20, this.pz + fz * ahead);
+    if (this.cineLook) {
+      // the reveal: aim out past the kid at the light on the water, lifted to the horizon
+      this.camera.lookAt(this.cineLook.x, WATER_Y + 50, this.cineLook.z);
+    } else {
+      const ahead = this.inside ? 60 : 190 * z * this.camClamp;
+      this.camera.lookAt(this.px + fx * ahead, this.kidY + 20, this.pz + fz * ahead);
+    }
     if (!this.inside) {
       const fog = this.scene.fog as THREE.Fog;
       fog.near = 1300 * z;
@@ -1509,6 +1519,11 @@ export class Game {
     this.ensureRect(true);
     this.updateCamera(0, true);
   }
+
+  // the birdwatcher reveal: swing the chase cam out to the mystery light on the water
+  // (movement freezes via cineLook), then endLookOut() returns to the normal chase.
+  lookOutToSea(x: number, z: number) { this.cineLook = { x, z }; }
+  endLookOut() { this.cineLook = null; }
 
   // address bar: "241 high" finds 241 High Street; otherwise names of
   // businesses, parks, buildings, streets, and water — all from the map data

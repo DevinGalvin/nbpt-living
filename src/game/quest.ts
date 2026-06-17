@@ -3,6 +3,7 @@ import { WorldIndex } from '../world/index';
 import { Hud } from './hud';
 import { GameAudio } from './audio';
 import { ITEMS, EMOJI_TO_ID, type BagItem, type Mission } from './items';
+import { WATER_Y } from '../three/water';
 
 // Chapter 1 — "Overdue" (the player-facing first chapter; its save key is the
 // legacy "nbpt-ch0-step"). Gram's errand: get donuts + return the overdue book,
@@ -34,6 +35,7 @@ const BELL_WHARF = { x: 40, z: -905 }; // harbor bell at the wharf
 // Chapter 6 "The Light That Walks" (Level 2 — gated behind ?l2 / localStorage
 // nbpt-l2). A light out past the river mouth that shouldn't be there.
 const JOPPA = { x: 7200, z: 3950, face: -2.2 };  // the birdwatcher at Joppa Flats
+const LIGHT = { x: 9300, z: 700 };               // the mystery light, out on the dark water NE of Joppa
 
 const GRAM_TALK: Line[] = [
   { who: 'Gram', text: 'There you are. Two jobs today. Take Clipper, the dog — he’s in charge.' },
@@ -200,14 +202,16 @@ const CHEST_OPEN: Line[] = [
 // Chapter 6 "The Light That Walks" — beat 1: the Joppa Flats birdwatcher hands over
 // her spare binoculars, and you spot a light out past the lighthouse that shouldn't
 // be there. Earns the binoculars; sends you to Gram. (Level 2 — gated.)
-const WATCHER_TALK: Line[] = [
+const WATCHER_INTRO: Line[] = [
   { who: 'Birdwatcher', text: 'You’re the kid who found the doors under downtown. Figures you’d turn up out here at the end of the world.' },
   { who: 'You', text: 'Is that what Joppa is?' },
   { who: 'Birdwatcher', text: 'Joppa Flats. Best birding in the state — and the mud will take your boot clean off if you sass it.' },
   { who: 'Birdwatcher', text: 'Here. My spare binoculars. I count the eider ducks; you count whatever’s been keeping you up at night.' },
-  { who: '', text: 'You raise them out over the water, toward the river mouth, where the lighthouse keeps its slow, steady watch.' },
-  { who: 'Birdwatcher', text: 'See the lighthouse? Good. Now look a little to the left of it.' },
-  { who: '', text: 'There. Far out past the lighthouse, low over the dark water — another light. Small. Steady. Right where the map says there is nothing at all.' },
+  { who: 'Birdwatcher', text: 'See the lighthouse, out at the river mouth? Good. Now look a little to the left of it…' }
+];
+// shown AFTER the camera swings out to the light, so you're seeing it as she names it
+const WATCHER_REVEAL: Line[] = [
+  { who: '', text: 'There. Low over the dark water — another light. Small. Steady. Right where the map says there’s nothing at all.' },
   { who: 'You', text: 'There’s no lighthouse out there.' },
   { who: 'Birdwatcher', text: '…No. There isn’t.' },
   { who: 'Birdwatcher', text: 'Comes on after dark, gone by morning. A week of it now, and nobody on these flats will say a word.' },
@@ -356,12 +360,15 @@ export class QuestRunner {
   private onStar: () => void;   // ENTER the Custom House cellar (the star room)
   private onNews: () => void;   // ENTER the Daily News newsroom (Chapter 3)
   private onDen: () => void;    // re-ENTER the den if you stepped out before finishing Ch4
+  private onLookSea: (x: number, z: number) => void;   // Level 2: cinematic cutaway to the mystery light
+  private onLookEnd: () => void;                        // …and back to the normal chase cam
   private ch2: number;
   private ch3: number;
   private ch4: number;
   private ch5: number;          // Chapter 6 "The Light That Walks" (Level 2, gated)
   private l2: boolean;          // Level 2 gate (?l2 → localStorage nbpt-l2)
   private l2built = false;      // lazily spawn the Joppa birdwatcher once Level 1 ends
+  private mysteryLight: THREE.Group | null = null;   // the light out on the water (Ch6 reveal → Ch2 target)
   private bells: Set<string>;
   private rowboat: THREE.Group | null = null;
   private c5built = false;
@@ -372,7 +379,8 @@ export class QuestRunner {
   private papers: { m: THREE.Mesh; t: number; from: { x: number; z: number }; to: { x: number; z: number } }[] = [];
 
   constructor(scene: THREE.Scene, index: WorldIndex, hud: Hud, audio: GameAudio, onGoDown: () => void, onBike: () => void,
-              onBoat: () => void, onStar: () => void, onNews: () => void, onDen: () => void) {
+              onBoat: () => void, onStar: () => void, onNews: () => void, onDen: () => void,
+              onLookSea: (x: number, z: number) => void, onLookEnd: () => void) {
     this.scene = scene;
     this.index = index;
     this.hud = hud;
@@ -383,6 +391,8 @@ export class QuestRunner {
     this.onStar = onStar;
     this.onNews = onNews;
     this.onDen = onDen;
+    this.onLookSea = onLookSea;
+    this.onLookEnd = onLookEnd;
     this.step = Math.min(6, Math.max(0, parseInt(localStorage.getItem(SAVE_KEY) || '0', 10) || 0));
     this.ch2 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch2-step') || '0', 10) || 0));
     this.ch3 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch3-step') || '0', 10) || 0));
@@ -617,6 +627,28 @@ export class QuestRunner {
     this.npcs.watcher = w;
     this.place(w, JOPPA.x, JOPPA.z, JOPPA.face);
     this.scene.add(w);
+    // the mystery light out on the dark water: a small bright core + an additive glow
+    // halo (fog-less, so it reads as a clear distant light). Hidden until the reveal
+    // (ch5 >= 1 keeps it on across reloads); later it's the Chapter 2 kayak target.
+    const g = new THREE.Group();
+    const core = new THREE.Mesh(new THREE.SphereGeometry(22, 14, 12), new THREE.MeshBasicMaterial({ color: '#fff6e0', fog: false }));
+    g.add(core);
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 64;
+    const g2 = cv.getContext('2d')!;
+    const grd = g2.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grd.addColorStop(0, 'rgba(255,244,205,0.95)');
+    grd.addColorStop(0.45, 'rgba(255,226,150,0.45)');
+    grd.addColorStop(1, 'rgba(255,220,140,0)');
+    g2.fillStyle = grd;
+    g2.fillRect(0, 0, 64, 64);
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, fog: false, depthWrite: false }));
+    halo.scale.set(380, 380, 1);
+    g.add(halo);
+    g.position.set(LIGHT.x, WATER_Y + 7, LIGHT.z);
+    g.visible = this.ch5 >= 1;
+    this.mysteryLight = g;
+    this.scene.add(g);
   }
 
   // current interactable: tag + spot + verb for the TALK button
@@ -933,6 +965,10 @@ export class QuestRunner {
       const g = this.npcs[k];
       g.rotation.y += Math.sin(this.t * 1.3 + g.position.x) * 0.0006;
     }
+    // the mystery light breathes slowly out on the dark water
+    if (this.mysteryLight && this.mysteryLight.visible) {
+      this.mysteryLight.scale.setScalar(0.85 + 0.18 * Math.sin(this.t * 1.8));
+    }
 
     // step 4: following Clipper, you close on the grate he's found
     if (this.step === 4 && Math.hypot(px - GRATE.x, pz - GRATE.z) < 290) {
@@ -1184,10 +1220,17 @@ export class QuestRunner {
         this.setCh4(4);
       });
     } else if (tag === 'watcher' && this.l2 && this.ch5 === 0) {
-      this.hud.showDialogue(WATCHER_TALK, () => {
-        this.audio.jingle();
-        this.hud.chapterCard('LEVEL 2 · CHAPTER 1', 'The False Light', 'a light where no light should be');
-        this.setCh5(1);   // binoculars earned; Chapter 6 beat 2 (the kayak) comes next
+      this.hud.showDialogue(WATCHER_INTRO, () => {
+        // she says "look" → reveal the light + swing the camera out to it; the reveal
+        // lines then play over that view, so you SEE what she's describing
+        if (this.mysteryLight) this.mysteryLight.visible = true;
+        this.onLookSea(LIGHT.x, LIGHT.z);
+        this.hud.showDialogue(WATCHER_REVEAL, () => {
+          this.onLookEnd();
+          this.audio.jingle();
+          this.hud.chapterCard('LEVEL 2 · CHAPTER 1', 'The False Light', 'a light where no light should be');
+          this.setCh5(1);   // binoculars earned; the kayak (Chapter 2) comes next
+        });
       });
     }
   }
