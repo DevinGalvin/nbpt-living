@@ -656,23 +656,29 @@ export class Game {
     return false;
   }
 
-  // a slim red kayak with a cockpit rim + paddle (boxes/capsule, like the rowboat)
+  // a long red sea kayak (boxes, like the rowboat but bigger + slimmer + pointed).
+  // The kid sits in the open cockpit; the group faces +z (forward).
   private buildKayak(): THREE.Group {
     const R = new THREE.Group();
-    const hull = new THREE.Mesh(new THREE.CapsuleGeometry(4.6, 30, 4, 12), new THREE.MeshLambertMaterial({ color: '#d8533a' }));
-    hull.rotation.x = Math.PI / 2;
-    hull.scale.set(1, 1, 0.52);          // flatten into a low hull
-    hull.position.y = 2.4;
-    hull.castShadow = true;
-    R.add(hull);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.7, 6, 16), new THREE.MeshLambertMaterial({ color: '#33342c' }));
-    rim.rotation.x = Math.PI / 2;
-    rim.position.set(0, 3.9, -1);
-    R.add(rim);
-    const paddle = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 30), new THREE.MeshLambertMaterial({ color: '#caa46a' }));
-    paddle.position.set(0, 6, 2);
+    const RED = '#d8533a', RED2 = '#bf4630', DARK = '#2e2f28';
+    const b = (w: number, h: number, d: number, x: number, y: number, z: number, hex: string) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color: hex }));
+      m.position.set(x, y, z);
+      m.castShadow = true;
+      R.add(m);
+    };
+    b(16, 4, 56, 0, 2.6, 0, RED);          // hull bottom
+    b(2, 6.5, 54, -7.7, 5.4, 0, RED2);     // left gunwale
+    b(2, 6.5, 54, 7.7, 5.4, 0, RED2);      // right gunwale
+    b(11, 6.5, 10, 0, 5.4, 29, RED);       // bow shoulder
+    b(5, 6.5, 10, 0, 5.4, 36, RED2);       // pointed bow tip
+    b(11, 6.5, 10, 0, 5.4, -29, RED);      // stern shoulder
+    b(5, 6.5, 10, 0, 5.4, -36, RED2);      // pointed stern tip
+    b(13, 1.8, 22, 0, 6.8, -3, DARK);      // cockpit coaming (the kid sits here)
+    const paddle = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 52), new THREE.MeshLambertMaterial({ color: '#caa46a' }));
+    paddle.position.set(0, 9.5, 1);
     paddle.rotation.y = 0.42;
-    paddle.rotation.z = 0.32;
+    paddle.rotation.z = 0.26;
     R.add(paddle);
     this.scene.add(R);
     return R;
