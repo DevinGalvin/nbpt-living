@@ -1005,7 +1005,10 @@ export class QuestRunner {
       if (this.nearTag) { this.nearTag = null; this.hud.showTalk(null); }
       return;
     }
-    if (this.hud.flying) { this.nearTag = null; return; }   // ✈️ Game owns the LAND button while flying
+    if (this.hud.flying || this.hud.kayaking) {   // ✈️/🛶 Game owns the action button in the air / on the water
+      if (this.nearTag) { this.nearTag = null; this.hud.showTalk(null); }
+      return;
+    }
     let near: { tag: string; label: string } | null = null;
     const it = this.nearestCandidate(px, pz);
     if (it) near = { tag: it.tag, label: it.label };

@@ -485,6 +485,7 @@ export class Hud {
   // true while rowing the boat out at low tide (Chapter 4) — quest UI keys off it
   boating = false;
   flying = false;   // ✈️ scenic flight — the quest yields its action button so LAND owns it
+  kayaking = false; // 🛶 free-roam kayak — quest yields so HOP OUT owns the action button
 
   private dlgEl!: HTMLElement;
   private dlgWho!: HTMLElement;

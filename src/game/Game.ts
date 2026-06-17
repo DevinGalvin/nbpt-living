@@ -134,6 +134,12 @@ export class Game {
   private rideBoat: THREE.Group | null = null;
   private boatAz = 0;
   private boatReturn = { x: 0, z: 0 };
+  // 🛶 the free-roam kayak (Level 2): launch anywhere at the water's edge, paddle the
+  // harbor/marsh confined to water, hop out on any shore. An earned, player-driven
+  // cousin of the Ch4 boat ride (same water-confined movement + on-water pose).
+  private kayaking = false;
+  private kayak: THREE.Group | null = null;
+  private kayakAz = 0;
   // ✈️ scenic flight (Plum Island Airport): a free overground flight mode
   private flying = false;
   private ridePlane: THREE.Group | null = null;
@@ -144,7 +150,7 @@ export class Game {
   private planePitch = 0;      // visual pitch, eased
   private flySpeed = 0;        // forward speed, ramps up for takeoff
   private flyPhase: 'roll' | 'climb' | 'cruise' = 'roll';
-  private flyAct: 'fly' | 'land' | null = null;   // edge state for the FLY / LAND action button
+  private flyAct: string | null = null;   // edge state for the Game-owned action button (FLY/LAND/KAYAK/HOP OUT)
   private skirt: THREE.Mesh | null = null;        // ✈️ ground skirt — fills the far void while flying
   private flightDev = false;   // flight is private for now — only opted-in devices (see ?fly)
   private keys = new Set<string>();
@@ -564,7 +570,7 @@ export class Game {
   // ---------- movement ----------
 
   toggleBike() {
-    if (localStorage.getItem('nbpt-bike') !== '1' || this.inside || this.boating) return;
+    if (localStorage.getItem('nbpt-bike') !== '1' || this.inside || this.onWater) return;
     this.riding = !this.riding;
     this.bike.root.visible = this.riding;
     this.hud.setBikeState(this.riding);
@@ -599,10 +605,88 @@ export class Game {
     this.hud.showBike(true);
   }
 
+  // ---------- 🛶 the free-roam kayak (Level 2) ----------
+
+  // launch from the shore: drop the kid into the nearest open water just offshore
+  enterKayak() {
+    if (this.kayaking || this.inside || this.boating || this.flying) return;
+    let lx = this.px, lz = this.pz, found = false;
+    for (let r = 18; r < 240 && !found; r += 12) {
+      for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+        const x = this.px + Math.cos(a) * r, y = this.pz + Math.sin(a) * r;
+        if (this.index.isWaterAt(x, y)) { lx = x; lz = y; found = true; break; }
+      }
+    }
+    if (!found) return;                 // no water nearby — nothing to launch into
+    this.dismount();
+    this.kayaking = true;
+    this.hud.kayaking = true;           // the quest yields its action button (HOP OUT owns it)
+    if (!this.kayak) this.kayak = this.buildKayak();
+    this.kayak.visible = true;
+    this.kayakAz = this.camAz;
+    this.px = lx; this.pz = lz;
+    this.kidY = WATER_Y;
+    this.kid.setPos(this.px, this.pz);
+    this.audio.gull();
+    this.quest?.refresh();
+    this.updateCamera(0.016, true);
+  }
+
+  // hop out onto the nearest dry, unblocked shore (findFree already avoids water)
+  exitKayak() {
+    if (!this.kayaking) return;
+    const spot = this.findFree(this.px, this.pz);
+    this.kayaking = false;
+    this.hud.kayaking = false;
+    if (this.kayak) this.kayak.visible = false;
+    this.px = spot.x; this.pz = spot.y;
+    this.kidY = Math.max(this.terrain.heightAt(this.px, this.pz), this.index.deckHeightAt(this.px, this.pz));
+    this.kid.setPos(this.px, this.pz);
+    this.dog.root.position.set(this.px - 20, this.kidY, this.pz + 12);
+    this.quest?.refresh();
+    this.updateCamera(0.016, true);
+  }
+
+  // is there dry, unblocked land within a short hop? (gates the HOP OUT button)
+  private landNear(): boolean {
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+      const x = this.px + Math.cos(a) * 70, y = this.pz + Math.sin(a) * 70;
+      if (!this.index.isWaterAt(x, y) && !this.index.isBlocked(x, y)) return true;
+    }
+    return false;
+  }
+
+  // a slim red kayak with a cockpit rim + paddle (boxes/capsule, like the rowboat)
+  private buildKayak(): THREE.Group {
+    const R = new THREE.Group();
+    const hull = new THREE.Mesh(new THREE.CapsuleGeometry(4.6, 30, 4, 12), new THREE.MeshLambertMaterial({ color: '#d8533a' }));
+    hull.rotation.x = Math.PI / 2;
+    hull.scale.set(1, 1, 0.52);          // flatten into a low hull
+    hull.position.y = 2.4;
+    hull.castShadow = true;
+    R.add(hull);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.7, 6, 16), new THREE.MeshLambertMaterial({ color: '#33342c' }));
+    rim.rotation.x = Math.PI / 2;
+    rim.position.set(0, 3.9, -1);
+    R.add(rim);
+    const paddle = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 30), new THREE.MeshLambertMaterial({ color: '#caa46a' }));
+    paddle.position.set(0, 6, 2);
+    paddle.rotation.y = 0.42;
+    paddle.rotation.z = 0.32;
+    R.add(paddle);
+    this.scene.add(R);
+    return R;
+  }
+
   // true whenever the player is in any hand-built interior (tunnel/den/star)
   private get inside(): boolean {
     return this.inTunnel || this.interior !== null;
   }
+
+  // on the water in either mode (the Ch4 ride or the free-roam kayak) — shared
+  // rendering: water height, the seated rowing pose, Clipper in the bow, no fence-hop
+  private get onWater(): boolean { return this.boating || this.kayaking; }
+  private get kayakEarned(): boolean { return localStorage.getItem('nbpt-kayak') === '1'; }
 
   // ---------- the tunnels (Chapter 1) ----------
 
@@ -1084,15 +1168,19 @@ export class Game {
     // no bike — the rooms are small and a kid mashing run shouldn't rocket around
     // them. Force a walk regardless of the run toggle or any stray riding state.
     if (this.inside) this.sprinting = false;
-    let speed = this.inside ? JOG : this.riding ? 530 : this.sprinting ? SPRINT : JOG;
+    let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 360 : this.sprinting ? SPRINT : JOG;
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
     // streets are controllable. The joystick still gives proportional speed below
     // this; desktop (WASD) and the run button keep the full, gamey pace.
-    if (this.hud.joyActive && !this.sprinting && !this.riding) speed *= 0.72;
+    if (this.hud.joyActive && !this.sprinting && !this.riding && !this.kayaking) speed *= 0.72;
 
     const half = 5;   // a slightly slimmer footprint so narrow streets stay passable
-    const free = this.boating
+    const free = this.kayaking
+      // the free-roam kayak: confined to water, no slack — you launch from a shore
+      // cell and hop out onto land via the HOP OUT button, never paddle onto land
+      ? (x: number, y: number) => this.index.isWaterAt(x, y)
+      : this.boating
       // keep the boat on the water — never onto land — with slack at the launch and
       // the den door it beaches at (so the route in/out is never blocked)
       ? (x: number, y: number) =>
@@ -1163,18 +1251,18 @@ export class Game {
     this.px = nx;
     this.pz = nz;
     this.kid.setPos(this.px, this.pz);
-    this.kid.update(dt, realVx, realVz, this.sprinting, this.riding, this.boating);
+    this.kid.update(dt, realVx, realVz, this.sprinting, this.riding, this.onWater);
     this.kid.setBackpack(this.hud.hasBackpack());   // worn pack appears once the 🎒 is earned
 
     // ride the real terrain, bridge decks, and docks (the tunnel floor is flat).
     // Decks are entered where they meet the grade — passing beneath a raised
     // overpass keeps you on the ground under it, head safely below the span.
-    const terrainY = this.inside ? 0 : this.boating ? WATER_Y : this.terrain.heightAt(this.px, this.pz);
-    const surfY = this.inside ? 0 : this.boating ? WATER_Y : this.index.surfaceYAt(this.px, this.pz, this.kidY);
+    const terrainY = this.inside ? 0 : this.onWater ? WATER_Y : this.terrain.heightAt(this.px, this.pz);
+    const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.index.surfaceYAt(this.px, this.pz, this.kidY);
     this.kidY += (surfY - this.kidY) * Math.min(1, dt * 12);
     if (this.flying) this.kidY = this.flyY;   // ✈️ altitude overrides the terrain-follow
     // hop low fences/hedges (they no longer block) — a quick arc as you cross one
-    const nearFence = !this.inside && !this.boating && this.index.lowBarrierNear(this.px, this.pz);
+    const nearFence = !this.inside && !this.onWater && this.index.lowBarrierNear(this.px, this.pz);
     if (Math.hypot(realVx, realVz) > 4 && nearFence && !this.wasNearFence && this.hopT <= 0) this.hopT = 0.5;
     this.wasNearFence = nearFence;
     if (this.hopT > 0) this.hopT = Math.max(0, this.hopT - dt);
@@ -1192,6 +1280,12 @@ export class Game {
       this.rideBoat.rotation.y = this.boatAz;
       if (!this.beached && Math.hypot(this.px - BOAT_DOOR.x, this.pz - BOAT_DOOR.z) < 120) this.endBoat();
     }
+    // 🛶 the free-roam kayak: hull steers toward your heading and rides the water
+    if (this.kayaking && this.kayak) {
+      if (Math.hypot(realVx, realVz) > 1) this.kayakAz = Math.atan2(realVx, realVz);
+      this.kayak.position.set(this.px, this.kidY + 0.4, this.pz);
+      this.kayak.rotation.y = this.kayakAz;
+    }
     // ✈️ scenic flight: the plane rides at altitude, banks into turns, prop spins
     if (this.flying && this.ridePlane) {
       this.ridePlane.position.set(this.px, this.flyY, this.pz);
@@ -1203,10 +1297,13 @@ export class Game {
     const still = Math.hypot(realVx, realVz) < 1;
     if (this.flying) {
       // Clipper waits at the airport during the flight (hidden); rejoined on landing
-    } else if (this.boating) {
-      // Clipper rides up in the bow, facing the water ahead (the boat's heading)
-      this.dog.root.position.set(this.px + Math.sin(this.boatAz) * 17, this.kidY + 7.4, this.pz + Math.cos(this.boatAz) * 17);
-      this.dog.faceTo(this.boatAz);
+    } else if (this.onWater) {
+      // Clipper rides up in the bow, facing the water ahead (the hull's heading).
+      // The kayak is slimmer + lower than the rowboat, so he sits a touch closer/lower.
+      const waterAz = this.boating ? this.boatAz : this.kayakAz;
+      const bowD = this.boating ? 17 : 13, bowY = this.boating ? 7.4 : 5.6;
+      this.dog.root.position.set(this.px + Math.sin(waterAz) * bowD, this.kidY + bowY, this.pz + Math.cos(waterAz) * bowD);
+      this.dog.faceTo(waterAz);
     } else {
       // dog heels behind-left of the kid's heading — unless the quest has
       // somewhere Clipper needs to be (the grate beat)
@@ -1313,7 +1410,7 @@ export class Game {
     // dressing no longer matches your progress and you're calm in the overworld
     // (not mid-dialogue, not still reading a CHAPTER COMPLETE card). Once the seasons
     // unlock (finale climax) the picker takes over, so the story never overrides a manual pick.
-    if (!this.inside && !this.boating && !this.seasonTurning && !this.hud.dialogueOpen
+    if (!this.inside && !this.onWater && !this.seasonTurning && !this.hud.dialogueOpen
         && !seasonsUnlocked() && !document.querySelector('#hud .chapter.show') && storySeason() !== SEASON) {
       this.turnSeason();
     }
@@ -1322,19 +1419,20 @@ export class Game {
     this.pollAcc += dt;
     if (this.pollAcc > 0.45) {
       this.pollAcc = 0;
-      // ✈️ flight action button (dev only): LAND while flying, FLY on the runway. The
-      // quest yields its own action button while flying (QuestRunner), so no conflict.
-      let flyAct: 'fly' | 'land' | null = null;
-      if (this.flightDev) {
-        if (this.flying) flyAct = 'land';
-        else if (!this.inside && !this.boating
-          && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) flyAct = 'fly';
+      // Game-owned contextual action button, priority: LAND > HOP OUT > FLY > KAYAK.
+      // The quest owns TALK/LOOK; on water it yields (hud.kayaking → QuestRunner), and
+      // KAYAK defers to any quest button so you can still talk to shore NPCs at Joppa.
+      let act: { label: string; cb: () => void } | null = null;
+      if (this.flying) act = { label: '🛬 LAND', cb: () => this.land() };
+      else if (this.kayaking) { if (this.landNear()) act = { label: '🛶 HOP OUT', cb: () => this.exitKayak() }; }
+      else if (!this.inside && !this.boating) {
+        if (this.flightDev && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
+        else if (this.kayakEarned && this.nearWater && !this.quest?.nearActive) act = { label: '🛶 KAYAK', cb: () => this.enterKayak() };
       }
-      if (flyAct !== this.flyAct) {
-        this.flyAct = flyAct;
-        if (flyAct === 'land') this.hud.showTalk('🛬 LAND', () => this.land());
-        else if (flyAct === 'fly') this.hud.showTalk('✈️ FLY', () => this.enterPlane());
-        else this.hud.showTalk(null);
+      const actKey = act ? act.label : null;
+      if (actKey !== this.flyAct) {
+        this.flyAct = actKey;
+        this.hud.showTalk(act ? act.label : null, act ? act.cb : undefined);
       }
       this.hud.setStreet(this.inTunnel ? 'the tunnels' : this.interior ? this.interior.name : this.index.nearestRoadName(this.px, this.pz, 170));
       if (!this.inside) {
@@ -1342,7 +1440,7 @@ export class Game {
         // landmark banners would all lie underground
         this.hud.setMiniPos(this.px, this.pz);
         // remember where you are so a refresh (or a crash) resumes here, not at the start
-        if (!this.boating) localStorage.setItem('nbpt-resume-pos', JSON.stringify({ x: Math.round(this.px), z: Math.round(this.pz) }));
+        if (!this.onWater) localStorage.setItem('nbpt-resume-pos', JSON.stringify({ x: Math.round(this.px), z: Math.round(this.pz) }));
         this.updateLampSpots();
         this.nearWater = this.index.isWaterAt(this.px, this.pz - 230)
           || this.index.isWaterAt(this.px + 230, this.pz) || this.index.isWaterAt(this.px - 230, this.pz)
