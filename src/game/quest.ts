@@ -405,7 +405,7 @@ export class QuestRunner {
   private l2built = false;      // lazily spawn the Joppa props once Level 1 ends
   private mysteryLight: THREE.Group | null = null;   // the light out on the water (Ch1 reveal → Ch2 target)
   private foundation: THREE.Group | null = null;     // the old lighthouse base under the light (Ch2 reveal)
-  private tiedKayak: THREE.Group | null = null;      // the kayak tied at the Joppa slip (hidden once taken)
+  private tiedKayak: THREE.Group | null = null;      // grandpa's kayak — always tied at the Joppa slip (a permanent fixture)
   private bells: Set<string>;
   private rowboat: THREE.Group | null = null;
   private c5built = false;
@@ -671,10 +671,14 @@ export class QuestRunner {
     // the drowned lighthouse foundation directly under the light (the Chapter 2 reveal):
     // a ring of half-sunk granite blocks, shown once the light is found (ch5 >= 1)
     const f = new THREE.Group();
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2;
-      const blk = box(7, 7, 7, '#8b8884');
-      blk.position.set(Math.cos(a) * 12, WATER_Y + 1.5, Math.sin(a) * 12);
+    const FN = 18, FR = 58;             // a big ring of blocks — the lighthouse's drowned base
+    for (let i = 0; i < FN; i++) {
+      const a = (i / FN) * Math.PI * 2;
+      const w = 20 + (i % 3) * 4;       // 20..28 wide — uneven, broken courses
+      const h = 22 + (i % 4) * 3;       // 22..31 tall
+      const sink = 10 + (i % 5) * 2;    // each block has settled to a different depth
+      const blk = box(w, h, 18, i % 2 ? '#8b8884' : '#7e7b76');
+      blk.position.set(Math.cos(a) * FR, WATER_Y + h / 2 - sink, Math.sin(a) * FR);
       blk.rotation.y = a + 0.3;
       f.add(blk);
     }
@@ -721,7 +725,7 @@ export class QuestRunner {
     const tp = box(1.6, 1.6, 28, '#caa46a'); tp.position.set(0, 5.5, 2); tp.rotation.y = 0.4; tied.add(tp);
     tied.position.set(7.5, -2.5, 50);
     tied.rotation.y = 0.15;
-    tied.visible = this.ch6 < 2;       // still tied up until you've taken it
+    tied.visible = true;               // always at the slip — locked until Gram says to use it, then free-roam forever
     this.tiedKayak = tied;
     dock.add(tied);
     // anchor at the waterline (~40px NE of the slip shore, which is ~9 high), not the
@@ -1372,7 +1376,7 @@ export class QuestRunner {
       this.hud.showDialogue(SLIP_TAKE, () => {
         localStorage.setItem('nbpt-kayak', '1');   // the kayak is yours — free-roam from here on
         this.audio.jingle();
-        if (this.tiedKayak) this.tiedKayak.visible = false;   // you took it off the dock
+        // the slip keeps its kayak (a permanent fixture); taking it just unlocks free-roam paddling
         this.setCh6(2);
         this.onKayak();   // "Hop in" — drop straight into the kayak on the water (no standing on land)
       });
@@ -1381,6 +1385,9 @@ export class QuestRunner {
 
   // Level 2 Ch2 reveal: you've paddled to the light and it's an old lighthouse foundation
   private revealWalk() {
+    // you've reached the light — the objective beacon + "!" bow out so the reveal reads clean
+    this.beacon.visible = false;
+    this.bang.visible = false;
     this.hud.showDialogue(WALK_REVEAL, () => {
       this.audio.jingle();
       this.hud.chapterCard('LEVEL 2 · CHAPTER 2 COMPLETE', 'The Walking Light', 'the light moved — and now you know it');
