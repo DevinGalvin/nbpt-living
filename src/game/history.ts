@@ -102,7 +102,7 @@ export const SITES: Site[] = [
   },
   {
     id: 'joppa', x: 7200, z: 3950, title: 'Joppa', year: 'three centuries',
-    body: 'The flats off this shore fed the neighborhood for three hundred years — clammers working the tides, selling by the bushel, arguing about greenheads. It is pronounced JOP-pee. Locals can tell when you say it wrong, and they will let you live with it.'
+    body: 'The flats off this shore fed the neighborhood for three hundred years — clammers working the tides, selling by the bushel, arguing about greenheads. A little fishing village at the edge of the city, and prouder of these mudflats than downtown will ever understand.'
   },
   {
     id: 'marchs-hill', x: 2130, z: 8960, title: 'March’s Hill', year: 'every winter',

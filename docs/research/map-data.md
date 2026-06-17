@@ -40,7 +40,7 @@
 
 - **Downtown:** Market Square + State St + Inn St pedestrian mall + waterfront (Market Landing Park).
 - **South End:** between downtown and the Newbury line (High↔Water, Federal/Lime/Marlboro/Bromfield rungs); oldest dense fabric; contains South End HD, Fruit St HD, Joppa HD.
-- **Joppa ("JOP-pee"):** the SE waterfront strip along Water St facing **Joppa Flats**; historic fishing/clamming village; Joppa Park at 42.80697,-70.85872.
+- **Joppa:** the SE waterfront strip along Water St facing **Joppa Flats**; historic fishing/clamming village; Joppa Park at 42.80697,-70.85872. (Earlier "JOP-pee" pronunciation note was wrong per Devin — removed.)
 - **North End:** NW of downtown along Merrimac St toward the bridges; more residential.
 - **Belleville:** the NW section around upper High St / Storey Ave / Moseley Ave near Atkinson Common (boundary informal).
 - **Industrial Park (off Parker St):** "Lord Timothy Dexter Industrial Green" (plaque at Graf Rd & Parker St); streets: Graf Rd, Malcolm Hoyt Dr, Opportunity Way; between the MBTA line and the Common Pasture.
