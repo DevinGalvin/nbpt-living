@@ -3,17 +3,23 @@
 A cozy, all-ages Zelda-like set on the **exact map of Newburyport, MA**. Three.js +
 TypeScript + Vite. Live at **https://clippertown.io**.
 
-> ## 🚀 LAUNCHED — June 16, 2026
-> Posted to **r/Newburyport** and well-received — the "find your own house" hook landed
-> (*"Wow this is sick I found my house!!!"*). The game is **live and stable**; latest
-> gameplay deploy `029d634` (this handoff is a doc-only commit on top).
+> ## 🚀 LIVE & stable at clippertown.io — launched June 16, 2026 to r/Newburyport
+> (the "I found my house!" hook landed). A LOT has shipped since launch — see §5. Every
+> build stamps its commit at `window.__build`.
 >
-> **Next session, do these first:**
-> 1. **Watch the r/Newburyport thread** for feedback. "You're missing X / my street's
->    wrong" → fix it fast and reply *"added it, check again."* The map is real OSM, so
->    footprints/streets are accurate; the *architecture* is stylized.
-> 2. One unfinished todo: the **5th promo screenshot** (snowy Inn Street) — see §6.
-> 3. Scaling headroom + the Cloudflare fallback if it surges — see §6.
+> **The biggest open item is a DESIGN call, not code: what is "Level 2"?**
+> Undecided. Devin rejected *Lord Dexter's 40 statues* (too silly for a *main* level —
+> but it's a great SIDE-quest collectible, already seeded in GAME_CONCEPT) and the
+> *Clipper launch*. The leading pitch is **"The Long Night"** — a present-day
+> **nor'easter** that floods the real town: row the flooded streets, run neighbors up to
+> the **Ridge** (High St is the literal high ground), **fly** to spot the stranded, keep
+> the lights on, dawn over a battered-but-standing town. It needs **zero historical
+> re-render** (the modern map IS the stage), uses **every system** (seasons, day/night,
+> flight, boat, lighthouse), and map-exactness becomes the emotion. **Not committed** —
+> riff with Devin or build it. See §6.
+>
+> Also live but **private/dev-gated**: a **scenic flight** from Plum Island Airport
+> (`clippertown.io/?fly=1` to enable on a device) — see §5 + the `nbpt-flight-prototype` memory.
 
 ---
 
@@ -74,9 +80,9 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
   run if used at the same moment — same result). It refuses to run unless `source` is the
   checked-out branch.
 - **In-browser debug hooks** (great for verifying): `window.nbpt` → `go(x,z)`,
-  `travel(id)`, `find(q)`, `pos()`, `zoom(z)`, `season('summer'|'fall'|'winter')`,
+  `travel(id)`, `find(q)`, `pos()`, `zoom(z)`, `season('summer'|'fall'|'winter'|'spring')`,
   `time(0–1)` (0=midnight·.25=dawn·.5=noon·.75=dusk), `weather(1=storm|0=clear|null=auto)`,
-  `_game` (internals), `_THREE`.
+  `fly()`/`land()` (✈️ flight — only works on a `?fly`-enabled device), `_game`, `_THREE`.
 - **Verifying via the `nbpt` hooks** (preview throttles rAF): after `nbpt.time()`/`go()`,
   pump frames by hand — `for(let i=0;i<8;i++) nbpt._game.frame(t+=16.7)` — but continue
   timestamps from `_game.lastTime` and restore it after, or the next real frame gets a
@@ -91,21 +97,29 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
   fast-travel (`travelTo`/`findFree`), water/ice, fence-hop, the day–night lighting
   (applies `Sky`'s palette to sun/hemi/fog each frame), a **street-lamp light pool**
   (16 warm PointLights + glow discs that follow the nearest lamps, on only at night),
-  the interior scene-swap (`enterNews`/`enterDen`/`enterStar`/tunnel), and the
-  first-visit welcome card + one-time "press R to run" toast.
+  the interior scene-swap (`enterNews`/`enterDen`/`enterStar`/tunnel), the
+  first-visit welcome card + one-time "press R to run" toast, and **✈️ scenic flight**
+  (`enterPlane`/`startFlight`/`stepFlight`, a `flying` branch in `frame()` + `updateCamera`,
+  the ground **skirt** for the horizon, the worn-backpack toggle; dev-gated via `?fly`).
 - `src/world/index.ts` — **WorldIndex**: spatial buckets, the painted **ground canvas**
   (`fillPoly`/`terrainFill`), the **collision grid** (`buildCollision`, red=blocked),
   `isWaterAt`/`frozenWaterAt`/`isBlocked`/`surfaceYAt`/`lowBarrierNear`, shop signs,
   pitch markings, deck heights.
 - `src/world/style.ts` — palette + **`SEASON`** (resolved from `?season=` or
   localStorage `nbpt-season`); a table-swap re-dresses the whole town per season.
+  **`seasonsUnlocked()`** (ch4≥3, the finale climax) is the single gate for the post-game
+  season picker — both whether it unlocks AND whether a pick applies (replaced the old
+  buggy two-threshold `spineComplete`).
 - `src/world/terrain.ts` — real elevation (heightAt/normalAt) from `public/heights.bin`.
 - `src/three/decor.ts` — all 3D building/scenery generation: walls, roofs, **`facades`**
   (windows/doors), **HEROES** registry (named landmarks → custom builders), **`styledHouse`**
   (renders `b.style` homes — federal brick mansions / georgian / queen-anne turret),
   **`mbtaTrain`** at the station, **`placeBenches`** (edge-lined in parks/plazas),
   beach crabs + woodland critters, **Plum Island** varied colors+materials (mostly
-  painted clapboard, some shake), pumpkins, gravestones, **13 Fox Run Drive**.
+  painted clapboard, some shake), pumpkins, gravestones, **13 Fox Run Drive**, and
+  **The Residences on the Ridge** (95 High St) + its carriage house — cream Second Empire
+  heroes built from reusable `mansard()` / `clad()` (soft-shade walls) / `gableEnd()`
+  helpers. (Plum Island's **runway renders as turf**, in `index.ts` `drawPath`.)
 - `src/three/water.ts` — the animated water mesh + `isFreezableWater` + winter ice mesh.
 - `src/three/sky.ts` — **`Sky`**: the day–night cycle (gradient dome, sun/moon disc, stars)
   + weather (rain; snow in winter). NO clouds (removed by request). The sun follows a
@@ -142,6 +156,39 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
 ---
 
 ## 5. Recent work
+
+**June 17, 2026 (all deployed):**
+- **✈️ Scenic flight from Plum Island Airport** — a whole new vehicle/mode on the real
+  **Runway 10/28**. Walk to the airfield → **✈️ FLY**, take off west over town, bank
+  around, **🛬 LAND** (touch buttons; lands you where you are). Cozy + uncrashable. It's
+  **PRIVATE / dev-gated**: only devices that opened `clippertown.io/?fly=1` once (latches
+  `localStorage nbpt-fly`) ever see it — the public never does. **Don't un-gate.** All in
+  `Game.ts`. **White-horizon fix:** a big ground **skirt** plane + bigger flight chunk-
+  streaming + a raised chunk cap, so distance reads as hazy land, not white-rendering-in.
+  **NEXT:** the **1910 first-flight Echo** at the airfield + the proper story gate (see the
+  `nbpt-flight-prototype` memory).
+- **🗼 Runway is turf** — Plum Island 10/28 renders as the real mowed grass strip, not
+  asphalt (`drawPath`, `index.ts`); taxiways/apron stay paved.
+- **🏚️ 95 High St = "The Residences on the Ridge"** — replaced the brown box with a hand-
+  modeled **cream Second Empire HERO**: granite base, steep slate **mansard** (reusable
+  `mansard()` helper), pedimented **dormers** (`gableEnd`), a canted **bay window**, a
+  railed **porch**, plus the matching **carriage house** (its own hero). Set well back off
+  the High/State sidewalks. Footprints live in `MANUAL_BUILDINGS` (build_world.mjs) **and**
+  world.json (hand-edited — no regen, see Gotchas); the look is in `HEROES` (decor.ts).
+  `clad()` = brighter-in-shade walls.
+- **🎒 Worn backpack** on the kid once the bag is earned (`hud.hasBackpack()` →
+  `Kid.setBackpack`). Also closed the HUD compass↔season gap when the 🎒 button is hidden.
+- **Seasons unlock fix** — the picker unlocks AND applies at the finale climax (one gate,
+  `seasonsUnlocked()` = ch4≥3; `spineComplete` deleted — it was a one-step-late bug that
+  left the picker live but inert). See `nbpt-seasons-timeline`.
+- **☀️🌙 Sun/moon no longer punch through buildings** — pinned camera-relative, just inside
+  the far plane, so buildings occlude them at every zoom (`sky.ts` + `Game.ts`).
+- **Story — the den bell rings ONCE** — the Ch4 soft ring now counts as the first of three;
+  the Ch5 keeper reveals it, so you ring only the two harbor bells (Coast Guard + wharf),
+  no second row back to the den. Save-safe (counts retroactively when ch4≥3). Also: going
+  back to the den no longer replays the whole boat-ride + arrival narration.
+- (A parallel session also pushed *"houses: render tall stock / never split a garage"* —
+  `decor.ts`. Rebased my work cleanly on top — both live.)
 
 **June 16, 2026 — LAUNCH DAY (all deployed):**
 - **Launched to r/Newburyport** — wrote the promo post + scouted a hero-shot tour
@@ -208,8 +255,22 @@ ponds; **13 Fox Run Drive** (navy house, red door, pool).
 
 ## 6. Known gaps / follow-ups
 
-- **🔴 Watch the r/Newburyport launch thread** for feedback — turn "missing X / wrong
-  street" reports into fast fixes + "added it, check again" replies (locals love that).
+- **🎯 DECIDE "Level 2" (the next main chapter).** Open design call — see the banner at the
+  top. Leading idea: **"The Long Night"** nor'easter (present-day, no re-render, uses every
+  system; the Ridge = the real high ground). Dexter's statues = a good *side-quest*, not a
+  main level. Bring Devin options or build the storm.
+- **✈️ Flight — make it real.** Currently a working but **private prototype** (dev-gated
+  `?fly`). Next: the **1910 first-flight Echo** at the airfield (earns the plane); a proper
+  **story/post-game gate** (GAME_CONCEPT frames it as a post-game/Spring capstone); polish
+  (Clipper as co-pilot; land back at the runway instead of wherever you are; tune
+  speed/alt/camera; if it's heavy on phones, trim the flight streaming radius — the skirt
+  covers the void). See the `nbpt-flight-prototype` memory.
+- **Marketing:** launched on Reddit (r/Newburyport). **Next channel = Facebook** + more subs
+  (r/Massachusetts, r/WebGames, etc.) — hold the bigger pushes until the **mobile / FB
+  in-app-browser** experience is verified and the build's polished. Reuse locals' phrasing
+  ("I found my house!").
+- Watch the r/Newburyport launch thread for "missing X / wrong street" reports — fast fixes
+  + "added it, check again" replies (locals love that). (Now ~a week old; lower urgency.)
 - **Unfinished: the 5th promo screenshot** (snowy Inn Street, winter night). Photos #1–4
   were captured (Market Square summer / High St fall / boardwalk sunset / Plum Island Light
   winter); #5 was paused. Capture tips (in `nbpt-preview-verification`): viewport **≤768px**
@@ -241,13 +302,21 @@ ponds; **13 Fox Run Drive** (navy house, red door, pool).
   site. `public/CNAME` + the favicon live in `public/` so they're emitted to `dist/`.
   If `public/CNAME` ever goes missing, **clippertown.io breaks**.
 - **`npm run build-world` regenerates `public/world.json` from OSM** and would **wipe
-  hand-added data** — notably the **13 Fox Run Drive pool** and the "Heart of Clipper
-  Town" Market Square sub-banner (both hand-edited in world.json). The **architecture
-  `b.style` tags survive** (build_world now re-extracts `building:architecture`), but
-  don't rebuild without re-adding the pool + sub.
-- **Mobile Claude Code sessions may not push to git** — work can silently revert/diverge.
-  Check `git status` + `git log` (HEAD vs `origin/source`) at the start of every session
-  before assuming the code matches the live site (see `nbpt-mobile-git-risk` memory).
+  hand-added data** — the **13 Fox Run Drive pool** and the "Heart of Clipper Town" Market
+  Square sub-banner (both hand-edited in world.json, NOT reproduced by build_world). The
+  **`b.style` tags survive** (build_world re-extracts `building:architecture`). **Non-OSM
+  buildings** (95 High St / The Residences + its carriage house) live in `MANUAL_BUILDINGS`
+  in build_world.mjs AND are hand-added to world.json. **So don't `build-world`** for a
+  manual-building or footprint tweak — edit `world.json` directly (targeted find-replace;
+  validate with `node -e "require('./public/world.json')"`) and mirror it in
+  `MANUAL_BUILDINGS`. CI never runs build-world.
+- **Concurrent / mobile sessions touch the same `source` branch.** Work can silently
+  diverge, and a parallel session's `git add -A` can sweep YOUR uncommitted files into its
+  commit (confirmed — a building once shipped inside a "flight" commit; on 6/17 a "houses"
+  commit landed mid-session). So: `git status` + `git fetch` at session start AND right
+  before staging; **stage explicit paths (`git add src/...`), never `git add -A`**; if a
+  push is rejected, `git fetch` + `git rebase origin/source` (usually clean — disjoint
+  files) and push. See `nbpt-mobile-git-risk`.
 - **Vite serves stale transforms** after rapid edits — if a change "doesn't take,"
   stop and restart the dev server (don't just reload).
 - **Preview tab throttles requestAnimationFrame** during waits; drive verification with
@@ -264,5 +333,5 @@ ponds; **13 Fox Run Drive** (navy house, red door, pool).
 1. Open a new Claude Code session **in this folder** (`/Users/devingalvin/claude_apps/nbpt-living`).
 2. First message suggestion: *"Read HANDOFF.md, confirm the deploy workflow, then …"*
    (or just give it the next task — it will pick up the project memory automatically).
-3. Make changes here → verify with `npm run dev` / the `nbpt` hooks → `npm run deploy`.
+3. Make changes here → verify with `npm run dev` / the `nbpt` hooks → **`git push origin source`** (CI auto-deploys in ~1–2 min; confirm via `window.__build`). `npm run deploy` is just a Mac fallback.
 4. Ignore the old cloud "Clipper Town" / "Clipper City" sessions — this folder supersedes them.
