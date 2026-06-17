@@ -1522,8 +1522,8 @@ export class Game {
 
   // the birdwatcher reveal: swing the chase cam out to the mystery light on the water
   // (movement freezes via cineLook), then endLookOut() returns to the normal chase.
-  lookOutToSea(x: number, z: number) { this.cineLook = { x, z }; }
-  endLookOut() { this.cineLook = null; }
+  lookOutToSea(x: number, z: number) { this.cineLook = { x, z }; this.sky.duskIn(); }
+  endLookOut() { this.cineLook = null; this.sky.duskOut(); }
 
   // address bar: "241 high" finds 241 High Street; otherwise names of
   // businesses, parks, buildings, streets, and water — all from the map data

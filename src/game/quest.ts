@@ -1227,6 +1227,8 @@ export class QuestRunner {
         // she says "look" → reveal the light + swing the camera out to it; the reveal
         // lines then play over that view, so you SEE what she's describing
         if (this.mysteryLight) this.mysteryLight.visible = true;
+        this.beacon.visible = false;   // hide the objective beam/“!” so the reveal view is clean
+        this.bang.visible = false;
         this.onLookSea(LIGHT.x, LIGHT.z);
         this.hud.showDialogue(WATCHER_REVEAL, () => {
           this.onLookEnd();

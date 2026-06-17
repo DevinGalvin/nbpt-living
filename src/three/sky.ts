@@ -59,6 +59,9 @@ export interface SkyState {
 export class Sky {
   tod: number;                  // 0..1 (0 = midnight, 0.5 = noon)
   private period: number;       // seconds per full day
+  // a short cinematic dusk override (the birdwatcher reveal): freeze the day cycle and
+  // ease to dusk, then ease back to the real time. 'to' holds dusk; 'from' returns + clears.
+  private cine: { mode: 'to' | 'from'; target: number; saved: number } | null = null;
   private snowMode: boolean;
 
   private dome: THREE.Mesh;
@@ -156,11 +159,21 @@ export class Sky {
 
   // jump straight to a time of day (0..1) — used by the debug hook
   setTod(t: number) { this.tod = ((t % 1) + 1) % 1; }
+  // cinematic dusk dip — hold the sky at `target` (sunset ≈ 0.92) until duskOut() eases it back
+  duskIn(target = 0.955) { this.cine = { mode: 'to', target, saved: this.cine ? this.cine.saved : this.tod }; }
+  duskOut() { if (this.cine) this.cine.mode = 'from'; }
   // force a shower (1) / clear (0) / release back to auto (null)
   forceWeather(w: number | null) { this.forced = w; }
 
   update(dt: number, px: number, pz: number, t: number, camPos: THREE.Vector3): SkyState {
-    this.tod = (this.tod + dt / this.period) % 1;
+    if (this.cine) {
+      // ease toward dusk (held) or back to the saved real time, then resume the cycle
+      const goal = this.cine.mode === 'to' ? this.cine.target : this.cine.saved;
+      this.tod += (goal - this.tod) * Math.min(1, dt * 1.7);
+      if (this.cine.mode === 'from' && Math.abs(goal - this.tod) < 0.004) { this.tod = goal; this.cine = null; }
+    } else {
+      this.tod = (this.tod + dt / this.period) % 1;
+    }
 
     // ---- weather: only winter precipitates (snow). No rain in the other seasons. ----
     if (!this.snowMode) {
