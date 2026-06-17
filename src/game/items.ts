@@ -69,6 +69,8 @@ export const ITEMS: Record<string, Omit<BagItem, 'count' | 'total'>> = {
              name: 'Your bicycle', desc: 'Press B to hop on and ride.' },
   binocs:  { id: 'binocs',  emoji: '\u{1F52D}', kind: 'treasure',
              name: 'Binoculars', desc: 'A birdwatcher’s spare — for spotting what others miss.' },
+  kayak:   { id: 'kayak',   emoji: '\u{1F6F6}', kind: 'treasure',
+             name: 'Grandpa’s kayak', desc: 'Launch from any shore — paddle the harbor and marsh.' },
   // the map corners are ONE collection (x of 4), not four copies of a chip
   mapcorners: { id: 'mapcorners', emoji: '\u{1F9E9}', kind: 'collection',
              name: 'Smugglers’ map', desc: 'Torn corners of an old hand-drawn map.' }

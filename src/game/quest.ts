@@ -36,6 +36,10 @@ const BELL_WHARF = { x: 40, z: -905 }; // harbor bell at the wharf
 // nbpt-l2). A light out past the river mouth that shouldn't be there.
 const JOPPA = { x: 7200, z: 3950, face: -2.2 };  // the birdwatcher at Joppa Flats
 const LIGHT = { x: 9300, z: 700 };               // the mystery light, out on the dark water NE of Joppa
+// Chapter 2 "The Walking Light" — Gram's Joppa home, the slip her late husband's kayak
+// is tied at, and the old lighthouse foundation out at the light.
+const GRAM_HOME = { x: 7450, z: 4250, face: 2.4 };  // Gram lives in Joppa now (post Level 1)
+const SLIP = { x: 7950, z: 4430 };                  // the Joppa slip — the kayak is tied here
 
 const GRAM_TALK: Line[] = [
   { who: 'Gram', text: 'There you are. Two jobs today. Take Clipper, the dog — he’s in charge.' },
@@ -221,6 +225,32 @@ const WATCHER_REVEAL: Line[] = [
   { who: 'Birdwatcher', text: 'But your grandmother might. She’s watched this town do stranger things than this.' }
 ];
 
+// Chapter 2 "The Walking Light" — home to Gram (Joppa), then the slip, then paddle out
+const GRAM_KAYAK: Line[] = [
+  { who: 'You', text: 'Gram — there’s a light out past the lighthouse. Right where the chart says there’s nothing.' },
+  { who: 'Gram', text: '…So you’ve seen it too.' },
+  { who: 'You', text: 'You KNOW about it?' },
+  { who: 'Gram', text: 'Your grandfather chased that light for years. Rowed out after it more nights than I could count.' },
+  { who: 'Gram', text: 'Never would say what he found out there. Only that the chart was wrong, and the old-timers weren’t.' },
+  { who: 'You', text: 'I want to see it.' },
+  { who: 'Gram', text: 'Course you do. His kayak’s still tied at the slip, down the end of the street. Been waiting for someone stubborn enough.' },
+  { who: 'Gram', text: 'Go on. Keep your eyes on the water, not your feet.' }
+];
+const SLIP_TAKE: Line[] = [
+  { who: '', text: 'At the end of the slip, tied to a ring worn smooth: a long red kayak. Faded, but the seams are tight, and a paddle lies across the deck like it was set down yesterday.' },
+  { who: 'You', text: 'Grandpa’s kayak.' },
+  { who: '', text: 'You untie it. It still rides true.' },
+  { who: 'You', text: 'Out to the light, Clipper. Hop in.' }
+];
+const WALK_REVEAL: Line[] = [
+  { who: '', text: 'You paddle out to the light — and find it sitting on the water: not a light at all, but a ring of old granite blocks, half-drowned by the tide.' },
+  { who: 'You', text: 'It’s a foundation. Something STOOD here.' },
+  { who: '', text: 'Cut into the cornerstone, worn but certain: a little lighthouse — and an arrow, pointing up the beach toward where the lighthouse stands today.' },
+  { who: 'You', text: 'It moved. The whole lighthouse moved off this spot.' },
+  { who: 'You', text: 'It WALKED, Clipper. The light that walks is real — and this “ghost” out here is just where it used to stand.' },
+  { who: 'You', text: 'So who’s been lighting it?' }
+];
+
 function cap(r: number, h: number, hex: string): THREE.Mesh {
   const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, h, 3, 10), new THREE.MeshLambertMaterial({ color: hex }));
   m.castShadow = true;
@@ -368,10 +398,12 @@ export class QuestRunner {
   private ch2: number;
   private ch3: number;
   private ch4: number;
-  private ch5: number;          // Chapter 6 "The Light That Walks" (Level 2, gated)
+  private ch5: number;          // Level 2 Chapter 1 "The False Light" (legacy key nbpt-ch5-step)
+  private ch6: number;          // Level 2 Chapter 2 "The Walking Light" (legacy key nbpt-ch6-step)
   private l2: boolean;          // Level 2 gate (?l2 → localStorage nbpt-l2)
-  private l2built = false;      // lazily spawn the Joppa birdwatcher once Level 1 ends
-  private mysteryLight: THREE.Group | null = null;   // the light out on the water (Ch6 reveal → Ch2 target)
+  private l2built = false;      // lazily spawn the Joppa props once Level 1 ends
+  private mysteryLight: THREE.Group | null = null;   // the light out on the water (Ch1 reveal → Ch2 target)
+  private foundation: THREE.Group | null = null;     // the old lighthouse base under the light (Ch2 reveal)
   private bells: Set<string>;
   private rowboat: THREE.Group | null = null;
   private c5built = false;
@@ -408,6 +440,7 @@ export class QuestRunner {
       this.l2 = localStorage.getItem('nbpt-l2') === '1';
     } catch { this.l2 = false; }
     this.ch5 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch5-step') || '0', 10) || 0));
+    this.ch6 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch6-step') || '0', 10) || 0));
     // already past the keeper on an old save? treat the Gram beat as done (no backtrack)
     this.gramSent = localStorage.getItem('nbpt-ch5-gram') === '1' || this.ch4 >= 1;
     try {
@@ -630,6 +663,22 @@ export class QuestRunner {
     this.npcs.watcher = w;
     this.place(w, JOPPA.x, JOPPA.z, JOPPA.face);
     this.scene.add(w);
+    // Gram has gone home to Joppa after Level 1 — relocate her there for the Ch2 beat
+    this.place(this.npcs.gram, GRAM_HOME.x, GRAM_HOME.z, GRAM_HOME.face);
+    // the drowned lighthouse foundation directly under the light (the Chapter 2 reveal):
+    // a ring of half-sunk granite blocks, shown once the light is found (ch5 >= 1)
+    const f = new THREE.Group();
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2;
+      const blk = box(7, 7, 7, '#8b8884');
+      blk.position.set(Math.cos(a) * 12, WATER_Y + 1.5, Math.sin(a) * 12);
+      blk.rotation.y = a + 0.3;
+      f.add(blk);
+    }
+    f.position.set(LIGHT.x, 0, LIGHT.z);
+    f.visible = this.ch5 >= 1;
+    this.foundation = f;
+    this.scene.add(f);
     // the mystery light out on the dark water: a small bright core + an additive glow
     // halo (fog-less, so it reads as a clear distant light). Hidden until the reveal
     // (ch5 >= 1 keeps it on across reloads); later it's the Chapter 2 kayak target.
@@ -694,8 +743,12 @@ export class QuestRunner {
             } else if (this.ch4 === 2 || this.ch4 === 3) {
               c.push({ tag: 'cellar', x: CELLAR.x, z: CELLAR.z, label: '⭐ ENTER', r: 90 });
             } else if (this.l2 && this.ch5 === 0) {
-              // Level 2, Chapter 6 — the birdwatcher at Joppa Flats (gated)
+              // Level 2 Ch1 — the birdwatcher at Joppa Flats (gated)
               c.push({ tag: 'watcher', x: JOPPA.x, z: JOPPA.z, label: '\u{1F4AC} TALK', r: 95 });
+            } else if (this.l2 && this.ch5 >= 1 && this.ch6 === 0) {
+              c.push({ tag: 'gramkayak', x: GRAM_HOME.x, z: GRAM_HOME.z, label: '\u{1F4AC} TALK', r: 90 });
+            } else if (this.l2 && this.ch5 >= 1 && this.ch6 === 1) {
+              c.push({ tag: 'slip', x: SLIP.x, z: SLIP.z, label: '\u{1F6F6} TAKE IT', r: 95 });
             }
           }
         }
@@ -770,8 +823,17 @@ export class QuestRunner {
       } else if (this.l2 && this.ch5 === 0) {
         this.hud.setObjective('Out past the flats \u2014 find the birdwatcher at Joppa');
         target = { x: JOPPA.x, z: JOPPA.z };
+      } else if (this.l2 && this.ch6 === 0) {
+        this.hud.setObjective('Head home \u2014 ask Gram about the light (Joppa)');
+        target = { x: GRAM_HOME.x, z: GRAM_HOME.z };
+      } else if (this.l2 && this.ch6 === 1) {
+        this.hud.setObjective('Your grandfather\u2019s kayak \u2014 the Joppa slip');
+        target = { x: SLIP.x, z: SLIP.z };
+      } else if (this.l2 && this.ch6 === 2) {
+        this.hud.setObjective('Paddle out to the light');
+        target = { x: LIGHT.x, z: LIGHT.z };
       } else {
-        this.hud.setObjective(null);   // Level 1 done (+ Ch6 beat 1, when gated)
+        this.hud.setObjective(null);   // Level 1 done + Level 2 done (so far)
       }
     } else {
       this.hud.setObjective(STEP_OBJECTIVE[this.step]);
@@ -829,6 +891,9 @@ export class QuestRunner {
     return n;
   }
 
+  // Gram stands in Market Square during Level 1; once Level 2 begins she's home in Joppa
+  private gramSpot(): { x: number; z: number } { return (this.l2 && this.ch4 >= 4) ? GRAM_HOME : GRAM; }
+
   // what's in the backpack right now: transient carry items, kept treasures, and
   // the map-corner collection (the Hud adds the Town-stories collection itself)
   private buildBag(): BagItem[] {
@@ -841,6 +906,7 @@ export class QuestRunner {
       if (ch1 >= 2) add('lantern');
       if (localStorage.getItem('nbpt-bike') === '1') add('bike');
       if (this.l2 && this.ch5 >= 1) add('binocs');   // Level 2: earned from the birdwatcher
+      if (localStorage.getItem('nbpt-kayak') === '1') add('kayak');
       const cc = this.cornerCount();
       if (cc > 0) add('mapcorners', { count: cc, total: 4 });
     } else {
@@ -859,7 +925,8 @@ export class QuestRunner {
     const ch1 = parseInt(localStorage.getItem('nbpt-ch1-step') || '0', 10) || 0;
     const s2 = this.ch2, s3 = this.ch3, s4 = this.ch4;
     // which chapter currently owns the objective beacon (mirrors apply()'s cascade)
-    const active = s0 < 6 ? 1 : ch1 < 6 ? 2 : s2 < 4 ? 3 : s3 < 4 ? 4 : s4 < 4 ? 5 : (this.l2 && this.ch5 < 2) ? 6 : 0;
+    const active = s0 < 6 ? 1 : ch1 < 6 ? 2 : s2 < 4 ? 3 : s3 < 4 ? 4 : s4 < 4 ? 5
+      : (this.l2 && this.ch5 < 1) ? 6 : (this.l2 && this.ch6 < 3) ? 7 : 0;
     const missions: Mission[] = [
       { id: 'ch1', group: 'story', level: 1, levelName: L1_NAME, chapter: 1, title: 'Overdue',
         state: s0 >= 6 ? 'done' : 'active', active: active === 1, replay: 0, reward: 'Library card',
@@ -901,15 +968,25 @@ export class QuestRunner {
           { label: 'Open the room with no door', done: s4 >= 4 }
         ] }
     ];
-    // Level 2 (gated): Chapter 6 only appears for opted-in devices (nbpt-l2)
+    // Level 2 (gated): these chapters only appear for opted-in devices (nbpt-l2)
     if (this.l2) {
       missions.push({
-        id: 'ch6', group: 'story', level: 2, levelName: L2_NAME, chapter: 1, title: 'The False Light',
-        state: this.ch5 >= 2 ? 'done' : s4 >= 4 ? 'active' : 'locked', active: active === 6, replay: 5,
+        id: 'l2c1', group: 'story', level: 2, levelName: L2_NAME, chapter: 1, title: 'The False Light',
+        state: this.ch5 >= 1 ? 'done' : s4 >= 4 ? 'active' : 'locked', active: active === 6, replay: 5,
         reward: 'Binoculars',
         steps: [
           { label: 'Find the birdwatcher at Joppa Flats', done: this.ch5 >= 1 },
-          { label: 'Chase the light out to the river mouth', done: this.ch5 >= 2 }
+          { label: 'Spot the light out past the lighthouse', done: this.ch5 >= 1 }
+        ]
+      });
+      missions.push({
+        id: 'l2c2', group: 'story', level: 2, levelName: L2_NAME, chapter: 2, title: 'The Walking Light',
+        state: this.ch6 >= 3 ? 'done' : this.ch5 >= 1 ? 'active' : 'locked', active: active === 7, replay: 6,
+        reward: 'Grandpa’s kayak',
+        steps: [
+          { label: 'Ask Gram about the light', done: this.ch6 >= 1 },
+          { label: 'Take grandpa’s kayak from the Joppa slip', done: this.ch6 >= 2 },
+          { label: 'Paddle out to the light', done: this.ch6 >= 3 }
         ]
       });
     }
@@ -980,6 +1057,13 @@ export class QuestRunner {
       this.setStep(5);
     }
 
+    // Level 2 Ch2: paddling out and reaching the light triggers the walking-lighthouse
+    // reveal (auto, since the action button is yielded while kayaking)
+    if (this.l2 && this.ch5 >= 1 && this.ch6 === 2 && this.hud.kayaking
+        && !this.hud.dialogueOpen && Math.hypot(px - LIGHT.x, pz - LIGHT.z) < 130) {
+      this.revealWalk();
+    }
+
     // newspapers in flight
     for (let i = this.papers.length - 1; i >= 0; i--) {
       const pp = this.papers[i];
@@ -1013,7 +1097,8 @@ export class QuestRunner {
     const it = this.nearestCandidate(px, pz);
     if (it) near = { tag: it.tag, label: it.label };
     if (!near && this.step >= 6) {
-      for (const [tag, pos] of [['gram', GRAM], ['donut', DONUT], ['lib', LIB]] as const) {
+      const flavor: [string, { x: number; z: number }][] = [['gram', this.gramSpot()], ['donut', DONUT], ['lib', LIB]];
+      for (const [tag, pos] of flavor) {
         if (Math.hypot(px - pos.x, pz - pos.z) < 50) { near = { tag, label: '\u{1F4AC} TALK' }; break; }
       }
     }
@@ -1068,6 +1153,12 @@ export class QuestRunner {
   private setCh5(s5: number) {
     this.ch5 = s5;
     localStorage.setItem('nbpt-ch5-step', String(s5));
+    this.apply();
+  }
+
+  private setCh6(s6: number) {
+    this.ch6 = s6;
+    localStorage.setItem('nbpt-ch6-step', String(s6));
     this.apply();
   }
 
@@ -1142,7 +1233,8 @@ export class QuestRunner {
       return;
     }
     if (this.step >= 6) {
-      for (const [tag, pos] of [['gram', GRAM], ['donut', DONUT], ['lib', LIB]] as const) {
+      const flavor: [string, { x: number; z: number }][] = [['gram', this.gramSpot()], ['donut', DONUT], ['lib', LIB]];
+      for (const [tag, pos] of flavor) {
         if (Math.hypot(px - pos.x, pz - pos.z) < 56) {
           this.hud.showDialogue(FLAVOR[tag]);
           return;
@@ -1240,7 +1332,27 @@ export class QuestRunner {
           this.setCh5(1);   // binoculars earned; the kayak (Chapter 2) comes next
         });
       });
+    } else if (tag === 'gramkayak' && this.l2 && this.ch6 === 0) {
+      this.hud.showDialogue(GRAM_KAYAK, () => {
+        this.hud.chapterCard('LEVEL 2 · CHAPTER 2', 'The Walking Light', 'grandpa’s kayak waits at the slip');
+        this.setCh6(1);
+      });
+    } else if (tag === 'slip' && this.l2 && this.ch6 === 1) {
+      this.hud.showDialogue(SLIP_TAKE, () => {
+        localStorage.setItem('nbpt-kayak', '1');   // the kayak is yours — free-roam from here on
+        this.audio.jingle();
+        this.setCh6(2);
+      });
     }
+  }
+
+  // Level 2 Ch2 reveal: you've paddled to the light and it's an old lighthouse foundation
+  private revealWalk() {
+    this.hud.showDialogue(WALK_REVEAL, () => {
+      this.audio.jingle();
+      this.hud.chapterCard('LEVEL 2 · CHAPTER 2 COMPLETE', 'The Walking Light', 'the light moved — and now you know it');
+      this.setCh6(3);
+    });
   }
 
   // the den + star-room interiors read live state through these and drive their

@@ -819,7 +819,7 @@ export class Hud {
       }
       // a true start-over: also replay the welcome (it says "find Gram in Market
       // Square") and un-tuck the objective, so you're clearly guided again
-      for (const k of ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch5-gram', 'nbpt-historian', 'nbpt-history-read', 'nbpt-welcomed', 'nbpt-obj-min', 'nbpt-resume-pos', 'nbpt-season']) localStorage.removeItem(k);
+      for (const k of ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch5-gram', 'nbpt-ch6-step', 'nbpt-kayak', 'nbpt-historian', 'nbpt-history-read', 'nbpt-welcomed', 'nbpt-obj-min', 'nbpt-resume-pos', 'nbpt-season']) localStorage.removeItem(k);
       location.reload();
     });
     jc.appendChild(rb);
@@ -970,12 +970,13 @@ export class Hud {
       return;
     }
     const cascade = [
-      ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step'],
-      ['nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step'],
-      ['nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step'],
-      ['nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step'],
-      ['nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step'],
-      ['nbpt-ch5-step']
+      ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch6-step', 'nbpt-kayak'],
+      ['nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch6-step', 'nbpt-kayak'],
+      ['nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch6-step', 'nbpt-kayak'],
+      ['nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch6-step', 'nbpt-kayak'],
+      ['nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch6-step', 'nbpt-kayak'],
+      ['nbpt-ch5-step', 'nbpt-ch6-step', 'nbpt-kayak'],
+      ['nbpt-ch6-step', 'nbpt-kayak']
     ][+cN];
     if (!cascade) return;
     for (const kk of cascade) localStorage.removeItem(kk);
