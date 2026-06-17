@@ -905,7 +905,7 @@ export class QuestRunner {
     if (this.l2) {
       missions.push({
         id: 'ch6', group: 'story', level: 2, levelName: L2_NAME, chapter: 1, title: 'The False Light',
-        state: this.ch5 >= 2 ? 'done' : s4 >= 4 ? 'active' : 'locked', active: active === 6,
+        state: this.ch5 >= 2 ? 'done' : s4 >= 4 ? 'active' : 'locked', active: active === 6, replay: 5,
         reward: 'Binoculars',
         steps: [
           { label: 'Find the birdwatcher at Joppa Flats', done: this.ch5 >= 1 },
