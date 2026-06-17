@@ -234,6 +234,8 @@ const css = `
 }
 #hud .objective.show { display: flex; }
 #hud .objective .q { color: #e8c44f; font-weight: 800; }
+/* the pill's leading glyph is now a live steering arrow — it rotates toward the beacon */
+#hud .objective .wp-q { display: inline-block; transform-origin: 50% 50%; transition: transform 0.16s linear; font-size: 15px; }
 #hud .objective.min { padding: 8px 11px; opacity: 0.75; }
 #hud .objective.min .otxt { display: none; }
 #hud .dlg {
@@ -551,7 +553,7 @@ export class Hud {
       <div class="season-pop"></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
-      <div class="objective"><span class="q">◈</span><span class="otxt"></span></div>
+      <div class="objective"><span class="q wp-q">➤</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
       <div class="runtip"></div>
       <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
@@ -1473,6 +1475,15 @@ export class Hud {
     this.wpEl.style.left = wp.x + 'px';
     this.wpEl.style.top = wp.y + 'px';
     if (this.wpArrow) this.wpArrow.style.transform = 'rotate(' + wp.angle + 'rad)';
+  }
+
+  // the objective pill's leading glyph is a live steering arrow: Game feeds the
+  // screen-space bearing to the beacon every frame so it always points the way.
+  private objArrow: HTMLElement | null = null;
+  setObjectiveArrow(angle: number | null) {
+    if (!this.objArrow) this.objArrow = document.querySelector('#hud .objective .wp-q');
+    if (!this.objArrow || angle == null) return;   // no guide → leave it (the pill is hidden anyway)
+    this.objArrow.style.transform = 'rotate(' + angle + 'rad)';
   }
 
   // big serif chapter card: fades in, holds, fades out

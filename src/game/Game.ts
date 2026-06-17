@@ -1459,10 +1459,22 @@ export class Game {
   private _wpV = new THREE.Vector3();
   private updateWaypoint() {
     const guide = this.hud.guide;
-    if (!guide || this.inside || this.boating || this.hud.dialogueOpen) { this.hud.setWaypoint(null); return; }
+    if (!guide || this.inside || this.boating || this.hud.dialogueOpen) {
+      this.hud.setWaypoint(null);
+      this.hud.setObjectiveArrow(null);
+      return;
+    }
     this.camera.updateMatrixWorld();
     const inv = this.camera.matrixWorldInverse;
     const baseY = this.index.heightAtPx(guide.x, guide.z);
+    // direction to the beacon's landing spot in screen space — drives the always-on
+    // objective-pill arrow (steering), whether the beam is on- or off-screen
+    const w = this._wp.set(guide.x, baseY + 60, guide.z);
+    const behind = this._wpV.copy(w).applyMatrix4(inv).z >= 0;
+    const wndc = w.project(this.camera);
+    let nx = wndc.x, ny = wndc.y;
+    if (behind) { nx = -nx; ny = -ny; }
+    this.hud.setObjectiveArrow(Math.atan2(-ny, nx));   // same convention as the edge arrow
     // the beam is tall — it counts as "on screen" if ANY point up its body is visible
     for (const h of [15, 230, 440]) {
       const p = this._wp.set(guide.x, baseY + h, guide.z);
@@ -1471,18 +1483,11 @@ export class Game {
       if (front && Math.abs(ndc.x) <= 1 && Math.abs(ndc.y) <= 1) { this.hud.setWaypoint(null); return; }
     }
     // off-screen: aim the edge arrow with the beam's lower body (the landing spot)
-    const w = this._wp.set(guide.x, baseY + 60, guide.z);
-    const behind = this._wpV.copy(w).applyMatrix4(inv).z >= 0;
-    const ndc = w.project(this.camera);
-    let nx = ndc.x, ny = ndc.y;
-    if (behind) { nx = -nx; ny = -ny; }
-    // clamp the direction onto the screen-edge square, leaving a margin
     const m = Math.max(Math.abs(nx), Math.abs(ny)) || 1;
     const ex = nx / m, ey = ny / m;
     const sx = innerWidth / 2 + ex * (innerWidth / 2 - 40);
     const sy = innerHeight / 2 - ey * (innerHeight / 2 - 52);   // NDC up → screen up
-    const angle = Math.atan2(-ey, ex);                          // arrow points toward the goal
-    this.hud.setWaypoint({ x: sx, y: sy, angle });
+    this.hud.setWaypoint({ x: sx, y: sy, angle: Math.atan2(-ey, ex) });   // arrow points toward the goal
   }
 
   // ---------- travel & search ----------
@@ -1569,6 +1574,7 @@ export class Game {
     // require a little clearance so the player never lands wedged inside a wall
     // pocket — fast-travel to the Custom House used to drop them stuck in a wall
     const clear = (px: number, py: number) =>
+      !this.index.isWaterAt(px, py) &&   // never land a fast-travel in the water (Joppa Flats dropped you in the river)
       !this.index.isBlocked(px, py) &&
       !this.index.isBlocked(px + 16, py) && !this.index.isBlocked(px - 16, py) &&
       !this.index.isBlocked(px, py + 16) && !this.index.isBlocked(px, py - 16);
@@ -1579,6 +1585,15 @@ export class Game {
         if (clear(nx, ny)) return { x: nx, y: ny };
       }
     }
-    return { x, y };
+    // still nothing within reach — the target sits out in open water (e.g. the tidal
+    // flats: the "Joppa Flat" POI is ~7000px from any shore). March back toward
+    // downtown and land at the first dry, unblocked shore we cross.
+    const tx = 0, ty = 40;                          // Market Square — guaranteed land
+    const dist = Math.hypot(tx - x, ty - y) || 1;
+    const ux = (tx - x) / dist, uy = (ty - y) / dist;
+    for (let d = 900; d <= dist; d += 24) {
+      if (clear(x + ux * d, y + uy * d)) return { x: x + ux * d, y: y + uy * d };
+    }
+    return { x: tx, y: ty };                         // last resort: downtown itself
   }
 }
