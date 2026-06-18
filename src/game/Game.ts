@@ -1173,7 +1173,10 @@ export class Game {
       ? (x: number, y: number) => this.interior!.free(x, y)
       : (x: number, y: number) =>
         !this.index.isBlocked(x - half, y) && !this.index.isBlocked(x + half, y) && !this.index.isBlocked(x, y)
-        && !(this.life && this.life.obstacleAt(x, y));
+        && !(this.life && this.life.obstacleAt(x, y))
+        // on foot you can't walk out onto open water — only dry land or a real deck
+        // (bridge/pier/boardwalk, where deckHeightAt rises above the waterline)
+        && (!this.index.isWaterAt(x, y) || this.index.deckHeightAt(x, y) > WATER_Y);
     // sub-step the move and slide along walls so tight streets glide instead of
     // snagging. When a move is wedged on both axes, try to slip free (round the
     // corner / glance off a one-sided jut) rather than stopping dead — keyboard
@@ -1208,10 +1211,13 @@ export class Game {
     if (!this.inside && !this.onWater) {   // not while kayaking either — the collision
       // grid reads "blocked" out past the built chunks, which would shove the kayak back
       // from open sea (the invisible wall); on the water the isWaterAt free() is enough
-      const stuck = (x: number, z: number) => this.index.isBlocked(x, z) || !!(this.life && this.life.obstacleAt(x, z));
+      const stuck = (x: number, z: number) =>
+        this.index.isBlocked(x, z)
+        || (this.index.isWaterAt(x, z) && this.index.deckHeightAt(x, z) <= WATER_Y)   // adrift on open water → back to shore
+        || !!(this.life && this.life.obstacleAt(x, z));
       if (stuck(nx, nz)) {
+        let freed = false;
         for (const r of [10, 18, 26, 34, 44] as const) {
-          let freed = false;
           for (let a = 0; a < 8; a++) {
             const ang = (a / 8) * Math.PI * 2;
             const tx = nx + Math.cos(ang) * r, tz = nz + Math.sin(ang) * r;
@@ -1219,6 +1225,8 @@ export class Game {
           }
           if (freed) break;
         }
+        // adrift on open water (or boxed in beyond the ring) — march to the nearest dry shore
+        if (!freed) { const s = this.findFree(nx, nz); nx = s.x; nz = s.y; }
       }
     }
     }   // end of the on-foot / boat movement (skipped while flying)
