@@ -17,8 +17,8 @@ TypeScript + Vite. Live at **https://clippertown.io**.
 > - **Ch3 "The Mooncusser"** — a salty **lobsterman** at the slip explains mooncussers (kid-clear); you paddle out and **snuff his scattered false lamps** (an active hunt) → catch him → "bring the light home."
 > - **Ch4 "Bring the Light Home" (FINALE)** — the storm breaks: the lobsterman sends you to the downtown **Rear Range Light**; climb + **🔦 LIGHT IT**, then **sweep the beam** (signature mechanic — a pinned "turret" mode) across the dark harbor to catch the 4 **lost boats**; all caught → the **Coast Guard** leads the fleet up-river, storm calms to **Christmas morning**, closing line *"the light was never yours to own, only yours to keep lit."* The light stays lit forever after.
 > - LIVE/public: the **free-roam KAYAK** (key `nbpt-kayak`) and the **"Seasons Unlocked" reward** (finish L1 → winter, picker unlocks).
-> - **⚠️ GIT STATE:** the **L2 work is held LOCAL, not pushed** — Ch3 snuff redesign + the land-ashore fix were already committed; **Ch4 is built but NOT YET COMMITTED** (uncommitted working tree — stage explicit paths, never `git add -A`). `origin/source` has only the public fixes. Plan: **push the whole L2 batch** (after a polish pass). Run `git log origin/source..source` + `git status`.
-> - **➡️ NEXT TASK:** a **polish pass over all of Level 2**, then **commit Ch4 + push the held L2 batch** + decide when to un-gate (publish L2). Chapter keys: Ch1=`nbpt-ch5-step`, Ch2=`nbpt-ch6-step`, Ch3=`nbpt-ch7-step`, Ch4=`nbpt-ch8-step`.
+> - **✅ GIT STATE (2026-06-18):** the **whole L2 batch is now PUSHED + DEPLOYED** to `origin/source` → clippertown.io (build `a64bf2b`). It includes the **Ch4 finale**, a **UI/UX design-system pass** (public), and the **kayak-on-open-water-only + walk-across-frozen-ponds fixes** (public). **L2 is still GATED behind `?l2`** — the code is live but dormant; the public game still ends at the Custom House. Chapter keys: Ch1=`nbpt-ch5-step`, Ch2=`nbpt-ch6-step`, Ch3=`nbpt-ch7-step`, Ch4=`nbpt-ch8-step`.
+> - **➡️ NEXT TASK:** decide **when to un-gate L2** (publish it to everyone) — a full Ch1→4 playtest first is wise. Until then, keep building behind `?l2`.
 >
 > Also live but **private/dev-gated**: a **scenic flight** from Plum Island Airport
 > (`clippertown.io/?fly=1` to enable on a device) — see §5 + the `nbpt-flight-prototype` memory.
@@ -27,9 +27,10 @@ TypeScript + Vite. Live at **https://clippertown.io**.
 
 ## 0. ✅ DONE — Level 2 finale "Bring the Light Home" (Ch4) is built & verified
 
-**Level 2 is now COMPLETE (Ch1–4).** The Ch4 finale shipped 2026-06-18 (key `nbpt-ch8-step`, var `ch8`).
-What it does + how it was wired is below; the deep record is in the **`nbpt-level2`** memory. **NEXT** is a
-polish pass over the whole level, then **commit Ch4 + push the held L2 batch** (see §8 for the held-batch flow).
+**Level 2 is now COMPLETE (Ch1–4) and DEPLOYED** (2026-06-18, key `nbpt-ch8-step`, var `ch8`; build
+`a64bf2b` live on clippertown.io — still gated behind `?l2`, so the public game is unchanged).
+What it does + how it was wired is below; the deep record is in the **`nbpt-level2`** memory. **NEXT** is
+a full Ch1→4 playtest, then the call on **un-gating L2** (publishing it to everyone).
 
 **How Ch4 was built (for reference / future tweaks):**
 - **New Game mode `sweeping`** (`Game.ts`): the beam-sweep is a pinned "turret" — the player stands locked
