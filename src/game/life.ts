@@ -366,7 +366,11 @@ export class Life {
     return this.index.isWaterAt(x, z)
       && this.index.isWaterAt(x + r, z) && this.index.isWaterAt(x - r, z)
       && this.index.isWaterAt(x, z + r) && this.index.isWaterAt(x, z - r)
-      && this.index.heightAtPx(x, z) < WATER_Y - 1.5;
+      && this.index.heightAtPx(x, z) < WATER_Y - 1.5
+      // …and not on/under a dock — boats steer around the piers instead of through them
+      && !this.index.pierAt(x, z)
+      && !this.index.pierAt(x + r, z) && !this.index.pierAt(x - r, z)
+      && !this.index.pierAt(x, z + r) && !this.index.pierAt(x, z - r);
   }
 
   // a navigable leg: open water the whole way

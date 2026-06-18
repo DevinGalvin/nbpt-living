@@ -1228,14 +1228,17 @@ export class WorldIndex {
     for (const r of d.bridges) {
       if (distToPolylineSq(x, y, r.p) <= (r.w / 2 + 5) ** 2) return this.bridgeDeckYAt(r.p, x, y);
     }
+    // pier polys are the solid full-width dock surface and now render 1.5px proud of any
+    // overlapping centerline (the dock-flicker fix in decor.ts) — so they take priority for
+    // footing, and the player stands on the poly deck top (PIER_DECK_Y 4 + 1.5).
+    for (const poly of d.piers) {
+      if (pointInPoly(x, y, poly)) return 5.5;
+    }
     for (const l of d.lines) {
       // decks ride the bank/dunes (keep in sync with decor boardwalk())
       if (distToPolylineSq(x, y, l.p) <= (l.w / 2 + 3) ** 2) {
         return Math.max(4, this.terrain.heightAt(x, y) + 1.2);
       }
-    }
-    for (const poly of d.piers) {
-      if (pointInPoly(x, y, poly)) return 4;
     }
     return 0;
   }
@@ -1528,6 +1531,31 @@ export class WorldIndex {
     for (const poly of cand) {
       if (!isFreezableWater(poly) && pointInPoly(x, y, poly)) return true;
     }
+    return false;
+  }
+
+  // is (x,y) on a pier/dock footprint? ambient boats steer around these so they
+  // don't sail straight through the docks.
+  private pierBB: { poly: Poly; bb: [number, number, number, number] }[] | null = null;
+  private pierCache = new Map<string, Poly[]>();
+  pierAt(x: number, y: number): boolean {
+    if (!this.pierBB) {
+      this.pierBB = [];
+      for (const poly of this.world.polys) if (poly.k === 'pier') this.pierBB.push({ poly, bb: bboxOf(poly.p) });
+    }
+    const ckx = Math.floor(x / CHUNK), cky = Math.floor(y / CHUNK);
+    const key = ckx + ',' + cky;
+    let cand = this.pierCache.get(key);
+    if (!cand) {
+      const ox = ckx * CHUNK, oy = cky * CHUNK;
+      cand = [];
+      for (const { poly, bb } of this.pierBB) {
+        if (bb[2] < ox || bb[0] > ox + CHUNK || bb[3] < oy || bb[1] > oy + CHUNK) continue;
+        cand.push(poly);
+      }
+      this.pierCache.set(key, cand);
+    }
+    for (const poly of cand) if (pointInPoly(x, y, poly)) return true;
     return false;
   }
 

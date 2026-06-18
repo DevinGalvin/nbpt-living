@@ -2892,8 +2892,13 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const [mx, my] = centroidOf(poly.p);
     if (Math.floor(mx / CHUNK) !== ckx || Math.floor(my / CHUNK) !== cky) continue;
     if (poly.k === 'pier') {
-      walls(buckets[PLANK], poly.p, 0, PIER_DECK_Y, '#9a7a4e', 0);
-      flatRoofPlank(buckets[PLANK], poly.p, PIER_DECK_Y);
+      // Pier POLYS are the full-width (solid finger) dock surface; OSM often ALSO maps a
+      // centerline 'pierline' through them, and that line's deck renders at PIER_DECK_Y too
+      // → two coplanar decks z-fight (the "dock flicker"). Lift the poly deck 1.5px so it
+      // sits cleanly on top of any overlapping line deck (deckHeightAt matches — see index.ts).
+      const py = PIER_DECK_Y + 1.5;
+      walls(buckets[PLANK], poly.p, 0, py, '#9a7a4e', 0);
+      flatRoofPlank(buckets[PLANK], poly.p, py);
     } else {
       // real backyard pool: pale deck rim + bright water
       let g = -Infinity;
