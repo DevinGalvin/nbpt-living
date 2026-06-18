@@ -48,6 +48,15 @@ const DECOYS = [
   { x: 11720, z: -2030 }, { x: 12290, z: -2060 },
   { x: 11760, z: -2420 }, { x: 12300, z: -2380 }
 ];
+// Chapter 4 "Bring the Light Home" (Level 2 finale) — the storm night. The real harbor
+// light is dark; you climb the downtown Rear Range Light, relight it, and sweep its beam
+// across the water to guide the lost boats home up the river. NO peril, NO rescue.
+const TOWER = { x: 2412, z: 93 };          // the Rear Range Light (the HERO brick tower, decor.ts)
+// the lost boats out on the dark harbor north of the tower — the beam sweeps across them
+const LOST = [
+  { x: 1700, z: -1180 }, { x: 2150, z: -1320 }, { x: 2680, z: -1280 }, { x: 3150, z: -1080 }
+];
+const FLEET_HOME = { x: 1150, z: -1300 };  // up the river to the west — where the fleet (led by the Coast Guard) gathers
 
 const GRAM_TALK: Line[] = [
   { who: 'Gram', text: 'There you are. Two jobs today. Take Clipper, the dog — he’s in charge.' },
@@ -278,6 +287,33 @@ const MOONCUSSER_CATCH: Line[] = [
   { who: 'You', text: 'That’s all of them, Clipper. The only light left to worry about is the real one — and tomorrow night, we bring it home.' }
 ];
 
+// Chapter 4 "Bring the Light Home" — beat 1: the storm is here, the harbor light is dark,
+// and the lobsterman sends you to wake the old downtown Range Light and sweep its beam.
+const LOBSTER_STORM: Line[] = [
+  { who: '', text: 'The wind has teeth now. Snow blows sideways off the water, and every boat in the harbor is just a dark shape out in it.' },
+  { who: 'Lobsterman', text: 'There you are. Bad night to be ashore — worse to be out there.' },
+  { who: 'You', text: 'The harbor light. It’s gone OUT.' },
+  { who: 'Lobsterman', text: 'Storm took it. Half the fleet’s still out, and not one true light to steer by. They’ll pile up on the sandbar in this.' },
+  { who: 'You', text: 'Then we light another one.' },
+  { who: 'Lobsterman', text: 'Aye — the old Range Light, downtown by the water. Brick tower. Climb her and wake that lamp up.' },
+  { who: 'Lobsterman', text: 'Then sweep the beam slow across the water. A boat that catches it will turn and follow it home. Go on — bring the light home.' }
+];
+// beat 2: at the top of the tower, you relight the cold lamp and the beam swings on.
+const TOWER_LIGHT: Line[] = [
+  { who: '', text: 'A spiral stair climbs the brick tower to a cold glass lantern room. The big lamp sits dark, waiting.' },
+  { who: 'You', text: 'Okay… wick’s dry, glass is clean.' },
+  { who: '', text: 'You strike the lamp. It catches — small, then sure — and a long beam swings out across the black harbor.' },
+  { who: 'You', text: 'Now we find them, Clipper. Sweep it slow.' }
+];
+// beat 4: every boat is in the beam and following it home; the town answers light-for-light.
+const BRING_HOME: Line[] = [
+  { who: '', text: 'One by one the boats turn into the beam and follow it up the river, lanterns blinking on like the light woke them.' },
+  { who: '', text: 'A Coast Guard boat swings out to lead them in, strung with lights, and the whole fleet lines up the dark water behind it.' },
+  { who: '', text: 'The town answers — light for light. Market Square’s tree blazes on, windows warm, the streetlamps glow gold all the way to the wharf.' },
+  { who: 'Lobsterman', text: 'That’s my boat in the line, kid! You brought every last one of us home.' },
+  { who: 'You', text: 'It was never really ours, was it — the light. You don’t get to own it. You just keep it lit.' }
+];
+
 function cap(r: number, h: number, hex: string): THREE.Mesh {
   const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, h, 3, 10), new THREE.MeshLambertMaterial({ color: hex }));
   m.castShadow = true;
@@ -424,12 +460,16 @@ export class QuestRunner {
   private onLookEnd: () => void;                        // …and back to the normal chase cam
   private onKayak: () => void;                          // launch the player into the kayak (take it at the slip)
   private onReturnAshore: (x: number, z: number) => void;  // Level 2: end-of-chapter return to shore (no stranding at sea)
+  private onStorm: () => void;        // Level 2 finale: bring on the nor'easter (idempotent)
+  private onSweep: () => void;        // …climb the Rear Range Light + take the beam (locks the player, lifts the camera)
+  private onSweepEnd: () => void;     // …the fleet's home — drop the sweep + calm the storm to Christmas morning
   private ch2: number;
   private ch3: number;
   private ch4: number;
   private ch5: number;          // Level 2 Chapter 1 "The False Light" (legacy key nbpt-ch5-step)
   private ch6: number;          // Level 2 Chapter 2 "The Walking Light" (legacy key nbpt-ch6-step)
   private ch7: number;          // Level 2 Chapter 3 "The Mooncusser" (legacy key nbpt-ch7-step)
+  private ch8: number;          // Level 2 Chapter 4 "Bring the Light Home" — the finale (legacy key nbpt-ch8-step)
   private l2: boolean;          // Level 2 gate (?l2 → localStorage nbpt-l2)
   private l2built = false;      // lazily spawn the Joppa props once Level 1 ends
   private mysteryLight: THREE.Group | null = null;   // the light out on the water (Ch1 reveal → Ch2 target)
@@ -437,6 +477,13 @@ export class QuestRunner {
   private decoyLights: THREE.Group[] = [];           // the mooncusser's scattered false lamps (Ch3)
   private snuffed = new Set<number>();               // which decoy lamps you've put out
   private tiedKayak: THREE.Group | null = null;      // the ride kayak parked at the Joppa slip; update() hides it while you're paddling
+  private beam: THREE.Group | null = null;           // the Rear Range Light's sweeping beam (Ch4 finale)
+  private lostBoats: THREE.Group[] = [];             // the boats out in the storm — the beam guides them home
+  private caught = new Set<number>();                // which boats the beam has turned toward home
+  private cgBoat: THREE.Group | null = null;         // the festive Coast Guard boat that leads the fleet in (the town-answer)
+  private stormStarted = false;                      // the finale storm ambiance is engaged (guards re-triggering onStorm)
+  private beamLit = false;                           // the tower lamp is lit (set when you relight it; the beam shows)
+  private homing = false;                            // the fleet is tweening up the river to FLEET_HOME
   private bells: Set<string>;
   private rowboat: THREE.Group | null = null;
   private c5built = false;
@@ -449,7 +496,8 @@ export class QuestRunner {
   constructor(scene: THREE.Scene, index: WorldIndex, hud: Hud, audio: GameAudio, onGoDown: () => void, onBike: () => void,
               onBoat: () => void, onStar: () => void, onNews: () => void, onDen: () => void,
               onLookSea: (x: number, z: number) => void, onLookEnd: () => void, onKayak: () => void,
-              onReturnAshore: (x: number, z: number) => void) {
+              onReturnAshore: (x: number, z: number) => void,
+              onStorm: () => void, onSweep: () => void, onSweepEnd: () => void) {
     this.scene = scene;
     this.index = index;
     this.hud = hud;
@@ -464,6 +512,9 @@ export class QuestRunner {
     this.onLookEnd = onLookEnd;
     this.onKayak = onKayak;
     this.onReturnAshore = onReturnAshore;
+    this.onStorm = onStorm;
+    this.onSweep = onSweep;
+    this.onSweepEnd = onSweepEnd;
     this.step = Math.min(6, Math.max(0, parseInt(localStorage.getItem(SAVE_KEY) || '0', 10) || 0));
     this.ch2 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch2-step') || '0', 10) || 0));
     this.ch3 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch3-step') || '0', 10) || 0));
@@ -480,6 +531,9 @@ export class QuestRunner {
     this.ch7 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch7-step') || '0', 10) || 0));
     const dmask = parseInt(localStorage.getItem('nbpt-ch7-decoys') || '0', 10) || 0;   // bitmask of snuffed lamps
     for (let i = 0; i < DECOYS.length; i++) if (dmask & (1 << i)) this.snuffed.add(i);
+    this.ch8 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch8-step') || '0', 10) || 0));
+    const bmask = parseInt(localStorage.getItem('nbpt-ch8-boats') || '0', 10) || 0;    // bitmask of boats guided home
+    for (let i = 0; i < LOST.length; i++) if (bmask & (1 << i)) this.caught.add(i);
     // already past the keeper on an old save? treat the Gram beat as done (no backtrack)
     this.gramSent = localStorage.getItem('nbpt-ch5-gram') === '1' || this.ch4 >= 1;
     try {
@@ -843,6 +897,108 @@ export class QuestRunner {
     lob.visible = false;                          // apply() shows him from Ch3 on
     this.npcs.lobster = lob;
     this.scene.add(lob);
+
+    // ---- Chapter 4 finale "Bring the Light Home" props ----
+    // The Rear Range Light's beam: a long warm cone at the lantern top that the player
+    // rotates across the harbor (update() sets beam.rotation.y from hud.beamAz). Built
+    // open-ended + additive + fog-less so it reads as a clean shaft of light over the
+    // dark water. Apex at the tower, widening outward along local +Z.
+    const beam = new THREE.Group();
+    const BL = 3000, PITCH = 0.06;                // length + a gentle downward rake so it sweeps the water
+    // two nested open cones (soft halo + brighter core), apex at the lantern, widening
+    // out along local +Z and pitched down toward the harbor surface where the boats sit
+    for (const [br, op] of [[150, 0.26], [52, 0.5]] as const) {
+      const geo = new THREE.ConeGeometry(br, BL, 26, 1, true).rotateX(-Math.PI / 2).translate(0, 0, BL / 2).rotateX(PITCH);
+      beam.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+        color: 0xfff1c4, transparent: true, opacity: op, side: THREE.DoubleSide,
+        depthWrite: false, fog: false, blending: THREE.AdditiveBlending
+      })));
+    }
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(7, 14, 12), new THREE.MeshBasicMaterial({ color: '#fff6e0', fog: false }));
+    beam.add(lamp);
+    const lampGlow = this.warmGlow(150);          // a warm halo so the lit lantern reads from afar
+    beam.add(lampGlow);
+    beam.position.set(TOWER.x, this.index.heightAtPx(TOWER.x, TOWER.z) + 99, TOWER.z);  // the lantern room, atop the brick tower
+    beam.visible = false;                         // lit once you climb the tower (ch8 >= 1, after relighting)
+    this.beam = beam;
+    this.scene.add(beam);
+
+    // the lost boats out on the dark harbor — small, dark, and adrift until the beam
+    // catches them; each has a lantern that blinks on when it turns for home.
+    this.lostBoats = LOST.map((p) => {
+      const b = this.buildLostBoat();
+      b.position.set(p.x, WATER_Y, p.z);
+      b.rotation.y = Math.random() * Math.PI * 2;
+      b.visible = false;
+      this.scene.add(b);
+      return b;
+    });
+
+    // the festive Coast Guard boat that leads the fleet up the river (the town-answer);
+    // shown only once every boat is following the light home.
+    const cg = this.buildCoastGuardBoat();
+    cg.visible = false;
+    this.cgBoat = cg;
+    this.scene.add(cg);
+
+    // reloaded after the finale's already done? snap the fleet to its moorings up the
+    // river so the peaceful tableau is right immediately (no glide in from map-origin).
+    if (this.ch8 >= 2) this.placeFleetHome();
+  }
+
+  // park the homecoming fleet at its moorings (used to restore the post-finale tableau)
+  private placeFleetHome() {
+    if (this.cgBoat) this.cgBoat.position.set(FLEET_HOME.x, WATER_Y, FLEET_HOME.z);
+    for (let i = 0; i < this.lostBoats.length; i++) {
+      const slot = this.fleetSlot(i);
+      this.lostBoats[i].position.set(slot.x, WATER_Y, slot.z);
+    }
+  }
+
+  // a small, weathered boat for the storm-night fleet: a dark hull + a tiny mast lantern
+  // (warm glow) that's dim until the beam catches it and it turns for home.
+  private buildLostBoat(): THREE.Group {
+    const g = new THREE.Group();
+    const hull = box(20, 8, 52, '#41464d');
+    hull.position.y = 4;
+    g.add(hull);
+    const cabin = box(14, 10, 17, '#565c63');
+    cabin.position.set(0, 12, -6);
+    g.add(cabin);
+    const mast = box(2, 26, 2, '#2c2f34');
+    mast.position.set(0, 20, 9);
+    g.add(mast);
+    const lantern = this.warmGlow(52);
+    lantern.position.set(0, 32, 9);
+    lantern.material.opacity = 0.2;               // a faint, struggling light until the beam finds it
+    (g as THREE.Group & { lantern?: THREE.Sprite }).lantern = lantern;
+    g.add(lantern);
+    return g;
+  }
+
+  // the Coast Guard boat — a white-and-orange cutter strung with warm festive lights,
+  // the lead boat of the homecoming fleet (Newburyport: birthplace of the Coast Guard).
+  private buildCoastGuardBoat(): THREE.Group {
+    const g = new THREE.Group();
+    const hull = box(18, 7, 50, '#f3f1ea');
+    hull.position.y = 4;
+    g.add(hull);
+    const stripe = box(18.4, 3, 12, '#d65a2e');   // the racing stripe
+    stripe.position.set(0, 5, 12);
+    g.add(stripe);
+    const cabin = box(13, 9, 16, '#e9e6dd');
+    cabin.position.set(0, 11, -4);
+    g.add(cabin);
+    const mast = box(1.8, 20, 1.8, '#cfd3d8');
+    mast.position.set(0, 22, -6);
+    g.add(mast);
+    // a little string of warm lights along the rails + mast
+    for (const [lx, ly, lz, s] of [[0, 34, -6, 26], [-8, 9, 22, 20], [8, 9, 22, 20], [-8, 9, -18, 20], [8, 9, -18, 20], [0, 20, 6, 22]] as const) {
+      const gl = this.warmGlow(s);
+      gl.position.set(lx, ly, lz);
+      g.add(gl);
+    }
+    return g;
   }
 
   // current interactable: tag + spot + verb for the TALK button
@@ -894,6 +1050,12 @@ export class QuestRunner {
             } else if (this.l2 && this.ch6 >= 3 && this.ch7 === 0) {
               // Level 2 Ch3 — the lobsterman at the slip explains the mooncusser (catch is auto)
               c.push({ tag: 'lobster', x: LOBSTER.x, z: LOBSTER.z, label: '\u{1F4AC} TALK', r: 95 });
+            } else if (this.l2 && this.ch7 >= 2 && this.ch8 === 0) {
+              // Level 2 Ch4 finale — the lobsterman sends you to light the harbor in the storm
+              c.push({ tag: 'lobster', x: LOBSTER.x, z: LOBSTER.z, label: '\u{1F4AC} TALK', r: 95 });
+            } else if (this.l2 && this.ch8 === 1 && !this.hud.sweeping) {
+              // …climb the Rear Range Light and wake the lamp (the beam-sweep is auto after)
+              c.push({ tag: 'tower', x: TOWER.x, z: TOWER.z, label: '\u{1F526} LIGHT IT', r: 95 });
             }
           }
         }
@@ -986,8 +1148,19 @@ export class QuestRunner {
           ? `Snuff the mooncusser’s false lamps — ${this.snuffed.size} of ${DECOYS.length}`
           : 'Catch the mooncusser at his last light');
         target = { x: LIGHT.x, z: LIGHT.z };   // update() refines the beacon to the next lamp
+      } else if (this.l2 && this.ch7 >= 2 && this.ch8 === 0) {
+        this.hud.setObjective('A nor’easter — and the harbor light is dark. Find the lobsterman at the Joppa slip');
+        target = { x: LOBSTER.x, z: LOBSTER.z };
+      } else if (this.l2 && this.ch8 === 1) {
+        if (this.hud.sweeping) {
+          this.hud.setObjective(`Sweep the beam — guide the boats home · ${this.caught.size} of ${LOST.length}`);
+          target = null;   // you aim the beam, not walk — the beacon hides during the sweep
+        } else {
+          this.hud.setObjective('Light the Rear Range Light — the brick tower downtown');
+          target = { x: TOWER.x, z: TOWER.z };
+        }
       } else {
-        this.hud.setObjective(null);   // Level 1 done + Level 2 done (so far)
+        this.hud.setObjective(null);   // Level 1 + Level 2 complete
       }
     } else {
       this.hud.setObjective(STEP_OBJECTIVE[this.step]);
@@ -1026,6 +1199,16 @@ export class QuestRunner {
     // no-reload playthrough (its build-time gate never re-runs, and nothing else shows it).
     // The mystery light has its own explicit reveal (the watcher cutaway), so leave it be.
     if (this.foundation) this.foundation.visible = this.ch5 >= 1;
+    // Ch4 finale: on a reload after the chapter's done, restore the peaceful tableau —
+    // the light stays lit, the fleet stays moored up the river ("yours to keep lit").
+    if (this.l2 && this.ch8 >= 2) { this.beamLit = true; this.homing = true; }
+    // the beam burns once you've relit it (and forever after the finale); the lost boats
+    // sit out on the storm-water for the whole chapter; the Coast Guard leads once homing.
+    if (this.beam) this.beam.visible = this.l2 && this.ch8 >= 1 && this.beamLit;
+    for (const b of this.lostBoats) b.visible = this.l2 && this.ch8 >= 1;
+    if (this.cgBoat) this.cgBoat.visible = this.l2 && this.homing;
+    // re-assert the storm on a reload mid-finale — the Sky's forced weather/dusk isn't saved
+    if (this.l2 && this.ch8 === 1 && !this.stormStarted) { this.stormStarted = true; this.onStorm(); }
     // the bars swing aside once the chapter ends
     if (this.grateBars) {
       const open = this.step >= 6;
@@ -1093,7 +1276,8 @@ export class QuestRunner {
     const s2 = this.ch2, s3 = this.ch3, s4 = this.ch4;
     // which chapter currently owns the objective beacon (mirrors apply()'s cascade)
     const active = s0 < 6 ? 1 : ch1 < 6 ? 2 : s2 < 4 ? 3 : s3 < 4 ? 4 : s4 < 4 ? 5
-      : (this.l2 && this.ch5 < 1) ? 6 : (this.l2 && this.ch6 < 3) ? 7 : (this.l2 && this.ch7 < 2) ? 8 : 0;
+      : (this.l2 && this.ch5 < 1) ? 6 : (this.l2 && this.ch6 < 3) ? 7 : (this.l2 && this.ch7 < 2) ? 8
+      : (this.l2 && this.ch8 < 2) ? 9 : 0;
     const missions: Mission[] = [
       { id: 'ch1', group: 'story', level: 1, levelName: L1_NAME, chapter: 1, title: 'Overdue',
         state: s0 >= 6 ? 'done' : 'active', active: active === 1, replay: 0, reward: 'Library card',
@@ -1163,6 +1347,16 @@ export class QuestRunner {
           { label: 'Ask the lobsterman at the slip about the light', done: this.ch7 >= 1 },
           { label: 'Snuff the mooncusser’s false lamps', done: this.ch7 >= 2 || this.snuffed.size >= DECOYS.length, count: this.snuffed.size, total: DECOYS.length },
           { label: 'Catch the mooncusser at his last light', done: this.ch7 >= 2 }
+        ]
+      });
+      missions.push({
+        id: 'l2c4', group: 'story', level: 2, levelName: L2_NAME, chapter: 4, title: 'Bring the Light Home',
+        state: this.ch8 >= 2 ? 'done' : this.ch7 >= 2 ? 'active' : 'locked', active: active === 9, replay: 8,
+        reward: 'A Christmas in Clipper Town',
+        steps: [
+          { label: 'Find the lobsterman as the storm breaks', done: this.ch8 >= 1 },
+          { label: 'Light the Rear Range Light', done: this.beamLit || this.ch8 >= 2 },
+          { label: 'Sweep the beam — guide the boats home', done: this.ch8 >= 2, count: this.caught.size, total: LOST.length }
         ]
       });
     }
@@ -1268,6 +1462,46 @@ export class QuestRunner {
       }
     }
 
+    // Level 2 Ch4 finale "Bring the Light Home": the lit beam tracks your aim; sweeping it
+    // across a boat catches it; once all are caught the fleet glides home up the river.
+    if (this.beam && this.beam.visible) this.beam.rotation.y = this.hud.beamAz;
+    if (this.l2 && this.ch8 >= 1) {
+      for (let i = 0; i < this.lostBoats.length; i++) {
+        const b = this.lostBoats[i];
+        if (!b.visible) continue;
+        const lan = (b as THREE.Group & { lantern?: THREE.Sprite }).lantern;
+        if (lan) lan.material.opacity = this.caught.has(i) ? 0.85 : 0.18;   // its light steadies once found
+        b.position.y = WATER_Y + Math.sin(this.t * 1.6 + i * 1.7) * 1.6;    // bob on the swell
+      }
+      // the sweep: catch any uncaught boat the beam crosses (angular nearness from the tower)
+      if (this.hud.sweeping && !this.hud.dialogueOpen) {
+        for (let i = 0; i < LOST.length; i++) {
+          if (this.caught.has(i)) continue;
+          const bear = Math.atan2(LOST[i].x - TOWER.x, LOST[i].z - TOWER.z);
+          const d = Math.atan2(Math.sin(this.hud.beamAz - bear), Math.cos(this.hud.beamAz - bear));
+          if (Math.abs(d) < 0.13) this.catchBoat(i);
+        }
+      }
+      // the homecoming: caught boats (and the Coast Guard lead) ease up the river to home
+      if (this.homing) {
+        const home = (g: THREE.Object3D, hx: number, hz: number, speed: number) => {
+          const dx = hx - g.position.x, dz = hz - g.position.z, dist = Math.hypot(dx, dz);
+          if (dist > 4) {
+            const s = Math.min(dist, speed * dt);
+            g.position.x += (dx / dist) * s;
+            g.position.z += (dz / dist) * s;
+            g.rotation.y = Math.atan2(dx, dz);   // heading into the turn
+          }
+        };
+        if (this.cgBoat) { this.cgBoat.position.y = WATER_Y + Math.sin(this.t * 1.4) * 1.2; home(this.cgBoat, FLEET_HOME.x, FLEET_HOME.z, 440); }
+        for (let i = 0; i < this.lostBoats.length; i++) {
+          if (!this.caught.has(i)) continue;
+          const slot = this.fleetSlot(i);
+          home(this.lostBoats[i], slot.x, slot.z, 360);
+        }
+      }
+    }
+
     // newspapers in flight
     for (let i = this.papers.length - 1; i >= 0; i--) {
       const pp = this.papers[i];
@@ -1293,7 +1527,7 @@ export class QuestRunner {
       if (this.nearTag) { this.nearTag = null; this.hud.showTalk(null); }
       return;
     }
-    if (this.hud.flying || this.hud.kayaking) {   // ✈️/🛶 Game owns the action button in the air / on the water
+    if (this.hud.flying || this.hud.kayaking || this.hud.sweeping) {   // ✈️/🛶/🔦 Game owns the action button in the air / on the water / at the light
       if (this.nearTag) { this.nearTag = null; this.hud.showTalk(null); }
       return;
     }
@@ -1369,6 +1603,12 @@ export class QuestRunner {
   private setCh7(s7: number) {
     this.ch7 = s7;
     localStorage.setItem('nbpt-ch7-step', String(s7));
+    this.apply();
+  }
+
+  private setCh8(s8: number) {
+    this.ch8 = s8;
+    localStorage.setItem('nbpt-ch8-step', String(s8));
     this.apply();
   }
 
@@ -1560,6 +1800,22 @@ export class QuestRunner {
         this.hud.chapterCard('LEVEL 2 · CHAPTER 3', 'The Mooncusser', 'a false light on the old rocks');
         this.setCh7(1);
       });
+    } else if (tag === 'lobster' && this.l2 && this.ch7 >= 2 && this.ch8 === 0) {
+      // the finale: the storm hits and the lobsterman sends you to light the harbor
+      this.hud.showDialogue(LOBSTER_STORM, () => {
+        this.hud.chapterCard('LEVEL 2 · CHAPTER 4', 'Bring the Light Home', 'the storm is here · the harbor light is dark');
+        this.stormStarted = true;
+        this.onStorm();              // the nor'easter rolls in
+        this.setCh8(1);
+      });
+    } else if (tag === 'tower' && this.l2 && this.ch8 === 1) {
+      // climb the Rear Range Light, relight the lamp, and take the beam
+      this.hud.showDialogue(TOWER_LIGHT, () => {
+        this.audio.jingle();
+        this.beamLit = true;         // the lamp catches — the beam appears at the tower
+        this.apply();
+        this.onSweep();              // lock at the tower + start sweeping the harbor
+      });
     }
   }
 
@@ -1599,6 +1855,41 @@ export class QuestRunner {
       this.hud.chapterCard('LEVEL 2 · CHAPTER 3 COMPLETE', 'The Mooncusser', 'the false light is out — but a storm is coming');
       this.setCh7(2);
       this.onReturnAshore(SLIP.x, SLIP.z);   // back ashore at the slip — don't leave them adrift at the light
+    });
+  }
+
+  // Level 2 finale: the beam swept across a boat — it's seen the light, turns toward
+  // it, and steadies its lantern. When the last one's caught, the fleet heads home.
+  private catchBoat(i: number) {
+    if (this.caught.has(i)) return;
+    this.caught.add(i);
+    let mask = 0;
+    for (const k of this.caught) mask |= (1 << k);
+    localStorage.setItem('nbpt-ch8-boats', String(mask));
+    this.audio.bell();                          // a warm "found you" note
+    const b = this.lostBoats[i];
+    if (b) b.rotation.y = Math.atan2(TOWER.x - LOST[i].x, TOWER.z - LOST[i].z);   // turn into the beam
+    this.apply();                               // refresh the "X of N" count
+    if (this.caught.size >= LOST.length) this.bringLightHome();
+  }
+
+  // where each homecoming boat moors, fanned out around FLEET_HOME so they don't stack
+  private fleetSlot(i: number): { x: number; z: number } {
+    const off = [[-72, 36], [78, 28], [-46, -52], [60, -64]][i] || [0, 0];
+    return { x: FLEET_HOME.x + off[0], z: FLEET_HOME.z + off[1] };
+  }
+
+  // Level 2 finale's close: every boat is following the light. Drop the sweep, calm the
+  // storm to Christmas morning, send the Coast Guard out to lead the fleet up the river,
+  // and land the closing line. The light stays lit — yours to keep.
+  private bringLightHome() {
+    this.homing = true;
+    if (this.cgBoat) { this.cgBoat.position.set(3150, WATER_Y, -900); this.cgBoat.visible = true; }
+    this.onSweepEnd();                          // unlock the player + ease the storm off
+    this.hud.showDialogue(BRING_HOME, () => {
+      this.audio.jingle();
+      this.hud.chapterCard('LEVEL 2 COMPLETE', 'Bring the Light Home', 'the light was never yours to own, only yours to keep lit');
+      this.setCh8(2);
     });
   }
 

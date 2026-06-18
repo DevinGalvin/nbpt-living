@@ -461,6 +461,8 @@ export class Hud {
   boating = false;
   flying = false;   // ✈️ scenic flight — the quest yields its action button so LAND owns it
   kayaking = false; // 🛶 free-roam kayak — quest yields so HOP OUT owns the action button
+  sweeping = false; // 🔦 Level 2 finale beam-sweep — quest reads beamAz + yields its action button
+  beamAz = Math.PI; // live lighthouse-beam compass direction (Game writes it; the quest rotates the beam + catches boats)
 
   private dlgEl!: HTMLElement;
   private dlgWho!: HTMLElement;

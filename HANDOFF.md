@@ -7,25 +7,46 @@ TypeScript + Vite. Live at **https://clippertown.io**.
 > (the "I found my house!" hook landed). A LOT has shipped since launch — see §5. Every
 > build stamps its commit at `window.__build`.
 >
-> **🎯 LEVEL 2 "The Light That Walks" — Chapters 1–3 BUILT & verified; only the FINALE (Ch4) remains.**
-> A cozy lighthouse mystery, **summer Level 1 → winter Christmas finale**. Arc = land→sea→sky (L1
-> shipped; L2 sea/winter; L3 sky/spring; flight → L3). **Gated:** `?l2=1` latches `localStorage
-> nbpt-l2`; all L2 sits behind `quest.l2`, public still ends at the Custom House. **Don't un-gate.**
+> **🎯 LEVEL 2 "The Light That Walks" — COMPLETE (Chapters 1–4 BUILT & verified).** The finale
+> (Ch4) landed 2026-06-18. A cozy lighthouse mystery, **summer Level 1 → winter Christmas finale**.
+> Arc = land→sea→sky (L1 shipped; L2 sea/winter; L3 sky/spring; flight → L3). **Gated:** `?l2=1`
+> latches `localStorage nbpt-l2`; all L2 sits behind `quest.l2`, public still ends at the Custom
+> House. **Don't un-gate** (until ready to publish L2).
 > - **Ch1 "The False Light"** — Joppa birdwatcher → **binoculars** → cinematic cutaway reveals a mystery light on the dark water.
 > - **Ch2 "The Walking Light"** — Gram (now in Joppa) → take grandpa's **kayak** at the slip → paddle out → the light is a drowned granite foundation: it *walked*. (Now lands you back at the slip — no stranding.)
 > - **Ch3 "The Mooncusser"** — a salty **lobsterman** at the slip explains mooncussers (kid-clear); you paddle out and **snuff his scattered false lamps** (an active hunt) → catch him → "bring the light home."
+> - **Ch4 "Bring the Light Home" (FINALE)** — the storm breaks: the lobsterman sends you to the downtown **Rear Range Light**; climb + **🔦 LIGHT IT**, then **sweep the beam** (signature mechanic — a pinned "turret" mode) across the dark harbor to catch the 4 **lost boats**; all caught → the **Coast Guard** leads the fleet up-river, storm calms to **Christmas morning**, closing line *"the light was never yours to own, only yours to keep lit."* The light stays lit forever after.
 > - LIVE/public: the **free-roam KAYAK** (key `nbpt-kayak`) and the **"Seasons Unlocked" reward** (finish L1 → winter, picker unlocks).
-> - **⚠️ GIT STATE:** the **2 newest L2 commits are held LOCAL, not pushed** (Ch3 snuff redesign + the land-ashore fix). `origin/source` has only the public fixes. Plan: **finish Ch4, then push the whole L2 batch.** Run `git log origin/source..source` to see the held commits.
-> - **➡️ NEXT TASK: build Ch4 "Bring the Light Home"** — full guide in **§0 below**. Legacy chapter keys continue: Ch1=`nbpt-ch5-step`, Ch2=`nbpt-ch6-step`, Ch3=`nbpt-ch7-step`; the **finale = `nbpt-ch8-step`**.
+> - **⚠️ GIT STATE:** the **L2 work is held LOCAL, not pushed** — Ch3 snuff redesign + the land-ashore fix were already committed; **Ch4 is built but NOT YET COMMITTED** (uncommitted working tree — stage explicit paths, never `git add -A`). `origin/source` has only the public fixes. Plan: **push the whole L2 batch** (after a polish pass). Run `git log origin/source..source` + `git status`.
+> - **➡️ NEXT TASK:** a **polish pass over all of Level 2**, then **commit Ch4 + push the held L2 batch** + decide when to un-gate (publish L2). Chapter keys: Ch1=`nbpt-ch5-step`, Ch2=`nbpt-ch6-step`, Ch3=`nbpt-ch7-step`, Ch4=`nbpt-ch8-step`.
 >
 > Also live but **private/dev-gated**: a **scenic flight** from Plum Island Airport
 > (`clippertown.io/?fly=1` to enable on a device) — see §5 + the `nbpt-flight-prototype` memory.
 
 ---
 
-## 0. NEXT TASK — finish Level 2: build the Ch4 finale "Bring the Light Home"
+## 0. ✅ DONE — Level 2 finale "Bring the Light Home" (Ch4) is built & verified
 
-Level 2 is built through **Chapter 3**; the **finale (Ch4) is the one remaining piece**. This is the build guide. Deep design + the chapter scheme live in the **`nbpt-level2`** memory (a fresh session loads it automatically).
+**Level 2 is now COMPLETE (Ch1–4).** The Ch4 finale shipped 2026-06-18 (key `nbpt-ch8-step`, var `ch8`).
+What it does + how it was wired is below; the deep record is in the **`nbpt-level2`** memory. **NEXT** is a
+polish pass over the whole level, then **commit Ch4 + push the held L2 batch** (see §8 for the held-batch flow).
+
+**How Ch4 was built (for reference / future tweaks):**
+- **New Game mode `sweeping`** (`Game.ts`): the beam-sweep is a pinned "turret" — the player stands locked
+  at `TOWER_LOOK (2412,255)` and left/right input rotates `beamAz` (clamped π±0.95). It **reuses `cineLook`**
+  for the movement-freeze + look-out-to-sea camera + far-plane open (no bespoke camera). Hooks:
+  `beginStorm()` (idempotent: `sky.duskIn(0.985)` + `forceWeather(1)`), `enterSweep()`, `endSweep()`
+  (→ `calmStorm()`: `duskOut()` + `forceWeather(null)`). The HUD bus gained `sweeping` + `beamAz`.
+- **Quest (`quest.ts`)** mirrors the Ch3 pattern: `ch8` + `setCh8` + `nbpt-ch8-step`; 3 new ctor callbacks
+  (`onStorm`/`onSweep`/`onSweepEnd`); finale dialogue consts (`LOBSTER_STORM`/`TOWER_LIGHT`/`BRING_HOME`);
+  `buildL2Props()` builds the beam (2 nested additive cones at the `buildRearRange` lantern top, pitched
+  down to rake the water), 4 `LOST` boats, + a festive Coast Guard boat; `candidates()`/`apply()`/
+  `buildMissions()` (`l2c4`, active===9) gated `ch7>=2 && ch8===N`; `update()` rotates the beam to
+  `hud.beamAz`, catches boats within 0.13 rad, tweens the fleet to `FLEET_HOME (1150,-1300)`; `catchBoat()`
+  (bitmask `nbpt-ch8-boats`) + `bringLightHome()` + `placeFleetHome()` (reload-safe restore).
+- **The beam stays lit after the finale** (ch8≥2) — "yours to keep lit." Reload-safe at every beat.
+
+**(Original build guide — kept for context):** Level 2 was built through Chapter 3; the finale was the last piece.
 
 ### Read first — current state
 - **Built + verified (gated `?l2`):** Ch1 "The False Light", Ch2 "The Walking Light", Ch3 "The Mooncusser" (a **snuff-the-false-lamps** minigame — paddle out, the beacon points to the nearest of 4 decoy lamps, paddle into each to snuff it, then catch the mooncusser at his last light). Every sea chapter now **lands you back at the Joppa slip** when it ends — `Game.landAtShore(x,z)` + the `onReturnAshore` quest callback (no more stranding at the far light).

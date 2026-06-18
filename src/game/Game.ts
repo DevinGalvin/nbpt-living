@@ -21,6 +21,7 @@ import { STYLE, SEASON } from '../world/style';
 const JOG = 200;     // world px/s (8 px = 1 m) — fast, gamey
 const SPRINT = 380;
 const BOAT_DOOR = { x: -224, z: -1183 }; // the waterline den door — rowing near it beaches you
+const TOWER_LOOK = { x: 2412, z: 255 };  // 🔦 the Level 2 finale: where you stand at the Rear Range Light to sweep the beam (just south, facing the harbor)
 
 // ✈️ scenic flight from Plum Island Airport (real Runway 10/28). Board at the east
 // threshold, roll + take off west (28) out over downtown + the harbor. Cozy + can't
@@ -140,6 +141,12 @@ export class Game {
   private kayaking = false;
   private kayak: THREE.Group | null = null;
   private kayakAz = 0;
+  // 🔦 Level 2 finale: the lighthouse beam-sweep. The player stands locked at the
+  // Rear Range Light and rotates the beam (left/right) across the dark harbor; the
+  // chase cam looks out along it (reusing the cineLook cutaway path).
+  private sweeping = false;
+  private beamAz = Math.PI;          // beam compass direction (π = due north, out over the water)
+  private stormOn = false;           // the nor'easter ambiance is engaged (idempotent)
   // ✈️ scenic flight (Plum Island Airport): a free overground flight mode
   private flying = false;
   private ridePlane: THREE.Group | null = null;
@@ -345,7 +352,8 @@ export class Game {
       this.bikeEarned();
     }, () => this.boatRide(), () => this.enterStar(), () => this.enterNews(), () => this.enterDen(),
       (x: number, z: number) => this.lookOutToSea(x, z), () => this.endLookOut(), () => this.enterKayak(),
-      (x: number, z: number) => this.landAtShore(x, z));
+      (x: number, z: number) => this.landAtShore(x, z),
+      () => this.beginStorm(), () => this.enterSweep(), () => this.endSweep());
     this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
     this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,
@@ -663,6 +671,61 @@ export class Game {
     this.kid.setPos(this.px, this.pz);
     this.dog.root.position.set(this.px - 20, this.kidY, this.pz + 12);
     this.ensureRect(true);              // the slip is far from the light — stream its chunks now
+    this.quest?.refresh();
+    this.updateCamera(0.016, true);
+  }
+
+  // ---------- 🔦 the Level 2 finale: the storm + the beam-sweep ----------
+
+  // the nor'easter rolls in: hold the sky at a deep stormy dusk and force heavy
+  // snow. Idempotent — the lobsterman's send-off calls it, and apply() re-asserts
+  // it on a reload mid-finale (the Sky state itself isn't persisted).
+  beginStorm() {
+    if (this.stormOn) return;
+    this.stormOn = true;
+    this.sky.duskIn(0.985);        // deep night (deeper than the Ch1 reveal's 0.955)
+    this.sky.forceWeather(1);      // a full winter blow
+  }
+
+  // the storm passes — ease back to a calm, bright Christmas morning and let the
+  // natural weather (gentle winter showers) resume.
+  private calmStorm() {
+    if (!this.stormOn) return;
+    this.stormOn = false;
+    this.sky.duskOut();            // ease the held night back toward the real cycle time
+    this.sky.forceWeather(null);   // release to auto (light winter snow)
+  }
+
+  // climb the Rear Range Light and take the beam: lock the player at the tower,
+  // point the beam north over the harbor, and look out along it. The chase cam +
+  // movement freeze are reused from the look-out-to-sea cutaway (cineLook).
+  enterSweep() {
+    if (this.sweeping || this.inside || this.flying) return;
+    if (this.kayaking) this.exitKayak();
+    this.beamAz = Math.PI;                 // due north, out over the dark water
+    // stand just south of the tower, facing the harbor, so the beam rakes away from you
+    this.px = TOWER_LOOK.x; this.pz = TOWER_LOOK.z;
+    this.kidY = Math.max(this.terrain.heightAt(this.px, this.pz), this.index.deckHeightAt(this.px, this.pz));
+    this.kid.setPos(this.px, this.pz);
+    this.kid.root.rotation.y = Math.PI;    // face north
+    this.dog.root.position.set(this.px + 16, this.kidY, this.pz + 6);
+    this.sweeping = true;
+    this.hud.sweeping = true;              // the quest yields its action button + reads beamAz
+    this.hud.beamAz = this.beamAz;
+    this.cineLook = { x: this.px + Math.sin(this.beamAz) * 4000, z: this.pz + Math.cos(this.beamAz) * 4000 };
+    this.ensureRect(true);                 // stream the harbor chunks out ahead of the beam
+    this.quest?.refresh();
+    this.updateCamera(0.016, true);
+  }
+
+  // the fleet's home: drop the beam-sweep (the quest plays the town-answer), but
+  // leave the light lit — it stays burning over the calm harbor.
+  endSweep() {
+    if (!this.sweeping) return;
+    this.sweeping = false;
+    this.hud.sweeping = false;
+    this.cineLook = null;
+    this.calmStorm();
     this.quest?.refresh();
     this.updateCamera(0.016, true);
   }
@@ -1137,6 +1200,15 @@ export class Game {
     let nx = this.px, nz = this.pz;
     if (this.flying) {
       ({ nx, nz } = this.stepFlight(dt, ix, iz));
+    } else if (this.sweeping) {
+      // 🔦 the finale beam-sweep: left/right rotates the beam across the harbor (the
+      // player is pinned at the tower). The chase cam tracks the beam via cineLook.
+      if (!this.hud.dialogueOpen) this.beamAz += ix * 1.5 * dt;
+      const SPAN = 0.95;                              // clamp to the northern harbor arc
+      this.beamAz = Math.max(Math.PI - SPAN, Math.min(Math.PI + SPAN, this.beamAz));
+      this.hud.beamAz = this.beamAz;
+      this.cineLook = { x: this.px + Math.sin(this.beamAz) * 4000, z: this.pz + Math.cos(this.beamAz) * 4000 };
+      // nx/nz stay put — no walking while you work the light
     } else {
     // ...mapped through the camera azimuth (W = away from camera)
     const fwdX = Math.sin(this.camAz), fwdZ = Math.cos(this.camAz);
@@ -1229,9 +1301,10 @@ export class Game {
     // version only checked walls with tiny nudges, so a car (radius ~20) could pin
     // you with no escape. Now: push out to the nearest open ground, ringing outward
     // far enough to clear a car.
-    if (!this.inside && !this.onWater) {   // not while kayaking either — the collision
+    if (!this.inside && !this.onWater && !this.sweeping) {   // not while kayaking either — the collision
       // grid reads "blocked" out past the built chunks, which would shove the kayak back
       // from open sea (the invisible wall); on the water the isWaterAt free() is enough
+      // (and never while pinned at the tower for the beam-sweep)
       const stuck = (x: number, z: number) =>
         this.index.isBlocked(x, z)
         || (this.index.isWaterAt(x, z) && this.index.deckHeightAt(x, z) <= WATER_Y)   // adrift on open water → back to shore
@@ -1438,7 +1511,7 @@ export class Game {
       let act: { label: string; cb: () => void } | null = null;
       if (this.flying) act = { label: '🛬 LAND', cb: () => this.land() };
       else if (this.kayaking) { if (this.landNear()) act = { label: '🛶 HOP OUT', cb: () => this.exitKayak() }; }
-      else if (!this.inside && !this.boating) {
+      else if (!this.inside && !this.boating && !this.sweeping) {
         if (this.flightDev && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
         else if (this.kayakEarned && this.nearWater && !this.quest?.nearActive) act = { label: '🛶 KAYAK', cb: () => this.enterKayak() };
       }
@@ -1590,7 +1663,7 @@ export class Game {
   private _wpV = new THREE.Vector3();
   private updateWaypoint() {
     const guide = this.hud.guide;
-    if (!guide || this.inside || this.boating || this.hud.dialogueOpen) {
+    if (!guide || this.inside || this.boating || this.sweeping || this.hud.dialogueOpen) {
       this.hud.setWaypoint(null);
       this.hud.setObjectiveArrow(null);
       return;
