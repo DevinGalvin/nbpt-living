@@ -18,6 +18,13 @@ const px = (lat, lon) => [
   Math.round((ORIGIN.lat - lat) * M_PER_DEG_LAT * PX_PER_M)
 ];
 
+// Stale OSM features that no longer exist on the ground — dropped so the map matches today.
+// The old golf-course ponds by the Laurel Rd subdivision (off Ferry Rd, east of I-95): the
+// course closed, the water hazards dried up, and housing was built. OSM still carries the
+// ponds (ways 279021841 + 920420732 and relation 12474826) and not yet the new homes, so
+// the game showed a phantom lake amid the neighborhood. (Player-reported, June 2026.)
+const DROP_OSM = new Set([279021841, 920420732, 12474826]);
+
 // ---------- geometry helpers (in px space) ----------
 
 function ringArea(pts) {
@@ -256,6 +263,7 @@ function inDowntownCore(ring) {
 
 for (const el of raw.elements) {
   if (el.type !== 'way' || !el.tags) continue;
+  if (DROP_OSM.has(el.id)) continue;   // stale, gone on the ground (see DROP_OSM)
   const t = el.tags;
 
   if (t.natural === 'coastline') {
@@ -435,6 +443,7 @@ for (const el of raw.elements) {
 
 for (const el of raw.elements) {
   if (el.type !== 'relation' || !el.tags) continue;
+  if (DROP_OSM.has(el.id)) continue;   // stale, gone on the ground (see DROP_OSM)
   const t = el.tags;
   const pk = t.building && t.building !== 'no' ? '_building' : polyKind(t);
   if (!pk) continue;
