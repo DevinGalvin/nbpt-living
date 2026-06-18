@@ -60,15 +60,27 @@
       pointer-events: none;
       transition: opacity 0.6s ease;
     }
-    #loading .title { font-size: 34px; letter-spacing: 3px; }
-    #loading .sub { font-size: 13px; letter-spacing: 2px; opacity: 0.7; font-family: -apple-system, system-ui, sans-serif; }
+    #loading .title { font-size: 34px; letter-spacing: 3px; animation: loadrise 0.8s cubic-bezier(0.22,1,0.36,1) both; }
+    #loading .rule { width: 0; height: 2px; border-radius: 2px;
+      background: linear-gradient(90deg, transparent, #d8b94a, transparent);
+      animation: loadrule 0.9s 0.25s cubic-bezier(0.22,1,0.36,1) both; }
+    #loading .sub { font-size: 13px; letter-spacing: 2px; opacity: 0.7;
+      font-family: -apple-system, system-ui, sans-serif; animation: loadpulse 1.9s 0.6s ease-in-out infinite; }
+    @keyframes loadrise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes loadrule { from { width: 0; opacity: 0; } to { width: 220px; opacity: 1; } }
+    @keyframes loadpulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.85; } }
+    @media (prefers-reduced-motion: reduce) {
+      #loading .title, #loading .rule, #loading .sub { animation: none; }
+      #loading .rule { width: 220px; }
+    }
   </style>
-  <script type="module" crossorigin src="./assets/index-e5_g8Qwf.js"></script>
+  <script type="module" crossorigin src="./assets/index-DLxqX37Y.js"></script>
 </head>
 <body>
   <div id="game"></div>
   <div id="loading">
     <div class="title">CLIPPER TOWN</div>
+    <div class="rule"></div>
     <div class="sub">Exploring Newburyport, Massachusetts</div>
   </div>
   <!-- GoatCounter analytics (privacy-friendly). Kept in source so every build keeps it —
