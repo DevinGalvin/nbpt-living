@@ -417,6 +417,13 @@ const css = `
 #hud .chapter .kick { font-size: 13px; letter-spacing: 4px; color: #e8c44f; font-weight: 700; margin-bottom: 10px; }
 #hud .chapter .big { font-family: Georgia, serif; font-size: clamp(30px, 6vw, 46px); color: #f6f3e8; }
 #hud .chapter .small { font-size: 13px; color: #c8bd96; margin-top: 12px; letter-spacing: 1px; }
+/* the end-of-Level-1 "Seasons Unlocked" reward — a richer take on the chapter card */
+#hud .chapter.reward { background: radial-gradient(ellipse at center, rgba(14, 22, 34, 0.9), rgba(8, 12, 20, 0.97)); }
+#hud .chapter.reward .big { animation: rewardBloom 0.7s cubic-bezier(.2, .85, .25, 1) both; }
+#hud .chapter.reward .schips { display: block; font-size: 32px; letter-spacing: 8px; margin: 2px 0 14px; animation: rewardBloom 0.6s 0.12s ease both; }
+#hud .chapter.reward .schips b { font-style: normal; animation: chipPulse 1.5s ease-in-out infinite; }
+@keyframes rewardBloom { from { transform: scale(0.72); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes chipPulse { 0%, 100% { filter: drop-shadow(0 0 1px #bfe3ff); } 50% { filter: drop-shadow(0 0 10px #cdeeff); } }
 /* one-time nudge that you can run — shown a few seconds into the first walk */
 #hud .runtip {
   position: absolute; bottom: 104px; left: 50%; transform: translate(-50%, 10px);
@@ -1483,6 +1490,18 @@ export class Hud {
     (el.querySelector('.big') as HTMLElement).textContent = big;
     (el.querySelector('.small') as HTMLElement).textContent = small;
     el.classList.add('show');
+  }
+
+  // the end-of-Level-1 reward: the four season chips bloom in with ❄️ lit, the town is
+  // about to turn to winter. Reuses the chapter-card overlay and stays up through the
+  // fade + reload that Game.unlockSeasons() runs right after.
+  seasonsUnlockedReward() {
+    const el = document.querySelector('#hud .chapter') as HTMLElement;
+    (el.querySelector('.kick') as HTMLElement).textContent = '❄️ SEASONS UNLOCKED';
+    (el.querySelector('.big') as HTMLElement).textContent = 'Winter comes to Newburyport';
+    (el.querySelector('.small') as HTMLElement).innerHTML =
+      '<span class="schips">☀️ 🍂 <b>❄️</b> 🌸</span>change the season any time from the 🎄 button';
+    el.classList.add('show', 'reward');
   }
 
   private runTipTimer = 0;

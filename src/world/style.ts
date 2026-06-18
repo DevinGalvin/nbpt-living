@@ -11,18 +11,19 @@ const isSeason = (s: string | null): s is Season => s === 'fall' || s === 'winte
 
 // the season the story is currently in, from chapter progress (legacy off-by-one
 // keys: ch1-step = Chapter 2 "Door Under Downtown"; ch3-step = Chapter 4 "Low Water")
+// All of Level 1 is summer now (one bright season, no mid-story creep). The town turns
+// to winter as a REWARD the moment you finish Level 1 — see the "Seasons Unlocked" beat
+// in Game.unlockSeasons(), which sets nbpt-seasons-rewarded + a winter pick, then reloads.
 export function storySeason(): Season {
-  if (seasonNum('nbpt-ch3-step') >= 4) return 'winter';   // Ch4 done → Ch5 finale
-  if (seasonNum('nbpt-ch1-step') >= 6) return 'fall';     // Ch2 done → Ch3/Ch4
-  return 'summer';                                         // Ch1/Ch2
+  return 'summer';
 }
-// the season picker (the post-game reward) unlocks — AND a manual pick starts being
-// honored — once the finale's CLIMAX is reached: the four corners in the Custom House
-// cellar (ch4 step 3), so "I finished the story" counts even before the very last
-// chest-open. This is the ONE gate for everything season-related: the picker UI (hud),
-// whether SEASON honors the saved pick (below), and whether the story still auto-turns
-// the season (Game). They must agree, or the picker unlocks but a pick won't take.
-export function seasonsUnlocked(): boolean { return seasonNum('nbpt-ch4-step') >= 3; }
+// The season picker (the post-game reward) unlocks — AND a manual pick is honored, AND
+// SEASON defaults to winter — the moment the "Seasons Unlocked" reward fires (finishing
+// Level 1). ONE gate for everything season-related: the picker UI (hud), whether SEASON
+// honors the saved pick (below), and the winter-vs-summer default. They must agree.
+export function seasonsUnlocked(): boolean {
+  try { return localStorage.getItem('nbpt-seasons-rewarded') === '1'; } catch { return false; }
+}
 
 export const SEASON: Season = (() => {
   try {

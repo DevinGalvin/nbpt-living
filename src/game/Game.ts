@@ -16,7 +16,7 @@ import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
 import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
-import { STYLE, SEASON, storySeason, seasonsUnlocked } from '../world/style';
+import { STYLE, SEASON } from '../world/style';
 
 const JOG = 200;     // world px/s (8 px = 1 m) — fast, gamey
 const SPRINT = 380;
@@ -1150,9 +1150,10 @@ export class Game {
     let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
-    // streets are controllable. The joystick still gives proportional speed below
-    // this; desktop (WASD) and the run button keep the full, gamey pace.
-    if (this.hud.joyActive && !this.sprinting && !this.riding && !this.kayaking) speed *= 0.72;
+    // streets are controllable. Kids kept overshooting into houses in the neighborhoods,
+    // so this is dialed back further (was 0.72). The joystick still gives proportional
+    // speed below this; desktop (WASD) and the run button keep the full, gamey pace.
+    if (this.hud.joyActive && !this.sprinting && !this.riding && !this.kayaking) speed *= 0.55;
 
     const half = 5;   // a slightly slimmer footprint so narrow streets stay passable
     const free = this.kayaking
@@ -1397,13 +1398,15 @@ export class Game {
     this.updateCamera(dt);
     this.updateWaypoint();
 
-    // the story turns the season as you finish chapters — fire once the town's
-    // dressing no longer matches your progress and you're calm in the overworld
-    // (not mid-dialogue, not still reading a CHAPTER COMPLETE card). Once the seasons
-    // unlock (finale climax) the picker takes over, so the story never overrides a manual pick.
+    // finish Level 1 → the one-time "Seasons Unlocked" reward: it turns the summer town
+    // to winter for the Level 2 Christmas arc and unlocks the season picker. Fires once
+    // you're calm in the overworld (not inside/on water, not mid-dialogue, not still
+    // reading the CHAPTER 5 COMPLETE card), so it lands as you step back out into town.
     if (!this.inside && !this.onWater && !this.seasonTurning && !this.hud.dialogueOpen
-        && !seasonsUnlocked() && !document.querySelector('#hud .chapter.show') && storySeason() !== SEASON) {
-      this.turnSeason();
+        && !document.querySelector('#hud .chapter.show')
+        && (parseInt(localStorage.getItem('nbpt-ch4-step') || '0', 10) || 0) >= 4
+        && localStorage.getItem('nbpt-seasons-rewarded') !== '1') {
+      this.unlockSeasons();
     }
 
     // polls
@@ -1550,11 +1553,15 @@ export class Game {
   // the live "season turns" beat: stash where you stand, show the card, then fade
   // and reload the town re-dressed for the new season (you respawn on the spot)
   private seasonTurning = false;
-  private turnSeason() {
+  // Level 1 complete → the "Seasons Unlocked" reward. Flag it (fires once), set the winter
+  // pick, save a resume point, show the celebratory card, then fade-reload into winter.
+  private unlockSeasons() {
     this.seasonTurning = true;
+    localStorage.setItem('nbpt-seasons-rewarded', '1');   // unlocks the picker + the winter default
+    localStorage.setItem('nbpt-season', 'winter');         // the reward turns the town to winter
     localStorage.setItem('nbpt-resume-pos', JSON.stringify({ x: Math.round(this.px), z: Math.round(this.pz) }));
-    this.hud.seasonCard(storySeason());
-    setTimeout(() => this.hud.fadeThrough(() => location.reload()), 1900);
+    this.hud.seasonsUnlockedReward();
+    setTimeout(() => this.hud.fadeThrough(() => location.reload()), 2800);
   }
 
   // off-screen objective pointer: project the beacon to the screen; if it's
