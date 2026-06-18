@@ -7,29 +7,57 @@ TypeScript + Vite. Live at **https://clippertown.io**.
 > (the "I found my house!" hook landed). A LOT has shipped since launch — see §5. Every
 > build stamps its commit at `window.__build`.
 >
-> **🎯 LEVEL 2 "The Light That Walks" — Chapters 1 + 2 BUILT & verified (gated).** A cozy
-> lighthouse mystery, fall→winter→Christmas. The arc is **land→sea→sky** (L1 land/summer =
-> shipped; L2 sea/winter; L3 sky/spring). **Flight moved to Level 3** (its spring/post-game
-> home). **Gated like flight:** `?l2=1` latches `localStorage nbpt-l2`; all L2 sits behind the
-> `quest.l2` flag, so the public game still ends at the Custom House (verified gate-off).
-> **Don't un-gate until we publish.**
-> - **Ch1 "The False Light"** — the Joppa Flats birdwatcher (with a clamming-heritage beat) hands
->   you **binoculars**, then a cinematic cutaway swings the camera out to sea, dips the sky to
->   dusk, and reveals a mystery light glowing on the dark water.
-> - **Ch2 "The Walking Light"** — home to **Gram (who now lives in Joppa)** → take your late
->   grandfather's **kayak** at the Joppa slip → paddle way out → the "light" is a drowned granite
->   lighthouse foundation: it *walked* (real NBPT history). Hook → "so who's been lighting it?"
-> - **The free-roam KAYAK** (earned in Ch2, key `nbpt-kayak`): a 🛶 KAYAK button at any water's
->   edge launches you; paddle the open sea (water OR submerged ground); 🛶 HOP OUT to any shore.
-> - The **Journey panel** ("JOURNEY") is reorganized: story grouped by named **Level** (L1 "The
->   Smugglers' Map", L2 "The Light That Walks"), chapters renumber within each, + a **Story |
->   Collections** tab toggle. The objective pill's icon is now a live steering **arrow**.
-> - **NEXT: Chapter 3** — who/what is lighting the ghost (mooncusser/keeper thread → the storm
->   /Christmas finale; planned beats: channel shifted, "Bring the light home" — cozy, NO rescue).
->   See the `nbpt-level2` memory. Legacy chapter keys continue: Ch1 = `nbpt-ch5-step`, Ch2 = `nbpt-ch6-step`.
+> **🎯 LEVEL 2 "The Light That Walks" — Chapters 1–3 BUILT & verified; only the FINALE (Ch4) remains.**
+> A cozy lighthouse mystery, **summer Level 1 → winter Christmas finale**. Arc = land→sea→sky (L1
+> shipped; L2 sea/winter; L3 sky/spring; flight → L3). **Gated:** `?l2=1` latches `localStorage
+> nbpt-l2`; all L2 sits behind `quest.l2`, public still ends at the Custom House. **Don't un-gate.**
+> - **Ch1 "The False Light"** — Joppa birdwatcher → **binoculars** → cinematic cutaway reveals a mystery light on the dark water.
+> - **Ch2 "The Walking Light"** — Gram (now in Joppa) → take grandpa's **kayak** at the slip → paddle out → the light is a drowned granite foundation: it *walked*. (Now lands you back at the slip — no stranding.)
+> - **Ch3 "The Mooncusser"** — a salty **lobsterman** at the slip explains mooncussers (kid-clear); you paddle out and **snuff his scattered false lamps** (an active hunt) → catch him → "bring the light home."
+> - LIVE/public: the **free-roam KAYAK** (key `nbpt-kayak`) and the **"Seasons Unlocked" reward** (finish L1 → winter, picker unlocks).
+> - **⚠️ GIT STATE:** the **2 newest L2 commits are held LOCAL, not pushed** (Ch3 snuff redesign + the land-ashore fix). `origin/source` has only the public fixes. Plan: **finish Ch4, then push the whole L2 batch.** Run `git log origin/source..source` to see the held commits.
+> - **➡️ NEXT TASK: build Ch4 "Bring the Light Home"** — full guide in **§0 below**. Legacy chapter keys continue: Ch1=`nbpt-ch5-step`, Ch2=`nbpt-ch6-step`, Ch3=`nbpt-ch7-step`; the **finale = `nbpt-ch8-step`**.
 >
 > Also live but **private/dev-gated**: a **scenic flight** from Plum Island Airport
 > (`clippertown.io/?fly=1` to enable on a device) — see §5 + the `nbpt-flight-prototype` memory.
+
+---
+
+## 0. NEXT TASK — finish Level 2: build the Ch4 finale "Bring the Light Home"
+
+Level 2 is built through **Chapter 3**; the **finale (Ch4) is the one remaining piece**. This is the build guide. Deep design + the chapter scheme live in the **`nbpt-level2`** memory (a fresh session loads it automatically).
+
+### Read first — current state
+- **Built + verified (gated `?l2`):** Ch1 "The False Light", Ch2 "The Walking Light", Ch3 "The Mooncusser" (a **snuff-the-false-lamps** minigame — paddle out, the beacon points to the nearest of 4 decoy lamps, paddle into each to snuff it, then catch the mooncusser at his last light). Every sea chapter now **lands you back at the Joppa slip** when it ends — `Game.landAtShore(x,z)` + the `onReturnAshore` quest callback (no more stranding at the far light).
+- **Chapter keys** (legacy off-by-one): Ch1 = `nbpt-ch5-step` (var `ch5`), Ch2 = `nbpt-ch6-step` (`ch6`), Ch3 = `nbpt-ch7-step` (`ch7`). **The finale = `nbpt-ch8-step` (`ch8`).** Ch3 completes at `setCh7(2)`.
+- **⚠️ GIT — the 2 newest L2 commits are HELD LOCAL (not pushed):** the Ch3 snuff redesign + the land-ashore fix. `origin/source` (live) has only the public fixes (lake removal, walking-on-water fix, onboarding nudge, phone-speed cut, the Seasons-Unlocked reward). Devin's plan: **finish Ch4, then push the whole L2 batch.** `git log origin/source..source` shows the held commits; a `backup-before-season-split` branch is a safety net.
+- **Test on `npm run dev`, NOT the live site:** the live `?l2=1` still has the OLD Ch3 (dialogue) + the stranding bug — the fixed versions are only local until the L2 push.
+
+### The finale design (DECIDED with Devin — don't re-litigate)
+- **Premise:** the mooncusser's caught, but the nor'easter's here and the real harbor light is dark — boats are out with nothing true to steer for. You **light the lighthouse and sweep its beam to bring the boats home**; the town answers light-for-light → Christmas morning.
+- **PILLAR: NO peril, NO player-rescues.** Stakes = "the best night of the year almost doesn't happen," not survival. Closes on *"the light was never yours to own, only yours to keep lit"* (mirrors L1's "the treasure was the town").
+- **The light = the downtown Range Lights** (Devin's call — NOT far-off Plum Island Light at ~25k px east). Hero = the **Rear Range Light** (tall brick tower, world-px ~`(2433, 93)`); partner = the **Front Range Light** ~`(3233, −139)`, both by the **Coast Guard** ~`(3030, 75)` ("birthplace of the Coast Guard"). Tight geography: lighthouse + town payoff + boats are all the downtown harbor.
+- **Beats (proposed — confirm with Devin if unsure):** (1) **storm breaks** — the recurring **lobsterman** at the slip sends you to light it; (2) **light the tower** — reach the Rear Range Light, relight the lamp, the beam comes on; (3) **sweep the beam** *(signature mechanic)* — rotate it across the dark harbor; each lost boat the beam catches turns and follows it home up the river; (4) **the town answers** — Market Square tree blazes on, the **Coast Guard boat** leads the fleet up the river, streets warm → Christmas + the closing line.
+
+### Asset map (exact coords/handles, from a thorough read)
+- **Lighthouses:** Rear Range `(2433,93)` `buildRearRange` (decor.ts ~1901); Front Range `(3233,−139)` `buildFrontRange` ~1910; Plum Island `(33222,−3371)` `buildPILight` ~1918 (too far). `lanternTop()` = the glazed top. They're `HEROES`-dict overrides keyed off the world.json building name.
+- **No rotating beam exists — build one.** Reuse the quest beacon's glow materials (`quest.ts` ~506–545): additive `beamMat`/`glowMat` (`depthTest:false`, `fog:false`) — a long rotating cone on the tower reads cleanly over water + sky. The decoy lamps' `warmGlow()` sprite is also reusable.
+- **No lit house-windows exist** — a per-house cascade is a NEW system; for v1 Devin OK'd **tree + Coast Guard boat + the existing night street-lamp glow** (don't over-scope). The **Market Square Christmas tree already builds in winter** (`Game.ts` ~1019, ~`(−100,−48)`).
+- **Boats:** `buildRowboat`/`buildKayak` exist (reuse for a festive Coast Guard boat); mooring-dock boats decor.ts ~3021.
+- **Storm/season:** L2 is already winter (snow on) via the Seasons-Unlocked reward. `nbpt.weather(1)` / `Sky.forceWeather` for a heavier blow; `Sky.duskIn/duskOut` + `setTod` for night; `Game.cineLook` + `lookOutToSea`/`endLookOut` = the scripted-camera cutaway (used in Ch1).
+
+### How to add Ch4 — mirror Ch3 exactly (all in `src/game/quest.ts` unless noted)
+1. `private ch8: number;` + load `nbpt-ch8-step` in the constructor; add `setCh8(s8)`.
+2. New dialogue `Line[]` consts — short, kid-followable (see `nbpt-writing-voice`; keep the recurring lobsterman's voice from Ch3).
+3. `buildL2Props()` — build the finale props (the tower beam, the Coast Guard boat); toggle their visibility by `ch8` step in `apply()`.
+4. `candidates()` — talk/action tags gated `ch6>=3 && ch7>=2 && ch8===N`.
+5. `apply()` — objective text + beacon `target` per ch8 step + the prop visibility toggles.
+6. `buildMissions()` — push an `l2c4` card; bump the `active` selector (Ch3 = `active===8` → finale `===9`).
+7. `runStepDialogue()` — the handlers + `setCh8` calls; `update()` — any auto-trigger (reach-the-tower / beam-sweep tick), like Ch2/Ch3's `<130px` checks. **End each on-water beat with `this.onReturnAshore(SLIP.x, SLIP.z)`** so the player isn't stranded.
+
+### Verify + ship
+- `npm run dev`; `window.nbpt` hooks (`go`,`time`,`weather`; pump the throttled rAF with `_game.frame()` — see §3/§7). Drive dialogue via `nbpt._quest.interact('<tag>')` + `_game.hud.advanceDlg()` (synthetic clicks don't advance it). `npx tsc --noEmit`.
+- **When L2 is done:** `git push origin source` (the held L2 commits + Ch4 all go live; CI deploys ~1–2 min). **To ship a public hotfix BEFORE then**, reorder so the public commit sits below the held L2 ones, then push only it — see §8.
 
 ---
 
@@ -178,6 +206,17 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
 
 ## 5. Recent work
 
+**June 18, 2026 — Ch3 + playtester fixes + season rework:**
+- **Ch3 "The Mooncusser" BUILT** (`quest.ts`, key `nbpt-ch7-step`). A salty **lobsterman** at the Joppa slip explains mooncussers kid-clear (replaced an over-Gram'd draft — Devin: "too much gram, want more interesting characters"; see `nbpt-cast-variety`). Beat 2 was first a dialogue-only catch, then **redesigned into a snuff-the-false-lamps minigame** (Devin: "ch3 was pretty boring, just dialogue") — 4 scattered decoy lamps (`DECOYS`), beacon points to the nearest, paddle into each to snuff (`snuffDecoy`, bitmask `nbpt-ch7-decoys`), then catch him at his last light. `warmGlow()` helper extracted; `buildKayak()` moved to `actors.ts` (shared by the ride + the docked kayak).
+- **Land-ashore fix** — finishing a sea chapter left you stranded ~7700px out at the light; now `Game.landAtShore()` + the `onReturnAshore` quest callback drop you back at the slip (Ch2 reveal + Ch3 catch both call it).
+- **Drowned-foundation visibility fix** — it was built once at `ch5=0` and never re-shown, so a no-reload playthrough saw no foundation at the Ch2 reveal; `apply()` now re-asserts it.
+- **Walking-on-water fix** (`Game.ts`, PUBLIC) — on foot you couldn't be stopped from strolling onto the open harbor (the `free` predicate only checked `isBlocked`, not water); now it rejects water unless a deck (`deckHeightAt > WATER_Y`, so bridges/piers/boardwalks still walk). The unstick net marches an adrift player back to shore.
+- **Stale golf-course lake removed** (PUBLIC) — a Reddit playtester flagged a phantom lake at the Laurel Rd subdivision (old course, dried up, now housing). Added a `DROP_OSM` exclusion set in `build_world.mjs` (ways 279021841 + 920420732 + relation 12474826) and rebuilt `world.json`.
+- **Onboarding** (PUBLIC) — welcome-card gate replaced with a one-time "find your street" toast (instant drop-in preserved). See `nbpt-onboarding`.
+- **Season rework** (PUBLIC) — was a silent summer→fall→winter creep; now **all of L1 is summer**, and **finishing L1 fires a "Seasons Unlocked" reward card → winter** for the L2 Christmas arc (`storySeason()→'summer'`; `seasonsUnlocked()` reads `nbpt-seasons-rewarded`; `Game.unlockSeasons()` + `hud.seasonsUnlockedReward()`). See `nbpt-seasons-timeline`.
+- **Phone speed** (PUBLIC) — kids reported running too fast into houses; on-foot joystick multiplier 0.72 → **0.55** (`Game.ts` ~1174). See `nbpt-mobile-controls`.
+- **Git:** the PUBLIC fixes above were shipped to `origin/source`; the **2 L2 commits (Ch3 snuff redesign + land-ashore) are held LOCAL** (Devin: finish L2 first). Shipping public-without-L2 used a **reorder** (cherry-pick the public commit first, push only it) — see §8.
+
 **June 17, 2026 — LEVEL 2 build (later same day; all deployed, gated behind `?l2`):**
 - **Decided Level 2 = "The Light That Walks"** (cozy lighthouse mystery). Whole-game arc is now
   **land→sea→sky** across L1/L2/L3; **flight moved to L3** (spring/post-game). Spine + design in
@@ -306,13 +345,11 @@ ponds; **13 Fox Run Drive** (navy house, red door, pool).
 
 ## 6. Known gaps / follow-ups
 
-- **🎯 Level 2 "The Light That Walks" — DECIDED & Chapters 1–2 built (gated `?l2`).** See the
-  banner + the `nbpt-level2` memory. **NEXT: Chapter 3** — who/what lights the ghost, toward a
-  cozy storm/Christmas finale (planned: channel-shifted recon, then **"Bring the light home"** —
-  the stormy night with **NO peril, NO player-rescues**, per the kind-by-default pillar; "The Long
-  Night" nor'easter folded in as the warm light-the-town-home climax, not a disaster). Then polish
-  the full level and decide when to **un-gate** (publish L2). Dexter's statues remain a good
-  *side-quest*; a "Clam Digger of Joppa" minigame is a natural Joppa side-activity.
+- **🎯 Level 2 "The Light That Walks" — Chapters 1–3 built; the Ch4 finale is the last piece.**
+  **The full build guide is §0** (design + asset map + add-a-chapter pattern). After Ch4: polish the
+  whole level, then **push the held L2 batch + decide when to un-gate** (publish L2). Side-content
+  ideas for later: Dexter's statues (side-quest); a "Clam Digger of Joppa" minigame (natural Joppa
+  side-activity).
 - **✈️ Flight — make it real (now earmarked as Level 3's tool).** Working but **private prototype**
   (dev-gated `?fly`). **Level 3 = sky/spring** is its home: the **1910 first-flight Echo** at the
   airfield earns the plane, opening the Wild Port nature layer (plovers/eagles/whales, binocular
@@ -384,7 +421,9 @@ ponds; **13 Fox Run Drive** (navy house, red door, pool).
 ## 8. Starting a new session
 
 1. Open a new Claude Code session **in this folder** (`/Users/devingalvin/claude_apps/nbpt-living`).
-2. First message suggestion: *"Read HANDOFF.md, confirm the deploy workflow, then …"*
-   (or just give it the next task — it will pick up the project memory automatically).
-3. Make changes here → verify with `npm run dev` / the `nbpt` hooks → **`git push origin source`** (CI auto-deploys in ~1–2 min; confirm via `window.__build`). `npm run deploy` is just a Mac fallback.
-4. Ignore the old cloud "Clipper Town" / "Clipper City" sessions — this folder supersedes them.
+2. **The task: finish Level 2 — build the Ch4 finale. START WITH §0** (design + asset map + the add-a-chapter pattern). Suggested first message: *"Read HANDOFF.md §0, then build the Level 2 finale (Ch4 'Bring the Light Home')."* Project memory loads automatically — `nbpt-level2` is the deep reference.
+3. **⚠️ Mind the held L2 commits.** At session start: `git fetch && git log origin/source..source` — local `source` is ahead of `origin/source` by 2 unpushed L2 commits (Ch3 snuff + land-ashore). Build Ch4 on top; when L2 is done, `git push origin source` ships the whole batch.
+4. **To ship a PUBLIC hotfix before L2 is done** (don't push the held L2): reorder so the public commit is first, push only it —
+   `git branch -f backup source && git reset --hard origin/source && git cherry-pick <publicCommit> <heldL2commits…>` (public first), verify `git diff backup source` is empty + `tsc` the deploy state, then `git push origin <publicCommit>:source`. The L2 commits stay local on top. (Done twice on 6/18.)
+5. Verify with `npm run dev` + the `nbpt` hooks (§3/§7); `npx tsc --noEmit`. Stage **explicit paths**, never `git add -A` (concurrent sessions — §7).
+6. Ignore the old cloud "Clipper Town" / "Clipper City" sessions — this folder supersedes them.
