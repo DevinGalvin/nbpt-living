@@ -423,6 +423,7 @@ export class QuestRunner {
   private onLookSea: (x: number, z: number) => void;   // Level 2: cinematic cutaway to the mystery light
   private onLookEnd: () => void;                        // …and back to the normal chase cam
   private onKayak: () => void;                          // launch the player into the kayak (take it at the slip)
+  private onReturnAshore: (x: number, z: number) => void;  // Level 2: end-of-chapter return to shore (no stranding at sea)
   private ch2: number;
   private ch3: number;
   private ch4: number;
@@ -447,7 +448,8 @@ export class QuestRunner {
 
   constructor(scene: THREE.Scene, index: WorldIndex, hud: Hud, audio: GameAudio, onGoDown: () => void, onBike: () => void,
               onBoat: () => void, onStar: () => void, onNews: () => void, onDen: () => void,
-              onLookSea: (x: number, z: number) => void, onLookEnd: () => void, onKayak: () => void) {
+              onLookSea: (x: number, z: number) => void, onLookEnd: () => void, onKayak: () => void,
+              onReturnAshore: (x: number, z: number) => void) {
     this.scene = scene;
     this.index = index;
     this.hud = hud;
@@ -461,6 +463,7 @@ export class QuestRunner {
     this.onLookSea = onLookSea;
     this.onLookEnd = onLookEnd;
     this.onKayak = onKayak;
+    this.onReturnAshore = onReturnAshore;
     this.step = Math.min(6, Math.max(0, parseInt(localStorage.getItem(SAVE_KEY) || '0', 10) || 0));
     this.ch2 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch2-step') || '0', 10) || 0));
     this.ch3 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch3-step') || '0', 10) || 0));
@@ -1569,6 +1572,7 @@ export class QuestRunner {
       this.audio.jingle();
       this.hud.chapterCard('LEVEL 2 · CHAPTER 2 COMPLETE', 'The Walking Light', 'the light moved — and now you know it');
       this.setCh6(3);
+      this.onReturnAshore(SLIP.x, SLIP.z);   // paddle home — land at the slip so Ch3 starts here, not 7000px out at sea
     });
   }
 
@@ -1594,6 +1598,7 @@ export class QuestRunner {
       if (this.mysteryLight) this.mysteryLight.visible = false;         // false light snuffed for good
       this.hud.chapterCard('LEVEL 2 · CHAPTER 3 COMPLETE', 'The Mooncusser', 'the false light is out — but a storm is coming');
       this.setCh7(2);
+      this.onReturnAshore(SLIP.x, SLIP.z);   // back ashore at the slip — don't leave them adrift at the light
     });
   }
 

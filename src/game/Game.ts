@@ -344,7 +344,8 @@ export class Game {
       localStorage.setItem('nbpt-bike', '1');
       this.bikeEarned();
     }, () => this.boatRide(), () => this.enterStar(), () => this.enterNews(), () => this.enterDen(),
-      (x: number, z: number) => this.lookOutToSea(x, z), () => this.endLookOut(), () => this.enterKayak());
+      (x: number, z: number) => this.lookOutToSea(x, z), () => this.endLookOut(), () => this.enterKayak(),
+      (x: number, z: number) => this.landAtShore(x, z));
     this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
     this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,
@@ -644,6 +645,24 @@ export class Game {
     this.kidY = Math.max(this.terrain.heightAt(this.px, this.pz), this.index.deckHeightAt(this.px, this.pz));
     this.kid.setPos(this.px, this.pz);
     this.dog.root.position.set(this.px - 20, this.kidY, this.pz + 12);
+    this.quest?.refresh();
+    this.updateCamera(0.016, true);
+  }
+
+  // Scripted return ashore (Level 2): used when a chapter ends out in the kayak (e.g. the
+  // Ch2 walking-light reveal at the far light), so the player isn't stranded 7000px out
+  // with their next objective back at the slip. Hop out and set the kid down on the nearest
+  // dry shore to (x,z) — the Joppa slip — ready to walk to the lobsterman.
+  landAtShore(x: number, z: number) {
+    const spot = this.findFree(x, z);
+    this.kayaking = false;
+    this.hud.kayaking = false;
+    if (this.kayak) this.kayak.visible = false;
+    this.px = spot.x; this.pz = spot.y;
+    this.kidY = Math.max(this.terrain.heightAt(this.px, this.pz), this.index.deckHeightAt(this.px, this.pz));
+    this.kid.setPos(this.px, this.pz);
+    this.dog.root.position.set(this.px - 20, this.kidY, this.pz + 12);
+    this.ensureRect(true);              // the slip is far from the light — stream its chunks now
     this.quest?.refresh();
     this.updateCamera(0.016, true);
   }
