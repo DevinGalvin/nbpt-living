@@ -443,9 +443,10 @@ export class Game {
     document.getElementById('loading')?.style.setProperty('opacity', '0');
     setTimeout(() => document.getElementById('loading')?.remove(), 700);
 
-    // newcomers land in a 3-D town with no idea it's a story — greet them once
+    // newcomers land straight in the 3-D town — let that "suddenly in Newburyport"
+    // shock land first, then a light, ignorable nudge to find their own street (no gate)
     if (localStorage.getItem('nbpt-welcomed') !== '1') {
-      setTimeout(() => this.hud.showWelcome(() => localStorage.setItem('nbpt-welcomed', '1')), 850);
+      setTimeout(() => this.hud.showStreetNudge(() => localStorage.setItem('nbpt-welcomed', '1')), 1500);
     }
   }
 
@@ -1325,7 +1326,7 @@ export class Game {
     const movingNow = Math.hypot(realVx, realVz) > 1;
     // a few seconds into your first walk (and not already running), nudge that R runs
     if (!this.runTipShown && movingNow && !this.sprinting && !this.inside && !this.boating
-        && !this.riding && !this.hud.dialogueOpen && !document.querySelector('#hud .welcome')) {
+        && !this.riding && !this.hud.dialogueOpen) {
       this.walkAccum += dt;
       if (this.walkAccum > 3) {
         this.runTipShown = true;

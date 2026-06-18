@@ -427,49 +427,17 @@ const css = `
 }
 #hud .runtip b { color: #f0d27a; }
 #hud .runtip.show { opacity: 1; transform: translate(-50%, 0); }
-/* first-visit welcome: tells a newcomer what Clipper Town is + what to do */
-#hud .welcome {
-  position: absolute; inset: 0; z-index: 80; display: flex;
-  align-items: center; justify-content: center; padding: 18px;
-  background: radial-gradient(ellipse at center, rgba(10,14,20,0.74), rgba(8,11,16,0.92));
-  pointer-events: auto; opacity: 1; transition: opacity 0.3s ease;
-  -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+/* first-visit nudge: the real map — tap to find your street (replaces the old welcome gate) */
+#hud .streettip {
+  position: absolute; top: 60px; left: 50%; transform: translate(-50%, -8px);
+  max-width: min(360px, 88vw); text-align: center;
+  background: var(--panel); border: 1px solid rgba(216,185,74,0.6); border-bottom: 3px solid #d8b94a;
+  color: #f3f1e8; font-size: 13px; font-weight: 600; letter-spacing: 0.3px; line-height: 1.5;
+  padding: 11px 18px; border-radius: 14px; pointer-events: auto; cursor: pointer;
+  opacity: 0; transition: opacity 0.4s ease, transform 0.4s ease; z-index: 30;
 }
-#hud .welcome.closing { opacity: 0; }
-#hud .welcome-card {
-  width: min(360px, 90vw); max-height: 92vh; overflow-y: auto; box-sizing: border-box;
-  background: var(--panel); border-radius: 22px; border-bottom: 4px solid #d8b94a;
-  padding: 26px 22px 22px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,0.55);
-}
-#hud .welcome-card .wship {
-  display: block; width: 84px; height: 84px; margin: 2px auto 14px; border-radius: 19px;
-  box-shadow: 0 8px 22px rgba(0,0,0,0.45); border: 1px solid rgba(216,185,74,0.45);
-}
-#hud .welcome-card .wtitle { font-family: Georgia, serif; font-size: 31px; letter-spacing: 3px; color: #f6f3e8; }
-#hud .welcome-card .wsub { font-size: 11px; color: #9aa3af; margin: 5px 0 20px; letter-spacing: 2px; text-transform: uppercase; }
-/* the gamified first-quest card */
-#hud .welcome-card .wquest {
-  display: flex; align-items: center; gap: 13px; text-align: left;
-  background: rgba(216,185,74,0.12); border: 1px solid rgba(216,185,74,0.42);
-  border-radius: 15px; padding: 13px 15px; margin-bottom: 18px;
-}
-#hud .welcome-card .wquest .wq-icon { font-size: 27px; line-height: 1; }
-#hud .welcome-card .wquest .wq-kick { font-size: 10px; letter-spacing: 1.6px; color: #d8b94a; font-weight: 700; }
-#hud .welcome-card .wquest .wq-goal { font-size: 17px; color: #f6f3e8; font-weight: 600; margin-top: 3px; }
-/* three control chips */
-#hud .welcome-card .wctrls { display: flex; justify-content: center; gap: 7px; flex-wrap: wrap; margin-bottom: 22px; }
-#hud .welcome-card .wctrls span {
-  font-size: 12.5px; color: #dfe4ea; background: rgba(243,241,232,0.08);
-  border-radius: 20px; padding: 8px 13px; white-space: nowrap;
-}
-#hud .welcome-card .wstart {
-  display: block; width: 100%; box-sizing: border-box; cursor: pointer; user-select: none; -webkit-user-select: none;
-  background: #d8b94a; color: #1c2430; font-weight: 800; letter-spacing: 1.5px;
-  font-size: 18px; padding: 16px; border-radius: 30px; border: none;
-  transition: transform 0.12s ease, background 0.15s ease;
-}
-#hud .welcome-card .wstart:hover { background: #f0d27a; }
-#hud .welcome-card .wstart:active { transform: scale(0.97); }
+#hud .streettip b { color: #f0d27a; }
+#hud .streettip.show { opacity: 1; transform: translate(-50%, 0); }
 `;
 
 export class Hud {
@@ -557,6 +525,7 @@ export class Hud {
       <div class="objective"><span class="q wp-q">➤</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
       <div class="runtip"></div>
+      <div class="streettip"></div>
       <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
       <div class="talk-btn">💬 TALK</div>
       <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div></div>
@@ -817,8 +786,8 @@ export class Hud {
         setTimeout(() => { rb.dataset.arm = '0'; rb.textContent = '↺ Restart journey from the beginning'; }, 3500);
         return;
       }
-      // a true start-over: also replay the welcome (it says "find Gram in Market
-      // Square") and un-tuck the objective, so you're clearly guided again
+      // a true start-over: also re-show the find-your-street nudge and un-tuck the
+      // objective, so a fresh visitor is greeted and clearly guided again
       for (const k of ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch5-gram', 'nbpt-ch6-step', 'nbpt-kayak', 'nbpt-historian', 'nbpt-history-read', 'nbpt-welcomed', 'nbpt-obj-min', 'nbpt-resume-pos', 'nbpt-season']) localStorage.removeItem(k);
       location.reload();
     });
@@ -1516,42 +1485,6 @@ export class Hud {
     el.classList.add('show');
   }
 
-  // first-visit welcome: tells a newcomer what Clipper Town is and how to start
-  showWelcome(onStart?: () => void) {
-    const el = document.createElement('div');
-    el.className = 'welcome';
-    el.innerHTML = `
-      <div class="welcome-card">
-        <img class="wship" src="./icon-180.png" alt="" draggable="false" onerror="this.remove()" />
-        <div class="wtitle">CLIPPER TOWN</div>
-        <div class="wsub">Newburyport · for real</div>
-        <div class="wquest">
-          <span class="wq-icon">🎯</span>
-          <div>
-            <div class="wq-kick">YOUR FIRST QUEST</div>
-            <div class="wq-goal">Find Gram in Market Square</div>
-          </div>
-        </div>
-        <div class="wctrls">
-          <span>Drag to move</span>
-          <span>Tap 🏃 to run</span>
-          <span>Tap 💬 to talk</span>
-        </div>
-        <div class="wstart">▶&nbsp;&nbsp;PLAY</div>
-      </div>`;
-    document.querySelector('#hud')!.appendChild(el);
-    let done = false;
-    const close = () => {
-      if (done) return;
-      done = true;
-      el.classList.add('closing');
-      setTimeout(() => el.remove(), 340);
-      onStart?.();
-    };
-    (el.querySelector('.wstart') as HTMLElement).addEventListener('click', (e) => { e.stopPropagation(); close(); });
-    el.addEventListener('click', (e) => { if (e.target === el) close(); });
-  }
-
   private runTipTimer = 0;
   // a one-time toast teaching the run control (keys vs touch)
   showRunTip() {
@@ -1561,6 +1494,19 @@ export class Hud {
     el.classList.add('show');
     clearTimeout(this.runTipTimer);
     this.runTipTimer = window.setTimeout(() => el.classList.remove('show'), 5000);
+  }
+
+  private streetTipTimer = 0;
+  // a one-time, ignorable nudge: this is the real map — tap to find your street.
+  // replaces the old welcome card so the drop-in stays instant; a tap opens search.
+  showStreetNudge(onSeen?: () => void) {
+    onSeen?.();                              // mark it seen now, so it never nags twice
+    const el = document.querySelector('#hud .streettip') as HTMLElement;
+    el.innerHTML = '📍 This is the real map of Newburyport.<br><b>Tap to find your street →</b>';
+    el.classList.add('show');
+    el.onclick = () => { el.classList.remove('show'); clearTimeout(this.streetTipTimer); this.toggleTravel(true); };
+    clearTimeout(this.streetTipTimer);
+    this.streetTipTimer = window.setTimeout(() => el.classList.remove('show'), 7000);
   }
 
   // tunnel-dark edges while underground
