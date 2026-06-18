@@ -624,10 +624,10 @@ export class Game {
     for (let r = 18; r < 240 && !found; r += 12) {
       for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
         const x = this.px + Math.cos(a) * r, y = this.pz + Math.sin(a) * r;
-        if (this.index.isWaterAt(x, y)) { lx = x; lz = y; found = true; break; }
+        if (this.index.isOpenWaterAt(x, y)) { lx = x; lz = y; found = true; break; }
       }
     }
-    if (!found) return;                 // no water nearby — nothing to launch into
+    if (!found) return;                 // no open water nearby — nothing to launch into
     this.dismount();
     this.kayaking = true;
     this.hud.kayaking = true;           // the quest yields its action button (HOP OUT owns it)
@@ -1267,9 +1267,10 @@ export class Game {
       : (x: number, y: number) =>
         !this.index.isBlocked(x - half, y) && !this.index.isBlocked(x + half, y) && !this.index.isBlocked(x, y)
         && !(this.life && this.life.obstacleAt(x, y))
-        // on foot you can't walk out onto open water — only dry land or a real deck
-        // (bridge/pier/boardwalk, where deckHeightAt rises above the waterline)
-        && (!this.index.isWaterAt(x, y) || this.index.deckHeightAt(x, y) > WATER_Y);
+        // on foot you can't walk out onto open water — only dry land, a real deck
+        // (bridge/pier/boardwalk, where deckHeightAt rises above the waterline), or a
+        // frozen pond (winter ice you can walk clear across)
+        && (!this.index.isWaterAt(x, y) || this.index.deckHeightAt(x, y) > WATER_Y || this.index.frozenWaterAt(x, y));
     // sub-step the move and slide along walls so tight streets glide instead of
     // snagging. When a move is wedged on both axes, try to slip free (round the
     // corner / glance off a one-sided jut) rather than stopping dead — keyboard
@@ -1307,7 +1308,7 @@ export class Game {
       // (and never while pinned at the tower for the beam-sweep)
       const stuck = (x: number, z: number) =>
         this.index.isBlocked(x, z)
-        || (this.index.isWaterAt(x, z) && this.index.deckHeightAt(x, z) <= WATER_Y)   // adrift on open water → back to shore
+        || (this.index.isWaterAt(x, z) && this.index.deckHeightAt(x, z) <= WATER_Y && !this.index.frozenWaterAt(x, z))   // adrift on open water → back to shore (frozen ice is fine)
         || !!(this.life && this.life.obstacleAt(x, z));
       if (stuck(nx, nz)) {
         let freed = false;
@@ -1528,9 +1529,11 @@ export class Game {
         // remember where you are so a refresh (or a crash) resumes here, not at the start
         if (!this.onWater) localStorage.setItem('nbpt-resume-pos', JSON.stringify({ x: Math.round(this.px), z: Math.round(this.pz) }));
         this.updateLampSpots();
-        this.nearWater = this.index.isWaterAt(this.px, this.pz - 230)
-          || this.index.isWaterAt(this.px + 230, this.pz) || this.index.isWaterAt(this.px - 230, this.pz)
-          || this.index.isWaterAt(this.px, this.pz + 230);
+        // only the river/ocean offers the kayak — not inland ponds (you walk those
+        // when they freeze); isOpenWaterAt excludes the small freezable bodies
+        this.nearWater = this.index.isOpenWaterAt(this.px, this.pz - 230)
+          || this.index.isOpenWaterAt(this.px + 230, this.pz) || this.index.isOpenWaterAt(this.px - 230, this.pz)
+          || this.index.isOpenWaterAt(this.px, this.pz + 230);
         this.audio.setNearWater(this.nearWater);
         for (const lm of this.world.landmarks) {
           const d = (lm.x - this.px) ** 2 + (lm.y - this.pz) ** 2;

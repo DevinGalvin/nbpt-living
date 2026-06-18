@@ -1503,6 +1503,34 @@ export class WorldIndex {
     return false;
   }
 
+  // open, kayak-able water: the river / harbor / ocean — NOT inland ponds (those are
+  // small freezable bodies you walk across in winter, never paddle). Gates the KAYAK
+  // affordance + launch so the boat only ever offers on the real waterways.
+  isOpenWaterAt(x: number, y: number): boolean {
+    if (!this.waterBB) {
+      this.waterBB = [];
+      for (const poly of this.world.polys) {
+        if (poly.k === 'water' || poly.k === 'ocean') this.waterBB.push({ poly, bb: bboxOf(poly.p) });
+      }
+    }
+    const ckx = Math.floor(x / CHUNK), cky = Math.floor(y / CHUNK);
+    const key = ckx + ',' + cky;
+    let cand = this.waterCache.get(key);
+    if (!cand) {
+      const ox = ckx * CHUNK, oy = cky * CHUNK;
+      cand = [];
+      for (const { poly, bb } of this.waterBB) {
+        if (bb[2] < ox || bb[0] > ox + CHUNK || bb[3] < oy || bb[1] > oy + CHUNK) continue;
+        cand.push(poly);
+      }
+      this.waterCache.set(key, cand);
+    }
+    for (const poly of cand) {
+      if (!isFreezableWater(poly) && pointInPoly(x, y, poly)) return true;
+    }
+    return false;
+  }
+
   // frozen ponds you can walk across in winter (rivers, the Merrimack, tidal
   // channels and the ocean stay open — see isFreezableWater)
   frozenWaterAt(x: number, y: number): boolean {
