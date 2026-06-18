@@ -42,6 +42,12 @@ const LIGHT = { x: 12000, z: -2200 };            // the mystery light, way out o
 const GRAM_HOME = { x: 7450, z: 4250, face: 2.4 };  // Gram lives in Joppa now (post Level 1)
 const SLIP = { x: 7950, z: 4430 };                  // the Joppa slip — the kayak is tied here
 const LOBSTER = { x: 7958, z: 4434, face: 2.4 };    // the lobsterman, hauling traps at the water's edge by the slip (Ch3)
+// Ch3: the mooncusser's false lamps, scattered on the water around the foundation — you
+// paddle to each and snuff it. Two on the south approach, two past the light to the north.
+const DECOYS = [
+  { x: 11720, z: -2030 }, { x: 12290, z: -2060 },
+  { x: 11760, z: -2420 }, { x: 12300, z: -2380 }
+];
 
 const GRAM_TALK: Line[] = [
   { who: 'Gram', text: 'There you are. Two jobs today. Take Clipper, the dog — he’s in charge.' },
@@ -142,25 +148,24 @@ const BOAT_TALK: Line[] = [
   { who: '', text: 'Clipper jumped in first. Of course he did.' }
 ];
 export const BOAT_ARRIVE: Line[] = [
-  { who: '', text: 'The oars creak. The town slides by above the stone wall — chimneys, then gulls, then quiet.' },
-  { who: '', text: 'You pull the boat up onto the mud. Half-buried in seaweed and barnacles: an iron door. An anchor in a circle, carved deep.' },
+  { who: '', text: 'The oars creak. The town slides past above the stone wall, then it’s just gulls and quiet.' },
+  { who: '', text: 'You pull up onto the mud. Half-buried in seaweed: an iron door, with an anchor in a circle carved deep.' },
   { who: 'You', text: 'Same mark as the tunnel. We found it.' }
 ];
 const SEAWALL_LOOK: Line[] = [
-  { who: '', text: 'You lean over the railing. Far below, half-lost in seaweed and shadow, the stone wall drops straight down to the mud.' },
+  { who: '', text: 'You lean over the railing. Far below, the stone wall drops straight down to the mud.' },
   { who: 'You', text: 'No ladder. No stairs. Twenty feet of slippery stone.' },
   { who: 'You', text: '“Only open at the low water.” From the river, Clipper — we need that rowboat.' }
 ];
 const DEN_LEDGER: Line[] = [
-  { who: '', text: 'Dry brick, up where the water never reaches. Crates stamped 1808 — two hundred years of nobody.' },
-  { who: '', text: 'On top of a barrel: an old notebook. WHARF RATS, in faded ink. A list of names below.' },
-  { who: 'You', text: 'Clipper — I know these names. They’re street names. They’re half the town.' }
+  { who: '', text: 'Dry brick, up where the tide never reaches. Old crates, stamped 1808. Nobody’s been down here in two hundred years.' },
+  { who: '', text: 'On a barrel: a notebook. WHARF RATS, in faded ink. A list of names underneath.' },
+  { who: 'You', text: 'Clipper — I know these names. They’re streets. Half the town.' }
 ];
 const DEN_MAP: Line[] = [
-  { who: '', text: 'Pinned under a little glass: the third corner of the map.' },
-  { who: '', text: 'The tunnels. The door. And a room beneath the Custom House, marked with a star.' },
-  { who: 'You', text: 'Four corners, four hiding holes. They split it so no one Rat could rob the rest.' },
-  { who: 'You', text: 'One corner left.' }
+  { who: '', text: 'Pinned under glass: the third corner of the map.' },
+  { who: '', text: 'It shows the tunnels, the door, and a room under the Custom House — marked with a star.' },
+  { who: 'You', text: 'They split the map in four, so no one Rat could steal the rest. One corner left.' }
 ];
 const DEN_BELL: Line[] = [
   { who: '', text: 'In the corner, green with age: a ship’s bell.' },
@@ -180,29 +185,29 @@ const GRAM_CORNERS: Line[] = [
   { who: 'Gram', text: 'Told you — this town is full of doors. I’ll call ahead; Marta’s kept that one longer than you’ve been alive.' }
 ];
 const KEEPER_TALK: Line[] = [
-  { who: 'Keeper', text: 'Gram’s grandkid. She called ahead — said you’d come carrying three corners of something old.' },
-  { who: 'Keeper', text: 'This building has a room no key opens. A star on the old building plans, drawn back in 1835 — and no door anywhere.' },
-  { who: 'Keeper', text: 'The old keepers say the Wharf Rats locked it with sound. Ring the harbor’s three bells, and the wall swings open.' },
-  { who: 'Keeper', text: 'One bell’s at the Coast Guard station. One’s at the old docks. The third the Rats kept in their den — but you’ve already been down there, haven’t you? You rang it.' },
-  { who: 'You', text: 'So I just need the other two.' },
-  { who: 'Keeper', text: 'That’s the story. Go ring them — and listen for the third to answer.' }
+  { who: 'Keeper', text: 'Gram’s grandkid. She called — said you’d come carrying three corners of an old map.' },
+  { who: 'Keeper', text: 'There’s a room in here no key opens. No door at all — just a star on the old plans.' },
+  { who: 'Keeper', text: 'The Wharf Rats locked it with sound. Ring the harbor’s three bells and the wall swings open.' },
+  { who: 'Keeper', text: 'You already rang one, down in their den. Two left — the Coast Guard station, and the old docks.' },
+  { who: 'You', text: 'Ring both. Got it.' },
+  { who: 'Keeper', text: 'Go on. Then listen for that third bell to answer.' }
 ];
 const BELL_RING: Line[] = [
-  { who: '', text: 'You ring it once. The note rolls out over the water and hangs there, waiting for its sisters.' }
+  { who: '', text: 'You ring it once. The note rolls out over the water. One down.' }
 ];
 const BELL_LAST: Line[] = [
-  { who: '', text: 'The third note lands. Far under the town, something turns over — slow and heavy, like a lock the size of a room.' },
+  { who: '', text: 'The third note lands. Deep under the town, something heavy turns over — like a giant lock opening.' },
   { who: 'You', text: 'The Custom House. GO!' }
 ];
 const CORNER_FOUR: Line[] = [
-  { who: '', text: 'On the old desk: the fourth corner. The map is whole — the tunnels, the door, the den, and the star you’re standing on.' },
-  { who: 'You', text: 'We found all of it. Every corner.' },
+  { who: '', text: 'On the old desk: the fourth corner. The map is whole now — tunnels, door, den, and the star you’re standing on.' },
+  { who: 'You', text: 'Every corner. We found all of it.' },
   { who: 'You', text: 'And whatever they hid is right under us. Real treasure this time, Clipper — has to be.' }
 ];
 const CHEST_OPEN: Line[] = [
-  { who: '', text: 'The chest is wood, banded in brass — and light. Way too light for gold.' },
-  { who: '', text: 'Inside: papers. Promises, written in faded ink — a new dock for the town. A school. A library, signed with names you walk down every day.' },
-  { who: 'You', text: 'There’s no treasure… because they spent it. On all of it. Clipper — the treasure was the town.' }
+  { who: '', text: 'The chest is wood, banded in brass — and way too light for gold.' },
+  { who: '', text: 'Inside? No gold. Just old papers — a list of things they built. A dock. A school. The library.' },
+  { who: 'You', text: 'They didn’t bury the treasure, Clipper. They spent it. On the whole town.' }
 ];
 
 // Chapter 6 "The Light That Walks" — beat 1: the Joppa Flats birdwatcher hands over
@@ -211,11 +216,10 @@ const CHEST_OPEN: Line[] = [
 const WATCHER_INTRO: Line[] = [
   { who: 'Birdwatcher', text: 'You’re the kid who found the doors under downtown. Figures you’d turn up out here at the end of the world.' },
   { who: 'You', text: 'Is that what Joppa is?' },
-  { who: 'Birdwatcher', text: 'Joppa Flats. Best birding in the state — and the mud will take your boot clean off if you sass it.' },
-  { who: 'Birdwatcher', text: 'These flats fed the whole town once. Low tide, all of Joppa was out here in the muck, digging clams by the bushel.' },
+  { who: 'Birdwatcher', text: 'Joppa Flats. Best birding in the state — and the mud’ll take your boot clean off if you sass it.' },
+  { who: 'Birdwatcher', text: 'These flats fed the whole town once. Low tide, everyone was out here digging clams by the bucket.' },
   { who: 'You', text: 'People dug dinner out of the mud?' },
-  { who: 'Birdwatcher', text: 'Bushels of it — best clams in New England came off these flats. Ask anyone old enough to remember.' },
-  { who: 'Birdwatcher', text: 'Anyway. Here — my spare binoculars. I count the eider ducks; you count whatever’s been keeping you up at night.' },
+  { who: 'Birdwatcher', text: 'Best clams in New England. Anyway — here, my spare binoculars. I count ducks; you count whatever’s keeping you up at night.' },
   { who: 'Birdwatcher', text: 'See the lighthouse, out at the river mouth? Good. Now look a little to the left of it…' }
 ];
 // shown AFTER the camera swings out to the light, so you're seeing it as she names it
@@ -239,7 +243,7 @@ const GRAM_KAYAK: Line[] = [
   { who: 'Gram', text: 'Go on. Keep your eyes on the water, not your feet.' }
 ];
 const SLIP_TAKE: Line[] = [
-  { who: '', text: 'At the end of the slip, tied to a ring worn smooth: a long red kayak. Faded, but the seams are tight, and a paddle lies across the deck like it was set down yesterday.' },
+  { who: '', text: 'At the end of the slip, tied to a worn iron ring: a long red kayak. Faded, but solid — a paddle lying across the deck, ready to go.' },
   { who: 'You', text: 'Grandpa’s kayak.' },
   { who: '', text: 'You untie it. It still rides true.' },
   { who: 'You', text: 'Out to the light, Clipper. Hop in.' }
@@ -253,36 +257,25 @@ const WALK_REVEAL: Line[] = [
   { who: 'You', text: 'So who’s been lighting it?' }
 ];
 
-// Chapter 3 "The Mooncusser" — beat 1: a salty lobsterman at the slip explains what a
-// mooncusser is (kid-clear, in his own voice) and warns a storm is coming. He knew grandpa.
+// Chapter 3 "The Mooncusser" — beat 1: a salty lobsterman at the slip explains the mooncusser
+// (kid-clear), warns of the storm, and sends you out to snuff the line of false lamps.
 const LOBSTER_MOONCUSSER: Line[] = [
-  { who: '', text: 'A lobsterman stands at the end of the slip, stacking traps, his oilskins beaded with spray. He doesn’t look up.' },
-  { who: 'Lobsterman', text: 'You’re the one paddlin’ your grandfather’s kayak. Figured you’d come askin’ about that light. Three nights runnin’ now, out where no light belongs.' },
-  { who: 'You', text: 'So who’s lighting it?' },
-  { who: 'Lobsterman', text: 'Word my grandfather had for it was mooncusser. Wicked old trade, that.' },
-  { who: 'You', text: 'A… moon-cusser?' },
-  { who: 'Lobsterman', text: 'Sets a lamp out on the rocks on a black night. A boat way offshore sees it and thinks: there’s the harbor, there’s safe water. Steers right for it.' },
-  { who: 'You', text: 'But it’s not the harbor. It’s the rocks.' },
-  { who: 'Lobsterman', text: 'Now you’re learnin’. She piles up on the sandbar, and the wrecker walks the beach come mornin’, helpin’ himself to whatever washed in.' },
-  { who: 'You', text: 'That’s robbery! With a LAMP!' },
-  { who: 'Lobsterman', text: 'Heh. And here’s the moon part: a clear bright night, the captain spots the real shore and the trick’s no good. So the old wreckers’d stand on the dunes and cuss that moon black and blue.' },
-  { who: 'You', text: 'They yelled at the MOON for spoiling their robbing.' },
-  { who: 'Lobsterman', text: 'Mooncussers. Ayuh. And the glass is droppin’ like a stone — big blow comin’ by tomorrow night. I wouldn’t row out there for love nor money.' },
-  { who: 'You', text: 'But there are boats still out there.' },
-  { who: 'Lobsterman', text: '…You’ve got that look. Same one he had. Go on then — quiet as you can, and keep that dog close. Don’t let ’em see you comin’.' }
+  { who: '', text: 'A lobsterman stands at the slip stacking traps, oilskins beaded with spray.' },
+  { who: 'Lobsterman', text: 'You’re the one paddlin’ your grandfather’s kayak. Figured you’d come askin’ about that light.' },
+  { who: 'You', text: 'Who’s lighting it?' },
+  { who: 'Lobsterman', text: 'A mooncusser. Sets false lamps out on the rocks. A boat sees one, thinks it’s the harbor, and steers straight onto the sandbar.' },
+  { who: 'You', text: 'So it wrecks — and he takes whatever washes in. That’s robbery with a LAMP.' },
+  { who: 'Lobsterman', text: 'Ayuh. They’d even cuss the moon for it — a bright night shows the real shore and spoils the trick. Mooncussers.' },
+  { who: 'Lobsterman', text: 'He’s strung a whole line of false lamps out there tonight, and there’s a big blow comin’. Paddle out and put every last one of ’em out.' },
+  { who: 'You', text: 'Every lamp. Got it. Come on, Clipper.' }
 ];
-// beat 2: you paddle out and catch the mooncusser at the false light — snuff it, no peril.
+// beat 2: snuffed every decoy and reached his last light — caught (no peril, he just slinks off).
 const MOONCUSSER_CATCH: Line[] = [
-  { who: '', text: 'The light burns again on the old foundation — and this close, it’s no ghost. It’s a lantern, hooded against the wind, and someone is crouched behind it.' },
-  { who: 'You', text: 'HEY! That light’s a fake!' },
-  { who: 'Mooncusser', text: '…A kid. In a kayak. Of all the rotten luck on the water tonight.' },
-  { who: 'You', text: 'You’re a mooncusser. You’re trying to trick the boats onto the bar!' },
-  { who: 'Mooncusser', text: 'Trick? I light a lamp. The sandbar does the rest, and the tide brings me my pay. Family business, going way back.' },
-  { who: 'Clipper', text: 'GRRRRRR—' },
-  { who: 'Mooncusser', text: 'Call off the dog. You can’t watch the whole river mouth, child. One little paddle-boat against a whole coast?' },
-  { who: '', text: 'You reach across and snuff the lantern. The false light dies. The mooncusser hisses something at the moon and melts away into the dusk.' },
-  { who: 'You', text: 'One fake light out. But tomorrow night, in that storm…' },
-  { who: 'You', text: 'If the real lighthouse stays dark, the boats won’t have anything true to steer for. We have to bring the light home, Clipper.' }
+  { who: '', text: 'His last lamp — and the man himself, hunched over it on the old foundation.' },
+  { who: 'Mooncusser', text: 'You! You snuffed my whole line. Took me half the night to set those.' },
+  { who: 'You', text: 'No more fake lights. No more wrecks.' },
+  { who: '', text: 'You lean across and snuff his last lantern. The dark closes in, and the mooncusser slinks off into it, grumbling at the rising wind.' },
+  { who: 'You', text: 'That’s all of them, Clipper. The only light left to worry about is the real one — and tomorrow night, we bring it home.' }
 ];
 
 function cap(r: number, h: number, hex: string): THREE.Mesh {
@@ -440,6 +433,8 @@ export class QuestRunner {
   private l2built = false;      // lazily spawn the Joppa props once Level 1 ends
   private mysteryLight: THREE.Group | null = null;   // the light out on the water (Ch1 reveal → Ch2 target)
   private foundation: THREE.Group | null = null;     // the old lighthouse base under the light (Ch2 reveal)
+  private decoyLights: THREE.Group[] = [];           // the mooncusser's scattered false lamps (Ch3)
+  private snuffed = new Set<number>();               // which decoy lamps you've put out
   private tiedKayak: THREE.Group | null = null;      // the ride kayak parked at the Joppa slip; update() hides it while you're paddling
   private bells: Set<string>;
   private rowboat: THREE.Group | null = null;
@@ -480,6 +475,8 @@ export class QuestRunner {
     this.ch5 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch5-step') || '0', 10) || 0));
     this.ch6 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch6-step') || '0', 10) || 0));
     this.ch7 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch7-step') || '0', 10) || 0));
+    const dmask = parseInt(localStorage.getItem('nbpt-ch7-decoys') || '0', 10) || 0;   // bitmask of snuffed lamps
+    for (let i = 0; i < DECOYS.length; i++) if (dmask & (1 << i)) this.snuffed.add(i);
     // already past the keeper on an old save? treat the Gram beat as done (no backtrack)
     this.gramSent = localStorage.getItem('nbpt-ch5-gram') === '1' || this.ch4 >= 1;
     try {
@@ -695,6 +692,23 @@ export class QuestRunner {
     bellPost(BELL_WHARF.x, BELL_WHARF.z);
   }
 
+  // a soft warm additive glow sprite (a lit lantern) — shared by the mooncusser's lantern
+  // and his scattered decoy lamps so every false light reads the same
+  private warmGlow(scale: number): THREE.Sprite {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 64;
+    const c = cv.getContext('2d')!;
+    const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,236,170,1)');
+    g.addColorStop(0.45, 'rgba(255,210,120,0.5)');
+    g.addColorStop(1, 'rgba(255,200,110,0)');
+    c.fillStyle = g;
+    c.fillRect(0, 0, 64, 64);
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, fog: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+    s.scale.set(scale, scale, 1);
+    return s;
+  }
+
   // Level 2 — the Joppa Flats birdwatcher (Chapter 6 beat 1). Gated behind nbpt-l2,
   // spawned once Level 1 is finished so she's never present during the first arc.
   private buildL2Props() {
@@ -780,19 +794,9 @@ export class QuestRunner {
     );
     lantern.position.set(4, 9.5, 3);
     moon.add(lantern);
-    // a small warm glow on the lantern so the "false light" reads up close (the big
-    // mystery glow shrinks to nothing as you arrive; this is what's left — just a lamp)
-    const lcv = document.createElement('canvas');
-    lcv.width = lcv.height = 64;
-    const lc = lcv.getContext('2d')!;
-    const lg = lc.createRadialGradient(32, 32, 0, 32, 32, 32);
-    lg.addColorStop(0, 'rgba(255,236,170,1)');
-    lg.addColorStop(0.45, 'rgba(255,210,120,0.5)');
-    lg.addColorStop(1, 'rgba(255,200,110,0)');
-    lc.fillStyle = lg;
-    lc.fillRect(0, 0, 64, 64);
-    const lglow = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(lcv), transparent: true, fog: false, depthWrite: false, blending: THREE.AdditiveBlending }));
-    lglow.scale.set(70, 70, 1);
+    // a warm glow on his lantern so the "false light" reads up close (the big mystery glow
+    // shrinks to nothing as you arrive; this is what's left — just a lamp). Shared with the decoys.
+    const lglow = this.warmGlow(70);
     lglow.position.set(4, 10, 3);
     moon.add(lglow);
     moon.position.set(LIGHT.x, WATER_Y + 11, LIGHT.z + 50);   // standing on the ring, near side
@@ -800,6 +804,25 @@ export class QuestRunner {
     moon.visible = false;
     this.npcs.mooncusser = moon;
     this.scene.add(moon);
+
+    // the mooncusser's scattered false lamps (Ch3): a buoy-post + a lit lantern on the water.
+    // Built once; apply() shows the un-snuffed ones during ch7===1, update() snuffs on contact.
+    this.decoyLights = DECOYS.map((d) => {
+      const lamp = new THREE.Group();
+      const post = box(1.6, 15, 1.6, '#2c2a26');     // a dark stake out of the water
+      post.position.y = 5;
+      lamp.add(post);
+      const lbox = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 3), new THREE.MeshBasicMaterial({ color: '#ffd56a', fog: false }));
+      lbox.position.y = 13;
+      lamp.add(lbox);
+      const gl = this.warmGlow(58);
+      gl.position.y = 13;
+      lamp.add(gl);
+      lamp.position.set(d.x, WATER_Y - 1.5, d.z);
+      lamp.visible = false;
+      this.scene.add(lamp);
+      return lamp;
+    });
 
     // the lobsterman (Chapter 3): a salty waterman in oilskins, hauling traps by the slip.
     // Appears once Ch2 is done (ch6>=3) and stays on as a recurring Level 2 character.
@@ -955,8 +978,11 @@ export class QuestRunner {
         this.hud.setObjective('Ask the lobsterman at the Joppa slip about the light');
         target = { x: LOBSTER.x, z: LOBSTER.z };
       } else if (this.l2 && this.ch7 === 1) {
-        this.hud.setObjective('Paddle out — catch the mooncusser at the false light');
-        target = { x: LIGHT.x, z: LIGHT.z };
+        const left = DECOYS.length - this.snuffed.size;
+        this.hud.setObjective(left > 0
+          ? `Snuff the mooncusser’s false lamps — ${this.snuffed.size} of ${DECOYS.length}`
+          : 'Catch the mooncusser at his last light');
+        target = { x: LIGHT.x, z: LIGHT.z };   // update() refines the beacon to the next lamp
       } else {
         this.hud.setObjective(null);   // Level 1 done + Level 2 done (so far)
       }
@@ -986,6 +1012,10 @@ export class QuestRunner {
     if (this.l2 && this.ch4 >= 4 && !this.l2built) { this.l2built = true; this.buildL2Props(); }
     // Ch3: the mooncusser only stands on the foundation while you're going to catch them
     if (this.npcs.mooncusser) this.npcs.mooncusser.visible = this.l2 && this.ch6 >= 3 && this.ch7 === 1;
+    // Ch3: his scattered false lamps glow on the water until you snuff each one
+    for (let i = 0; i < this.decoyLights.length; i++) {
+      this.decoyLights[i].visible = this.l2 && this.ch6 >= 3 && this.ch7 === 1 && !this.snuffed.has(i);
+    }
     // the lobsterman arrives at the slip once Ch2 is done and stays on (recurring waterman)
     if (this.npcs.lobster) this.npcs.lobster.visible = this.l2 && this.ch6 >= 3;
     // the drowned foundation is built once, the instant Level 1 ends (ch5 still 0) — so
@@ -1128,7 +1158,8 @@ export class QuestRunner {
         state: this.ch7 >= 2 ? 'done' : this.ch6 >= 3 ? 'active' : 'locked', active: active === 8, replay: 7,
         steps: [
           { label: 'Ask the lobsterman at the slip about the light', done: this.ch7 >= 1 },
-          { label: 'Catch the mooncusser at the false light', done: this.ch7 >= 2 }
+          { label: 'Snuff the mooncusser’s false lamps', done: this.ch7 >= 2 || this.snuffed.size >= DECOYS.length, count: this.snuffed.size, total: DECOYS.length },
+          { label: 'Catch the mooncusser at his last light', done: this.ch7 >= 2 }
         ]
       });
     }
@@ -1211,10 +1242,27 @@ export class QuestRunner {
         && !this.hud.dialogueOpen && Math.hypot(px - LIGHT.x, pz - LIGHT.z) < 130) {
       this.revealWalk();
     }
-    // Level 2 Ch3: paddling back out to the relit false light catches the mooncusser (auto)
-    if (this.l2 && this.ch6 >= 3 && this.ch7 === 1 && this.hud.kayaking
-        && !this.hud.dialogueOpen && Math.hypot(px - LIGHT.x, pz - LIGHT.z) < 130) {
-      this.catchMooncusser();
+    // Level 2 Ch3 "The Mooncusser": hunt his scattered false lamps. The beacon marks the
+    // nearest un-snuffed lamp; paddle into it to snuff it. Once every lamp is out, the beacon
+    // swings to the foundation and reaching it catches the mooncusser at his last light.
+    if (this.l2 && this.ch6 >= 3 && this.ch7 === 1 && this.hud.kayaking && !this.hud.dialogueOpen) {
+      let tgt: { x: number; z: number } | null = null, best = Infinity;
+      for (let i = 0; i < DECOYS.length; i++) {
+        if (this.snuffed.has(i)) continue;
+        const d = Math.hypot(px - DECOYS[i].x, pz - DECOYS[i].z);
+        if (d < 60) { this.snuffDecoy(i); continue; }   // paddled into it — snuff it
+        if (d < best) { best = d; tgt = DECOYS[i]; }
+      }
+      if (!tgt) {                                       // all lamps out — go catch him
+        if (Math.hypot(px - LIGHT.x, pz - LIGHT.z) < 130) { this.catchMooncusser(); }
+        else tgt = LIGHT;
+      }
+      if (tgt && this.beacon.visible) {                 // steer the beacon + "!" to the live target
+        const gy = this.index.heightAtPx(tgt.x, tgt.z);
+        this.beacon.position.set(tgt.x, gy, tgt.z);
+        this.bang.position.set(tgt.x, gy + 26, tgt.z);
+        this.hud.guide = tgt;
+      }
     }
 
     // newspapers in flight
@@ -1524,7 +1572,19 @@ export class QuestRunner {
     });
   }
 
-  // Level 2 Ch3: you've paddled out to the relit false light and caught the mooncusser
+  // Level 2 Ch3: paddled into a decoy lamp — put it out, save progress, refresh the count
+  private snuffDecoy(i: number) {
+    if (this.snuffed.has(i)) return;
+    this.snuffed.add(i);
+    let mask = 0;
+    for (const k of this.snuffed) mask |= (1 << k);
+    localStorage.setItem('nbpt-ch7-decoys', String(mask));
+    if (this.decoyLights[i]) this.decoyLights[i].visible = false;
+    this.audio.thump();   // a soft snuff
+    this.apply();         // refresh the "X of N" objective + mission count
+  }
+
+  // Level 2 Ch3: you've snuffed every decoy and reached his last light — catch the mooncusser
   private catchMooncusser() {
     this.beacon.visible = false;
     this.bang.visible = false;
