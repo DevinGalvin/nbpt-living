@@ -6,12 +6,34 @@ import { SEASON, seasonsUnlocked } from '../world/style';
 
 const css = `
 /* ── Town theme tokens ─────────────────────────────────────────────
-   Newburyport = maroon + gold. Swap these to re-theme for another town. */
+   Newburyport = maroon + gold. Swap the maroon/gold values to re-theme for
+   another town; the radius/shadow/motion scale below is shared chrome. */
 :root {
   --panel: linear-gradient(177deg, rgba(58,29,37,0.985), rgba(42,20,25,0.985) 58%, rgba(30,14,20,0.985));
   --maroon: 46, 22, 28;      /* chrome chips / buttons (use as rgba(var(--maroon), a)) */
   --maroon-lt: 60, 30, 38;   /* lighter chips & cards */
-  --gold: #d8b94a;
+  /* gold scale — one source of truth for every accent (was 3 stray literals) */
+  --gold-rgb: 216, 185, 74;
+  --gold: #d8b94a;           /* base accent (underlines, borders) */
+  --gold-mid: #e8c44f;       /* labels / kickers */
+  --gold-bright: #f6dd8a;    /* brightest highlight / hovers */
+  /* ink (text on the dark panels) */
+  --ink: #f3f1e8;
+  --ink-dim: #c8bd96;
+  /* shared chrome: round HUD buttons */
+  --chrome-bg: rgba(var(--maroon), 0.6);
+  --chrome-bd: rgba(243, 241, 232, 0.4);
+  /* radius scale */
+  --r-sm: 9px; --r-md: 12px; --r-lg: 16px; --r-pill: 999px;
+  /* material */
+  --blur: saturate(1.15) blur(7px);
+  --scrim: rgba(8, 12, 20, 0.6);
+  --shadow-btn: 0 3px 10px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 20px 56px rgba(0, 0, 0, 0.52), 0 2px 0 rgba(255, 240, 210, 0.06) inset;
+  --shadow-pill: 0 4px 16px rgba(0, 0, 0, 0.38);
+  /* motion */
+  --ease-spring: cubic-bezier(0.2, 0.85, 0.3, 1.12);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 #hud { position: fixed; pointer-events: none; font-family: system-ui, sans-serif; z-index: 10;
   top: env(safe-area-inset-top, 0px); right: env(safe-area-inset-right, 0px);
@@ -109,9 +131,10 @@ const css = `
 #hud.indoors .run-btn, #hud.indoors .bike-btn { display: none !important; }
 #hud .travel-panel {
   position: absolute; inset: 0; background: rgba(12, 17, 24, 0.72); z-index: 60;
-  display: none; align-items: center; justify-content: center; pointer-events: auto;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none; opacity: 0; transition: opacity 0.2s ease;
 }
-#hud .travel-panel.open { display: flex; }
+#hud .travel-panel.open { pointer-events: auto; opacity: 1; }
 #hud .travel-card {
   position: relative;
   background: var(--panel); border-radius: 14px; border-bottom: 3px solid #d8b94a;
@@ -229,7 +252,8 @@ const css = `
   background: rgba(var(--maroon-lt), 0.84); border: 1px solid rgba(216, 185, 74, 0.55);
   color: #f3f1e8; font-size: 12.5px; font-weight: 600; letter-spacing: 0.4px;
   padding: 8px 15px; border-radius: 16px; display: none; align-items: center; gap: 8px;
-  max-width: 70vw; text-align: center; pointer-events: auto; cursor: pointer;
+  /* sized to content, but never wider than the gap between the corner buttons */
+  width: max-content; max-width: min(70vw, calc(100vw - 168px)); text-align: center; pointer-events: auto; cursor: pointer;
   user-select: none; -webkit-user-select: none;
 }
 #hud .objective.show { display: flex; }
@@ -238,6 +262,12 @@ const css = `
 #hud .objective .wp-q { display: inline-block; transform-origin: 50% 50%; transition: transform 0.16s linear; font-size: 15px; }
 #hud .objective.min { padding: 8px 11px; opacity: 0.75; }
 #hud .objective.min .otxt { display: none; }
+/* cap the objective to two lines so a long goal can't balloon on narrow phones
+   (the full text always lives in the Journey panel); ellipsis if it overruns */
+#hud .objective .otxt {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden; line-height: 1.32; text-align: center;
+}
 #hud .dlg {
   position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%);
   width: min(580px, 93vw); background: var(--panel); border-radius: 13px;
@@ -445,6 +475,111 @@ const css = `
 }
 #hud .streettip b { color: #f0d27a; }
 #hud .streettip.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ════════════════════════════════════════════════════════════════════
+   DESIGN-SYSTEM POLISH LAYER — loaded last so it refines the base rules
+   above. Base owns layout + position; this owns the *material* (blur +
+   depth), the *tactile feel* (hover/press), and *cohesive motion*. */
+
+/* ── round chrome buttons: one shared material + feel ──────────────── */
+#hud .compass, #hud .travel-btn, #hud .sound-btn, #hud .season-toggle,
+#hud .journey-btn, #hud .bag-btn {
+  background: var(--chrome-bg);
+  border: 1.5px solid var(--chrome-bd);
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-btn);
+  transition: transform 0.14s var(--ease-out), border-color 0.18s ease,
+    background 0.18s ease, box-shadow 0.18s ease, top 0.3s ease;
+}
+/* the 5 interactive ones lift on hover + press in on tap (compass is read-only) */
+#hud .travel-btn:hover, #hud .sound-btn:hover, #hud .season-toggle:hover,
+#hud .journey-btn:hover, #hud .bag-btn:hover {
+  transform: scale(1.07); border-color: var(--gold);
+  background: rgba(var(--maroon), 0.82);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.46), 0 0 0 1px rgba(var(--gold-rgb), 0.28);
+}
+#hud .travel-btn:active, #hud .sound-btn:active, #hud .season-toggle:active,
+#hud .journey-btn:active, #hud .bag-btn:active,
+#hud .run-btn:active, #hud .bike-btn:active, #hud .talk-btn:active,
+#hud .modal-x:active { transform: scale(0.9); }
+/* journey + bag open panels — keep their gold ring after the group reset above */
+#hud .journey-btn, #hud .bag-btn { border-color: rgba(var(--gold-rgb), 0.6); }
+
+/* ── action buttons (run / bike / talk): material + press ──────────── */
+#hud .run-btn, #hud .bike-btn {
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-btn);
+  transition: transform 0.14s var(--ease-out), border-color 0.18s ease, background 0.18s ease;
+}
+#hud .talk-btn {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4), 0 0 22px rgba(var(--gold-rgb), 0.34);
+  transition: transform 0.14s var(--ease-out), box-shadow 0.2s ease;
+}
+#hud .talk-btn.show { animation: nbpt-talk-in 0.34s var(--ease-spring) both; }
+@keyframes nbpt-talk-in { from { transform: scale(0.55); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* ── modals: blur the world behind, unified scrim ──────────────────── */
+#hud .travel-panel, #hud .journey-panel, #hud .bag-panel {
+  background: var(--scrim);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+/* travel card now springs in like journey/bag (panel converted to the fade pattern) */
+#hud .travel-card {
+  box-shadow: var(--shadow-card); opacity: 0;
+  transform: translateY(18px) scale(0.96);
+  transition: transform 0.28s var(--ease-spring), opacity 0.2s ease;
+}
+#hud .travel-panel.open .travel-card { transform: translateY(0) scale(1); opacity: 1; }
+
+/* ── cards: unified depth + a soft-spring popover ──────────────────── */
+#hud .hcard, #hud .bag-card, #hud .journey-card, #hud .streettip { box-shadow: var(--shadow-card); }
+#hud .season-pop { box-shadow: var(--shadow-card); transform-origin: top left; animation: nbpt-pop-in 0.2s var(--ease-spring); }
+@keyframes nbpt-pop-in { from { transform: scale(0.86) translateY(-4px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
+
+/* ── modal close: a real, high-contrast 36px target ────────────────── */
+#hud .modal-x {
+  width: 36px; height: 36px; font-size: 17px; color: var(--ink-dim);
+  background: rgba(0,0,0,0.3); border: 1px solid rgba(243,241,232,0.12);
+  transition: transform 0.14s var(--ease-out), background 0.18s ease, color 0.18s ease;
+}
+#hud .modal-x:hover { background: rgba(var(--gold-rgb), 0.24); color: var(--gold-bright); border-color: rgba(var(--gold-rgb), 0.5); }
+
+/* ── pills: material + tactile (no entrance — they're persistent) ──── */
+#hud .objective {
+  -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-pill);
+  transition: transform 0.13s var(--ease-out), box-shadow 0.18s ease, opacity 0.2s ease, padding 0.2s ease;
+}
+#hud .objective:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.42), 0 0 0 1px rgba(var(--gold-rgb), 0.45); }
+#hud .objective:active { transform: translateX(-50%) scale(0.97); }
+#hud .pill { -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); box-shadow: var(--shadow-pill); }
+/* small floating prompts + the landmark banner share the pill depth */
+#hud .banner, #hud .runtip, #hud .bag-tip { box-shadow: var(--shadow-pill); }
+
+/* ── dialogue: slides up on open; livelier Next / Back ─────────────── */
+#hud .dlg { box-shadow: var(--shadow-card); }
+#hud .dlg.open { animation: nbpt-dlg-in 0.3s var(--ease-spring); }
+@keyframes nbpt-dlg-in { from { transform: translateX(-50%) translateY(16px); opacity: 0; } to { transform: translateX(-50%) translateY(0); opacity: 1; } }
+#hud .dlg .dlg-next { box-shadow: 0 0 16px rgba(var(--gold-rgb), 0.42); transition: transform 0.12s var(--ease-out), background 0.16s ease; }
+#hud .dlg .dlg-next:active, #hud .dlg .dlg-back:active { transform: scale(0.94); }
+
+/* ── list rows everywhere: gentle press + smooth hover ─────────────── */
+#hud .travel-item, #hud .season-btn, #hud .sp-item, #hud .j-tab, #hud .bag-grid .jitem, #hud .m-row {
+  transition: background 0.15s ease, transform 0.1s var(--ease-out), border-color 0.15s ease;
+}
+#hud .travel-item:active, #hud .season-btn:active, #hud .sp-item:active,
+#hud .j-tab:active, #hud .bag-grid .jitem.tappable:active, #hud .m-row:active { transform: scale(0.98); }
+
+/* ── input focus: a clear gold ring ────────────────────────────────── */
+#hud .travel-search:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(var(--gold-rgb), 0.22); }
+
+/* ── respect reduced-motion ────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  #hud *, #hud *::before, #hud *::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.08s !important;
+  }
+}
 `;
 
 export class Hud {

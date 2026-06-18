@@ -1149,7 +1149,7 @@ export class QuestRunner {
           : 'Catch the mooncusser at his last light');
         target = { x: LIGHT.x, z: LIGHT.z };   // update() refines the beacon to the next lamp
       } else if (this.l2 && this.ch7 >= 2 && this.ch8 === 0) {
-        this.hud.setObjective('A nor’easter — and the harbor light is dark. Find the lobsterman at the Joppa slip');
+        this.hud.setObjective('Find the lobsterman at the Joppa slip');
         target = { x: LOBSTER.x, z: LOBSTER.z };
       } else if (this.l2 && this.ch8 === 1) {
         if (this.hud.sweeping) {
