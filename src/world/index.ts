@@ -784,6 +784,66 @@ export class WorldIndex {
 
   // ---------- ground texture (no buildings/trees — those are 3D now) ----------
 
+  // A single low-res render of the WHOLE map's ground — land, greens, sand, water and the
+  // road network — used as a distant "impostor" beneath the detailed chunks (Game.buildImpostor).
+  // Flying or fast-travelling outruns per-chunk streaming; without this, the un-streamed
+  // distance reads as one flat slab. Drawn once, in the season's palette (the same STYLE the
+  // detailed chunks use), so the LOD seam is only detail, never colour.
+  overviewCanvas(longPx = 2048): HTMLCanvasElement {
+    const b = this.world.meta.bounds;
+    const ex = b.maxX - b.minX, ey = b.maxY - b.minY;
+    const s = longPx / Math.max(ex, ey);
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(2, Math.round(ex * s));
+    cv.height = Math.max(2, Math.round(ey * s));
+    const ctx = cv.getContext('2d')!;
+    const X = (x: number) => (x - b.minX) * s;
+    const Y = (y: number) => (y - b.minY) * s;
+    const trace = (p: number[], holes?: number[][]) => {
+      ctx.beginPath();
+      ctx.moveTo(X(p[0]), Y(p[1]));
+      for (let i = 2; i < p.length; i += 2) ctx.lineTo(X(p[i]), Y(p[i + 1]));
+      ctx.closePath();
+      if (holes) for (const h of holes) {
+        ctx.moveTo(X(h[0]), Y(h[1]));
+        for (let i = 2; i < h.length; i += 2) ctx.lineTo(X(h[i]), Y(h[i + 1]));
+        ctx.closePath();
+      }
+    };
+    ctx.fillStyle = STYLE.land;
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    // land cover (greens, sand, parking…) — everything except water, in poly order
+    for (const poly of this.world.polys) {
+      if (poly.k === 'water' || poly.k === 'ocean') continue;
+      const col = STYLE.poly[poly.k];
+      if (!col) continue;
+      ctx.fillStyle = col;
+      trace(poly.p, poly.h);
+      ctx.fill('evenodd');
+    }
+    // water sits on top of the land
+    for (const poly of this.world.polys) {
+      if (poly.k !== 'water' && poly.k !== 'ocean') continue;
+      ctx.fillStyle = STYLE.poly[poly.k];
+      trace(poly.p, poly.h);
+      ctx.fill('evenodd');
+    }
+    // the road network — min widths so even minor streets read at this scale
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    const major: Record<string, boolean> = { motorway: true, trunk: true, primary: true, secondary: true };
+    for (const r of this.world.roads) {
+      if (r.c === 'service') continue;
+      ctx.strokeStyle = STYLE.road[r.c] || STYLE.road.residential;
+      ctx.lineWidth = Math.max(major[r.c] ? 1.8 : 1.0, r.w * s);
+      ctx.beginPath();
+      ctx.moveTo(X(r.p[0]), Y(r.p[1]));
+      for (let i = 2; i < r.p.length; i += 2) ctx.lineTo(X(r.p[i]), Y(r.p[i + 1]));
+      ctx.stroke();
+    }
+    return cv;
+  }
+
   groundCanvas(key: string): HTMLCanvasElement {
     const [cx, cy] = key.split(',').map(Number);
     const ox = cx * CHUNK, oy = cy * CHUNK;

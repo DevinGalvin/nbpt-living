@@ -158,7 +158,8 @@ export class Game {
   private flySpeed = 0;        // forward speed, ramps up for takeoff
   private flyPhase: 'roll' | 'climb' | 'cruise' = 'roll';
   private flyAct: string | null = null;   // edge state for the Game-owned action button (FLY/LAND/KAYAK/HOP OUT)
-  private skirt: THREE.Mesh | null = null;        // ✈️ ground skirt — fills the far void while flying
+  private skirt: THREE.Mesh | null = null;        // ✈️ ground skirt — fills the far void off the map's edge
+  private impostor: THREE.Mesh | null = null;     // world-fixed low-res map under the chunks (anti-pop-in)
   private flightDev = false;   // flight is private for now — only opted-in devices (see ?fly)
   private keys = new Set<string>();
   private chunks = new Map<string, ChunkEntry>();
@@ -290,6 +291,7 @@ export class Game {
     this.kid.setPos(this.px, this.pz);
     this.dog.root.position.set(this.px - 22, 0, this.pz + 16);
     this.ensureRect(true);
+    this.impostor = this.buildImpostor();   // low-res whole-map LOD under the chunks (kills the yellow pop-in)
     this.updateCamera(0, true);
 
     this.hud.initTravel(
@@ -945,15 +947,49 @@ export class Game {
     });
   }
 
-  // ✈️ a big ground-coloured plane that rides under the plane and fills the far
-  // distance, so flying out over un-streamed map reads as hazy land fading into the
-  // sky — not a white void. Cheap (one plane); real chunks render on top near you.
+  // ✈️ a big plane far below everything, only seen off the map's edge (the impostor covers
+  // the map itself). A muted haze tone — never the old bright land slab — so the rare off-map
+  // peek fades into the fog instead of clumping yellow. Rides under the player; renders behind
+  // the impostor + chunks.
   private buildSkirt(): THREE.Mesh {
     const m = new THREE.Mesh(
-      new THREE.PlaneGeometry(60000, 60000).rotateX(-Math.PI / 2),
-      new THREE.MeshBasicMaterial({ color: STYLE.land })
+      new THREE.PlaneGeometry(80000, 80000).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: '#b9c4b4' })
     );
-    m.renderOrder = -2;
+    m.renderOrder = -3;
+    this.scene.add(m);
+    return m;
+  }
+
+  // a world-fixed, terrain-displaced "impostor" of the whole map, textured with a low-res
+  // ground render (index.overviewCanvas). It sits a hair below the detailed chunks, so anywhere
+  // streaming hasn't reached — the far distance in flight, or right after a fast-travel — shows
+  // the real map (roads, water, greens, the season's colours) instead of a flat slab that
+  // "clumps into yellow." Built once at load; a season reload rebuilds it in the new palette.
+  private buildImpostor(): THREE.Mesh {
+    const b = this.world.meta.bounds;
+    const ex = b.maxX - b.minX, ey = b.maxY - b.minY;
+    const cx = (b.minX + b.maxX) / 2, cz = (b.minY + b.maxY) / 2;
+    const tex = new THREE.CanvasTexture(this.index.overviewCanvas(this.lowGPU ? 1280 : 2048));
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+    tex.flipY = false;
+    const segN = this.lowGPU ? 150 : 256;
+    const segX = segN, segZ = Math.max(8, Math.round(segN * ey / ex));
+    const geo = new THREE.PlaneGeometry(ex, ey, segX, segZ);
+    geo.rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position as THREE.BufferAttribute;
+    const uv = geo.attributes.uv as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+      const wx = cx + pos.getX(i), wz = cz + pos.getZ(i);
+      pos.setY(i, this.terrain.heightAt(wx, wz) - 6);     // just under the detailed chunks
+      uv.setXY(i, (wx - b.minX) / ex, (wz - b.minY) / ey);
+    }
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex }));
+    m.position.set(cx, 0, cz);
+    m.renderOrder = -1;
+    m.frustumCulled = false;
     this.scene.add(m);
     return m;
   }
@@ -1458,7 +1494,7 @@ export class Game {
       this.ridePlane.position.set(this.px, this.flyY, this.pz);
       this.ridePlane.rotation.set(this.planePitch, this.planeAz, this.planeRoll, 'YXZ');
       if (this.ridePlaneProp) this.ridePlaneProp.rotation.z += dt * 38;
-      if (this.skirt) this.skirt.position.set(this.px, this.terrain.heightAt(this.px, this.pz) - 4, this.pz);
+      if (this.skirt) this.skirt.position.set(this.px, this.terrain.heightAt(this.px, this.pz) - 120, this.pz);
     }
 
     const still = Math.hypot(realVx, realVz) < 1;
