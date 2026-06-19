@@ -1735,10 +1735,12 @@ export class Game {
   private unlockSeasons() {
     this.seasonTurning = true;
     localStorage.setItem('nbpt-seasons-rewarded', '1');   // unlocks the picker + the winter default
-    localStorage.setItem('nbpt-season', 'winter');         // the reward turns the town to winter
+    localStorage.setItem('nbpt-season', 'winter');         // Level 2 plays in winter
+    localStorage.setItem('nbpt-l2', '1');                  // finishing Level 1 unlocks Level 2 (no ?l2 needed)
     localStorage.setItem('nbpt-resume-pos', JSON.stringify({ x: Math.round(this.px), z: Math.round(this.pz) }));
-    this.hud.seasonsUnlockedReward();
-    setTimeout(() => this.hud.fadeThrough(() => location.reload()), 2800);
+    // the animated Level 2 promo owns the moment; its Begin button (or a fallback timer)
+    // fades through and reloads into the winter Level 2
+    this.hud.levelTwoPromo(() => this.hud.fadeThrough(() => location.reload()));
   }
 
   // off-screen objective pointer: project the beacon to the screen; if it's

@@ -207,7 +207,7 @@ const css = `
 #hud .season-btn.locked:hover { background: rgba(243, 241, 232, 0.07); }
 #hud .fade {
   position: absolute; inset: 0; background: #0c1118; opacity: 0; pointer-events: none;
-  transition: opacity 0.22s ease;
+  transition: opacity 0.22s ease; z-index: 300;
 }
 #hud .fade.on { opacity: 1; }
 #hud .vignette {
@@ -454,6 +454,75 @@ const css = `
 #hud .chapter.reward .schips b { font-style: normal; animation: chipPulse 1.5s ease-in-out infinite; }
 @keyframes rewardBloom { from { transform: scale(0.72); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes chipPulse { 0%, 100% { filter: drop-shadow(0 0 1px #bfe3ff); } 50% { filter: drop-shadow(0 0 10px #cdeeff); } }
+/* ── Level 2 promo: the cinematic "next level" reveal the moment Level 1 is finished.
+   A night harbor sky with a sweeping lighthouse beam (the L2 motif — "The Light That
+   Walks") and drifting snow (winter is coming), the LEVEL 2 title blooming in, then a
+   Begin button that carries you into the winter Level 2. */
+#hud .levelpromo {
+  position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center; padding: 0 24px;
+  overflow: hidden; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at 50% 34%, #1b2c46 0%, #0c1422 56%, #060a12 100%);
+  transition: opacity 0.55s ease;
+}
+#hud .levelpromo.show { opacity: 1; pointer-events: auto; }
+#hud .levelpromo .lp-beam {
+  position: absolute; top: -6%; left: 50%; width: 160vmax; height: 160vmax;
+  transform-origin: 50% 0; pointer-events: none; mix-blend-mode: screen;
+  background: conic-gradient(from -24deg at 50% 0, transparent 6deg,
+    rgba(255,243,200,0.06) 12deg, rgba(255,248,214,0.40) 24deg, rgba(255,243,200,0.06) 36deg, transparent 42deg);
+  animation: lpSweep 5.5s ease-in-out infinite;
+}
+#hud .levelpromo .lp-lamp {
+  position: absolute; top: -4%; left: 50%; width: 26px; height: 26px; transform: translate(-50%,-50%);
+  border-radius: 50%; background: #fff7d2; box-shadow: 0 0 46px 20px rgba(255,240,190,0.7);
+  pointer-events: none; animation: lpFlare 5.5s ease-in-out infinite;
+}
+#hud .levelpromo .lp-snow { position: absolute; inset: 0; pointer-events: none; }
+#hud .levelpromo .lp-snow i {
+  position: absolute; top: -6%; border-radius: 50%; background: #eef4ff;
+  animation: lpFall linear infinite;
+}
+#hud .levelpromo .lp-inner { position: relative; z-index: 2; max-width: 580px; }
+#hud .levelpromo .lp-kick {
+  font-size: 13px; letter-spacing: 6px; font-weight: 800; color: #8fe0c2;
+  text-shadow: 0 0 14px rgba(120,230,190,0.5); margin-bottom: 6px; animation: lpUp 0.6s 0.05s both;
+}
+#hud .levelpromo .lp-lvl {
+  font-family: Georgia, serif; font-weight: 800; line-height: 0.95; white-space: nowrap;
+  font-size: clamp(46px, 13vw, 92px); letter-spacing: 2px;
+  background: linear-gradient(180deg, #fff6db 0%, #f0cf72 50%, #c8962f 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 4px 20px rgba(0,0,0,0.55)); animation: lpBloom 0.85s 0.2s cubic-bezier(.18,.9,.22,1) both;
+}
+#hud .levelpromo .lp-title {
+  font-family: Georgia, serif; font-style: italic; font-size: clamp(20px, 5.4vw, 34px);
+  color: #f3ead2; margin-top: 4px; animation: lpUp 0.6s 0.52s both;
+}
+#hud .levelpromo .lp-tag {
+  font-size: clamp(13px, 3.5vw, 15px); line-height: 1.5; color: #bccddf;
+  margin: 14px auto 0; max-width: 26em; animation: lpUp 0.6s 0.72s both;
+}
+#hud .levelpromo .lp-go {
+  margin-top: 24px; pointer-events: auto; cursor: pointer; border: 0; font-family: inherit;
+  font-weight: 800; font-size: 16px; letter-spacing: 2px; color: #2a1c0a;
+  background: linear-gradient(180deg, #ffe9a6, #e8c44f); padding: 14px 32px; border-radius: 30px;
+  animation: lpAppear 0.5s 0.92s both, lpBtn 2.2s 1.6s ease-in-out infinite; transition: transform 0.12s ease;
+}
+#hud .levelpromo .lp-go:hover { transform: scale(1.05); }
+#hud .levelpromo .lp-go:active { transform: scale(0.96); }
+#hud .levelpromo .lp-hint { font-size: 11.5px; letter-spacing: 0.4px; color: #8aa0b8; margin-top: 16px; animation: lpAppear 0.6s 1.15s both; }
+@keyframes lpSweep { 0%, 100% { transform: translateX(-50%) rotate(-25deg); } 50% { transform: translateX(-50%) rotate(25deg); } }
+@keyframes lpFlare { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+@keyframes lpFall { to { transform: translateY(112vh) translateX(24px); } }
+@keyframes lpUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes lpAppear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lpBloom { 0% { opacity: 0; transform: scale(0.6); } 62% { opacity: 1; transform: scale(1.06); } 100% { transform: scale(1); } }
+@keyframes lpBtn { 0%, 100% { box-shadow: 0 6px 18px rgba(0,0,0,0.4); } 50% { box-shadow: 0 0 24px rgba(232,196,79,0.65), 0 6px 18px rgba(0,0,0,0.4); } }
+@media (prefers-reduced-motion: reduce) {
+  #hud .levelpromo .lp-beam, #hud .levelpromo .lp-lamp, #hud .levelpromo .lp-snow i,
+  #hud .levelpromo .lp-go { animation-duration: 0.01ms; animation-iteration-count: 1; }
+}
 /* one-time nudge that you can run — shown a few seconds into the first walk */
 #hud .runtip {
   position: absolute; bottom: 104px; left: 50%; transform: translate(-50%, 10px);
@@ -673,6 +742,7 @@ export class Hud {
       <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
       <div class="talk-btn">💬 TALK</div>
       <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div></div>
+      <div class="levelpromo"><div class="lp-beam"></div><div class="lp-lamp"></div><div class="lp-snow"></div><div class="lp-inner"><div class="lp-kick">✦ LEVEL 1 COMPLETE ✦</div><div class="lp-lvl">LEVEL 2</div><div class="lp-title">The Light That Walks</div><div class="lp-tag">A lamp walks the shore at night, and the winter harbor needs its keeper. Your story sails on.</div><button class="lp-go">BEGIN ❄️</button><div class="lp-hint">❄️ Winter has come · change the season any time from the 🎄 button</div></div></div>
       <div class="hcard"><div class="ht"></div><div class="hy"></div><div class="hb"></div><div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="close">tap to close</div></div></div>
       <div class="vignette"></div>
       <div class="fade"></div>
@@ -1629,16 +1699,26 @@ export class Hud {
     el.classList.add('show');
   }
 
-  // the end-of-Level-1 reward: the four season chips bloom in with ❄️ lit, the town is
-  // about to turn to winter. Reuses the chapter-card overlay and stays up through the
-  // fade + reload that Game.unlockSeasons() runs right after.
-  seasonsUnlockedReward() {
-    const el = document.querySelector('#hud .chapter') as HTMLElement;
-    (el.querySelector('.kick') as HTMLElement).textContent = '❄️ SEASONS UNLOCKED';
-    (el.querySelector('.big') as HTMLElement).textContent = 'Winter comes to Newburyport';
-    (el.querySelector('.small') as HTMLElement).innerHTML =
-      '<span class="schips">☀️ 🍂 <b>❄️</b> 🌸</span>change the season any time from the 🎄 button';
-    el.classList.add('show', 'reward');
+  // the end-of-Level-1 moment: a cinematic "next level" promo that reveals Level 2,
+  // "The Light That Walks." A sweeping lighthouse beam + drifting snow (winter is coming);
+  // a Begin button (or a fallback timer) carries the player into the winter Level 2 via
+  // the fade + reload Game.unlockSeasons() hands in as onBegin.
+  levelTwoPromo(onBegin: () => void) {
+    const el = document.querySelector('#hud .levelpromo') as HTMLElement;
+    // a fresh flurry of snow each time — sizes, speeds and starts all varied
+    const flakes: string[] = [];
+    for (let i = 0; i < 36; i++) {
+      const x = (Math.random() * 100).toFixed(1), sz = (2 + Math.random() * 4).toFixed(1);
+      const dur = (4 + Math.random() * 6).toFixed(1), delay = (-Math.random() * 9).toFixed(1);
+      const op = (0.5 + Math.random() * 0.45).toFixed(2);
+      flakes.push(`<i style="left:${x}%;width:${sz}px;height:${sz}px;animation-duration:${dur}s;animation-delay:${delay}s;opacity:${op}"></i>`);
+    }
+    (el.querySelector('.lp-snow') as HTMLElement).innerHTML = flakes.join('');
+    let done = false, timer = 0;
+    const begin = () => { if (done) return; done = true; clearTimeout(timer); el.classList.remove('show'); onBegin(); };
+    (el.querySelector('.lp-go') as HTMLElement).onclick = begin;
+    el.classList.add('show');
+    timer = window.setTimeout(begin, 14000);   // auto-advance if they just watch
   }
 
   private runTipTimer = 0;

@@ -519,12 +519,15 @@ export class QuestRunner {
     this.ch2 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch2-step') || '0', 10) || 0));
     this.ch3 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch3-step') || '0', 10) || 0));
     this.ch4 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch4-step') || '0', 10) || 0));
-    // Level 2 is gated: ?l2=1 latches localStorage nbpt-l2 (mirrors the ?fly flight
-    // gate), so the public never sees Chapter 6+. Chapter 6 = the legacy "ch5-step"
-    // (the off-by-one chapter keys continue: ch0-step = player Ch1 … ch5-step = Ch6).
+    // Level 2 unlocks when Level 1 is finished: nbpt-seasons-rewarded is the one-time
+    // "completed L1" flag (set in Game.unlockSeasons), so any L1-completer — past or
+    // future — gets Chapter 6+. ?l2=1 latches nbpt-l2 as a dev override to jump straight
+    // to Level 2 without finishing L1. Chapter 6 = the legacy "ch5-step" (off-by-one keys
+    // continue: ch0-step = player Ch1 … ch5-step = Ch6).
     try {
       if (new URLSearchParams(location.search).has('l2')) localStorage.setItem('nbpt-l2', '1');
-      this.l2 = localStorage.getItem('nbpt-l2') === '1';
+      this.l2 = localStorage.getItem('nbpt-l2') === '1'
+        || localStorage.getItem('nbpt-seasons-rewarded') === '1';
     } catch { this.l2 = false; }
     this.ch5 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch5-step') || '0', 10) || 0));
     this.ch6 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch6-step') || '0', 10) || 0));
