@@ -6,26 +6,33 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 // eased starts/stops, banking into turns, and idle life (breathing, blinks,
 // sniffs, sits). Units = world px (8 px = 1 m). Models face +z.
 
-function mat(color: string): THREE.MeshLambertMaterial {
-  return new THREE.MeshLambertMaterial({ color });
+// soft PBR skin for the hero actors — a gentle roughness so the rounded forms
+// catch a believable terminator + faint highlight from the sun/hemi rig (the flat
+// Lambert town reads as facets; this reads as rounded). metalness 0 = no hotspots.
+function mat(color: string): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0 });
 }
 
 // vertical capsule; pivotTop hangs it from its top tip
 function cap(r: number, len: number, color: string, pivotTop = false): THREE.Mesh {
-  const g = new THREE.CapsuleGeometry(r, len, 5, 12);
+  const g = new THREE.CapsuleGeometry(r, len, 8, 20);
   if (pivotTop) g.translate(0, -(len / 2 + r), 0);
-  return new THREE.Mesh(g, mat(color));
+  const m = new THREE.Mesh(g, mat(color));
+  m.castShadow = true;
+  return m;
 }
 
 // capsule lying along +z (bodies, snouts)
 function capZ(r: number, len: number, color: string): THREE.Mesh {
-  const g = new THREE.CapsuleGeometry(r, len, 5, 12);
+  const g = new THREE.CapsuleGeometry(r, len, 8, 20);
   g.rotateX(Math.PI / 2);
-  return new THREE.Mesh(g, mat(color));
+  const m = new THREE.Mesh(g, mat(color));
+  m.castShadow = true;
+  return m;
 }
 
 function sph(r: number, color: string, sx = 1, sy = 1, sz = 1): THREE.Mesh {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), mat(color));
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), mat(color));
   m.scale.set(sx, sy, sz);
   return m;
 }
@@ -106,18 +113,33 @@ export class Kid {
     [this.thighL, this.shinL] = mkLeg(-1);
     [this.thighR, this.shinR] = mkLeg(1);
 
-    // crimson hoodie: soft capsule torso, hood bump, kangaroo pocket
-    const body = cap(4.6, 5, '#b03a32');
-    body.scale.set(1.25, 1, 0.85);
-    body.position.y = 19;
-    const hood = sph(2.7, '#922f29', 1.5, 0.62, 1);
-    hood.position.set(0, 24.6, -3.6);
-    const pocket = rbox(6.4, 3.2, 1.4, 0.6, '#922f29');
-    pocket.position.set(0, 15.8, 3.6);
+    // crimson hoodie: a softly tapered torso (fuller chest, trimmer waist) reads more
+    // like a body than a barrel; a chest cap fills the shoulders, hood bump at the back,
+    // kangaroo pocket up front, and a short skin neck so the head sits ON the shoulders
+    const HOOD_DK = '#922f29';
+    const body = cap(4.4, 5.4, '#b03a32');
+    body.scale.set(1.14, 1.06, 0.82);
+    body.position.y = 18.6;
+    const chest = sph(4.2, '#b03a32', 1.16, 0.92, 0.82);
+    chest.position.set(0, 22.2, 0.2);
+    const hood = sph(2.9, HOOD_DK, 1.55, 0.66, 1);
+    hood.position.set(0, 24.8, -3.7);
+    const pocket = rbox(6.4, 3.2, 1.4, 0.6, HOOD_DK);
+    pocket.position.set(0, 15.4, 3.7);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 2.2, 3.3, 16), mat(SKIN));
+    neck.position.set(0, 24.9, 0);
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(2.7, 3.05, 1.7, 16), mat(HOOD_DK));
+    collar.position.set(0, 24.0, 0);
+    // shoulder caps blend the sleeves into the torso (no gap at the arm root) — kept
+    // small so the kid stays slight, not buff
+    const shoulder = (sx: number) => { const s = sph(1.95, SLEEVE, 1, 0.95, 1); s.position.set(sx * 5.2, 23.4, 0); return s; };
 
-    // head on a neck pivot so it can stay level and glance around
-    this.headGrp.position.y = 27.5;
-    const head = sph(5.1, SKIN, 1, 0.96, 0.95);
+    // head on a neck pivot so it can stay level and glance around; eased down from the
+    // old chibi ratio (slightly smaller skull + the real neck below) so the kid reads
+    // less like a big-headed toy and more like a person
+    this.headGrp.position.y = 28.0;
+    this.headGrp.scale.setScalar(0.92);
+    const head = sph(5.0, SKIN, 1, 0.98, 0.95);
     head.position.y = 3;
     const hair = sph(5.25, HAIR, 1.03, 0.72, 1.01);
     hair.position.y = 4.7;
@@ -134,19 +156,26 @@ export class Kid {
     const knose = sph(0.62, '#e3a878', 1, 0.82, 1); knose.position.set(0, 2.35, 5.0);
     const smile = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.22, 6, 12, Math.PI), mat('#8a4b40'));
     smile.rotation.z = Math.PI; smile.position.set(0, 1.25, 4.55);
-    const cheek = (sx: number) => { const c = sph(0.95, '#e89a86', 1, 0.66, 0.45); c.position.set(sx * 3.15, 1.85, 4.05); const m = c.material as THREE.MeshLambertMaterial; m.transparent = true; m.opacity = 0.6; return c; };
+    const cheek = (sx: number) => { const c = sph(0.95, '#e89a86', 1, 0.66, 0.45); c.position.set(sx * 3.15, 1.85, 4.05); const m = c.material as THREE.MeshStandardMaterial; m.transparent = true; m.opacity = 0.6; return c; };
     this.headGrp.add(head, hair, bangs, this.eyeL, this.eyeR, brow(-1), brow(1), knose, smile, cheek(-1), cheek(1));
 
     const mkArm = (sx: number): [THREE.Group, THREE.Group] => {
       const upper = new THREE.Group();
-      upper.position.set(sx * 6.4, 24, 0);
-      const upperMesh = cap(1.8, 3.3, SLEEVE, true);
+      upper.position.set(sx * 5.5, 24, 0);
+      const upperMesh = cap(1.55, 3.4, SLEEVE, true);
       const fore = new THREE.Group();
       fore.position.set(0, -6.8, 0);
-      const foreMesh = cap(1.6, 2.8, SLEEVE, true);
-      const hand = sph(1.7, SKIN);
-      hand.position.set(0, -6.2, 0.2);
-      fore.add(foreMesh, hand);
+      const foreMesh = cap(1.4, 3.0, SLEEVE, true);
+      const cuff = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.42, 1.0, 14), mat('#8f2f28'));
+      cuff.position.set(0, -5.7, 0);
+      // a real little hand: rounded palm + a thumb + closed fingers, not a bare ball
+      const hand = new THREE.Group();
+      hand.position.set(0, -6.5, 0.2);
+      const palm = sph(1.25, SKIN, 1, 1.08, 0.82);
+      const fingers = rbox(2.1, 1.35, 1.6, 0.65, SKIN); fingers.position.set(0, -1.1, 0.15);
+      const thumb = cap(0.48, 0.5, SKIN); thumb.position.set(sx * 0.95, -0.15, 0.45); thumb.rotation.set(-0.3, 0, sx * 0.8);
+      hand.add(palm, fingers, thumb);
+      fore.add(foreMesh, cuff, hand);
       upper.add(upperMesh, fore);
       return [upper, fore];
     };
@@ -167,7 +196,7 @@ export class Kid {
     this.pack.add(packBody, packLid, packPocket, buckle, strap(-1), strap(1), overShoulder(-1), overShoulder(1));
     this.pack.visible = false;
 
-    this.bodyGroup.add(body, hood, pocket, this.pack, this.headGrp, this.upperL, this.upperR);
+    this.bodyGroup.add(body, chest, neck, collar, hood, pocket, shoulder(-1), shoulder(1), this.pack, this.headGrp, this.upperL, this.upperR);
     this.tilt.add(this.thighL, this.thighR, this.bodyGroup);
     this.bank.add(this.tilt);
     this.heading.add(this.bank);
@@ -382,7 +411,8 @@ export class Dog {
   private headGroup = new THREE.Group();
   private earL: THREE.Group;
   private earR: THREE.Group;
-  private legs: THREE.Group[] = [];    // LF, RF, LR, RR
+  private legs: THREE.Group[] = [];    // upper legs (swing): LF, RF, LR, RR
+  private shins: THREE.Group[] = [];   // lower legs (fold at knee/hock)
   private tail: THREE.Group;
   private tailTip: THREE.Group;
 
@@ -410,18 +440,30 @@ export class Dog {
     this.trunk.position.set(0, 8, -6.5);
     const body = capZ(4.1, 8.6, fur);
     body.position.set(0, 3, 6.5);
-    body.scale.set(1.05, 0.95, 1);
-    const chest = sph(4.2, darker, 0.92, 0.95, 0.9);
-    chest.position.set(0, 2.2, 11.3);
-    const rump = sph(3.9, fur, 0.95, 0.9, 0.9);
-    rump.position.set(0, 2.8, 1);
+    body.scale.set(1.08, 0.94, 1);
+    const chest = sph(4.2, darker, 0.96, 0.98, 0.92);   // deep brisket
+    chest.position.set(0, 1.9, 11.0);
+    const rump = sph(3.9, fur, 0.98, 0.95, 0.92);
+    rump.position.set(0, 2.9, 1);
+    // a scruffy neck rising to the head + muscle over the shoulders and haunches, so
+    // the body has anatomy (withers, brisket, thighs) instead of reading as one loaf
+    const neck = capZ(2.9, 2.6, fur);
+    neck.position.set(0, 4.2, 12.0); neck.rotation.x = -0.5;
+    const withers = sph(3.0, fur, 1.0, 0.95, 1.1);
+    withers.position.set(0, 4.6, 8.2);
+    const haunch = (sx: number) => { const h = sph(2.7, fur, 0.92, 1.0, 1.1); h.position.set(sx * 2.7, 3.2, -2.0); return h; };
+    const shoulder = (sx: number) => { const s = sph(2.3, fur, 0.9, 1.0, 1.05); s.position.set(sx * 2.9, 2.6, 9.0); return s; };
 
     // head on a neck pivot (looks at the kid, sniffs the ground)
     this.headGroup.position.set(0, 6, 14.5);
     const head = sph(4.15, fur, 0.95, 1, 0.95);
     head.position.set(0, 1.5, 2.5);
-    const snout = capZ(1.9, 2.4, darker);
-    snout.position.set(0, -0.2, 6.6);
+    const skull = sph(3.1, fur, 1.06, 0.95, 1.0);    // rounder cranium above the eyes
+    skull.position.set(0, 3.2, 1.4);
+    const muzzleBridge = capZ(1.35, 1.4, fur);        // forehead-to-snout bridge (a real stop)
+    muzzleBridge.position.set(0, 1.0, 4.7);
+    const snout = capZ(1.85, 2.6, darker);
+    snout.position.set(0, -0.2, 6.7);
     const nose = sph(0.95, '#2b2420', 1.1, 0.9, 0.9);
     nose.position.set(0, 0.3, 8.8);
     const eyeL = sph(0.72, '#23201c');
@@ -443,7 +485,7 @@ export class Dog {
     };
     this.earL = mkEar(-1);
     this.earR = mkEar(1);
-    this.headGroup.add(head, snout, nose, eyeL, eyeR, this.earL, this.earR, tongue);
+    this.headGroup.add(head, skull, muzzleBridge, snout, nose, eyeL, eyeR, this.earL, this.earR, tongue);
 
     // tail: two soft segments for a whippy wag
     this.tail = new THREE.Group();
@@ -460,18 +502,29 @@ export class Dog {
     const collar = new THREE.Mesh(new THREE.TorusGeometry(3.7, 0.55, 8, 18), mat('#b5402f'));
     collar.position.set(0, 4.0, 12.7); collar.scale.set(1.05, 0.9, 1);
     const tag = sph(0.7, '#e8c44f'); tag.position.set(0, 0.9, 13.1);
-    this.trunk.add(body, chest, rump, this.headGroup, this.tail, collar, tag);
+    this.trunk.add(body, chest, rump, neck, withers, haunch(-1), haunch(1), shoulder(-1), shoulder(1), this.headGroup, this.tail, collar, tag);
 
-    // legs stay under the heading so the trunk can pitch without lifting paws
-    const legPos: [number, number][] = [[-3.2, 6.5], [3.2, 6.5], [-3.2, -6.5], [3.2, -6.5]];
-    for (const [lx, lz] of legPos) {
+    // legs stay under the heading so the trunk can pitch without lifting paws. Each leg
+    // is two segments: an upper that swings from the shoulder/hip + a lower shank that
+    // folds at the knee/hock on the recovery, so the gait articulates instead of swinging
+    // stiff pegs. Rear legs are a touch sturdier than the front.
+    const legPos: [number, number, boolean][] = [
+      [-3.2, 7.0, true], [3.2, 7.0, true],     // front (LF, RF)
+      [-3.4, -6.4, false], [3.4, -6.4, false], // rear (LR, RR)
+    ];
+    for (const [lx, lz, front] of legPos) {
       const leg = new THREE.Group();
       leg.position.set(lx, 8, lz);
-      const upper = cap(1.35, 2.6, darker, true);
-      const paw = rbox(2.8, 2.4, 3.4, 0.9, fur);
-      paw.position.set(0, -6.9, 0.4);
-      leg.add(upper, paw);
+      const upper = cap(front ? 1.55 : 1.7, 1.7, darker, true);
+      const shin = new THREE.Group();
+      shin.position.set(0, -4.0, 0);
+      const shinMesh = cap(front ? 1.3 : 1.4, 1.5, darker, true);
+      const paw = rbox(2.8, 1.9, 3.7, 0.95, fur);
+      paw.position.set(0, -3.2, 0.8);
+      shin.add(shinMesh, paw);
+      leg.add(upper, shin);
       this.legs.push(leg);
+      this.shins.push(shin);
       this.heading.add(leg);
     }
 
@@ -540,9 +593,14 @@ export class Dog {
     const p = this.phase;
     const trot = [Math.sin(p), -Math.sin(p), -Math.sin(p), Math.sin(p)];
     const gal = [Math.sin(p), Math.sin(p - 0.45), Math.sin(p + 2.4), Math.sin(p + 2.85)];
+    const trotPh = [p, p + Math.PI, p + Math.PI, p];
+    const galPh = [p, p - 0.45, p + 2.4, p + 2.85];
     for (let i = 0; i < 4; i++) {
       const swing = trot[i] * (1 - gw) + gal[i] * 1.12 * gw;
       this.legs[i].rotation.x = swing * a * (0.78 + gw * 0.25);
+      // shank folds during the lift/recovery (knee for the front, hock for the rear)
+      const ph = trotPh[i] * (1 - gw) + galPh[i] * gw;
+      this.shins[i].rotation.x = Math.max(0, Math.sin(ph - 0.7)) * a * (0.72 + gw * 0.6);
     }
 
     // body: smooth bounce, gallop pitch, sit pose
@@ -551,9 +609,12 @@ export class Dog {
     const bounce = (1 - Math.cos(p * 2)) * 0.5 * a * (0.7 + norm * 1.5);
     this.trunk.position.y = 8 + bounce - this.sitP * 3.4;
     this.trunk.rotation.x = -Math.sin(p + 0.5) * 0.09 * gw * a - this.sitP * 0.48;
-    // rear legs fold under when sitting
-    this.legs[2].rotation.x += this.sitP * 1.25;
-    this.legs[3].rotation.x += this.sitP * 1.25;
+    // rear legs tuck under when sitting: thigh swings forward, hock folds deep so the
+    // haunches drop onto the ground; front legs stay propped straight
+    this.legs[2].rotation.x += this.sitP * 1.0;
+    this.legs[3].rotation.x += this.sitP * 1.0;
+    this.shins[2].rotation.x += this.sitP * 1.7;
+    this.shins[3].rotation.x += this.sitP * 1.7;
 
     // ears flop against the bounce
     const earTarget = THREE.MathUtils.clamp((bounce - this.prevBounce) * -2.2 / Math.max(dt, 0.001) * 0.016, -0.45, 0.45);
