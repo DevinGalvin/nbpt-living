@@ -30,6 +30,7 @@ const MARCH_RUN = 270;                       // run length (px) to the flat base
 const SCARVES = ['#b03a32', '#3e5c84', '#54652c', '#c8a142', '#7c4a68', '#a8625a'];
 const SKATERS = 5;
 const SLEDDERS = 4;
+const BATS = 7;          // fall: bats wheeling over the rooftops at dusk
 
 const matCache = new Map<string, THREE.MeshLambertMaterial>();
 function mat(hex: string): THREE.MeshLambertMaterial {
@@ -320,6 +321,54 @@ class Gull {
   }
 }
 
+// a bat wheeling erratically over the rooftops — fall only, fading in at dusk
+class Bat {
+  root = new THREE.Group();
+  active = false;
+  cx = 0; cz = 0;
+  ang = 0;
+  radius = 90;
+  private spin: number;
+  private alt: number;
+  private phase: number;
+  private wingL: THREE.Mesh;
+  private wingR: THREE.Mesh;
+  private mat: THREE.MeshBasicMaterial;   // own (uncached) material so opacity can fade with night
+
+  constructor(seed: number) {
+    const rng = mulberry32(seed);
+    this.mat = new THREE.MeshBasicMaterial({ color: '#3c3646', transparent: true, opacity: 0, fog: false });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(2.3, 8, 6), this.mat); body.scale.set(0.8, 0.7, 1.3);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(1.1, 7, 5), this.mat); head.position.set(0, 0.5, 1.8);
+    for (const sx of [-1, 1]) {   // pointy ears
+      const ear = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.4, 4), this.mat);
+      ear.position.set(sx * 0.6, 1.5, 1.7); this.root.add(ear);
+    }
+    // thin membrane wings (flap up/down like the gull's, but darker + faster)
+    this.wingL = new THREE.Mesh(new THREE.BoxGeometry(10, 0.5, 5.5), this.mat); this.wingL.position.set(-5.5, 0.3, 0);
+    this.wingR = new THREE.Mesh(new THREE.BoxGeometry(10, 0.5, 5.5), this.mat); this.wingR.position.set(5.5, 0.3, 0);
+    this.root.add(body, head, this.wingL, this.wingR);
+    this.spin = (rng() < 0.5 ? -1 : 1) * (0.5 + rng() * 0.6);   // quicker, twitchier circles than a gull
+    this.radius = 70 + rng() * 150;
+    this.alt = 380 + rng() * 260;                               // high in the sky — silhouetted against the dusk
+    this.phase = rng() * 6;
+  }
+
+  glide(dt: number, t: number, night: number) {
+    this.mat.opacity = Math.max(0, Math.min(0.9, (night - 0.08) * 2.1));    // appear at dusk, gone by day
+    this.ang += this.spin * dt;
+    const r = this.radius * (1 + 0.16 * Math.sin(this.ang * 2.3 + this.phase));   // erratic, jinking flight
+    const x = this.cx + Math.cos(this.ang) * r;
+    const z = this.cz + Math.sin(this.ang) * r;
+    this.root.position.set(x, this.alt + Math.sin(t * 0.004 + this.phase) * 14, z);
+    this.root.rotation.y = this.ang + (this.spin > 0 ? Math.PI / 2 : -Math.PI / 2);
+    this.root.rotation.z = (this.spin > 0 ? 1 : -1) * 0.4;
+    const flap = Math.sin(t * 0.02 + this.phase) * 0.9;        // fast bat flutter
+    this.wingL.rotation.z = 0.3 + flap;
+    this.wingR.rotation.z = -0.3 - flap;
+  }
+}
+
 // a figure skating gentle loops on a frozen pond — arms out, leaning into the turn
 class Skater {
   root = new THREE.Group();
@@ -441,6 +490,7 @@ export class Life {
   private gulls: Gull[] = [];
   private skaters: Skater[] = [];      // winter: figures looping on the frozen Frog Pond
   private sledders: Sledder[] = [];    // winter: kids sledding March's Hill
+  private bats: Bat[] = [];            // fall: bats wheeling over the rooftops at dusk
 
   constructor(scene: THREE.Scene, index: WorldIndex) {
     this.index = index;
@@ -486,6 +536,13 @@ export class Life {
         s.root.position.set(MARCH_TOP.x, hillGy, MARCH_TOP.z);   // park at the hill before the first tick
         this.sledders.push(s);
         scene.add(s.root);
+      }
+    } else if (SEASON === 'fall') {
+      for (let i = 0; i < BATS; i++) {
+        const bt = new Bat(i * 421 + 19);
+        bt.root.position.set(0, 0, 1e7);   // parked offscreen until update() places it near the player
+        this.bats.push(bt);
+        scene.add(bt.root);
       }
     }
   }
@@ -599,7 +656,7 @@ export class Life {
     return null;
   }
 
-  update(dt: number, px: number, pz: number, t: number, fx: number, fz: number) {
+  update(dt: number, px: number, pz: number, t: number, fx: number, fz: number, night = 0) {
     const rng = mulberry32(hash32(Math.floor(t), 3, 7));
 
     for (const p of this.peds) {
@@ -786,6 +843,16 @@ export class Life {
       for (const s of this.skaters) s.glide(dt, gy);
     }
     for (const s of this.sledders) s.update(dt);
+    // fall: bats wheel over the rooftops at dusk, recycling their circle near the player
+    for (const bt of this.bats) {
+      const dx = bt.cx - px, dz = bt.cz - pz;
+      if (!bt.active || dx * dx + dz * dz > 1700 * 1700) {
+        const a = rng() * Math.PI * 2, d = 280 + rng() * 900;
+        bt.cx = px + Math.cos(a) * d; bt.cz = pz + Math.sin(a) * d;
+        bt.ang = rng() * Math.PI * 2; bt.active = true;
+      }
+      bt.glide(dt, t, night);
+    }
   }
 
   // spawns snap to the top surface (a ped placed on a bridge belongs ON it);
