@@ -41,7 +41,7 @@ const LIGHT = { x: 12000, z: -2200 };            // the mystery light, way out o
 // is tied at, and the old lighthouse foundation out at the light.
 const GRAM_HOME = { x: 7450, z: 4250, face: 2.4 };  // Gram lives in Joppa now (post Level 1)
 const SLIP = { x: 7950, z: 4430 };                  // the Joppa slip — the kayak is tied here
-const LOBSTER = { x: 7958, z: 4434, face: 2.4 };    // the lobsterman, hauling traps at the water's edge by the slip (Ch3)
+const LOBSTER = { x: 9570, z: 1780, face: 2.6 };    // the lobsterman's boat, anchored out on the water on the paddle home from the light — you meet him there (Ch3 & Ch4 start)
 // Ch3: the mooncusser's false lamps, scattered on the water around the foundation — you
 // paddle to each and snuff it. Two on the south approach, two past the light to the north.
 const DECOYS = [
@@ -266,10 +266,10 @@ const WALK_REVEAL: Line[] = [
   { who: 'You', text: 'So who’s been lighting it?' }
 ];
 
-// Chapter 3 "The Mooncusser" — beat 1: a salty lobsterman at the slip explains the mooncusser
-// (kid-clear), warns of the storm, and sends you out to snuff the line of false lamps.
+// Chapter 3 "The Mooncusser" — beat 1: a salty lobsterman, met out on the water as you paddle
+// home, explains the mooncusser (kid-clear), warns of the storm, and sends you to snuff the lamps.
 const LOBSTER_MOONCUSSER: Line[] = [
-  { who: '', text: 'A lobsterman stands at the slip stacking traps, oilskins beaded with spray.' },
+  { who: '', text: 'A lobster boat rides the swell on your way in, traps stacked high. A waterman in oilskins, beaded with spray, lifts a hand and waves you over.' },
   { who: 'Lobsterman', text: 'You’re the one paddlin’ your grandfather’s kayak. Figured you’d come askin’ about that light.' },
   { who: 'You', text: 'Who’s lighting it?' },
   { who: 'Lobsterman', text: 'A mooncusser. Sets false lamps out on the rocks. A boat sees one, thinks it’s the harbor, and steers straight onto the sandbar.' },
@@ -290,8 +290,8 @@ const MOONCUSSER_CATCH: Line[] = [
 // Chapter 4 "Bring the Light Home" — beat 1: the storm is here, the harbor light is dark,
 // and the lobsterman sends you to wake the old downtown Range Light and sweep its beam.
 const LOBSTER_STORM: Line[] = [
-  { who: '', text: 'The wind has teeth now. Snow blows sideways off the water, and every boat in the harbor is just a dark shape out in it.' },
-  { who: 'Lobsterman', text: 'There you are. Bad night to be ashore — worse to be out there.' },
+  { who: '', text: 'The wind has teeth now. Snow blows sideways off the water, and every boat in the harbor is just a dark shape out in it. The lobster boat looms up out of the murk, the waterman hunched at the wheel.' },
+  { who: 'Lobsterman', text: 'There you are — out on the water in this. Bad night for it, kid.' },
   { who: 'You', text: 'The harbor light. It’s gone OUT.' },
   { who: 'Lobsterman', text: 'Storm took it. Half the fleet’s still out, and not one true light to steer by. They’ll pile up on the sandbar in this.' },
   { who: 'You', text: 'Then we light another one.' },
@@ -884,22 +884,34 @@ export class QuestRunner {
       return lamp;
     });
 
-    // the lobsterman (Chapter 3): a salty waterman in oilskins, hauling traps by the slip.
-    // Appears once Ch2 is done (ch6>=3) and stays on as a recurring Level 2 character.
-    const lob = npcMesh('#c69a76', '#d6a23a', '#3a3e44', '#574d44', 'cap');
-    const traps = new THREE.Group();
-    for (const [tx, ty, tz] of [[0, 2.5, 0], [9, 2.5, 1], [4.5, 7, 0.5]] as const) {
-      const trap = box(8, 5, 6, '#7d6a4a');     // weathered slat-and-wire lobster trap
-      trap.position.set(tx, ty, tz);
-      traps.add(trap);
+    // the lobsterman (Chapter 3 & 4): a salty waterman in oilskins, met OUT ON THE WATER in his
+    // lobster boat as you paddle home from the light — not waiting at the slip. His boat is
+    // anchored on the route in (LOBSTER), and the meetings auto-trigger as you draw near (update()).
+    // Appears once Ch2 is done (ch6>=3) and stays until the storm sends you ashore for the finale.
+    const lboat = new THREE.Group();
+    // a stout working hull (longer + beamier than the rowboat), painted lobster-boat colors
+    const LB = (w: number, h: number, d: number, x: number, y: number, z: number, hex: string) => {
+      const m = box(w, h, d, hex); m.position.set(x, y, z); lboat.add(m);
+    };
+    LB(26, 4, 64, 0, 2, 0, '#8a3530');           // hull, deep red
+    LB(2.4, 7, 60, -13, 6, 0, '#c9c2b2');        // port gunwale
+    LB(2.4, 7, 60, 13, 6, 0, '#c9c2b2');         // starboard gunwale
+    LB(26, 7, 2.4, 0, 6, -31, '#c9c2b2');        // transom
+    LB(20, 16, 16, 0, 11, -18, '#ded7c7');       // wheelhouse cabin, set aft
+    LB(16, 7, 2, 0, 16, -10.5, '#3a3e44');       // dark cabin window band
+    // traps stacked on the working deck forward of the cabin
+    for (const [tx, ty, tz] of [[-6, 4, 12], [6, 4, 14], [0, 9, 13]] as const) {
+      const trap = box(9, 5, 7, '#7d6a4a'); trap.position.set(tx, ty, tz); lboat.add(trap);
     }
-    traps.position.set(LOBSTER.x + 11, this.index.heightAtPx(LOBSTER.x + 11, LOBSTER.z - 4), LOBSTER.z - 4);
-    traps.rotation.y = LOBSTER.face;
-    this.scene.add(traps);
-    this.place(lob, LOBSTER.x, LOBSTER.z, LOBSTER.face);
-    lob.visible = false;                          // apply() shows him from Ch3 on
-    this.npcs.lobster = lob;
-    this.scene.add(lob);
+    // the waterman himself, standing at the rail amidships, facing the kid paddling up
+    const lob = npcMesh('#c69a76', '#d6a23a', '#3a3e44', '#574d44', 'cap');
+    lob.position.set(0, 4, -2);
+    lboat.add(lob);
+    lboat.position.set(LOBSTER.x, WATER_Y, LOBSTER.z);
+    lboat.rotation.y = LOBSTER.face;
+    lboat.visible = false;                        // apply() shows him from Ch3 on
+    this.npcs.lobster = lboat;
+    this.scene.add(lboat);
 
     // ---- Chapter 4 finale "Bring the Light Home" props ----
     // The Rear Range Light's beam: a long warm cone at the lantern top that the player
@@ -1050,12 +1062,6 @@ export class QuestRunner {
               c.push({ tag: 'gramkayak', x: GRAM_HOME.x, z: GRAM_HOME.z, label: '\u{1F4AC} TALK', r: 90 });
             } else if (this.l2 && this.ch5 >= 1 && this.ch6 === 1) {
               c.push({ tag: 'slip', x: SLIP.x, z: SLIP.z, label: '\u{1F6F6} TAKE IT', r: 95 });
-            } else if (this.l2 && this.ch6 >= 3 && this.ch7 === 0) {
-              // Level 2 Ch3 — the lobsterman at the slip explains the mooncusser (catch is auto)
-              c.push({ tag: 'lobster', x: LOBSTER.x, z: LOBSTER.z, label: '\u{1F4AC} TALK', r: 95 });
-            } else if (this.l2 && this.ch7 >= 2 && this.ch8 === 0) {
-              // Level 2 Ch4 finale — the lobsterman sends you to light the harbor in the storm
-              c.push({ tag: 'lobster', x: LOBSTER.x, z: LOBSTER.z, label: '\u{1F4AC} TALK', r: 95 });
             } else if (this.l2 && this.ch8 === 1 && !this.hud.sweeping) {
               // …climb the Rear Range Light and wake the lamp (the beam-sweep is auto after)
               c.push({ tag: 'tower', x: TOWER.x, z: TOWER.z, label: '\u{1F526} LIGHT IT', r: 95 });
@@ -1143,7 +1149,7 @@ export class QuestRunner {
         this.hud.setObjective('Paddle out to the light');
         target = { x: LIGHT.x, z: LIGHT.z };
       } else if (this.l2 && this.ch6 >= 3 && this.ch7 === 0) {
-        this.hud.setObjective('Ask the lobsterman at the Joppa slip about the light');
+        this.hud.setObjective('Paddle home — the lobsterman’s waving you over');
         target = { x: LOBSTER.x, z: LOBSTER.z };
       } else if (this.l2 && this.ch7 === 1) {
         const left = DECOYS.length - this.snuffed.size;
@@ -1152,7 +1158,7 @@ export class QuestRunner {
           : 'Catch the mooncusser at his last light');
         target = { x: LIGHT.x, z: LIGHT.z };   // update() refines the beacon to the next lamp
       } else if (this.l2 && this.ch7 >= 2 && this.ch8 === 0) {
-        this.hud.setObjective('Find the lobsterman at the Joppa slip');
+        this.hud.setObjective('Paddle to the lobsterman — the storm’s breaking');
         target = { x: LOBSTER.x, z: LOBSTER.z };
       } else if (this.l2 && this.ch8 === 1) {
         if (this.hud.sweeping) {
@@ -1195,8 +1201,9 @@ export class QuestRunner {
     for (let i = 0; i < this.decoyLights.length; i++) {
       this.decoyLights[i].visible = this.l2 && this.ch6 >= 3 && this.ch7 === 1 && !this.snuffed.has(i);
     }
-    // the lobsterman arrives at the slip once Ch2 is done and stays on (recurring waterman)
-    if (this.npcs.lobster) this.npcs.lobster.visible = this.l2 && this.ch6 >= 3;
+    // the lobsterman's boat rides the water once Ch2 is done; it's gone by the finale (he heads
+    // ashore once the storm sends you to the tower — "that's my boat in the line" at the end)
+    if (this.npcs.lobster) this.npcs.lobster.visible = this.l2 && this.ch6 >= 3 && this.ch8 < 1;
     // the drowned foundation is built once, the instant Level 1 ends (ch5 still 0) — so
     // re-assert its visibility here, or it stays hidden all the way to the Ch2 reveal on a
     // no-reload playthrough (its build-time gate never re-runs, and nothing else shows it).
@@ -1347,7 +1354,7 @@ export class QuestRunner {
         id: 'l2c3', group: 'story', level: 2, levelName: L2_NAME, chapter: 3, title: 'The Mooncusser',
         state: this.ch7 >= 2 ? 'done' : this.ch6 >= 3 ? 'active' : 'locked', active: active === 8, replay: 7,
         steps: [
-          { label: 'Ask the lobsterman at the slip about the light', done: this.ch7 >= 1 },
+          { label: 'Meet the lobsterman on the water as you paddle home', done: this.ch7 >= 1 },
           { label: 'Snuff the mooncusser’s false lamps', done: this.ch7 >= 2 || this.snuffed.size >= DECOYS.length, count: this.snuffed.size, total: DECOYS.length },
           { label: 'Catch the mooncusser at his last light', done: this.ch7 >= 2 }
         ]
@@ -1357,7 +1364,7 @@ export class QuestRunner {
         state: this.ch8 >= 2 ? 'done' : this.ch7 >= 2 ? 'active' : 'locked', active: active === 9, replay: 8,
         reward: 'A Christmas in Clipper Town',
         steps: [
-          { label: 'Find the lobsterman as the storm breaks', done: this.ch8 >= 1 },
+          { label: 'Meet the lobsterman on the water as the storm breaks', done: this.ch8 >= 1 },
           { label: 'Light the Rear Range Light', done: this.beamLit || this.ch8 >= 2 },
           { label: 'Sweep the beam — guide the boats home', done: this.ch8 >= 2, count: this.caught.size, total: LOST.length }
         ]
@@ -1441,6 +1448,13 @@ export class QuestRunner {
     if (this.l2 && this.ch5 >= 1 && this.ch6 === 2 && this.hud.kayaking
         && !this.hud.dialogueOpen && Math.hypot(px - LIGHT.x, pz - LIGHT.z) < 130) {
       this.revealWalk();
+    }
+    // Level 2: meet the lobsterman OUT ON THE WATER as you paddle home — his anchored boat
+    // sits on the route in, and drawing near it opens Ch3 (the mooncusser) then Ch4 (the storm).
+    if (this.l2 && this.hud.kayaking && !this.hud.dialogueOpen
+        && ((this.ch6 >= 3 && this.ch7 === 0) || (this.ch7 >= 2 && this.ch8 === 0))
+        && Math.hypot(px - LOBSTER.x, pz - LOBSTER.z) < 170) {
+      this.meetLobster();
     }
     // Level 2 Ch3 "The Mooncusser": hunt his scattered false lamps. The beacon marks the
     // nearest un-snuffed lamp; paddle into it to snuff it. Once every lamp is out, the beacon
@@ -1798,19 +1812,6 @@ export class QuestRunner {
         this.setCh6(2);
         this.onKayak();   // "Hop in" — drop straight into the kayak on the water (no standing on land)
       });
-    } else if (tag === 'lobster' && this.l2 && this.ch6 >= 3 && this.ch7 === 0) {
-      this.hud.showDialogue(LOBSTER_MOONCUSSER, () => {
-        this.hud.chapterCard('LEVEL 2 · CHAPTER 3', 'The Mooncusser', 'a false light on the old rocks');
-        this.setCh7(1);
-      });
-    } else if (tag === 'lobster' && this.l2 && this.ch7 >= 2 && this.ch8 === 0) {
-      // the finale: the storm hits and the lobsterman sends you to light the harbor
-      this.hud.showDialogue(LOBSTER_STORM, () => {
-        this.hud.chapterCard('LEVEL 2 · CHAPTER 4', 'Bring the Light Home', 'the storm is here · the harbor light is dark');
-        this.stormStarted = true;
-        this.onStorm();              // the nor'easter rolls in
-        this.setCh8(1);
-      });
     } else if (tag === 'tower' && this.l2 && this.ch8 === 1) {
       // climb the Rear Range Light, relight the lamp, and take the beam
       this.hud.showDialogue(TOWER_LIGHT, () => {
@@ -1831,8 +1832,31 @@ export class QuestRunner {
       this.audio.jingle();
       this.hud.chapterCard('LEVEL 2 · CHAPTER 2 COMPLETE', 'The Walking Light', 'the light moved — and now you know it');
       this.setCh6(3);
-      this.onReturnAshore(SLIP.x, SLIP.z);   // paddle home — land at the slip so Ch3 starts here, not 7000px out at sea
+      // no instant-trip home: you keep the kayak and paddle back yourself — the lobsterman's
+      // boat is anchored on the way in, and the meeting auto-triggers as you near it (update()).
     });
+  }
+
+  // Level 2: met out on the water as you paddle home from the light. The same waterman opens
+  // Chapter 3 (the mooncusser), then Chapter 4 (the storm). update() fires this when the kayak
+  // draws near his anchored boat — no land affordance, the meeting IS the trip home.
+  private meetLobster() {
+    this.beacon.visible = false;
+    this.bang.visible = false;
+    if (this.ch6 >= 3 && this.ch7 === 0) {
+      this.hud.showDialogue(LOBSTER_MOONCUSSER, () => {
+        this.hud.chapterCard('LEVEL 2 · CHAPTER 3', 'The Mooncusser', 'a false light on the old rocks');
+        this.setCh7(1);
+      });
+    } else if (this.ch7 >= 2 && this.ch8 === 0) {
+      // the finale: the storm hits and the lobsterman sends you to light the harbor
+      this.hud.showDialogue(LOBSTER_STORM, () => {
+        this.hud.chapterCard('LEVEL 2 · CHAPTER 4', 'Bring the Light Home', 'the storm is here · the harbor light is dark');
+        this.stormStarted = true;
+        this.onStorm();              // the nor'easter rolls in
+        this.setCh8(1);
+      });
+    }
   }
 
   // Level 2 Ch3: paddled into a decoy lamp — put it out, save progress, refresh the count
@@ -1857,7 +1881,8 @@ export class QuestRunner {
       if (this.mysteryLight) this.mysteryLight.visible = false;         // false light snuffed for good
       this.hud.chapterCard('LEVEL 2 · CHAPTER 3 COMPLETE', 'The Mooncusser', 'the false light is out — but a storm is coming');
       this.setCh7(2);
-      this.onReturnAshore(SLIP.x, SLIP.z);   // back ashore at the slip — don't leave them adrift at the light
+      // again: no teleport — you paddle home, and the lobsterman flags you down on the way in
+      // (auto-triggers in update()) with the storm send-off that opens the finale.
     });
   }
 

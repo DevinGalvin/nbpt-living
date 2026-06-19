@@ -1632,7 +1632,7 @@ export class Game {
       else if (this.kayaking) { if (this.landNear()) act = { label: '🛶 HOP OUT', cb: () => this.exitKayak() }; }
       else if (!this.inside && !this.boating && !this.sweeping) {
         if (this.flightDev && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
-        else if (this.kayakEarned && this.nearWater && !this.quest?.nearActive) act = { label: '🛶 KAYAK', cb: () => this.enterKayak() };
+        else if (this.kayakEarned && this.nearWater && !this.quest?.nearActive && !this.hud.dialogueOpen) act = { label: '🛶 KAYAK', cb: () => this.enterKayak() };
       }
       const actKey = act ? act.label : null;
       if (actKey !== this.flyAct) {

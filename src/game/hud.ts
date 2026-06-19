@@ -301,6 +301,9 @@ const css = `
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
 #hud .talk-btn.show { display: flex; }
+/* if an action button (KAYAK / HOP OUT …) is ever live while a dialogue is open,
+   lift it clear of the dialogue card instead of letting them overlap */
+#hud:has(.dlg.open) .talk-btn { bottom: 210px; transition: bottom 0.18s var(--ease-out); }
 #hud .journey-btn {
   position: absolute; top: 118px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(var(--maroon), 0.78); border: 1.5px solid rgba(216,185,74,0.6);
