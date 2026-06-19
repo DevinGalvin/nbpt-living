@@ -33,6 +33,8 @@ const SLEDDERS = 4;
 const BATS = 7;          // fall: bats wheeling over the rooftops at dusk
 const COSTUMES = ['witch', 'pumpkin', 'vampire', 'devil'];   // fall trick-or-treaters
 const ROAM_GHOSTS = 5;   // fall: translucent ghosts drifting the streets at dusk
+const CATS = 3;          // fall: black cats slinking the sidewalks
+const GRAVEYARD = { x: -4418, z: 3470 };   // Old Hill Burying Ground — graveyard mist + the witch circles here
 
 const matCache = new Map<string, THREE.MeshLambertMaterial>();
 function mat(hex: string): THREE.MeshLambertMaterial {
@@ -453,6 +455,137 @@ class RoamGhost {
   }
 }
 
+// a black cat slinking along the sidewalks (fall) — reuses the pedestrian paths
+class Cat {
+  root = new THREE.Group();
+  private heading = new THREE.Group();
+  private legs: THREE.Mesh[] = [];
+  private tail: THREE.Mesh;
+  pts: number[] = [];
+  total = 1;
+  t = 0;
+  dir = 1;
+  speed = 26 + Math.random() * 18;
+  private face = Math.random() * Math.PI * 2;
+  private phase = Math.random() * 6;
+
+  constructor(seed: number) {
+    const rng = mulberry32(seed);
+    const fur = rng() < 0.7 ? '#1b181f' : '#2c2a30';   // mostly black, the odd dark-grey
+    const body = cap(2, 5.5, fur); body.rotation.x = Math.PI / 2; body.position.set(0, 4.4, 0);
+    const head = sph(2.3, fur, 1, 0.95, 0.9); head.position.set(0, 5.4, 4.6);
+    for (const sx of [-1, 1]) { const ear = cone(0.9, 1.8, fur); ear.position.set(sx * 1.1, 7.2, 4.7); this.heading.add(ear); }
+    this.tail = cap(0.6, 5, fur); this.tail.position.set(0, 6, -4.4); this.tail.rotation.x = -0.7;   // curled up
+    for (const [lx, lz] of [[-1.5, 3.2], [1.5, 3.2], [-1.5, -3], [1.5, -3]] as const) {
+      const leg = cap(0.65, 3, fur, true); leg.position.set(lx, 4, lz); this.legs.push(leg); this.heading.add(leg);
+    }
+    this.heading.add(body, head, this.tail);
+    this.heading.scale.setScalar(0.9 + rng() * 0.25);
+    this.root.add(this.heading);
+  }
+
+  advance(dt: number, groundY: number): boolean {
+    this.t += this.speed * dt * this.dir;
+    const ended = this.t <= 0 || this.t >= this.total;
+    const spot = alongPolyline(this.pts, Math.max(0.5, Math.min(this.total - 0.5, this.t)));
+    if (spot) {
+      this.face = lerpAngle(this.face, Math.atan2(spot.dx * this.dir, spot.dz * this.dir), Math.min(1, dt * 5));
+      this.phase += dt * 11;
+      const s = Math.sin(this.phase) * 0.5;
+      this.legs[0].rotation.x = s; this.legs[3].rotation.x = s;     // diagonal pairs
+      this.legs[1].rotation.x = -s; this.legs[2].rotation.x = -s;
+      this.tail.rotation.z = Math.sin(this.phase * 0.5) * 0.25;     // tail sway
+    }
+    this.heading.rotation.y = this.face;
+    this.root.position.y += (groundY - this.root.position.y) * Math.min(1, dt * 10);
+    return ended;
+  }
+}
+
+// a witch on a broomstick crossing the night sky (fall) — a high silhouette, like the bats
+class Witch {
+  root = new THREE.Group();
+  active = false;
+  cx = 0; cz = 0;
+  ang = 0;
+  radius = 300;
+  private spin: number;
+  private alt: number;
+  private phase: number;
+  private mat: THREE.MeshBasicMaterial;
+
+  constructor(seed: number) {
+    const rng = mulberry32(seed);
+    this.mat = new THREE.MeshBasicMaterial({ color: '#161219', transparent: true, opacity: 0, fog: false });
+    const M = (g: THREE.BufferGeometry, x: number, y: number, z: number, rx = 0, rz = 0) => {
+      const m = new THREE.Mesh(g, this.mat); m.position.set(x, y, z); m.rotation.x = rx; m.rotation.z = rz; this.root.add(m); return m;
+    };
+    M(new THREE.CylinderGeometry(0.8, 0.8, 34, 6), 0, 0, 0, Math.PI / 2);          // broomstick (along +z)
+    M(new THREE.ConeGeometry(3.4, 8, 6), 0, 0, -19, -Math.PI / 2);                  // bristles at the back
+    M(new THREE.CapsuleGeometry(2.6, 5, 4, 8), 0, 5.5, 1);                          // witch body, sitting
+    M(new THREE.BoxGeometry(7, 11, 1), 0, 5, -3.5, -0.3);                           // billowing cape
+    M(new THREE.SphereGeometry(2.4, 8, 6), 0, 11, 2);                               // head
+    M(new THREE.CylinderGeometry(5, 5, 0.8, 8), 0, 13, 2);                          // hat brim
+    M(new THREE.ConeGeometry(2.8, 9, 7), 0, 17.5, 1.4);                             // pointy hat
+    this.spin = (rng() < 0.5 ? -1 : 1) * (0.18 + rng() * 0.12);
+    this.radius = 320 + rng() * 240;
+    this.alt = 420 + rng() * 200;
+    this.phase = rng() * 6;
+  }
+
+  glide(dt: number, t: number, night: number) {
+    this.mat.opacity = Math.max(0, Math.min(0.95, (night - 0.2) * 2));   // only truly after dark
+    this.ang += this.spin * dt;
+    const x = this.cx + Math.cos(this.ang) * this.radius;
+    const z = this.cz + Math.sin(this.ang) * this.radius;
+    this.root.position.set(x, this.alt + Math.sin(t * 0.0008 + this.phase) * 22, z);
+    this.root.rotation.y = this.ang + (this.spin > 0 ? Math.PI / 2 : -Math.PI / 2);
+    this.root.rotation.z = (this.spin > 0 ? 1 : -1) * 0.16 + Math.sin(t * 0.0011) * 0.05;   // a wobble on the broom
+  }
+}
+
+// a soft round mist puff — a flat alpha-faded disc
+let _mistTex: THREE.CanvasTexture | null = null;
+function mistTexture(): THREE.CanvasTexture {
+  if (_mistTex) return _mistTex;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const c = cv.getContext('2d')!;
+  const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(228,232,236,0.9)'); g.addColorStop(0.55, 'rgba(216,222,228,0.4)'); g.addColorStop(1, 'rgba(210,218,224,0)');
+  c.fillStyle = g; c.fillRect(0, 0, 64, 64);
+  _mistTex = new THREE.CanvasTexture(cv);
+  return _mistTex;
+}
+
+// low graveyard mist that drifts over the burying ground and fades in after dark.
+// Camera-facing sprites (not flat planes — those go edge-on from the chase cam).
+class GraveMist {
+  root = new THREE.Group();
+  private puffs: { s: THREE.Sprite; bx: number; bz: number; ph: number; spd: number }[] = [];
+
+  constructor(cx: number, cz: number, groundY: number) {
+    const rng = mulberry32(hash32(Math.round(cx), Math.round(cz), 17));
+    for (let i = 0; i < 11; i++) {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTexture(), transparent: true, opacity: 0, depthWrite: false, fog: true }));
+      const sz = 150 + rng() * 170;
+      s.scale.set(sz, sz * 0.5, 1);                         // low, wide puffs
+      const bx = cx + (rng() - 0.5) * 620, bz = cz + (rng() - 0.5) * 620;
+      s.position.set(bx, groundY + 13 + rng() * 9, bz);
+      this.puffs.push({ s, bx, bz, ph: rng() * 6, spd: 0.2 + rng() * 0.3 });
+      this.root.add(s);
+    }
+  }
+
+  update(dt: number, t: number, night: number) {
+    const op = Math.max(0, Math.min(0.72, (night - 0.12) * 1.6));
+    for (const p of this.puffs) {
+      (p.s.material as THREE.SpriteMaterial).opacity = op;
+      p.s.position.x = p.bx + Math.sin(t * 0.0002 * p.spd + p.ph) * 40;   // slow drift
+      p.s.position.z = p.bz + Math.cos(t * 0.00017 * p.spd + p.ph) * 36;
+    }
+  }
+}
+
 // a figure skating gentle loops on a frozen pond — arms out, leaning into the turn
 class Skater {
   root = new THREE.Group();
@@ -576,6 +709,9 @@ export class Life {
   private sledders: Sledder[] = [];    // winter: kids sledding March's Hill
   private bats: Bat[] = [];            // fall: bats wheeling over the rooftops at dusk
   private ghosts: RoamGhost[] = [];    // fall: translucent ghosts drifting the streets at dusk
+  private cats: Cat[] = [];            // fall: black cats slinking the sidewalks
+  private witch: Witch | null = null;  // fall: a witch crossing the night sky
+  private mist: GraveMist | null = null;   // fall: graveyard mist at Old Hill
 
   constructor(scene: THREE.Scene, index: WorldIndex) {
     this.index = index;
@@ -638,6 +774,18 @@ export class Life {
         this.ghosts.push(gh);
         scene.add(gh.root);
       }
+      for (let i = 0; i < CATS; i++) {
+        const ct = new Cat(i * 617 + 13);
+        ct.root.position.set(0, 0, 1e7);
+        this.cats.push(ct);
+        scene.add(ct.root);
+      }
+      this.witch = new Witch(7);
+      this.witch.cx = GRAVEYARD.x; this.witch.cz = GRAVEYARD.z;   // she circles the old burying ground
+      this.witch.root.position.set(0, 0, 1e7);
+      scene.add(this.witch.root);
+      this.mist = new GraveMist(GRAVEYARD.x, GRAVEYARD.z, index.heightAtPx(GRAVEYARD.x, GRAVEYARD.z));
+      scene.add(this.mist.root);
     }
   }
 
@@ -968,6 +1116,30 @@ export class Life {
         else { gh.dir = -gh.dir; gh.t = Math.max(1, Math.min(gh.total - 1, gh.t)); }
       }
     }
+    // fall: black cats slink the sidewalks (same path network as the pedestrians)
+    for (const ct of this.cats) {
+      const dx = ct.root.position.x - px, dz = ct.root.position.z - pz;
+      if (ct.root.position.z > 1e6 || dx * dx + dz * dz > 1700 * 1700 || !ct.pts.length) {
+        const spot = this.pathSpot(px, pz, 1000, rng);
+        if (spot) {
+          const at = alongPolyline(spot.pts, spot.t);
+          if (at && this.okToSpawn(at.x, at.z, px, pz, fx, fz, 450, 1700)) {
+            ct.pts = spot.pts; ct.total = spot.total; ct.t = spot.t; ct.dir = rng() < 0.5 ? 1 : -1;
+            ct.root.position.set(at.x, this.groundAt(at.x, at.z), at.z);
+          }
+        }
+        continue;
+      }
+      const ended = ct.advance(dt, this.groundAt(ct.root.position.x, ct.root.position.z, ct.root.position.y));
+      if (ended) {
+        const hop = this.hopFrom(ct.root.position.x, ct.root.position.z, ct.pts, rng);
+        if (hop) { ct.pts = hop.pts; ct.total = hop.total; ct.t = hop.t; ct.dir = hop.dir; }
+        else { ct.dir = -ct.dir; ct.t = Math.max(1, Math.min(ct.total - 1, ct.t)); }
+      }
+    }
+    // fall: the witch circles the old burying ground (after dark); the mist drifts there
+    if (this.witch) this.witch.glide(dt, t, night);
+    if (this.mist) this.mist.update(dt, t, night);
   }
 
   // spawns snap to the top surface (a ped placed on a bridge belongs ON it);

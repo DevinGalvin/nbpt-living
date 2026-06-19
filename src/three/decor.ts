@@ -2407,6 +2407,32 @@ function stringLights(bk: Bucket, ring: number[], y: number, palette: string[] =
   }
 }
 
+// a cobweb tucked into a building's eave corner (Halloween, fall): pale thread
+// spokes + two rings, in the GLOW bucket so the strands catch the light
+function cobweb(bk: Bucket, vx: number, vz: number, ux: number, uz: number, wx: number, wz: number, y: number) {
+  const R = 11;
+  tmp.set('#dde0d8');
+  const r = tmp.r, gg = tmp.g, b = tmp.b;
+  const thread = (x0: number, z0: number, x1: number, z1: number, hw: number) => {
+    let dx = x1 - x0, dz = z1 - z0; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
+    const px = -dz * hw, pz = dx * hw;
+    bk.quad(x0 + px, y, z0 + pz, x1 + px, y, z1 + pz, x1 - px, y, z1 - pz, x0 - px, y, z0 - pz, 0, 1, 0, r, gg, b);
+  };
+  const pts: [number, number][] = [];
+  for (let k = 0; k <= 4; k++) {            // sample directions across the corner arc (u → w)
+    const f = k / 4;
+    let dx = ux + (wx - ux) * f, dz = uz + (wz - uz) * f; const L = Math.hypot(dx, dz) || 1;
+    pts.push([vx + (dx / L) * R, vz + (dz / L) * R]);
+  }
+  for (const [ex, ez] of pts) thread(vx, vz, ex, ez, 0.45);          // radial spokes
+  for (const rr of [0.45, 0.82]) {                                   // two concentric rings
+    for (let k = 0; k < 4; k++) {
+      const a = pts[k], c = pts[k + 1];
+      thread(vx + (a[0] - vx) * rr, vz + (a[1] - vz) * rr, vx + (c[0] - vx) * rr, vz + (c[1] - vz) * rr, 0.34);
+    }
+  }
+}
+
 // a friendly draped-sheet ghost hovering in a front yard (Halloween, fall)
 function ghost(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: number; nx: number; nz: number }, g: number, seed: number) {
   const rng = mulberry32(hash32(seed, 67, 5));
@@ -2769,6 +2795,21 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (porch) pumpkins(buckets, frontSegment(b, index), g, seed);
       // a friendly ghost haunting some front yards
       if (b.k === 'house' && hash32(seed, 53, 7) % 100 < 15) ghost(buckets, frontSegment(b, index), g, seed);
+      // cobwebs in the eave corners of the shops (a couple per storefront)
+      if (b.k === 'commercial' || b.sf) {
+        const ring = b.p, np = ring.length / 2;
+        let webs = 0;
+        for (let i = 0; i < np && webs < 2; i++) {
+          if (hash32(seed, i, 29) % 100 > 32) continue;
+          const vx = ring[i * 2], vz = ring[i * 2 + 1];
+          const pi = ((i - 1 + np) % np) * 2, ni = ((i + 1) % np) * 2;
+          let ux = ring[pi] - vx, uz = ring[pi + 1] - vz; const lu = Math.hypot(ux, uz) || 1;
+          let wx = ring[ni] - vx, wz = ring[ni + 1] - vz; const lw = Math.hypot(wx, wz) || 1;
+          if (lu < 14 || lw < 14) continue;                 // skip tiny/noisy edges
+          cobweb(buckets[GLOW], vx, vz, ux / lu, uz / lu, wx / lw, wz / lw, eaveAbs - 1.3);
+          webs++;
+        }
+      }
     }
   }
 
