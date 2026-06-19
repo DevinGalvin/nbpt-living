@@ -13,6 +13,10 @@ import { gillisCenter } from './gillis';
 
 export const BRIDGE_DECK_Y = 7;
 export const PIER_DECK_Y = 4;
+// a cleared sledding lane down March's Hill in winter (keep in sync with life.ts
+// MARCH_TOP / MARCH_DIR / MARCH_RUN); trees inside the lane are skipped so the kids
+// have an open run and you can actually see them.
+const SLED_LANE = { x: 2534, z0: 8380, z1: 8650, halfW: 62 };
 
 const TEX_SCALE = 16; // 1 texture repeat = 16 world px = 2 m
 const BEACH_X = 29000; // east of here = Plum Island beach zone (shake cottages, umbrellas)
@@ -3205,6 +3209,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
 
   const allPlants = index.treesFor(key).concat(index.extraPlantingsFor(key));
   for (const t of allPlants) {
+    // winter: keep the March's Hill sled lane clear of trees so the kids have a run
+    if (SEASON === 'winter') {
+      const cz = Math.max(SLED_LANE.z0, Math.min(SLED_LANE.z1, t.y));
+      if (Math.hypot(t.x - SLED_LANE.x, t.y - cz) < SLED_LANE.halfW) continue;
+    }
     const g = index.heightAtPx(t.x, t.y);
     const h1 = hash32(Math.round(t.x), Math.round(t.y));
     const variation = 0.84 + (h1 % 100) / 100 * 0.32;

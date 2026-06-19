@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { WorldIndex, CHUNK } from '../world/index';
-import { hash32, mulberry32 } from '../world/style';
+import { hash32, mulberry32, SEASON } from '../world/style';
 import { WATER_Y } from '../three/water';
 
 // Ambient life: pedestrians who follow the sidewalk network exactly, cars
@@ -21,6 +21,15 @@ const CAR_COLORS = ['#b5443a', '#3e5c84', '#d8d5cc', '#3a3c40', '#7c8b96', '#5e7
 
 const WALK_CLASSES = ['side', 'foot', 'ped', 'board', 'cycle'];
 const HOP_CLASSES = ['side', 'foot', 'ped', 'board', 'cycle', 'crossing']; // crossings = legal street crossing
+
+// winter attractions (only spawned when SEASON === 'winter')
+const FROG_POND = { x: -3273, z: 2964 };   // skaters loop on the frozen pond (Bartlet Mall)
+const MARCH_TOP = { x: 2534, z: 8380 };     // sledders push off near March's Hill summit…
+const MARCH_DIR = { x: 0, z: 1 };           // …and slide due south down the slope
+const MARCH_RUN = 270;                       // run length (px) to the flat base
+const SCARVES = ['#b03a32', '#3e5c84', '#54652c', '#c8a142', '#7c4a68', '#a8625a'];
+const SKATERS = 5;
+const SLEDDERS = 4;
 
 const matCache = new Map<string, THREE.MeshLambertMaterial>();
 function mat(hex: string): THREE.MeshLambertMaterial {
@@ -311,12 +320,127 @@ class Gull {
   }
 }
 
+// a figure skating gentle loops on a frozen pond — arms out, leaning into the turn
+class Skater {
+  root = new THREE.Group();
+  private fig = new THREE.Group();
+  private legL: THREE.Mesh;
+  private legR: THREE.Mesh;
+  private cx: number; private cz: number; private rad: number;
+  private ang: number; private spin: number; private spd: number; private ph: number; private wob: number;
+
+  constructor(seed: number, cx: number, cz: number, rad: number) {
+    const rng = mulberry32(seed);
+    const shirt = SHIRTS[Math.floor(rng() * SHIRTS.length)], pants = PANTS[Math.floor(rng() * PANTS.length)];
+    const skin = SKINS[Math.floor(rng() * SKINS.length)], hair = HAIRS[Math.floor(rng() * HAIRS.length)];
+    this.legL = cap(1.6, 7, pants, true); this.legR = cap(1.6, 7, pants, true);
+    this.legL.position.set(-2.2, 10.5, 0); this.legR.position.set(2.2, 10.5, 0);
+    const torso = cap(3.3, 5.2, shirt); torso.scale.set(1.3, 1, 0.85); torso.position.y = 16;
+    const head = sph(3.6, skin, 1, 0.95, 0.95); head.position.y = 25.4;
+    const hairCap = sph(3.75, hair, 1.02, 0.68, 1); hairCap.position.y = 26.7;
+    const scarf = box(7.2, 2.2, 7.2, SCARVES[Math.floor(rng() * SCARVES.length)]); scarf.position.y = 21;
+    const armL = cap(1.1, 4.6, shirt, true), armR = cap(1.1, 4.6, shirt, true);
+    armL.position.set(-5.4, 21, 0); armR.position.set(5.4, 21, 0);
+    armL.rotation.z = 0.7; armR.rotation.z = -0.7;     // arms out for balance
+    this.fig.add(this.legL, this.legR, torso, head, hairCap, scarf, armL, armR);
+    this.fig.scale.setScalar(0.86 + rng() * 0.2);
+    this.root.add(this.fig);
+    this.cx = cx; this.cz = cz; this.rad = rad;
+    this.ang = rng() * Math.PI * 2; this.spin = rng() < 0.5 ? 1 : -1;
+    this.spd = 0.5 + rng() * 0.5; this.ph = rng() * 6; this.wob = rng() * 6;
+  }
+
+  glide(dt: number, gy: number) {
+    this.ang += this.spin * this.spd * dt;
+    const r = this.rad * (1 + 0.13 * Math.sin(this.ang * 1.5 + this.wob));   // not a perfect circle
+    const x = this.cx + Math.cos(this.ang) * r, z = this.cz + Math.sin(this.ang) * r;
+    this.root.position.set(x, gy + 0.4 + Math.sin(this.ph) * 0.5, z);
+    this.fig.rotation.y = Math.atan2(-Math.sin(this.ang) * this.spin, Math.cos(this.ang) * this.spin); // face travel
+    this.fig.rotation.z = this.spin * 0.17;                  // lean into the turn
+    this.ph += dt * 3.4;
+    const s = Math.sin(this.ph) * 0.42;                      // gentle push-glide stride
+    this.legL.rotation.x = s; this.legR.rotation.x = -s;
+  }
+}
+
+// a kid sledding down a hill: slides down seated, then trudges back up on foot
+// dragging the sled, and pushes off again
+class Sledder {
+  root = new THREE.Group();
+  private tilt = new THREE.Group();   // yaw + pitch to the slope
+  private kid = new THREE.Group();
+  private sled: THREE.Mesh;
+  private legL: THREE.Mesh;
+  private legR: THREE.Mesh;
+  private index: WorldIndex;
+  private dist: number; private spd = 18; private state: 'down' | 'up' = 'down'; private wait = 0; private ph = 0;
+
+  constructor(seed: number, index: WorldIndex, startDist: number) {
+    this.index = index; this.dist = startDist;
+    const rng = mulberry32(seed);
+    const shirt = SHIRTS[Math.floor(rng() * SHIRTS.length)], pants = PANTS[Math.floor(rng() * PANTS.length)];
+    const skin = SKINS[Math.floor(rng() * SKINS.length)], hair = HAIRS[Math.floor(rng() * HAIRS.length)];
+    this.sled = rbox(9, 2.2, 17, 1, ['#b03a32', '#7c4a2e', '#3e5c84', '#c8a142'][Math.floor(rng() * 4)]);
+    for (const sx of [-1, 1]) { const rn = box(1, 1.6, 18, '#3a3c40'); rn.position.set(sx * 3.4, 0.8, 0); this.tilt.add(rn); }
+    this.legL = cap(1.5, 6, pants, true); this.legR = cap(1.5, 6, pants, true);
+    this.legL.position.set(-2.1, 9, 0); this.legR.position.set(2.1, 9, 0);
+    const torso = cap(2.9, 4.4, shirt); torso.position.y = 13.6;
+    const head = sph(3.2, skin, 1, 0.95, 0.95); head.position.y = 19;
+    const hairCap = sph(3.35, hair, 1.02, 0.68, 1); hairCap.position.y = 20.1;
+    const scarf = box(6, 2, 6, SCARVES[Math.floor(rng() * SCARVES.length)]); scarf.position.y = 15.4;
+    this.kid.add(this.legL, this.legR, torso, head, hairCap, scarf);
+    this.kid.scale.setScalar(0.86 + rng() * 0.16);
+    this.tilt.add(this.sled, this.kid);
+    this.root.add(this.tilt);
+    this.pose(true);
+  }
+
+  // seated on the sled (sliding) vs standing behind it (trudging back up)
+  private pose(seated: boolean) {
+    if (seated) {
+      this.kid.position.set(0, 3.4, -1); this.kid.rotation.x = -0.18;
+      this.legL.rotation.x = this.legR.rotation.x = -1.4;     // legs forward over the sled
+      this.sled.position.set(0, 1.4, 1);
+    } else {
+      this.kid.position.set(0, 0, 7); this.kid.rotation.x = 0; // standing behind, pulling
+      this.sled.position.set(0, 1.4, -6);
+    }
+  }
+
+  update(dt: number) {
+    if (this.state === 'down') {
+      this.spd = Math.min(165, this.spd + 95 * dt);            // build speed downhill
+      this.dist += this.spd * dt;
+      if (this.dist >= MARCH_RUN) { this.dist = MARCH_RUN; this.state = 'up'; this.wait = 0.5 + (this.spd % 1); this.pose(false); }
+    } else {
+      if (this.wait > 0) { this.wait -= dt; }
+      else {
+        this.dist -= 42 * dt;                                  // trudge back up
+        this.ph += dt * 7;
+        const s = Math.sin(this.ph) * 0.5;
+        this.legL.rotation.x = s; this.legR.rotation.x = -s;
+        if (this.dist <= 0) { this.dist = 0; this.state = 'down'; this.spd = 16; this.pose(true); }
+      }
+    }
+    const f = this.state === 'down' ? 1 : -1;
+    const x = MARCH_TOP.x + MARCH_DIR.x * this.dist, z = MARCH_TOP.z + MARCH_DIR.z * this.dist;
+    const y = this.index.heightAtPx(x, z);
+    this.root.position.set(x, y, z);
+    this.tilt.rotation.y = Math.atan2(MARCH_DIR.x * f, MARCH_DIR.z * f);   // face the way you're going
+    // pitch the sled/kid to the slope ahead
+    const ax = x + MARCH_DIR.x * 16 * f, az = z + MARCH_DIR.z * 16 * f;
+    this.tilt.rotation.x = Math.atan2(y - this.index.heightAtPx(ax, az), 16);
+  }
+}
+
 export class Life {
   private index: WorldIndex;
   private peds: Walker[] = [];
   private cars: TrafficCar[] = [];
   private boats: WanderBoat[] = [];
   private gulls: Gull[] = [];
+  private skaters: Skater[] = [];      // winter: figures looping on the frozen Frog Pond
+  private sledders: Sledder[] = [];    // winter: kids sledding March's Hill
 
   constructor(scene: THREE.Scene, index: WorldIndex) {
     this.index = index;
@@ -343,6 +467,26 @@ export class Life {
       gl.root.position.set(0, 0, 1e7);
       this.gulls.push(gl);
       scene.add(gl.root);
+    }
+    // winter brings two town traditions: skating on the Frog Pond + sledding March's Hill
+    if (SEASON === 'winter') {
+      const pondGy = index.heightAtPx(FROG_POND.x, FROG_POND.z);
+      for (let i = 0; i < SKATERS; i++) {
+        // staggered loops (offset centers + radii) so they don't trace one circle
+        const a = (i / SKATERS) * Math.PI * 2;
+        const cx = FROG_POND.x + Math.cos(a) * 70, cz = FROG_POND.z + Math.sin(a) * 50;
+        const s = new Skater(i * 631 + 17, cx, cz, 120 + i * 40);
+        s.root.position.set(cx, pondGy, cz);   // park at the pond (not world origin) before the first tick
+        this.skaters.push(s);
+        scene.add(s.root);
+      }
+      const hillGy = index.heightAtPx(MARCH_TOP.x, MARCH_TOP.z);
+      for (let i = 0; i < SLEDDERS; i++) {
+        const s = new Sledder(i * 743 + 23, index, (i / SLEDDERS) * MARCH_RUN);  // staggered along the run
+        s.root.position.set(MARCH_TOP.x, hillGy, MARCH_TOP.z);   // park at the hill before the first tick
+        this.sledders.push(s);
+        scene.add(s.root);
+      }
     }
   }
 
@@ -634,6 +778,14 @@ export class Life {
       }
       gl.glide(dt, t);
     }
+
+    // winter traditions: skaters loop the Frog Pond, kids sled March's Hill (kept
+    // animating at their fixed spots — only 9 actors, so no spawn/despawn churn)
+    if (this.skaters.length) {
+      const gy = this.index.heightAtPx(FROG_POND.x, FROG_POND.z);
+      for (const s of this.skaters) s.glide(dt, gy);
+    }
+    for (const s of this.sledders) s.update(dt);
   }
 
   // spawns snap to the top surface (a ped placed on a bridge belongs ON it);
