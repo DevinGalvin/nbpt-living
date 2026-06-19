@@ -2380,9 +2380,10 @@ const HEROES: Record<string, HeroBuilder> = {
 // ---------- seasonal dressing ----------
 
 const BULBS = ['#ff4a38', '#ffd24a', '#4cc857', '#4d9aff', '#fff4d4'];
+const HALLOWEEN_BULBS = ['#ff7518', '#ff9e2c', '#8a3fc0', '#a865d8'];   // pumpkin orange + purple
 
 // alternating colored bulbs strung along the eave line (GLOW bucket = unlit)
-function stringLights(bk: Bucket, ring: number[], y: number) {
+function stringLights(bk: Bucket, ring: number[], y: number, palette: string[] = BULBS) {
   const v = ringToVec2(ring);
   let bi = 0;
   for (let i = 0; i < v.length; i++) {
@@ -2396,13 +2397,33 @@ function stringLights(bk: Bucket, ring: number[], y: number) {
     for (let k = 1; k < n; k++) {
       const wx = a.x + ux * (k * 7) + nx * 0.9;
       const wz = -(a.y + uy * (k * 7)) + nz * 0.9;
-      tmp.set(BULBS[bi++ % BULBS.length]);
+      tmp.set(palette[bi++ % palette.length]);
       bk.quad(
         wx - ux * 1.05, y - 1.05, wz + uy * 1.05, wx + ux * 1.05, y - 1.05, wz - uy * 1.05,
         wx + ux * 1.05, y + 1.05, wz - uy * 1.05, wx - ux * 1.05, y + 1.05, wz + uy * 1.05,
         nx, 0, nz, tmp.r, tmp.g, tmp.b
       );
     }
+  }
+}
+
+// a friendly draped-sheet ghost hovering in a front yard (Halloween, fall)
+function ghost(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: number; nx: number; nz: number }, g: number, seed: number) {
+  const rng = mulberry32(hash32(seed, 67, 5));
+  const off = (rng() < 0.5 ? -1 : 1) * (8 + rng() * 6);
+  const px = f.x + f.tx * off + f.nx * (8 + rng() * 4);
+  const pz = f.z + f.tz * off + f.nz * (8 + rng() * 4);
+  const b = g + 2.5 + rng() * 2.5;                 // hovering off the ground
+  const sheet = '#f1f1e8';
+  tmp.set(sheet);
+  octoCanopy(buckets[PLAIN], px, b + 12, pz, 4.4, tmp.clone());     // rounded head
+  octoCanopy(buckets[PLAIN], px, b + 7, pz, 5.2, tmp.clone());      // draped body
+  for (const sd of [-1, 0, 1]) {                                    // wavy hem
+    octoCanopy(buckets[PLAIN], px + f.tx * sd * 3.6, b + 2.6, pz + f.tz * sd * 3.6, 2.5, tmp.clone());
+  }
+  tmp.set('#2a2622');                                               // two dark eyes facing the street
+  for (const sd of [-1, 1]) {
+    octoCanopy(buckets[PLAIN], px + f.tx * sd * 1.7 + f.nx * 3.7, b + 12, pz + f.tz * sd * 1.7 + f.nz * 3.7, 0.95, tmp.clone());
   }
 }
 
@@ -2739,10 +2760,15 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (b.k === 'house' && hash32(seed, 41, 9) % 100 < 8) {
         snowman(buckets, frontSegment(b, index), g, seed);
       }
-    } else if (SEASON === 'fall') {
+    } else if (SEASON === 'fall' && b.k !== 'shed') {
+      // Halloween eave lights (orange + purple) on the shops and many homes
+      const festive = b.k === 'commercial' || b.k === 'civic' || !!b.sf || hash32(seed, 19, 3) % 100 < 55;
+      if (festive) stringLights(buckets[GLOW], b.p, eaveAbs - 1.5, HALLOWEEN_BULBS);
       const porch = b.k === 'house' ? hash32(seed, 23, 5) % 100 < 88
         : (b.k === 'commercial' || !!b.sf) && hash32(seed, 23, 5) % 100 < 65;
       if (porch) pumpkins(buckets, frontSegment(b, index), g, seed);
+      // a friendly ghost haunting some front yards
+      if (b.k === 'house' && hash32(seed, 53, 7) % 100 < 15) ghost(buckets, frontSegment(b, index), g, seed);
     }
   }
 

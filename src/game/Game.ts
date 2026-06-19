@@ -367,6 +367,9 @@ export class Game {
     if (SEASON === 'winter') {
       // the big tree in Market Square (snow now falls from the Sky weather system)
       this.scene.add(this.buildHolidayTree(-100, -48));
+    } else if (SEASON === 'fall') {
+      // a Halloween patch in Market Square — scarecrow, pumpkins, hay bales
+      this.scene.add(this.buildHalloweenDisplay(-100, -48));
     }
 
     window.addEventListener('keydown', (e) => {
@@ -1129,6 +1132,85 @@ export class Game {
       ribbon.position.set(gx, sz * 1.45, gz);
       g.add(ribbon);
     }
+    g.position.set(x, gy, z);
+    return g;
+  }
+
+  // Market Square's fall Halloween patch — a scarecrow, a pumpkin patch (some
+  // carved + glowing), cornstalk bundles and hay bales. The autumn counterpart
+  // to the winter tree, in the same spot.
+  private buildHalloweenDisplay(x: number, z: number): THREE.Group {
+    const g = new THREE.Group();
+    const gy = this.index.heightAtPx(x, z);
+    const lam = (hex: string) => new THREE.MeshLambertMaterial({ color: hex });
+    const glow = (hex: string) => new THREE.MeshBasicMaterial({ color: hex });   // always-lit carved faces
+
+    // a pumpkin: squat orange sphere + stem; carved ones get a glowing face on +z
+    const pumpkin = (px: number, pz: number, r: number, carved: boolean, faceA: number) => {
+      const p = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 9), lam('#d9772a'));
+      body.scale.set(1.16, 0.82, 1.16); body.position.y = r * 0.82; body.castShadow = true;
+      p.add(body);
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.1, r * 0.15, r * 0.5, 6), lam('#5e4a28'));
+      stem.position.y = r * 1.45; p.add(stem);
+      if (carved) {
+        for (const sx of [-1, 1]) {   // triangular eyes
+          const e = new THREE.Mesh(new THREE.ConeGeometry(r * 0.2, r * 0.3, 3), glow('#ffb43a'));
+          e.position.set(sx * r * 0.42, r * 0.98, r * 0.92); e.rotation.x = Math.PI / 2; p.add(e);
+        }
+        const nose = new THREE.Mesh(new THREE.ConeGeometry(r * 0.15, r * 0.24, 3), glow('#ffb43a'));
+        nose.position.set(0, r * 0.82, r * 1.0); nose.rotation.x = Math.PI / 2; p.add(nose);
+        const mouth = new THREE.Mesh(new THREE.BoxGeometry(r * 0.95, r * 0.24, r * 0.12), glow('#ffb43a'));
+        mouth.position.set(0, r * 0.6, r * 1.0); p.add(mouth);
+      }
+      p.position.set(px, 0, pz); p.rotation.y = faceA;
+      return p;
+    };
+
+    // hay bales (a couple to perch the pumpkins on)
+    for (const [bx, bz, ang] of [[-24, 17, 0.2], [22, 15, -0.3], [25, -17, 0.5]] as const) {
+      const bale = new THREE.Mesh(new THREE.BoxGeometry(17, 9, 10), lam('#cdb56a'));
+      bale.position.set(bx, 4.5, bz); bale.rotation.y = ang; bale.castShadow = true; g.add(bale);
+      const tie = new THREE.Mesh(new THREE.BoxGeometry(17.2, 9.2, 1.4), lam('#a88f4e'));
+      tie.position.set(bx, 4.5, bz + 3); tie.rotation.y = ang; g.add(tie);
+    }
+
+    // the scarecrow on its cross-post
+    const sc = new THREE.Group();
+    const put = (geo: THREE.BufferGeometry, hex: string, px: number, py: number, pz: number, shadow = false) => {
+      const m = new THREE.Mesh(geo, lam(hex)); m.position.set(px, py, pz); m.castShadow = shadow; sc.add(m); return m;
+    };
+    put(new THREE.CylinderGeometry(1.3, 1.7, 46, 6), '#6e5236', 0, 23, 0);   // post
+    put(new THREE.BoxGeometry(42, 2.4, 2.4), '#6e5236', 0, 31, 0);            // cross-arm
+    put(new THREE.CylinderGeometry(7, 8.5, 19, 8), '#9a3f3a', 0, 29, 0, true); // stuffed plaid body
+    for (const [tx, ty] of [[-20, 31], [20, 31], [0, 19]] as const) {          // straw tufts at wrists + waist
+      const straw = put(new THREE.ConeGeometry(2.2, 7, 5), '#d6bd6a', tx, ty, 0); straw.rotation.x = Math.PI;
+    }
+    put(new THREE.SphereGeometry(6, 10, 8), '#c9a86a', 0, 42, 0, true);        // burlap head
+    for (const sx of [-1, 1]) put(new THREE.BoxGeometry(1.6, 1.6, 0.6), '#2a2622', sx * 2.1, 43, 5.4);  // button eyes
+    put(new THREE.CylinderGeometry(9.5, 9.5, 1.4, 10), '#5e4a30', 0, 46.5, 0);  // hat brim
+    put(new THREE.ConeGeometry(6.2, 10, 10), '#4a3a26', 0, 52, 0);              // hat crown
+    sc.rotation.y = 0.3; g.add(sc);
+
+    // the pumpkin patch (carved jack-o'-lanterns face out toward the square)
+    const patch: [number, number, number, boolean, number][] = [
+      [16, 9, 5.5, true, 0.4], [24, -7, 4, false, 0], [7, -15, 5, true, -0.6],
+      [-13, 11, 6, true, 0.1], [-22, -5, 4.5, false, 0], [3, 18, 3.6, false, 0],
+      [-7, -19, 4.6, true, 0.3], [13, 18, 4, true, 1.2],
+    ];
+    for (const [px, pz, r, carved, fa] of patch) g.add(pumpkin(px, pz, r, carved, fa));
+
+    // cornstalk bundles at the edges
+    for (const [cx, cz] of [[-27, -15], [27, 13], [-3, 24]] as const) {
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        const stalk = new THREE.Mesh(new THREE.ConeGeometry(1.1, 36, 4), lam(i % 2 ? '#c2a85a' : '#b8a050'));
+        stalk.position.set(cx + Math.cos(a) * 2.6, 18, cz + Math.sin(a) * 2.6);
+        stalk.rotation.z = Math.cos(a) * 0.12; stalk.rotation.x = Math.sin(a) * 0.1;
+        g.add(stalk);
+      }
+    }
+
     g.position.set(x, gy, z);
     return g;
   }
