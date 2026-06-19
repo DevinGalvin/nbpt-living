@@ -31,6 +31,8 @@ const SCARVES = ['#b03a32', '#3e5c84', '#54652c', '#c8a142', '#7c4a68', '#a8625a
 const SKATERS = 5;
 const SLEDDERS = 4;
 const BATS = 7;          // fall: bats wheeling over the rooftops at dusk
+const COSTUMES = ['witch', 'pumpkin', 'vampire', 'devil'];   // fall trick-or-treaters
+const ROAM_GHOSTS = 5;   // fall: translucent ghosts drifting the streets at dusk
 
 const matCache = new Map<string, THREE.MeshLambertMaterial>();
 function mat(hex: string): THREE.MeshLambertMaterial {
@@ -68,6 +70,12 @@ function sph(r: number, hex: string, sx = 1, sy = 1, sz = 1): THREE.Mesh {
 
 function rbox(w: number, h: number, d: number, rad: number, hex: string): THREE.Mesh {
   const m = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 2, rad), mat(hex));
+  m.castShadow = true;
+  return m;
+}
+
+function cone(r: number, h: number, hex: string): THREE.Mesh {
+  const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), mat(hex));
   m.castShadow = true;
   return m;
 }
@@ -126,12 +134,17 @@ class Walker {
   sepX = 0;          // persistent side-step so walkers never overlap
   sepZ = 0;
 
-  constructor(seed: number) {
+  constructor(seed: number, costume?: string) {
     const rng = mulberry32(seed);
-    const shirt = SHIRTS[Math.floor(rng() * SHIRTS.length)];
+    let shirt = SHIRTS[Math.floor(rng() * SHIRTS.length)];
     const pants = PANTS[Math.floor(rng() * PANTS.length)];
-    const skin = SKINS[Math.floor(rng() * SKINS.length)];
+    let skin = SKINS[Math.floor(rng() * SKINS.length)];
     const hair = HAIRS[Math.floor(rng() * HAIRS.length)];
+    // a fall trick-or-treater: the costume recolors the outfit
+    if (costume === 'witch') shirt = '#3a2a52';
+    else if (costume === 'pumpkin') shirt = '#d9772a';
+    else if (costume === 'vampire') { shirt = '#1d1d24'; skin = '#e7e4dc'; }
+    else if (costume === 'devil') shirt = '#9a2f2a';
     this.legL = cap(1.7, 7.6, pants, true);
     this.legR = cap(1.7, 7.6, pants, true);
     this.legL.position.set(-2.4, 11, 0);
@@ -147,8 +160,29 @@ class Walker {
     this.armR = cap(1.2, 4.8, shirt, true);
     this.armL.position.set(-5.6, 21.5, 0);
     this.armR.position.set(5.6, 21.5, 0);
-    this.heading.scale.setScalar(0.92 + rng() * 0.18);
     this.heading.add(this.legL, this.legR, body, head, hairCap, this.armL, this.armR);
+    if (costume) {
+      // a candy pail in one hand + the costume topper; trick-or-treaters are kid-sized
+      const pail = box(3, 3, 3, costume === 'witch' ? '#34303a' : '#e88a22');
+      pail.position.set(6.4, 16.5, 1.6); this.heading.add(pail);
+      if (costume === 'witch') {
+        const brim = sph(4.6, '#19151f', 1, 0.16, 1); brim.position.y = 30.2;
+        const hat = cone(2.7, 8.5, '#19151f'); hat.position.y = 34.5;
+        this.heading.add(brim, hat);
+      } else if (costume === 'pumpkin') {
+        const pk = sph(4.7, '#e0852e', 1.12, 0.94, 1.12); pk.position.y = 26.8;   // pumpkin head
+        const stem = box(0.9, 1.8, 0.9, '#4a6a32'); stem.position.y = 31.2;
+        this.heading.add(pk, stem);
+      } else if (costume === 'vampire') {
+        const cape = box(8.5, 14, 1.2, '#141019'); cape.position.set(0, 17, -3.4); this.heading.add(cape);
+        const collar = box(7, 2.4, 3, '#141019'); collar.position.set(0, 22.4, -1.2); this.heading.add(collar);
+      } else if (costume === 'devil') {
+        for (const sx of [-1, 1]) { const horn = cone(0.7, 2.4, '#6e1a16'); horn.position.set(sx * 2.1, 30.4, 0); horn.rotation.z = sx * -0.3; this.heading.add(horn); }
+      }
+      this.heading.scale.setScalar(0.6 + rng() * 0.1);
+    } else {
+      this.heading.scale.setScalar(0.92 + rng() * 0.18);
+    }
     this.heading.rotation.y = this.face;
     this.root.add(this.heading);
   }
@@ -369,6 +403,56 @@ class Bat {
   }
 }
 
+// a translucent ghost drifting along the streets at dusk — floats + bobs, no legs,
+// reuses the pedestrian path network so it roams believably
+class RoamGhost {
+  root = new THREE.Group();
+  private fig = new THREE.Group();
+  private bodyMat: THREE.MeshBasicMaterial;
+  private eyeMat: THREE.MeshBasicMaterial;
+  pts: number[] = [];
+  total = 1;
+  t = 0;
+  dir = 1;
+  speed = 16 + Math.random() * 12;
+  private face = Math.random() * Math.PI * 2;
+  private phase = Math.random() * 6;
+
+  constructor(seed: number) {
+    const rng = mulberry32(seed);
+    this.bodyMat = new THREE.MeshBasicMaterial({ color: '#f3f5ef', transparent: true, opacity: 0, fog: false });
+    this.eyeMat = new THREE.MeshBasicMaterial({ color: '#2a2630', transparent: true, opacity: 0, fog: false });
+    const drape = new THREE.Mesh(new THREE.ConeGeometry(7, 24, 10), this.bodyMat); drape.position.y = 12;   // flaring sheet
+    const head = new THREE.Mesh(new THREE.SphereGeometry(6, 10, 8), this.bodyMat); head.position.y = 22;
+    for (const sx of [-1, 0, 1]) {   // wavy hem
+      const h = new THREE.Mesh(new THREE.SphereGeometry(3.4, 7, 5), this.bodyMat); h.position.set(sx * 4.6, 2.4, 0); this.fig.add(h);
+    }
+    for (const sx of [-1, 1]) {      // two dark eyes facing forward
+      const e = new THREE.Mesh(new THREE.SphereGeometry(1.4, 6, 5), this.eyeMat); e.position.set(sx * 2.1, 22.5, 5.4); this.fig.add(e);
+    }
+    this.fig.add(drape, head);
+    this.fig.scale.setScalar(0.85 + rng() * 0.3);
+    this.root.add(this.fig);
+  }
+
+  // follow the current path (like a Walker) but float, bob + fade in at dusk
+  advance(dt: number, groundY: number, night: number): boolean {
+    const op = Math.max(0, Math.min(0.82, (night - 0.1) * 1.9));
+    this.bodyMat.opacity = op; this.eyeMat.opacity = Math.min(0.95, op * 1.3);
+    this.t += this.speed * dt * this.dir;
+    const ended = this.t <= 0 || this.t >= this.total;
+    const spot = alongPolyline(this.pts, Math.max(0.5, Math.min(this.total - 0.5, this.t)));
+    if (spot) {
+      this.face = lerpAngle(this.face, Math.atan2(spot.dx * this.dir, spot.dz * this.dir), Math.min(1, dt * 4));
+      this.phase += dt * 2;
+      this.root.position.set(spot.x, groundY + 22 + Math.sin(this.phase) * 3, spot.z);
+    }
+    this.fig.rotation.y = this.face;
+    this.fig.rotation.z = Math.sin(this.phase * 0.7) * 0.07;   // gentle drifting sway
+    return ended;
+  }
+}
+
 // a figure skating gentle loops on a frozen pond — arms out, leaning into the turn
 class Skater {
   root = new THREE.Group();
@@ -491,11 +575,15 @@ export class Life {
   private skaters: Skater[] = [];      // winter: figures looping on the frozen Frog Pond
   private sledders: Sledder[] = [];    // winter: kids sledding March's Hill
   private bats: Bat[] = [];            // fall: bats wheeling over the rooftops at dusk
+  private ghosts: RoamGhost[] = [];    // fall: translucent ghosts drifting the streets at dusk
 
   constructor(scene: THREE.Scene, index: WorldIndex) {
     this.index = index;
     for (let i = 0; i < PEDS; i++) {
-      const p = new Walker(i * 977 + 11);
+      // in fall, ~45% of the folks out walking are costumed trick-or-treaters
+      const costume = SEASON === 'fall' && hash32(i, 53, 11) % 100 < 45
+        ? COSTUMES[hash32(i, 71, 5) % COSTUMES.length] : undefined;
+      const p = new Walker(i * 977 + 11, costume);
       p.root.position.set(0, 0, 1e7);
       this.peds.push(p);
       scene.add(p.root);
@@ -543,6 +631,12 @@ export class Life {
         bt.root.position.set(0, 0, 1e7);   // parked offscreen until update() places it near the player
         this.bats.push(bt);
         scene.add(bt.root);
+      }
+      for (let i = 0; i < ROAM_GHOSTS; i++) {
+        const gh = new RoamGhost(i * 509 + 31);
+        gh.root.position.set(0, 0, 1e7);
+        this.ghosts.push(gh);
+        scene.add(gh.root);
       }
     }
   }
@@ -852,6 +946,27 @@ export class Life {
         bt.ang = rng() * Math.PI * 2; bt.active = true;
       }
       bt.glide(dt, t, night);
+    }
+    // fall: ghosts drift the sidewalks at dusk — same path network as the pedestrians
+    for (const gh of this.ghosts) {
+      const dx = gh.root.position.x - px, dz = gh.root.position.z - pz;
+      if (gh.root.position.z > 1e6 || dx * dx + dz * dz > 1700 * 1700 || !gh.pts.length) {
+        const spot = this.pathSpot(px, pz, 1000, rng);
+        if (spot) {
+          const at = alongPolyline(spot.pts, spot.t);
+          if (at && this.okToSpawn(at.x, at.z, px, pz, fx, fz, 500, 1700)) {
+            gh.pts = spot.pts; gh.total = spot.total; gh.t = spot.t; gh.dir = rng() < 0.5 ? 1 : -1;
+            gh.root.position.set(at.x, this.groundAt(at.x, at.z), at.z);
+          }
+        }
+        continue;
+      }
+      const ended = gh.advance(dt, this.groundAt(gh.root.position.x, gh.root.position.z), night);
+      if (ended) {
+        const hop = this.hopFrom(gh.root.position.x, gh.root.position.z, gh.pts, rng);
+        if (hop) { gh.pts = hop.pts; gh.total = hop.total; gh.t = hop.t; gh.dir = hop.dir; }
+        else { gh.dir = -gh.dir; gh.t = Math.max(1, Math.min(gh.total - 1, gh.t)); }
+      }
     }
   }
 
