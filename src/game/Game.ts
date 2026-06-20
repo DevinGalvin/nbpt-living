@@ -160,7 +160,7 @@ export class Game {
   private flyAct: string | null = null;   // edge state for the Game-owned action button (FLY/LAND/KAYAK/HOP OUT)
   private skirt: THREE.Mesh | null = null;        // ✈️ ground skirt — fills the far void off the map's edge
   private impostor: THREE.Mesh | null = null;     // world-fixed low-res map under the chunks (anti-pop-in)
-  private flightDev = false;   // flight is private for now — only opted-in devices (see ?fly)
+  private flightEnabled = true;   // ✈️ scenic flight is now PUBLIC — open to everyone (was dev-gated behind ?fly)
   private keys = new Set<string>();
   private chunks = new Map<string, ChunkEntry>();
   private pending: string[] = [];
@@ -427,14 +427,6 @@ export class Game {
     setTimeout(onResize, 700);
 
     // debug/demo hooks
-    // ✈️ flight is a private dev feature for now: enabled only on devices opted in via
-    // the ?fly=1 URL (which latches into localStorage), so the public never sees the FLY
-    // prompt. Nothing links to it — just don't share that URL.
-    try {
-      if (new URLSearchParams(location.search).has('fly')) localStorage.setItem('nbpt-fly', '1');
-      this.flightDev = localStorage.getItem('nbpt-fly') === '1';
-    } catch { this.flightDev = false; }
-
     (window as unknown as Record<string, unknown>).nbpt = {
       travel: (id: string) => this.travelTo(id),
       go: (x: number, y: number) => this.travelToXY(x, y),
@@ -459,9 +451,27 @@ export class Game {
 
     // newcomers land straight in the 3-D town — let that "suddenly in Newburyport"
     // shock land first, then a light, ignorable nudge to find their own street (no gate)
-    if (localStorage.getItem('nbpt-welcomed') !== '1') {
+    const fresh = localStorage.getItem('nbpt-welcomed') !== '1';
+    if (fresh) {
       setTimeout(() => this.hud.showStreetNudge(() => localStorage.setItem('nbpt-welcomed', '1')), 1500);
     }
+    // one-time "what's new" promo for a freshly-shipped feature (flight just went public).
+    // Stagger after the street nudge for newcomers so the two don't stack.
+    setTimeout(() => this.tryFlightPromo(), fresh ? 11000 : 3500);
+  }
+
+  // pop the flight "what's new" card once, when nothing else is on screen — otherwise
+  // wait and retry, so it never lands on top of a dialogue, modal, or cutaway
+  private tryFlightPromo() {
+    if (localStorage.getItem('nbpt-promo-flight') === '1') return;
+    const busy = this.inside || this.flying || this.onWater || this.hud.dialogueOpen
+      || !!document.querySelector('#hud .chapter.show, #hud .levelpromo.show, #hud .streettip.show, #hud .travel-panel.open, #hud .journey-panel.show, #hud .bag-panel.show, #hud .hcard.open');
+    if (busy) { setTimeout(() => this.tryFlightPromo(), 2500); return; }
+    this.hud.featurePromo({
+      key: 'nbpt-promo-flight', badge: 'NEW', icon: '✈️', title: 'Take Flight',
+      body: 'Scenic flights are open to everyone now. Head to Plum Island Airport, step onto the grass airfield, and tap ✈️ FLY to take off over Clipper Town.',
+      cta: 'Take me to the airfield', onCta: () => this.travelToXY(AIRPORT.x, AIRPORT.z)
+    });
   }
 
   // ---------- chunk streaming ----------
@@ -906,7 +916,7 @@ export class Game {
 
   // ---- enter / exit the scenic flight ----
   enterPlane() {
-    if (this.flying || !this.flightDev) return;   // flight is opt-in only (see ?fly)
+    if (this.flying) return;
     this.hud.fadeThrough(() => this.startFlight());
   }
   private startFlight() {
@@ -1631,7 +1641,7 @@ export class Game {
       if (this.flying) act = { label: '🛬 LAND', cb: () => this.land() };
       else if (this.kayaking) { if (this.landNear()) act = { label: '🛶 HOP OUT', cb: () => this.exitKayak() }; }
       else if (!this.inside && !this.boating && !this.sweeping) {
-        if (this.flightDev && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
+        if (this.flightEnabled && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
         else if (this.kayakEarned && this.nearWater && !this.quest?.nearActive && !this.hud.dialogueOpen) act = { label: '🛶 KAYAK', cb: () => this.enterKayak() };
       }
       const actKey = act ? act.label : null;

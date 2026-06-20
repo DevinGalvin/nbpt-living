@@ -526,6 +526,49 @@ const css = `
   #hud .levelpromo .lp-beam, #hud .levelpromo .lp-lamp, #hud .levelpromo .lp-snow i,
   #hud .levelpromo .lp-go { animation-duration: 0.01ms; animation-iteration-count: 1; }
 }
+/* ── feature promo: a reusable "what's new" card for a freshly-shipped feature.
+   A compact popover (NOT the full-screen level promo) — badge + icon + title +
+   blurb + a CTA. featurePromo() fills it in and shows it once per feature key. */
+#hud .promo {
+  position: absolute; inset: 0; z-index: 58; display: flex; align-items: flex-end; justify-content: center;
+  padding: 0 16px 92px; pointer-events: none; opacity: 0; transition: opacity 0.25s ease;
+}
+#hud .promo.show { opacity: 1; pointer-events: auto; }
+#hud .promo-card {
+  position: relative; width: min(380px, 92vw); text-align: center;
+  background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-bottom: 3px solid #d8b94a;
+  border-radius: 16px; padding: 20px 20px 16px; box-shadow: var(--shadow-card);
+  transform: translateY(22px) scale(0.96); opacity: 0;
+}
+#hud .promo.show .promo-card { animation: nbpt-promo-in 0.4s var(--ease-spring) forwards; }
+@keyframes nbpt-promo-in { to { transform: translateY(0) scale(1); opacity: 1; } }
+#hud .promo-x {
+  position: absolute; top: 8px; right: 10px; width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1;
+  color: #cdbf94; background: rgba(0,0,0,0.3); cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+#hud .promo-badge {
+  display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: 2px; color: #1c2430;
+  background: linear-gradient(180deg, #ffe9a6, #e8c44f); padding: 3px 11px; border-radius: 11px; margin-bottom: 10px;
+}
+#hud .promo-icon { font-size: 40px; line-height: 1; margin-bottom: 8px; }
+#hud .promo-title {
+  font-family: Georgia, serif; font-weight: 800; font-size: 22px; color: #f6efda; margin-bottom: 7px;
+}
+#hud .promo-body { font-size: 13.5px; line-height: 1.5; color: #c8d2dd; margin: 0 auto 16px; max-width: 30em; }
+#hud .promo-acts { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+#hud .promo-cta {
+  pointer-events: auto; cursor: pointer; border: 0; font-family: inherit; font-weight: 800;
+  font-size: 14.5px; letter-spacing: 0.6px; color: #2a1c0a;
+  background: linear-gradient(180deg, #ffe9a6, #e8c44f); padding: 12px 26px; border-radius: 24px;
+  transition: transform 0.12s var(--ease-out); width: 100%; max-width: 260px;
+}
+#hud .promo-cta:hover { transform: scale(1.04); }
+#hud .promo-cta:active { transform: scale(0.96); }
+#hud .promo-skip {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.4px; color: #9aa7b4; cursor: pointer; padding: 4px 8px;
+}
+#hud .promo-skip:hover { color: #cdbf9a; }
 /* one-time nudge that you can run — shown a few seconds into the first walk */
 #hud .runtip {
   position: absolute; bottom: 104px; left: 50%; transform: translate(-50%, 10px);
@@ -745,6 +788,7 @@ export class Hud {
       <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
       <div class="talk-btn">💬 TALK</div>
       <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div></div>
+      <div class="promo"><div class="promo-card"><div class="promo-x">✕</div><div class="promo-badge"></div><div class="promo-icon"></div><div class="promo-title"></div><div class="promo-body"></div><div class="promo-acts"><button class="promo-cta"></button><span class="promo-skip">Maybe later</span></div></div></div>
       <div class="levelpromo"><div class="lp-beam"></div><div class="lp-lamp"></div><div class="lp-snow"></div><div class="lp-inner"><div class="lp-kick">✦ LEVEL 1 COMPLETE ✦</div><div class="lp-lvl">LEVEL 2</div><div class="lp-title">The Light That Walks</div><div class="lp-tag">A lamp walks the shore at night, and the winter harbor needs its keeper. Your story sails on.</div><button class="lp-go">BEGIN ❄️</button><div class="lp-hint">❄️ Winter has come · change the season any time from the 🎄 button</div></div></div>
       <div class="hcard"><div class="ht"></div><div class="hy"></div><div class="hb"></div><div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="close">tap to close</div></div></div>
       <div class="vignette"></div>
@@ -1005,7 +1049,7 @@ export class Hud {
       }
       // a true start-over: also re-show the find-your-street nudge and un-tuck the
       // objective, so a fresh visitor is greeted and clearly guided again
-      for (const k of ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch5-gram', 'nbpt-ch6-step', 'nbpt-kayak', 'nbpt-historian', 'nbpt-history-read', 'nbpt-welcomed', 'nbpt-obj-min', 'nbpt-resume-pos', 'nbpt-season']) localStorage.removeItem(k);
+      for (const k of ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch5-gram', 'nbpt-ch6-step', 'nbpt-kayak', 'nbpt-historian', 'nbpt-history-read', 'nbpt-welcomed', 'nbpt-obj-min', 'nbpt-resume-pos', 'nbpt-season', 'nbpt-promo-flight']) localStorage.removeItem(k);
       location.reload();
     });
     jc.appendChild(rb);
@@ -1722,6 +1766,35 @@ export class Hud {
     (el.querySelector('.lp-go') as HTMLElement).onclick = begin;
     el.classList.add('show');
     timer = window.setTimeout(begin, 14000);   // auto-advance if they just watch
+  }
+
+  // Reusable "what's new" promo card — call it once when a cool feature ships. Shows a single
+  // time per `key` (persisted in localStorage), so it never nags. Returns true if it was shown.
+  // Optional `cta`/`onCta` add a primary button (e.g. "Take me there"); there's always a dismiss.
+  featurePromo(opts: { key: string; icon: string; title: string; body: string; badge?: string; cta?: string; onCta?: () => void }): boolean {
+    try { if (localStorage.getItem(opts.key) === '1') return false; } catch { /* private mode */ }
+    const seen = () => { try { localStorage.setItem(opts.key, '1'); } catch { /* ignore */ } };
+    const el = document.querySelector('#hud .promo') as HTMLElement;
+    (el.querySelector('.promo-badge') as HTMLElement).textContent = opts.badge || 'NEW';
+    (el.querySelector('.promo-icon') as HTMLElement).textContent = opts.icon;
+    (el.querySelector('.promo-title') as HTMLElement).textContent = opts.title;
+    (el.querySelector('.promo-body') as HTMLElement).textContent = opts.body;
+    const cta = el.querySelector('.promo-cta') as HTMLElement;
+    const skip = el.querySelector('.promo-skip') as HTMLElement;
+    const close = () => { seen(); el.classList.remove('show'); };
+    if (opts.cta) {
+      cta.style.display = '';
+      cta.textContent = opts.cta;
+      cta.onclick = () => { close(); opts.onCta?.(); };
+      skip.textContent = 'Maybe later';
+    } else {
+      cta.style.display = 'none';
+      skip.textContent = 'Got it';
+    }
+    skip.onclick = close;
+    (el.querySelector('.promo-x') as HTMLElement).onclick = close;
+    el.classList.add('show');
+    return true;
   }
 
   private runTipTimer = 0;

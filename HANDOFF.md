@@ -20,8 +20,9 @@ TypeScript + Vite. Live at **https://clippertown.io**.
 > - **✅ GIT STATE (2026-06-18):** the **whole L2 batch is now PUSHED + DEPLOYED** to `origin/source` → clippertown.io (build `a64bf2b`). It includes the **Ch4 finale**, a **UI/UX design-system pass** (public), and the **kayak-on-open-water-only + walk-across-frozen-ponds fixes** (public). **L2 is still GATED behind `?l2`** — the code is live but dormant; the public game still ends at the Custom House. Chapter keys: Ch1=`nbpt-ch5-step`, Ch2=`nbpt-ch6-step`, Ch3=`nbpt-ch7-step`, Ch4=`nbpt-ch8-step`.
 > - **➡️ NEXT TASK:** decide **when to un-gate L2** (publish it to everyone) — a full Ch1→4 playtest first is wise. Until then, keep building behind `?l2`.
 >
-> Also live but **private/dev-gated**: a **scenic flight** from Plum Island Airport
-> (`clippertown.io/?fly=1` to enable on a device) — see §5 + the `nbpt-flight-prototype` memory.
+> Now **PUBLIC** (un-gated 2026-06-20): the **scenic flight** from Plum Island Airport — walk
+> onto the airfield → **✈️ FLY**. A one-time **"what's new" promo card** (`Hud.featurePromo`,
+> key `nbpt-promo-flight`) announces it. See §5 + the `nbpt-flight-prototype` memory.
 
 ---
 
@@ -142,7 +143,7 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
 - **In-browser debug hooks** (great for verifying): `window.nbpt` → `go(x,z)`,
   `travel(id)`, `find(q)`, `pos()`, `zoom(z)`, `season('summer'|'fall'|'winter'|'spring')`,
   `time(0–1)` (0=midnight·.25=dawn·.5=noon·.75=dusk), `weather(1=storm|0=clear|null=auto)`,
-  `fly()`/`land()` (✈️ flight — only works on a `?fly`-enabled device), `_game`, `_THREE`.
+  `fly()`/`land()` (✈️ flight — now public, works anywhere), `_game`, `_THREE`.
 - **Verifying via the `nbpt` hooks** (preview throttles rAF): after `nbpt.time()`/`go()`,
   pump frames by hand — `for(let i=0;i<8;i++) nbpt._game.frame(t+=16.7)` — but continue
   timestamps from `_game.lastTime` and restore it after, or the next real frame gets a
@@ -160,7 +161,7 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
   the interior scene-swap (`enterNews`/`enterDen`/`enterStar`/tunnel), the
   first-visit welcome card + one-time "press R to run" toast, **✈️ scenic flight**
   (`enterPlane`/`startFlight`/`stepFlight`, a `flying` branch in `frame()` + `updateCamera`,
-  the ground **skirt** for the horizon, the worn-backpack toggle; dev-gated via `?fly`),
+  the ground **skirt** for the horizon, the worn-backpack toggle; **now public** — `flightEnabled`),
   the **🛶 free-roam kayak** (`enterKayak`/`exitKayak`/`buildKayak`, a `kayaking` mode + the
   `onWater` getter; water-confined `free`; the unstick net is land-only), and the Level 2
   **"look out to sea" cinematic** (`cineLook` + `lookOutToSea`/`endLookOut`; movement freeze;
@@ -227,6 +228,11 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
 ---
 
 ## 5. Recent work
+
+**June 20, 2026 — flight un-gated + L2 kayak-home transition (branch `claude/kayaking-scene-layout-nesckg`, not yet on `source`):**
+- **✈️ Scenic flight is now PUBLIC** — removed the `?fly`/`nbpt-fly` dev-gate; `flightDev` → `flightEnabled = true`. Everyone gets the FLY prompt on the airfield.
+- **Reusable feature-promo card** (`Hud.featurePromo({key,icon,title,body,badge?,cta?,onCta?})`, DOM `.promo`) — a one-time "what's new" popover for shipped features; shows once per `key` (localStorage). First use: the flight promo (`nbpt-promo-flight`), fired from `Game.tryFlightPromo()` a few seconds after load when nothing else is on screen, with a "Take me to the airfield" CTA → `travelToXY(AIRPORT)`. **Use this for future feature drops.**
+- **L2 kayak transition rework** — sea chapters no longer teleport you to the slip; you keep the free-roam kayak and **paddle home**. The **lobsterman moved out onto the water** (his boat at `LOBSTER`); the Ch3 + Ch4 meetings auto-trigger as you paddle near him (`meetLobster()` in `update()`). Also fixed the 🛶 KAYAK button overlapping the dialogue (gated on `dialogueOpen`).
 
 **June 18, 2026 — Ch3 + playtester fixes + season rework:**
 - **Ch3 "The Mooncusser" BUILT** (`quest.ts`, key `nbpt-ch7-step`). A salty **lobsterman** at the Joppa slip explains mooncussers kid-clear (replaced an over-Gram'd draft — Devin: "too much gram, want more interesting characters"; see `nbpt-cast-variety`). Beat 2 was first a dialogue-only catch, then **redesigned into a snuff-the-false-lamps minigame** (Devin: "ch3 was pretty boring, just dialogue") — 4 scattered decoy lamps (`DECOYS`), beacon points to the nearest, paddle into each to snuff (`snuffDecoy`, bitmask `nbpt-ch7-decoys`), then catch him at his last light. `warmGlow()` helper extracted; `buildKayak()` moved to `actors.ts` (shared by the ride + the docked kayak).
@@ -372,8 +378,9 @@ ponds; **13 Fox Run Drive** (navy house, red door, pool).
   whole level, then **push the held L2 batch + decide when to un-gate** (publish L2). Side-content
   ideas for later: Dexter's statues (side-quest); a "Clam Digger of Joppa" minigame (natural Joppa
   side-activity).
-- **✈️ Flight — make it real (now earmarked as Level 3's tool).** Working but **private prototype**
-  (dev-gated `?fly`). **Level 3 = sky/spring** is its home: the **1910 first-flight Echo** at the
+- **✈️ Flight — now PUBLIC (un-gated 2026-06-20), still earmarked as Level 3's tool.** Devin
+  un-gated it ("it's so cool, don't hide it") with a one-time promo card. It's still a free-roam
+  toy for now; **Level 3 = sky/spring** is its eventual story home: the **1910 first-flight Echo** at the
   airfield earns the plane, opening the Wild Port nature layer (plovers/eagles/whales, binocular
   bird-log). Polish: Clipper as co-pilot; land back at the runway; tune speed/alt/camera; trim
   streaming if heavy (the skirt covers the void). See `nbpt-flight-prototype` + `nbpt-level2`.
