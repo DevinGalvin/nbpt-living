@@ -447,6 +447,11 @@ export class Game {
       weather: (w: number | null) => this.sky.forceWeather(w), // 1=shower 0=clear null=auto
       fly: () => this.enterPlane(),                       // ✈️ board the plane at Plum Island Airport
       land: () => this.land(),
+      // quick health probe — mobile flag, live chunk count, flight state, JS heap if exposed
+      diag: () => ({
+        mobile: this.mobile, flying: this.flying, chunks: this.chunks.size,
+        heapMB: Math.round((((performance as unknown as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize) || 0) / 1048576),
+      }),
       _quest: this.quest,
       landmarks: world.landmarks.map((l) => l.id),
       _game: this,
@@ -490,17 +495,15 @@ export class Game {
     // cover around the player and ahead along the camera's forward direction. Flight
     // sees far + moves fast, so load a big ring + a long forward corridor — the town is
     // rendered before you reach it instead of popping in at the nose.
-    // flight streams a wide forward corridor; on phones (hard per-tab memory cap) keep it a
-    // small, forward-biased set so it realizes FEWER live chunks than walking ever does — each
-    // 768² ground chunk pins ~5.5 MB (GPU texture + its backing canvas), and unlike walking,
-    // flight's big ring hits the cap instantly. The whole-map impostor renders underneath, so
-    // the far/missing ground still shows the real map — we only lose a little near-plane crispness.
+    // PHONES: flight streams NO detail chunks at all. At cruise you cross chunk boundaries
+    // constantly, and each 768² ground chunk pins ~5.5 MB (GPU texture + backing canvas) — the
+    // allocate/free churn outruns Safari's reclaim and OOM-crashes the tab in seconds (caps alone
+    // didn't fix it; the churn does it). Instead we lean entirely on the whole-map impostor (built
+    // at startup, world-fixed under the chunks): it shows the real map (roads/water/greens/Plum
+    // Island) from above with flat memory. Detail (3D buildings) returns the moment you land.
     const centers: [number, number, number][] = this.flying
       ? (this.mobile
-          ? [
-              [this.px, this.pz, 1000],
-              [this.px + fx * 1650, this.pz + fz * 1650, 800],
-            ]
+          ? []
           : [
               [this.px, this.pz, 1950],
               [this.px + fx * 2200, this.pz + fz * 2200, 1650],
@@ -535,13 +538,13 @@ export class Game {
       let budget = this.flying ? (this.mobile ? 2 : 4) : 2;
       while (budget-- > 0 && this.pending.length) this.buildChunk(this.pending.shift()!);
     }
-    // evict farthest — keep a larger working set in flight so the ring + forward corridor stay
-    // loaded instead of evicting + reloading (the "watching it render"). On phones, cap flight
-    // BELOW walking's realized load: walking rarely fills its 110 (small ring, slow), but flight's
-    // ring fills the cap at once, and 768² ground chunks (~5.5 MB each) OOM-crash iOS. 60 + the
-    // small ring + the impostor underneath = stable, with only mild near-plane detail loss.
-    const cap = this.flying ? (this.mobile ? 60 : 200) : 110;
-    while (this.chunks.size > cap) {
+    // evict farthest. Desktop flight keeps a big working set (no streaming-in "render" show);
+    // walking holds 110; PHONE flight drops to a tiny floor (8) — with streaming off above, this
+    // frees the takeoff load so memory stays flat in the air (the impostor shows the map).
+    const cap = this.flying ? (this.mobile ? 8 : 200) : 110;
+    // dispose a few per frame, not all-at-once, so clearing the takeoff load doesn't hitch
+    let evictBudget = this.mobile && this.flying ? 4 : Infinity;
+    while (this.chunks.size > cap && evictBudget-- > 0) {
       let worstKey = '', worstD = -1;
       for (const key of this.chunks.keys()) {
         const [cx, cy] = key.split(',').map(Number);
