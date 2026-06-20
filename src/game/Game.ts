@@ -57,10 +57,11 @@ function lerpAngle(a: number, b: number, t: number): number {
 }
 
 interface ChunkEntry {
-  ground: THREE.Mesh;
+  ground: THREE.Mesh | null;        // null for decor-only chunks (mobile flight) — impostor is the ground
   decor: THREE.Mesh | null;
-  tex: THREE.CanvasTexture;
+  tex: THREE.CanvasTexture | null;  // null when there's no ground mesh
   signs: THREE.Mesh[];
+  decorOnly: boolean;               // built without ground/signs (cheap, churn-safe) for phone flight
 }
 
 // real store signs: small canvas-texture boards mounted on the building edge
@@ -495,15 +496,17 @@ export class Game {
     // cover around the player and ahead along the camera's forward direction. Flight
     // sees far + moves fast, so load a big ring + a long forward corridor — the town is
     // rendered before you reach it instead of popping in at the nose.
-    // PHONES: flight streams NO detail chunks at all. At cruise you cross chunk boundaries
-    // constantly, and each 768² ground chunk pins ~5.5 MB (GPU texture + backing canvas) — the
-    // allocate/free churn outruns Safari's reclaim and OOM-crashes the tab in seconds (caps alone
-    // didn't fix it; the churn does it). Instead we lean entirely on the whole-map impostor (built
-    // at startup, world-fixed under the chunks): it shows the real map (roads/water/greens/Plum
-    // Island) from above with flat memory. Detail (3D buildings) returns the moment you land.
+    // PHONES IN FLIGHT: stream DECOR-ONLY chunks (3D buildings/scenery, shared materials, no
+    // per-chunk textures) over the whole-map impostor — so you see the town's 3D shape from the
+    // air without the 768² ground-texture churn that OOM-crashes the tab. Use a tighter ring than
+    // desktop (decor is cheap, but it still churns at cruise) — the impostor fills everything else.
+    const decorOnly = this.mobile && this.flying;
     const centers: [number, number, number][] = this.flying
       ? (this.mobile
-          ? []
+          ? [
+              [this.px, this.pz, 1500],
+              [this.px + fx * 2200, this.pz + fz * 2200, 1150],
+            ]
           : [
               [this.px, this.pz, 1950],
               [this.px + fx * 2200, this.pz + fz * 2200, 1650],
@@ -520,7 +523,7 @@ export class Game {
         for (let cx = x0; cx <= x1; cx++) {
           const key = cx + ',' + cy;
           if (!this.chunks.has(key) && !this.pending.includes(key)) {
-            if (sync) this.buildChunk(key);
+            if (sync) this.buildChunk(key, decorOnly);
             else this.pending.push(key);
           }
         }
@@ -533,18 +536,15 @@ export class Game {
         const [bx, by] = b.split(',').map(Number);
         return ((ax - pcx) ** 2 + (ay - pcy) ** 2) - ((bx - pcx) ** 2 + (by - pcy) ** 2);
       });
-      // build the flight corridor faster on desktop; on phones keep it gentle so we don't
-      // churn (allocate+free) a burst of 768² canvases per frame and spike transient memory
-      let budget = this.flying ? (this.mobile ? 2 : 4) : 2;
-      while (budget-- > 0 && this.pending.length) this.buildChunk(this.pending.shift()!);
+      // build the flight corridor briskly; decor-only chunks (phone flight) are cheap, so the
+      // ground texture churn that forced a gentle budget is gone
+      let budget = this.flying ? 4 : 2;
+      while (budget-- > 0 && this.pending.length) this.buildChunk(this.pending.shift()!, decorOnly);
     }
     // evict farthest. Desktop flight keeps a big working set (no streaming-in "render" show);
-    // walking holds 110; PHONE flight drops to a tiny floor (8) — with streaming off above, this
-    // frees the takeoff load so memory stays flat in the air (the impostor shows the map).
-    const cap = this.flying ? (this.mobile ? 8 : 200) : 110;
-    // dispose a few per frame, not all-at-once, so clearing the takeoff load doesn't hitch
-    let evictBudget = this.mobile && this.flying ? 4 : Infinity;
-    while (this.chunks.size > cap && evictBudget-- > 0) {
+    // walking holds 110; phone flight holds 90 cheap decor-only chunks (no ground textures).
+    const cap = this.flying ? (this.mobile ? 90 : 200) : 110;
+    while (this.chunks.size > cap) {
       let worstKey = '', worstD = -1;
       for (const key of this.chunks.keys()) {
         const [cx, cy] = key.split(',').map(Number);
@@ -555,53 +555,69 @@ export class Game {
     }
   }
 
-  private buildChunk(key: string) {
+  // Build a chunk. `decorOnly` (mobile flight) skips the expensive per-chunk ground texture +
+  // mesh and the canvas-textured signs — only the 3D building/scenery decor (shared materials,
+  // no per-chunk textures) is added, riding over the whole-map impostor. That keeps the town's
+  // 3D shape visible from the air without the 768² CanvasTexture churn that OOM-crashes phones.
+  private buildChunk(key: string, decorOnly = false) {
     if (this.chunks.has(key)) return;
     const [cx, cy] = key.split(',').map(Number);
-    const canvas = this.index.groundCanvas(key);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
-    // terrain-displaced ground with analytic normals (seamless across chunks)
-    const geo = new THREE.PlaneGeometry(CHUNK, CHUNK, 24, 24);
-    geo.rotateX(-Math.PI / 2);
-    const posAttr = geo.attributes.position as THREE.BufferAttribute;
-    const normAttr = geo.attributes.normal as THREE.BufferAttribute;
     const cxw = (cx + 0.5) * CHUNK, cyw = (cy + 0.5) * CHUNK;
-    const n = { x: 0, y: 1, z: 0 };
-    for (let i = 0; i < posAttr.count; i++) {
-      const wx = cxw + posAttr.getX(i);
-      const wz = cyw + posAttr.getZ(i);
-      posAttr.setY(i, this.terrain.heightAt(wx, wz));
-      this.terrain.normalAt(wx, wz, n);
-      normAttr.setXYZ(i, n.x, n.y, n.z);
+
+    let ground: THREE.Mesh | null = null;
+    let tex: THREE.CanvasTexture | null = null;
+    if (!decorOnly) {
+      const canvas = this.index.groundCanvas(key);
+      tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+      // terrain-displaced ground with analytic normals (seamless across chunks)
+      const geo = new THREE.PlaneGeometry(CHUNK, CHUNK, 24, 24);
+      geo.rotateX(-Math.PI / 2);
+      const posAttr = geo.attributes.position as THREE.BufferAttribute;
+      const normAttr = geo.attributes.normal as THREE.BufferAttribute;
+      const n = { x: 0, y: 1, z: 0 };
+      for (let i = 0; i < posAttr.count; i++) {
+        const wx = cxw + posAttr.getX(i);
+        const wz = cyw + posAttr.getZ(i);
+        posAttr.setY(i, this.terrain.heightAt(wx, wz));
+        this.terrain.normalAt(wx, wz, n);
+        normAttr.setXYZ(i, n.x, n.y, n.z);
+      }
+      const groundMat = new THREE.MeshLambertMaterial({ map: tex });
+      groundMat.onBeforeCompile = detailInject;
+      ground = new THREE.Mesh(geo, groundMat);
+      ground.position.set(cxw, 0, cyw);
+      ground.receiveShadow = true;
+      this.scene.add(ground);
     }
-    const groundMat = new THREE.MeshLambertMaterial({ map: tex });
-    groundMat.onBeforeCompile = detailInject;
-    const ground = new THREE.Mesh(geo, groundMat);
-    ground.position.set(cxw, 0, cyw);
-    ground.receiveShadow = true;
-    this.scene.add(ground);
 
     const decor = buildChunkDecor(this.world, this.index, key);
     if (decor) this.scene.add(decor);
 
     const signs: THREE.Mesh[] = [];
-    for (const s of this.index.shopSignsFor(key)) {
-      const mesh = makeSignMesh(s.name);
-      mesh.position.set(s.x, this.terrain.heightAt(s.x, s.z) + 22.5, s.z);
-      mesh.rotation.y = s.rotY;
-      this.scene.add(mesh);
-      signs.push(mesh);
+    if (!decorOnly) {
+      for (const s of this.index.shopSignsFor(key)) {
+        const mesh = makeSignMesh(s.name);
+        mesh.position.set(s.x, this.terrain.heightAt(s.x, s.z) + 22.5, s.z);
+        mesh.rotation.y = s.rotY;
+        this.scene.add(mesh);
+        signs.push(mesh);
+      }
     }
 
-    this.chunks.set(key, { ground, decor, tex, signs });
+    this.chunks.set(key, { ground, decor, tex, signs, decorOnly });
   }
 
   private disposeChunk(key: string) {
     const e = this.chunks.get(key);
     if (!e) return;
-    this.scene.remove(e.ground);
+    if (e.ground) {
+      this.scene.remove(e.ground);
+      e.ground.geometry.dispose();
+      (e.ground.material as THREE.Material).dispose();
+    }
+    if (e.tex) e.tex.dispose();
     if (e.decor) {
       this.scene.remove(e.decor);
       e.decor.geometry.dispose();
@@ -613,10 +629,15 @@ export class Game {
       m.map?.dispose();
       m.dispose();
     }
-    e.ground.geometry.dispose();
-    (e.ground.material as THREE.MeshBasicMaterial).dispose();
-    e.tex.dispose();
     this.chunks.delete(key);
+  }
+
+  // dispose every loaded chunk. Used on the phone flight transitions so each side rebuilds in the
+  // right mode: takeoff sheds the ground-textured walking chunks (free the memory); landing sheds
+  // the decor-only flight chunks so the full-detail ground (not the low-res impostor) returns.
+  private clearChunks() {
+    for (const key of [...this.chunks.keys()]) this.disposeChunk(key);
+    this.pending.length = 0;
   }
 
   // ---------- movement ----------
@@ -962,6 +983,8 @@ export class Game {
     this.planeRoll = 0; this.planePitch = 0;
     this.kid.root.visible = false; this.dog.root.visible = false;   // the plane is the avatar
     this.kid.setPos(this.px, this.pz);
+    // phones: shed the ground-textured walking chunks so flight starts clean (decor-only + impostor)
+    if (this.mobile) this.clearChunks();
     this.updateCamera(0, true);   // snap behind the plane, down the runway
     this.hud.setObjective('✈️ Lifting off Runway 28 — steer to bank over town');
     this.hud.showTalk('🛬 LAND', () => this.land());   // ready from the first second, always
@@ -979,6 +1002,9 @@ export class Game {
       this.kid.root.visible = true; this.dog.root.visible = true;
       this.kidY = this.terrain.heightAt(this.px, this.pz);   // set down where you are
       this.flySpeed = 0;
+      // phones: drop the decor-only flight chunks so full-detail ground streams back in (async,
+      // so landing never freezes; the impostor shows the map until the chunks arrive)
+      if (this.mobile) this.clearChunks();
       this.updateCamera(0, true);
       this.quest?.refresh();
     });
