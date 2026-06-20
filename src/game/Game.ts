@@ -490,14 +490,16 @@ export class Game {
     // cover around the player and ahead along the camera's forward direction. Flight
     // sees far + moves fast, so load a big ring + a long forward corridor — the town is
     // rendered before you reach it instead of popping in at the nose.
-    // flight streams a wide forward corridor; on phones (hard memory cap) keep it a tighter,
-    // forward-biased set so we don't blow the per-tab budget — the skirt + impostor cover the rest.
+    // flight streams a wide forward corridor; on phones (hard per-tab memory cap) keep it a
+    // small, forward-biased set so it realizes FEWER live chunks than walking ever does — each
+    // 768² ground chunk pins ~5.5 MB (GPU texture + its backing canvas), and unlike walking,
+    // flight's big ring hits the cap instantly. The whole-map impostor renders underneath, so
+    // the far/missing ground still shows the real map — we only lose a little near-plane crispness.
     const centers: [number, number, number][] = this.flying
       ? (this.mobile
           ? [
-              [this.px, this.pz, 1300],
-              [this.px + fx * 1900, this.pz + fz * 1900, 1050],
-              [this.px + fx * 3500, this.pz + fz * 3500, 800],
+              [this.px, this.pz, 1000],
+              [this.px + fx * 1650, this.pz + fz * 1650, 800],
             ]
           : [
               [this.px, this.pz, 1950],
@@ -528,13 +530,17 @@ export class Game {
         const [bx, by] = b.split(',').map(Number);
         return ((ax - pcx) ** 2 + (ay - pcy) ** 2) - ((bx - pcx) ** 2 + (by - pcy) ** 2);
       });
-      let budget = this.flying ? 4 : 2;   // build the flight corridor faster
+      // build the flight corridor faster on desktop; on phones keep it gentle so we don't
+      // churn (allocate+free) a burst of 768² canvases per frame and spike transient memory
+      let budget = this.flying ? (this.mobile ? 2 : 4) : 2;
       while (budget-- > 0 && this.pending.length) this.buildChunk(this.pending.shift()!);
     }
     // evict farthest — keep a larger working set in flight so the ring + forward corridor stay
-    // loaded instead of evicting + reloading (the "watching it render"). On phones, hold close to
-    // the walking budget (a known-safe load) — 200 chunks of 768² ground textures OOM-crashes iOS.
-    const cap = this.flying ? (this.mobile ? 120 : 200) : 110;
+    // loaded instead of evicting + reloading (the "watching it render"). On phones, cap flight
+    // BELOW walking's realized load: walking rarely fills its 110 (small ring, slow), but flight's
+    // ring fills the cap at once, and 768² ground chunks (~5.5 MB each) OOM-crash iOS. 60 + the
+    // small ring + the impostor underneath = stable, with only mild near-plane detail loss.
+    const cap = this.flying ? (this.mobile ? 60 : 200) : 110;
     while (this.chunks.size > cap) {
       let worstKey = '', worstD = -1;
       for (const key of this.chunks.keys()) {
