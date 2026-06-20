@@ -167,6 +167,10 @@ export class Game {
   private lastTime = 0;
   // perf: weak/software GPU detected at startup; dynamic-resolution sampler state
   private lowGPU = false;
+  // touch/phone-class device: iOS Safari (and mobile browsers generally) impose a hard
+  // per-tab memory cap and will silently reload — then crash — the page if it's exceeded.
+  // Flight streams a far bigger chunk set than walking, so we shrink that set on these devices.
+  private mobile = false;
   private dynScale = 0; // current dynamic pixel ratio (0 = not yet initialised)
   private fpsAccum = 0; // seconds accumulated in the current FPS sample window
   private fpsFrames = 0; // frames counted in the current FPS sample window
@@ -205,6 +209,10 @@ export class Game {
     // weak/integrated GPUs can't afford MSAA; skip it there. The dynamic-resolution
     // loop (see updateDynamicResolution) handles everything in between at runtime.
     this.lowGPU = Game.detectLowGPU();
+    try {
+      this.mobile = (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches)
+        || (navigator.maxTouchPoints || 0) > 0;
+    } catch { this.mobile = false; }
     this.renderer = new THREE.WebGLRenderer({ antialias: !this.lowGPU });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.setSize(innerWidth, innerHeight, false); // false: let CSS size the canvas (full-bleed)
@@ -482,12 +490,20 @@ export class Game {
     // cover around the player and ahead along the camera's forward direction. Flight
     // sees far + moves fast, so load a big ring + a long forward corridor — the town is
     // rendered before you reach it instead of popping in at the nose.
+    // flight streams a wide forward corridor; on phones (hard memory cap) keep it a tighter,
+    // forward-biased set so we don't blow the per-tab budget — the skirt + impostor cover the rest.
     const centers: [number, number, number][] = this.flying
-      ? [
-          [this.px, this.pz, 1950],
-          [this.px + fx * 2200, this.pz + fz * 2200, 1650],
-          [this.px + fx * 4300, this.pz + fz * 4300, 1250],
-        ]
+      ? (this.mobile
+          ? [
+              [this.px, this.pz, 1300],
+              [this.px + fx * 1900, this.pz + fz * 1900, 1050],
+              [this.px + fx * 3500, this.pz + fz * 3500, 800],
+            ]
+          : [
+              [this.px, this.pz, 1950],
+              [this.px + fx * 2200, this.pz + fz * 2200, 1650],
+              [this.px + fx * 4300, this.pz + fz * 4300, 1250],
+            ])
       : [
           [this.px, this.pz, 1150 * z],
           [this.px + fx * 1250 * z, this.pz + fz * 1250 * z, 1150 * z]
@@ -515,9 +531,11 @@ export class Game {
       let budget = this.flying ? 4 : 2;   // build the flight corridor faster
       while (budget-- > 0 && this.pending.length) this.buildChunk(this.pending.shift()!);
     }
-    // evict farthest — keep a much larger working set in flight so the big ring + forward
-    // corridor stay loaded instead of evicting + reloading (the "watching it render")
-    while (this.chunks.size > (this.flying ? 200 : 110)) {
+    // evict farthest — keep a larger working set in flight so the ring + forward corridor stay
+    // loaded instead of evicting + reloading (the "watching it render"). On phones, hold close to
+    // the walking budget (a known-safe load) — 200 chunks of 768² ground textures OOM-crashes iOS.
+    const cap = this.flying ? (this.mobile ? 120 : 200) : 110;
+    while (this.chunks.size > cap) {
       let worstKey = '', worstD = -1;
       for (const key of this.chunks.keys()) {
         const [cx, cy] = key.split(',').map(Number);
@@ -980,11 +998,11 @@ export class Game {
     const b = this.world.meta.bounds;
     const ex = b.maxX - b.minX, ey = b.maxY - b.minY;
     const cx = (b.minX + b.maxX) / 2, cz = (b.minY + b.maxY) / 2;
-    const tex = new THREE.CanvasTexture(this.index.overviewCanvas(this.lowGPU ? 1280 : 2048));
+    const tex = new THREE.CanvasTexture(this.index.overviewCanvas(this.lowGPU || this.mobile ? 1280 : 2048));
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
     tex.flipY = false;
-    const segN = this.lowGPU ? 150 : 256;
+    const segN = this.lowGPU || this.mobile ? 150 : 256;
     const segX = segN, segZ = Math.max(8, Math.round(segN * ey / ex));
     const geo = new THREE.PlaneGeometry(ex, ey, segX, segZ);
     geo.rotateX(-Math.PI / 2);
