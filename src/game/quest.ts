@@ -484,6 +484,11 @@ export class QuestRunner {
   private stormStarted = false;                      // the finale storm ambiance is engaged (guards re-triggering onStorm)
   private beamLit = false;                           // the tower lamp is lit (set when you relight it; the beam shows)
   private homing = false;                            // the fleet is tweening up the river to FLEET_HOME
+  // explore vs play: when story mode is off, apply() suppresses the objective pill,
+  // the gold beacon/“!”, and the journey guide, and update() skips the proactive
+  // auto-story triggers — the town stays explorable, the cast still talks on TALK,
+  // but nothing pushes you anywhere. Re-enabling resumes exactly where you left off.
+  private storyOn = true;
   private bells: Set<string>;
   private rowboat: THREE.Group | null = null;
   private c5built = false;
@@ -515,6 +520,14 @@ export class QuestRunner {
     this.onStorm = onStorm;
     this.onSweep = onSweep;
     this.onSweepEnd = onSweepEnd;
+    // explore vs play. A returning player (already welcomed) keeps the story on as
+    // before; a brand-new visitor starts in explore mode (no banner, no beacon) and
+    // is offered the choice via the first-run mode pick. nbpt-story, once set by the
+    // pick or the settings toggle, is authoritative.
+    try {
+      const s = localStorage.getItem('nbpt-story');
+      this.storyOn = s === null ? (localStorage.getItem('nbpt-welcomed') === '1') : s === '1';
+    } catch { this.storyOn = true; }
     this.step = Math.min(6, Math.max(0, parseInt(localStorage.getItem(SAVE_KEY) || '0', 10) || 0));
     this.ch2 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch2-step') || '0', 10) || 0));
     this.ch3 = Math.min(4, Math.max(0, parseInt(localStorage.getItem('nbpt-ch3-step') || '0', 10) || 0));
@@ -1237,6 +1250,15 @@ export class QuestRunner {
     }
     // the journey panel's direction hint points at the live objective beacon
     this.hud.guide = target;
+    // explore mode: the world above stays correct (cast, props, doors), but nothing
+    // directs you — no objective banner, no gold beacon/“!”, no journey beam. The
+    // 🧭 panel still shows your place in the story if you choose to open it.
+    if (!this.storyOn) {
+      this.hud.setObjective(null);
+      this.beacon.visible = false;
+      this.bang.visible = false;
+      this.hud.guide = null;
+    }
   }
 
   // how many of the four smugglers'-map corners you've found (one per milestone) —
@@ -1387,6 +1409,19 @@ export class QuestRunner {
     this.apply();
   }
 
+  // explore vs play toggle (driven by the first-run pick + the settings gear). Off
+  // hides the directive HUD and stops the proactive story triggers; on resumes the
+  // story right where it stands. Persisted so the choice sticks across visits.
+  get story(): boolean { return this.storyOn; }
+  setStory(on: boolean) {
+    // always persist the explicit choice (so picking the current default — e.g. a fresh
+    // visitor confirming "just explore" — still latches it and isn't re-derived next visit)
+    try { localStorage.setItem('nbpt-story', on ? '1' : '0'); } catch { /* private mode */ }
+    if (this.storyOn === on) return;
+    this.storyOn = on;
+    this.apply();
+  }
+
   // whether the quest currently owns the talk button
   get nearActive(): boolean {
     return this.nearTag !== null;
@@ -1436,8 +1471,11 @@ export class QuestRunner {
     // hide it while you're paddling so the two never show at once
     if (this.tiedKayak) this.tiedKayak.visible = !this.hud.kayaking;
 
+    // explore mode gates the proactive auto-story beats below (each `this.storyOn &&`):
+    // nothing fires from proximity, but the cast still offers TALK so a curious explorer
+    // can opt into a beat by hand.
     // step 4: following Clipper, you close on the grate he's found
-    if (this.step === 4 && Math.hypot(px - GRATE.x, pz - GRATE.z) < 290) {
+    if (this.storyOn && this.step === 4 && Math.hypot(px - GRATE.x, pz - GRATE.z) < 290) {
       this.audio.bark();
       this.dogTarget = { x: GRATE.x, z: GRATE.z };
       this.setStep(5);
@@ -1445,13 +1483,13 @@ export class QuestRunner {
 
     // Level 2 Ch2: paddling out and reaching the light triggers the walking-lighthouse
     // reveal (auto, since the action button is yielded while kayaking)
-    if (this.l2 && this.ch5 >= 1 && this.ch6 === 2 && this.hud.kayaking
+    if (this.storyOn && this.l2 && this.ch5 >= 1 && this.ch6 === 2 && this.hud.kayaking
         && !this.hud.dialogueOpen && Math.hypot(px - LIGHT.x, pz - LIGHT.z) < 130) {
       this.revealWalk();
     }
     // Level 2: meet the lobsterman OUT ON THE WATER as you paddle home — his anchored boat
     // sits on the route in, and drawing near it opens Ch3 (the mooncusser) then Ch4 (the storm).
-    if (this.l2 && this.hud.kayaking && !this.hud.dialogueOpen
+    if (this.storyOn && this.l2 && this.hud.kayaking && !this.hud.dialogueOpen
         && ((this.ch6 >= 3 && this.ch7 === 0) || (this.ch7 >= 2 && this.ch8 === 0))
         && Math.hypot(px - LOBSTER.x, pz - LOBSTER.z) < 170) {
       this.meetLobster();
@@ -1459,7 +1497,7 @@ export class QuestRunner {
     // Level 2 Ch3 "The Mooncusser": hunt his scattered false lamps. The beacon marks the
     // nearest un-snuffed lamp; paddle into it to snuff it. Once every lamp is out, the beacon
     // swings to the foundation and reaching it catches the mooncusser at his last light.
-    if (this.l2 && this.ch6 >= 3 && this.ch7 === 1 && this.hud.kayaking && !this.hud.dialogueOpen) {
+    if (this.storyOn && this.l2 && this.ch6 >= 3 && this.ch7 === 1 && this.hud.kayaking && !this.hud.dialogueOpen) {
       let tgt: { x: number; z: number } | null = null, best = Infinity;
       for (let i = 0; i < DECOYS.length; i++) {
         if (this.snuffed.has(i)) continue;

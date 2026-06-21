@@ -80,6 +80,40 @@ const css = `
   pointer-events: auto; cursor: pointer;
 }
 #hud .sound-btn.off { opacity: 0.55; }
+#hud .settings-btn {
+  position: absolute; top: 118px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+#hud .settings-btn:hover { border-color: #d8b94a; }
+#hud .settings-pop {
+  position: absolute; top: 118px; left: 66px; min-width: 178px; max-width: 230px;
+  background: var(--panel); border: 1.5px solid rgba(216,185,74,0.5); border-radius: 12px;
+  padding: 7px; z-index: 40; display: none; pointer-events: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+#hud .settings-pop.open { display: block; }
+#hud .settings-pop .sp-hdr { font-size: 11px; color: #e8c44f; font-weight: 700; padding: 2px 5px 6px; letter-spacing: 0.3px; }
+#hud .settings-pop .sp-row {
+  display: flex; align-items: center; gap: 9px; padding: 8px 9px; border-radius: 8px;
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+#hud .settings-pop .sp-row:hover { background: rgba(216,185,74,0.16); }
+#hud .settings-pop .sp-label { flex: 1; min-width: 0; }
+#hud .settings-pop .sp-name { font-size: 13.5px; color: #f0ece0; font-weight: 700; }
+#hud .settings-pop .sp-sub { font-size: 11px; color: #9fb1c2; line-height: 1.35; margin-top: 2px; }
+/* a compact iOS-style switch — gold when on */
+#hud .settings-pop .sp-sw {
+  position: relative; flex: 0 0 auto; width: 40px; height: 23px; border-radius: 12px;
+  background: rgba(243,241,232,0.18); border: 1px solid rgba(243,241,232,0.3); transition: background 0.18s ease;
+}
+#hud .settings-pop .sp-sw::after {
+  content: ''; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%;
+  background: #f3f1e8; transition: transform 0.18s var(--ease-out);
+}
+#hud .settings-pop .sp-row.on .sp-sw { background: rgba(216,185,74,0.85); border-color: #e8c44f; }
+#hud .settings-pop .sp-row.on .sp-sw::after { transform: translateX(17px); }
 #hud .season-toggle {
   position: absolute; top: 222px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
@@ -569,6 +603,39 @@ const css = `
   font-size: 12px; font-weight: 700; letter-spacing: 0.4px; color: #9aa7b4; cursor: pointer; padding: 4px 8px;
 }
 #hud .promo-skip:hover { color: #cdbf9a; }
+/* first-run mode pick — explore vs play. Reuses the promo card look; two stacked
+   choices, Explore framed as the gentle default (dismiss/backdrop = explore too). */
+#hud .modepick {
+  position: absolute; inset: 0; z-index: 59; display: flex; align-items: center; justify-content: center;
+  padding: 0 16px; pointer-events: none; opacity: 0; transition: opacity 0.25s ease;
+  background: rgba(12, 17, 24, 0.45);
+}
+#hud .modepick.show { opacity: 1; pointer-events: auto; }
+#hud .modepick-card {
+  position: relative; width: min(380px, 92vw); text-align: center;
+  background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-bottom: 3px solid #d8b94a;
+  border-radius: 16px; padding: 22px 20px 18px; box-shadow: var(--shadow-card);
+  transform: translateY(22px) scale(0.96); opacity: 0;
+}
+#hud .modepick.show .modepick-card { animation: nbpt-promo-in 0.4s var(--ease-spring) forwards; }
+#hud .modepick-icon { font-size: 38px; line-height: 1; margin-bottom: 6px; }
+#hud .modepick-title { font-family: Georgia, serif; font-weight: 800; font-size: 22px; color: #f6efda; margin-bottom: 6px; }
+#hud .modepick-body { font-size: 13.5px; line-height: 1.5; color: #c8d2dd; margin: 0 auto 16px; max-width: 30em; }
+#hud .modepick-acts { display: flex; flex-direction: column; align-items: stretch; gap: 9px; }
+#hud .modepick-acts button {
+  pointer-events: auto; cursor: pointer; border: 0; font-family: inherit; font-weight: 800;
+  font-size: 14.5px; letter-spacing: 0.4px; padding: 13px 18px; border-radius: 13px;
+  transition: transform 0.12s var(--ease-out);
+}
+#hud .modepick-acts button:active { transform: scale(0.97); }
+#hud .modepick-acts .mp-explore { color: #2a1c0a; background: linear-gradient(180deg, #ffe9a6, #e8c44f); }
+#hud .modepick-acts .mp-explore:hover { transform: scale(1.03); }
+#hud .modepick-acts .mp-story {
+  color: #f0ece0; background: rgba(243,241,232,0.06); border: 1.5px solid rgba(243,241,232,0.32);
+}
+#hud .modepick-acts .mp-story:hover { border-color: #d8b94a; }
+#hud .modepick-acts .mp-sub { display: block; font-weight: 600; font-size: 11.5px; opacity: 0.8; margin-top: 2px; letter-spacing: 0; }
+#hud .modepick-foot { font-size: 11px; color: #8b97a4; margin-top: 13px; line-height: 1.4; }
 /* one-time nudge that you can run — shown a few seconds into the first walk */
 #hud .runtip {
   position: absolute; bottom: 104px; left: 50%; transform: translate(-50%, 10px);
@@ -775,6 +842,14 @@ export class Hud {
       <div class="bag-btn" title="Backpack (I)">🎒<span class="bag-badge">NEW</span></div>
       <div class="bag-tip"></div>
       <div class="sound-btn" title="Sound">🔊</div>
+      <div class="settings-btn" title="Settings">⚙️</div>
+      <div class="settings-pop">
+        <div class="sp-hdr">SETTINGS</div>
+        <div class="sp-row" data-set="story">
+          <div class="sp-label"><div class="sp-name">📖 Story mode</div><div class="sp-sub">Follow the town's story, with a guide. Off = free explore.</div></div>
+          <div class="sp-sw"></div>
+        </div>
+      </div>
       <div class="run-btn" title="Run">🏃</div>
       <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg></div>
       <div class="season-toggle" title="Season">🍂</div>
@@ -791,6 +866,16 @@ export class Hud {
       <div class="promo"><div class="promo-card"><div class="promo-x">✕</div><div class="promo-badge"></div><div class="promo-icon"></div><div class="promo-title"></div><div class="promo-body"></div><div class="promo-acts"><button class="promo-cta"></button><span class="promo-skip">Maybe later</span></div></div></div>
       <div class="levelpromo"><div class="lp-beam"></div><div class="lp-lamp"></div><div class="lp-snow"></div><div class="lp-inner"><div class="lp-kick">✦ LEVEL 1 COMPLETE ✦</div><div class="lp-lvl">LEVEL 2</div><div class="lp-title">The Light That Walks</div><div class="lp-tag">A lamp walks the shore at night, and the winter harbor needs its keeper. Your story sails on.</div><button class="lp-go">BEGIN ❄️</button><div class="lp-hint">❄️ Winter has come · change the season any time from the 🎄 button</div></div></div>
       <div class="hcard"><div class="ht"></div><div class="hy"></div><div class="hb"></div><div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="close">tap to close</div></div></div>
+      <div class="modepick"><div class="modepick-card">
+        <div class="modepick-icon">🧭</div>
+        <div class="modepick-title">Welcome to Clipper Town</div>
+        <div class="modepick-body">This is a living model of Newburyport — wander the real streets and harbor however you like. There's also a story woven through town, if you want one.</div>
+        <div class="modepick-acts">
+          <button class="mp-explore">Just explore<span class="mp-sub">roam free — no goals</span></button>
+          <button class="mp-story">Follow the story<span class="mp-sub">a guided journey through town</span></button>
+        </div>
+        <div class="modepick-foot">You can switch any time under ⚙️ Settings.</div>
+      </div></div>
       <div class="vignette"></div>
       <div class="fade"></div>
     `;
@@ -862,7 +947,7 @@ export class Hud {
   }
 
   private onDown(e: PointerEvent) {
-    const onUI = !!(e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .sound-btn, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard');
+    const onUI = !!(e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .sound-btn, .settings-btn, .settings-pop, .modepick, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard');
     // remember a press on the world (not UI), any pointer type, for tap-to-pet
     this.tapDown = onUI ? null : { x: e.clientX, y: e.clientY, id: e.pointerId, t: performance.now(), moved: false };
     if (e.pointerType !== 'touch') return;
@@ -1049,7 +1134,7 @@ export class Hud {
       }
       // a true start-over: also re-show the find-your-street nudge and un-tuck the
       // objective, so a fresh visitor is greeted and clearly guided again
-      for (const k of ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch5-gram', 'nbpt-ch6-step', 'nbpt-kayak', 'nbpt-historian', 'nbpt-history-read', 'nbpt-welcomed', 'nbpt-obj-min', 'nbpt-resume-pos', 'nbpt-season', 'nbpt-promo-flight']) localStorage.removeItem(k);
+      for (const k of ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch5-gram', 'nbpt-ch6-step', 'nbpt-kayak', 'nbpt-historian', 'nbpt-history-read', 'nbpt-welcomed', 'nbpt-obj-min', 'nbpt-resume-pos', 'nbpt-season', 'nbpt-promo-flight', 'nbpt-story']) localStorage.removeItem(k);
       location.reload();
     });
     jc.appendChild(rb);
@@ -1417,6 +1502,56 @@ export class Hud {
       e.stopPropagation();
       paint(onToggle());
     });
+  }
+
+  // ---------- settings gear: explore vs play (Story mode) ----------
+
+  // Wires the ⚙️ popover's Story-mode switch. `on` is the current state; `onToggle`
+  // is handed the requested new state and returns the state actually applied (so the
+  // switch always mirrors the source of truth). Tapping the gear opens/closes the pop;
+  // tapping elsewhere closes it.
+  private setStoryRowState(on: boolean) {
+    const row = document.querySelector('#hud .settings-pop .sp-row[data-set="story"]') as HTMLElement | null;
+    row?.classList.toggle('on', on);
+  }
+  // keep the gear's switch in sync when story mode is changed from elsewhere (the first-run pick)
+  refreshSettings(storyOn: boolean) { this.setStoryRowState(storyOn); }
+  initSettings(on: boolean, onToggle: (next: boolean) => boolean) {
+    const btn = document.querySelector('#hud .settings-btn') as HTMLElement;
+    const pop = document.querySelector('#hud .settings-pop') as HTMLElement;
+    const row = document.querySelector('#hud .settings-pop .sp-row[data-set="story"]') as HTMLElement;
+    this.setStoryRowState(on);
+    btn.addEventListener('click', (e) => { e.stopPropagation(); pop.classList.toggle('open'); });
+    // any tap outside the gear/pop closes it
+    window.addEventListener('pointerdown', (e) => {
+      if (!pop.classList.contains('open')) return;
+      if ((e.target as HTMLElement)?.closest?.('.settings-pop, .settings-btn')) return;
+      pop.classList.remove('open');
+    });
+    row.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const next = !row.classList.contains('on');
+      this.setStoryRowState(onToggle(next));
+    });
+  }
+
+  // first-run choice (fresh visitors only): explore freely or follow the story.
+  // Dismissing — backdrop tap or Escape — counts as "just explore", the gentle default.
+  // `onChoose(true)` = story on, `onChoose(false)` = explore. Fires exactly once.
+  showModePick(onChoose: (story: boolean) => void) {
+    const el = document.querySelector('#hud .modepick') as HTMLElement;
+    let done = false;
+    const choose = (story: boolean) => {
+      if (done) return;
+      done = true;
+      el.classList.remove('show');
+      onChoose(story);
+    };
+    (el.querySelector('.mp-explore') as HTMLElement).onclick = (e) => { e.stopPropagation(); choose(false); };
+    (el.querySelector('.mp-story') as HTMLElement).onclick = (e) => { e.stopPropagation(); choose(true); };
+    el.addEventListener('pointerdown', (e) => { if (e.target === el) choose(false); });   // backdrop = explore
+    window.addEventListener('keydown', (e) => { if (e.code === 'Escape' && !done) choose(false); });
+    el.classList.add('show');
   }
 
   // ---------- run toggle (shown on touch devices; R does the same on keys) ----------

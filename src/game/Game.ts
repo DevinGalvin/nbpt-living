@@ -365,6 +365,9 @@ export class Game {
       (x: number, z: number) => this.lookOutToSea(x, z), () => this.endLookOut(), () => this.enterKayak(),
       (x: number, z: number) => this.landAtShore(x, z),
       () => this.beginStorm(), () => this.enterSweep(), () => this.endSweep());
+    // ⚙️ Story-mode toggle: explore vs play. The quest is the source of truth, so the
+    // switch mirrors whatever it actually applies.
+    this.hud.initSettings(this.quest.story, (next) => { this.quest!.setStory(next); return this.quest!.story; });
     this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
     this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,
@@ -464,10 +467,16 @@ export class Game {
     setTimeout(() => document.getElementById('loading')?.remove(), 700);
 
     // newcomers land straight in the 3-D town — let that "suddenly in Newburyport"
-    // shock land first, then a light, ignorable nudge to find their own street (no gate)
+    // shock land first, then offer the explore-vs-story choice (most of our users are
+    // mobile and many just want to wander), and finally a light nudge to find their own
+    // street. No gate — dismissing the pick just keeps the clean explore default.
     const fresh = localStorage.getItem('nbpt-welcomed') !== '1';
     if (fresh) {
-      setTimeout(() => this.hud.showStreetNudge(() => localStorage.setItem('nbpt-welcomed', '1')), 1500);
+      setTimeout(() => this.hud.showModePick((story) => {
+        this.quest?.setStory(story);
+        this.hud.refreshSettings(this.quest?.story ?? false);
+        setTimeout(() => this.hud.showStreetNudge(() => localStorage.setItem('nbpt-welcomed', '1')), 600);
+      }), 1500);
     }
     // one-time "what's new" promo for a freshly-shipped feature (flight just went public).
     // Stagger after the street nudge for newcomers so the two don't stack.
@@ -479,7 +488,7 @@ export class Game {
   private tryFlightPromo() {
     if (localStorage.getItem('nbpt-promo-flight') === '1') return;
     const busy = this.inside || this.flying || this.onWater || this.hud.dialogueOpen
-      || !!document.querySelector('#hud .chapter.show, #hud .levelpromo.show, #hud .streettip.show, #hud .travel-panel.open, #hud .journey-panel.show, #hud .bag-panel.show, #hud .hcard.open');
+      || !!document.querySelector('#hud .chapter.show, #hud .levelpromo.show, #hud .streettip.show, #hud .modepick.show, #hud .travel-panel.open, #hud .journey-panel.show, #hud .bag-panel.show, #hud .hcard.open');
     if (busy) { setTimeout(() => this.tryFlightPromo(), 2500); return; }
     this.hud.featurePromo({
       key: 'nbpt-promo-flight', badge: 'NEW', icon: '✈️', title: 'Take Flight',
