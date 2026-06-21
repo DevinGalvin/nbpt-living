@@ -1013,7 +1013,16 @@ export class Game {
       this.flySpeed = 0;
       // phones: drop the decor-only flight chunks so full-detail ground streams back in (async,
       // so landing never freezes; the impostor shows the map until the chunks arrive)
-      if (this.mobile) this.clearChunks();
+      if (this.mobile) {
+        this.clearChunks();
+      } else {
+        // desktop: flight evicted the ground you're setting down on (the working set rode the
+        // corridor ahead of the plane). Rebuild the ring around the landing spot NOW — like the
+        // kayak/lighthouse/travel transitions do — so you land on real streets, not the low-res
+        // impostor. Phones stay async on purpose: a sync rebuild of 768px ground textures here
+        // is exactly the churn that OOM-crashes the tab.
+        this.ensureRect(true);
+      }
       this.updateCamera(0, true);
       this.quest?.refresh();
     });
