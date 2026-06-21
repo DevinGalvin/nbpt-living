@@ -73,22 +73,13 @@ const css = `
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer;
 }
-#hud .sound-btn {
-  position: absolute; top: 66px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
-  display: flex; align-items: center; justify-content: center; font-size: 19px;
-  pointer-events: auto; cursor: pointer;
-}
-#hud .sound-btn.off { opacity: 0.55; }
 #hud .settings-btn {
-  position: absolute; top: 118px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  position: absolute; top: 66px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
-#hud .settings-btn:hover { border-color: #d8b94a; }
 #hud .settings-pop {
-  position: absolute; top: 118px; left: 66px; min-width: 178px; max-width: 230px;
+  position: absolute; top: 66px; left: 66px; min-width: 188px; max-width: 240px;
   background: var(--panel); border: 1.5px solid rgba(216,185,74,0.5); border-radius: 12px;
   padding: 7px; z-index: 40; display: none; pointer-events: auto;
   box-shadow: 0 8px 24px rgba(0,0,0,0.45);
@@ -664,7 +655,7 @@ const css = `
    depth), the *tactile feel* (hover/press), and *cohesive motion*. */
 
 /* ── round chrome buttons: one shared material + feel ──────────────── */
-#hud .compass, #hud .travel-btn, #hud .sound-btn, #hud .season-toggle,
+#hud .compass, #hud .travel-btn, #hud .settings-btn, #hud .season-toggle,
 #hud .journey-btn, #hud .bag-btn {
   background: var(--chrome-bg);
   border: 1.5px solid var(--chrome-bd);
@@ -674,13 +665,13 @@ const css = `
     background 0.18s ease, box-shadow 0.18s ease, top 0.3s ease;
 }
 /* the 5 interactive ones lift on hover + press in on tap (compass is read-only) */
-#hud .travel-btn:hover, #hud .sound-btn:hover, #hud .season-toggle:hover,
+#hud .travel-btn:hover, #hud .settings-btn:hover, #hud .season-toggle:hover,
 #hud .journey-btn:hover, #hud .bag-btn:hover {
   transform: scale(1.07); border-color: var(--gold);
   background: rgba(var(--maroon), 0.82);
   box-shadow: 0 6px 18px rgba(0,0,0,0.46), 0 0 0 1px rgba(var(--gold-rgb), 0.28);
 }
-#hud .travel-btn:active, #hud .sound-btn:active, #hud .season-toggle:active,
+#hud .travel-btn:active, #hud .settings-btn:active, #hud .season-toggle:active,
 #hud .journey-btn:active, #hud .bag-btn:active,
 #hud .run-btn:active, #hud .bike-btn:active, #hud .talk-btn:active,
 #hud .modal-x:active { transform: scale(0.9); }
@@ -841,12 +832,15 @@ export class Hud {
       <div class="journey-btn" title="Missions (J)">🧭</div>
       <div class="bag-btn" title="Backpack (I)">🎒<span class="bag-badge">NEW</span></div>
       <div class="bag-tip"></div>
-      <div class="sound-btn" title="Sound">🔊</div>
       <div class="settings-btn" title="Settings">⚙️</div>
       <div class="settings-pop">
         <div class="sp-hdr">SETTINGS</div>
         <div class="sp-row" data-set="story">
           <div class="sp-label"><div class="sp-name">📖 Story mode</div><div class="sp-sub">Follow the town's story, with a guide. Off = free explore.</div></div>
+          <div class="sp-sw"></div>
+        </div>
+        <div class="sp-row" data-set="sound">
+          <div class="sp-label"><div class="sp-name">🔊 Sound</div><div class="sp-sub">Music &amp; effects</div></div>
           <div class="sp-sw"></div>
         </div>
       </div>
@@ -947,7 +941,7 @@ export class Hud {
   }
 
   private onDown(e: PointerEvent) {
-    const onUI = !!(e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .sound-btn, .settings-btn, .settings-pop, .modepick, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard');
+    const onUI = !!(e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard');
     // remember a press on the world (not UI), any pointer type, for tap-to-pet
     this.tapDown = onUI ? null : { x: e.clientX, y: e.clientY, id: e.pointerId, t: performance.now(), moved: false };
     if (e.pointerType !== 'touch') return;
@@ -1489,17 +1483,18 @@ export class Hud {
     this.albumPanel.classList.add('show');
   }
 
-  // ---------- sound toggle ----------
+  // ---------- sound toggle (lives inside the ⚙️ settings popover) ----------
 
   initSound(on: boolean, onToggle: () => boolean) {
-    const btn = document.querySelector('#hud .sound-btn') as HTMLElement;
+    const row = document.querySelector('#hud .settings-pop .sp-row[data-set="sound"]') as HTMLElement;
+    const name = row.querySelector('.sp-name') as HTMLElement;
     const paint = (en: boolean) => {
-      btn.textContent = en ? '🔊' : '🔇';
-      btn.classList.toggle('off', !en);
+      row.classList.toggle('on', en);
+      name.textContent = (en ? '🔊' : '🔇') + ' Sound';
     };
     paint(on);
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
+    row.addEventListener('click', (e) => {
+      e.stopPropagation();   // toggling sound keeps the popover open
       paint(onToggle());
     });
   }
