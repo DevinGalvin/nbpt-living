@@ -595,7 +595,11 @@ const css = `
 #hud .promo-body { font-size: 13.5px; line-height: 1.5; color: #c8d2dd; margin: 0 auto 16px; max-width: 30em; }
 #hud .promo-acts { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 #hud .promo-cta {
-  pointer-events: auto; cursor: pointer; border: 0; font-family: inherit; font-weight: 800;
+  /* No explicit pointer-events here: inherit from the parent .promo, which is
+     none until it has .show. Otherwise the invisible CTA stays clickable after
+     dismissal and, sitting bottom-center, steals taps from the talk button
+     (e.g. pressing RIBBIT teleported you to the airport). */
+  cursor: pointer; border: 0; font-family: inherit; font-weight: 800;
   font-size: 14.5px; letter-spacing: 0.6px; color: #2a1c0a;
   background: linear-gradient(180deg, #ffe9a6, #e8c44f); padding: 12px 26px; border-radius: 24px;
   transition: transform 0.12s var(--ease-out); width: 100%; max-width: 260px;
