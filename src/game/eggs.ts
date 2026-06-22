@@ -535,6 +535,62 @@ export class EggRunner {
       if (SEASON !== 'winter') this.fountainSpray();
     }
 
+    // The Frog Pond monument — the tall ornamental cast-iron urn on its granite
+    // plinth that has stood in the middle of the Bartlet Mall pond for
+    // generations. The skaters loop around it in winter; the frogs ignore it.
+    // It rises straight out of the water at the pond's true centroid.
+    {
+      const GRANITE = '#9a958b', GRANITE_D = '#858076';
+      const BROWNSTONE = '#8a6650', IRON = '#34322c', IRON_LIP = '#46443d', PLANT = '#4a7a34';
+      const cx = -3273, cz = 2964;                 // pond centroid (matches life.ts FROG_POND)
+      const g = new THREE.Group();
+
+      // stepped granite base, bottom step set just under the waterline
+      const t1 = box(22, 4, 22, GRANITE);   t1.position.y = 1.2;  g.add(t1);
+      const t2 = box(16, 3.4, 16, GRANITE_D); t2.position.y = 4.9; g.add(t2);
+      const t3 = box(11, 3, 11, GRANITE);   t3.position.y = 8.1;  g.add(t3);
+
+      // squared brownstone die block + cornice cap
+      const die = box(8, 9, 8, BROWNSTONE);  die.position.y = 14.1; g.add(die);
+      const cap = box(9.2, 2, 9.2, GRANITE_D); cap.position.y = 19.6; g.add(cap);
+
+      // tall tapering square shaft (4-sided cylinder, turned to face its flats out)
+      const shaft = cyl(2.6, 4.0, 26, BROWNSTONE, 4);
+      shaft.rotation.y = Math.PI / 4;
+      shaft.position.y = 33.6;
+      g.add(shaft);
+      const neck = cyl(3.4, 2.6, 1.8, GRANITE_D, 12); neck.position.y = 47.5; g.add(neck);
+
+      // the ornamental urn: a footed campana bowl that flares wide at the rim
+      const stem = cyl(1.8, 2.8, 4, IRON, 12);  stem.position.y = 50.4; g.add(stem);
+      const bowl = cyl(6.2, 2.6, 8, IRON, 18);  bowl.position.y = 56.4; g.add(bowl);
+      const rim = cyl(6.5, 6.0, 1.2, IRON_LIP, 20); rim.position.y = 61.0; g.add(rim);
+
+      // a pair of cast ear-handles bulging from the bowl
+      for (const side of [-1, 1]) {
+        const handle = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.5, 6, 12, Math.PI), lam(IRON_LIP));
+        handle.rotation.y = Math.PI / 2;
+        handle.rotation.z = side * Math.PI / 2;
+        handle.position.set(side * 5.6, 56.6, 0);
+        handle.castShadow = true;
+        g.add(handle);
+      }
+
+      // planted out, the way the town keeps it in summer
+      if (SEASON !== 'winter') {
+        const fill = cyl(5.6, 5.4, 2, PLANT, 16); fill.position.y = 61.4; g.add(fill);
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * Math.PI * 2;
+          const bloom = sph(1.6, PLANT, 1, 0.8, 1);
+          bloom.position.set(Math.cos(a) * 3.6, 62.8, Math.sin(a) * 3.6);
+          g.add(bloom);
+        }
+      }
+
+      g.position.set(cx, WATER_Y, cz);
+      this.scene.add(g);
+    }
+
     // frogs + lily pads at the real pond edge (asleep all winter)
     if (SEASON !== 'winter') {
       for (const [lx, lz] of [[-3072, 2754], [-3088, 2768], [-3060, 2775]] as const) {
