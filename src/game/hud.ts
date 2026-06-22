@@ -833,6 +833,10 @@ export class Hud {
   private pointers = new Set<number>();
   onTap?: (x: number, y: number) => void;   // a quick tap/click on the world (drives tap-to-pet)
   private tapDown: { x: number; y: number; id: number; t: number; moved: boolean } | null = null;
+  // opt-in touch diagnostics (clippertown.io/?dbg) — overlays live input state so we
+  // can see exactly why a touch isn't steering on a real device
+  private dbg: HTMLElement | null = null;
+  private dbgDown = '(no touch yet)';
 
   constructor() {
     const style = document.createElement('style');
@@ -965,11 +969,39 @@ export class Hud {
     // if the browser yanks pointer capture (its last resort for stealing a
     // gesture), treat it as a release so the joystick can never latch
     window.addEventListener('lostpointercapture', (e) => this.onUp(e as PointerEvent));
+
+    // ?dbg — a live touch/steering readout pinned to the screen. Turns red and
+    // spells out WHY the character isn't moving (the usual culprit: movement is
+    // frozen because a card/dialogue is open).
+    if (/[?&]dbg\b/.test(location.search) || localStorage.getItem('dbg') === '1') {
+      const d = document.createElement('div');
+      d.style.cssText = 'position:fixed;left:6px;top:150px;z-index:99999;pointer-events:none;' +
+        'font:11px/1.4 ui-monospace,monospace;color:#9effa0;background:rgba(0,0,0,0.66);' +
+        'padding:7px 9px;border-radius:7px;white-space:pre;max-width:72vw;letter-spacing:0.2px;';
+      document.body.appendChild(d);
+      this.dbg = d;
+      const tick = () => {
+        const frozen = this.dialogueOpen;
+        const cool = Math.max(0, Math.round(this.dlgCool - performance.now()));
+        d.style.color = frozen ? '#ff6b6b' : '#9effa0';
+        d.textContent =
+          (frozen ? '⛔ MOVEMENT FROZEN (dialogue/card open)\n' : '✅ free to move\n') +
+          this.dbgDown + '\n' +
+          `joyId=${this.joyId} active=${this.joyActive} x=${this.joyX.toFixed(2)} y=${this.joyY.toFixed(2)}\n` +
+          `dlgOpen=${this.dlgEl.classList.contains('open')} hcard=${this.hcardOpen} cool=${cool}ms pts=${this.pointers.size}`;
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
   }
 
   private onDown(e: PointerEvent) {
     const tgt = e.target as HTMLElement;
     const onUI = !!tgt?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .talk-btn, .dlg, .objective, .hcard');
+    if (this.dbg) {
+      const cls = String((tgt as HTMLElement)?.className || '').split(' ')[0];
+      this.dbgDown = `down <${tgt?.tagName?.toLowerCase() || '?'}${cls ? '.' + cls : ''}> UI=${onUI} primary=${e.isPrimary}`;
+    }
     // run/bike sit right under the steering thumb: don't dead-zone them. A tap toggles (their own
     // click handler); a drag promotes to the joystick (handled in onMove). Defer either way.
     const onSoftBtn = !onUI && !!tgt?.closest?.('.run-btn, .bike-btn');
