@@ -837,6 +837,13 @@ export class Hud {
   // can see exactly why a touch isn't steering on a real device
   private dbg: HTMLElement | null = null;
   private dbgDown = '(no touch yet)';
+  private dbgLog: string[] = [];
+  private dbgMoves = 0;
+  private dbgPush(tag: string) {
+    if (!this.dbg) return;
+    this.dbgLog.push(tag);
+    if (this.dbgLog.length > 10) this.dbgLog.shift();
+  }
 
   constructor() {
     const style = document.createElement('style');
@@ -964,11 +971,8 @@ export class Hud {
 
     window.addEventListener('pointerdown', (e) => this.onDown(e), { passive: false });
     window.addEventListener('pointermove', (e) => this.onMove(e), { passive: false });
-    window.addEventListener('pointerup', (e) => this.onUp(e));
-    window.addEventListener('pointercancel', (e) => this.onUp(e));
-    // if the browser yanks pointer capture (its last resort for stealing a
-    // gesture), treat it as a release so the joystick can never latch
-    window.addEventListener('lostpointercapture', (e) => this.onUp(e as PointerEvent));
+    window.addEventListener('pointerup', (e) => { this.dbgPush('↑' + (e.isPrimary ? 'p' : '')); this.onUp(e); });
+    window.addEventListener('pointercancel', (e) => { this.dbgPush('✖CANCEL'); this.onUp(e); });
 
     // ?dbg — a live touch/steering readout pinned to the screen. Turns red and
     // spells out WHY the character isn't moving (the usual culprit: movement is
@@ -985,10 +989,12 @@ export class Hud {
         const cool = Math.max(0, Math.round(this.dlgCool - performance.now()));
         d.style.color = frozen ? '#ff6b6b' : '#9effa0';
         d.textContent =
-          (frozen ? '⛔ MOVEMENT FROZEN (dialogue/card open)\n' : '✅ free to move\n') +
+          (frozen ? '⛔ MOVEMENT FROZEN (dialogue/card open)\n' : '✅ not frozen\n') +
           this.dbgDown + '\n' +
-          `joyId=${this.joyId} active=${this.joyActive} x=${this.joyX.toFixed(2)} y=${this.joyY.toFixed(2)}\n` +
-          `dlgOpen=${this.dlgEl.classList.contains('open')} hcard=${this.hcardOpen} cool=${cool}ms pts=${this.pointers.size}`;
+          `joyId=${this.joyId} active=${this.joyActive} moves=${this.dbgMoves}\n` +
+          `joyX=${this.joyX.toFixed(2)} joyY=${this.joyY.toFixed(2)} pts=${this.pointers.size}\n` +
+          `dlgOpen=${this.dlgEl.classList.contains('open')} hcard=${this.hcardOpen} cool=${cool}ms\n` +
+          `events: ${this.dbgLog.join(' ')}`;
         requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
@@ -1001,6 +1007,8 @@ export class Hud {
     if (this.dbg) {
       const cls = String((tgt as HTMLElement)?.className || '').split(' ')[0];
       this.dbgDown = `down <${tgt?.tagName?.toLowerCase() || '?'}${cls ? '.' + cls : ''}> UI=${onUI} primary=${e.isPrimary}`;
+      this.dbgMoves = 0;
+      this.dbgPush('↓' + (e.isPrimary ? 'p' : ''));
     }
     // run/bike sit right under the steering thumb: don't dead-zone them. A tap toggles (their own
     // click handler); a drag promotes to the joystick (handled in onMove). Defer either way.
@@ -1029,9 +1037,6 @@ export class Hud {
       this.joyBaseY = e.clientY;
       this.joyActive = true;
       this.placeStick(e.clientX, e.clientY, e.clientX, e.clientY);
-      // capture the pointer so the browser routes every move/up to us and can't
-      // hijack the drag — guarantees we always get the matching up/cancel
-      try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch { /* unsupported */ }
     } else {
       this.sprintTouch = true;
     }
@@ -1048,11 +1053,11 @@ export class Hud {
       this.joyActive = true;
       this.pointers.add(e.pointerId);
       this.joyPend = null;
-      try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch { /* unsupported */ }
     }
     if (this.tapDown && e.pointerId === this.tapDown.id && Math.hypot(e.clientX - this.tapDown.x, e.clientY - this.tapDown.y) > 12) this.tapDown.moved = true;
     if (e.pointerId !== this.joyId) return;
     e.preventDefault();   // keep the steering drag from becoming a browser gesture
+    if (this.dbg) this.dbgMoves++;
     let dx = e.clientX - this.joyBaseX, dy = e.clientY - this.joyBaseY;
     // a bigger throw = finer steering (small finger moves no longer swing the
     // heading), and a wider walk→run range so you can creep through tight streets
