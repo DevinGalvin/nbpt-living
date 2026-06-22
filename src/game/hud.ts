@@ -544,7 +544,10 @@ const css = `
   margin: 14px auto 0; max-width: 26em; animation: lpUp 0.6s 0.72s both;
 }
 #hud .levelpromo .lp-go {
-  margin-top: 24px; pointer-events: auto; cursor: pointer; border: 0; font-family: inherit;
+  /* inherit pointer-events from .levelpromo (none until .show) — an explicit auto
+     here would leave this invisible, screen-centered button eating touches and
+     dead-zoning the joystick after the level-up promo is dismissed */
+  margin-top: 24px; cursor: pointer; border: 0; font-family: inherit;
   font-weight: 800; font-size: 16px; letter-spacing: 2px; color: #2a1c0a;
   background: linear-gradient(180deg, #ffe9a6, #e8c44f); padding: 14px 32px; border-radius: 30px;
   animation: lpAppear 0.5s 0.92s both, lpBtn 2.2s 1.6s ease-in-out infinite; transition: transform 0.12s ease;
@@ -630,10 +633,14 @@ const css = `
 #hud .modepick-body { font-size: 13.5px; line-height: 1.5; color: #c8d2dd; margin: 0 auto 16px; max-width: 30em; }
 #hud .modepick-acts { display: flex; flex-direction: column; align-items: stretch; gap: 9px; }
 #hud .modepick-acts button {
-  pointer-events: auto; cursor: pointer; border: 0; font-family: inherit; font-weight: 800;
+  pointer-events: none; cursor: pointer; border: 0; font-family: inherit; font-weight: 800;
   font-size: 14.5px; letter-spacing: 0.4px; padding: 13px 18px; border-radius: 13px;
   transition: transform 0.12s var(--ease-out);
 }
+/* only live while the modal is actually up — otherwise these flex-centered, invisible
+   buttons keep eating touches mid-screen and dead-zone the joystick (pointer-events:auto
+   on a child overrides the dismissed parent's pointer-events:none) */
+#hud .modepick.show .modepick-acts button { pointer-events: auto; }
 #hud .modepick-acts button:active { transform: scale(0.97); }
 #hud .modepick-acts .mp-explore { color: #2a1c0a; background: linear-gradient(180deg, #ffe9a6, #e8c44f); }
 #hud .modepick-acts .mp-explore:hover { transform: scale(1.03); }
