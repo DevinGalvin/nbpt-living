@@ -1062,7 +1062,11 @@ export class Game {
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
     tex.flipY = false;
-    const segN = this.lowGPU || this.mobile ? 150 : 256;
+    // Tessellate fine enough to HUG the terrain (heights live on a 64px grid). The old
+    // 256-seg mesh spanned ~150px between verts — coarser than the terrain grid — so its flat
+    // chords overshot real hills and poked up THROUGH the detailed snow as grey blotches. Keep
+    // each impostor span near the grid pitch so it can't overshoot.
+    const segN = this.lowGPU || this.mobile ? 288 : 512;
     const segX = segN, segZ = Math.max(8, Math.round(segN * ey / ex));
     const geo = new THREE.PlaneGeometry(ex, ey, segX, segZ);
     geo.rotateX(-Math.PI / 2);
@@ -1070,11 +1074,18 @@ export class Game {
     const uv = geo.attributes.uv as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
       const wx = cx + pos.getX(i), wz = cz + pos.getZ(i);
-      pos.setY(i, this.terrain.heightAt(wx, wz) - 6);     // just under the detailed chunks
+      pos.setY(i, this.terrain.heightAt(wx, wz) - 18);    // sit clearly UNDER the detailed chunks
       uv.setXY(i, (wx - b.minX) / ex, (wz - b.minY) / ey);
     }
     geo.computeVertexNormals();
-    const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex }));
+    // Bias the impostor BACK in the depth buffer so the detailed ground always wins wherever both
+    // exist — kills the z-fight bleed-through at distance (the 18px sink handles the geometry; this
+    // handles depth-buffer precision once you're far from the camera).
+    const mat = new THREE.MeshLambertMaterial({ map: tex });
+    mat.polygonOffset = true;
+    mat.polygonOffsetFactor = 1.5;
+    mat.polygonOffsetUnits = 4;
+    const m = new THREE.Mesh(geo, mat);
     m.position.set(cx, 0, cz);
     m.renderOrder = -1;
     m.frustumCulled = false;
