@@ -978,6 +978,10 @@ export class Hud {
       if (this.joyId === -1) this.joyPend = { id: e.pointerId, x: e.clientX, y: e.clientY };
       return; // wait for a drag (onMove) before claiming the joystick
     }
+    // a genuine steering touch: claim the gesture so iOS/Android browsers don't
+    // hijack it as a scroll / toolbar swipe (which cancels the pointer mid-drag
+    // and leaves a dead band near the bottom of the screen)
+    e.preventDefault();
     this.pointers.add(e.pointerId);
     if (this.joyId === -1) {
       this.joyId = e.pointerId;
@@ -1004,6 +1008,7 @@ export class Hud {
     }
     if (this.tapDown && e.pointerId === this.tapDown.id && Math.hypot(e.clientX - this.tapDown.x, e.clientY - this.tapDown.y) > 12) this.tapDown.moved = true;
     if (e.pointerId !== this.joyId) return;
+    e.preventDefault();   // keep the steering drag from becoming a browser gesture
     let dx = e.clientX - this.joyBaseX, dy = e.clientY - this.joyBaseY;
     // a bigger throw = finer steering (small finger moves no longer swing the
     // heading), and a wider walk→run range so you can creep through tight streets
