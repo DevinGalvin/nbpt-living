@@ -962,6 +962,9 @@ export class Hud {
     window.addEventListener('pointermove', (e) => this.onMove(e), { passive: false });
     window.addEventListener('pointerup', (e) => this.onUp(e));
     window.addEventListener('pointercancel', (e) => this.onUp(e));
+    // if the browser yanks pointer capture (its last resort for stealing a
+    // gesture), treat it as a release so the joystick can never latch
+    window.addEventListener('lostpointercapture', (e) => this.onUp(e as PointerEvent));
   }
 
   private onDown(e: PointerEvent) {
@@ -982,6 +985,11 @@ export class Hud {
     // hijack it as a scroll / toolbar swipe (which cancels the pointer mid-drag
     // and leaves a dead band near the bottom of the screen)
     e.preventDefault();
+    // unlatch a dead joystick: iOS can swallow a pointer's up/cancel when it
+    // tries to steal the drag, leaving joyId stuck so every later touch falls
+    // through to the sprint branch and nothing steers. A fresh *primary* touch
+    // means the old "first finger" is gone — reclaim instead of latching.
+    if (this.joyId !== -1 && e.isPrimary) this.clearStick();
     this.pointers.add(e.pointerId);
     if (this.joyId === -1) {
       this.joyId = e.pointerId;
@@ -989,6 +997,9 @@ export class Hud {
       this.joyBaseY = e.clientY;
       this.joyActive = true;
       this.placeStick(e.clientX, e.clientY, e.clientX, e.clientY);
+      // capture the pointer so the browser routes every move/up to us and can't
+      // hijack the drag — guarantees we always get the matching up/cancel
+      try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch { /* unsupported */ }
     } else {
       this.sprintTouch = true;
     }
@@ -1005,6 +1016,7 @@ export class Hud {
       this.joyActive = true;
       this.pointers.add(e.pointerId);
       this.joyPend = null;
+      try { (e.target as Element).setPointerCapture?.(e.pointerId); } catch { /* unsupported */ }
     }
     if (this.tapDown && e.pointerId === this.tapDown.id && Math.hypot(e.clientX - this.tapDown.x, e.clientY - this.tapDown.y) > 12) this.tapDown.moved = true;
     if (e.pointerId !== this.joyId) return;
@@ -1043,6 +1055,19 @@ export class Hud {
       this.stickBase.style.display = 'none';
       this.stickKnob.style.display = 'none';
     }
+    if (this.pointers.size <= 1) this.sprintTouch = false;
+  }
+
+  // tear down the active joystick without the tap/sprint bookkeeping in onUp —
+  // used to unlatch a stale pointer so a new touch can take over steering
+  private clearStick() {
+    if (this.joyId !== -1) this.pointers.delete(this.joyId);
+    this.joyId = -1;
+    this.joyActive = false;
+    this.joyX = 0;
+    this.joyY = 0;
+    this.stickBase.style.display = 'none';
+    this.stickKnob.style.display = 'none';
     if (this.pointers.size <= 1) this.sprintTouch = false;
   }
 
