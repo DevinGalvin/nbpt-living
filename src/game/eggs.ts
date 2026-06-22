@@ -587,7 +587,7 @@ export class EggRunner {
         }
       }
 
-      g.position.set(cx, WATER_Y, cz);
+      g.position.set(cx, gy(cx, cz), cz);
       this.scene.add(g);
     }
 
