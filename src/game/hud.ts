@@ -839,6 +839,7 @@ export class Hud {
   private dbgDown = '(no touch yet)';
   private dbgLog: string[] = [];
   private dbgMoves = 0;
+  private dbgVerdict = '';
   private dbgPush(tag: string) {
     if (!this.dbg) return;
     this.dbgLog.push(tag);
@@ -971,8 +972,18 @@ export class Hud {
 
     window.addEventListener('pointerdown', (e) => this.onDown(e), { passive: false });
     window.addEventListener('pointermove', (e) => this.onMove(e), { passive: false });
-    window.addEventListener('pointerup', (e) => { this.dbgPush('↑' + (e.isPrimary ? 'p' : '')); this.onUp(e); });
-    window.addEventListener('pointercancel', (e) => { this.dbgPush('✖CANCEL'); this.onUp(e); });
+    window.addEventListener('pointerup', (e) => {
+      this.dbgPush('↑' + (e.isPrimary ? 'p' : ''));
+      // a gesture that owned the joystick but never drove a single move = input
+      // reached us but the browser swallowed the moves (or it was just a tap)
+      if (this.dbg && e.pointerId === this.joyId && this.dbgMoves === 0) this.dbgVerdict = '⚠ steering touch got 0 moves (browser ate the drag?)';
+      this.onUp(e);
+    });
+    window.addEventListener('pointercancel', (e) => {
+      this.dbgPush('✖CANCEL');
+      if (this.dbg && e.pointerId === this.joyId) this.dbgVerdict = '✖ touch CANCELLED mid-steer (browser/OS stole it)';
+      this.onUp(e);
+    });
 
     // ?dbg — a live touch/steering readout pinned to the screen. Turns red and
     // spells out WHY the character isn't moving (the usual culprit: movement is
@@ -989,6 +1000,7 @@ export class Hud {
         const cool = Math.max(0, Math.round(this.dlgCool - performance.now()));
         d.style.color = frozen ? '#ff6b6b' : '#9effa0';
         d.textContent =
+          (this.dbgVerdict ? '⭐ ' + this.dbgVerdict + '\n' : '') +
           (frozen ? '⛔ MOVEMENT FROZEN (dialogue/card open)\n' : '✅ not frozen\n') +
           this.dbgDown + '\n' +
           `joyId=${this.joyId} active=${this.joyActive} moves=${this.dbgMoves}\n` +
@@ -1057,7 +1069,7 @@ export class Hud {
     if (this.tapDown && e.pointerId === this.tapDown.id && Math.hypot(e.clientX - this.tapDown.x, e.clientY - this.tapDown.y) > 12) this.tapDown.moved = true;
     if (e.pointerId !== this.joyId) return;
     e.preventDefault();   // keep the steering drag from becoming a browser gesture
-    if (this.dbg) this.dbgMoves++;
+    if (this.dbg) { this.dbgMoves++; if (this.dbgMoves >= 3) this.dbgVerdict = ''; }
     let dx = e.clientX - this.joyBaseX, dy = e.clientY - this.joyBaseY;
     // a bigger throw = finer steering (small finger moves no longer swing the
     // heading), and a wider walk→run range so you can creep through tight streets
