@@ -152,6 +152,18 @@ const css = `
 }
 #hud .bike-btn.show { display: flex; }
 #hud .bike-btn.on { background: rgba(216, 185, 74, 0.45); border-color: #e8c44f; }
+/* desktop key-hint badge on the action buttons — only shown on keyboard (#hud.keys) */
+#hud .run-btn .kc, #hud .bike-btn .kc {
+  position: absolute; right: -5px; bottom: -5px;
+  min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box;
+  background: #f3f1e8; color: #2e161c;
+  border-radius: 5px; border: 1px solid rgba(0,0,0,0.22);
+  box-shadow: 0 1.5px 0 rgba(0,0,0,0.3);
+  font: 800 11px/1 system-ui, sans-serif;
+  display: none; align-items: center; justify-content: center; pointer-events: none;
+}
+#hud.keys .run-btn .kc, #hud.keys .bike-btn .kc { display: flex; }
+#hud .run-btn:hover, #hud .bike-btn:hover { border-color: #d8b94a; }
 /* indoors (tunnels + interiors) is walk-only — hide the run + bike buttons there */
 #hud.indoors .run-btn, #hud.indoors .bike-btn { display: none !important; }
 #hud .travel-panel {
@@ -848,8 +860,8 @@ export class Hud {
           <div class="sp-sw"></div>
         </div>
       </div>
-      <div class="run-btn" title="Run">🏃</div>
-      <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg></div>
+      <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span></div>
+      <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span></div>
       <div class="season-toggle" title="Season">🍂</div>
       <div class="season-pop"></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
@@ -882,7 +894,11 @@ export class Hud {
     // keyboard or mouse wheel, so show the on-screen touch controls instead.
     // Kept compact (icon + verb, no "Tap…to") so it clears the OSM attribution
     // on the same bottom line at phone widths.
-    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    // tag the root so CSS can show keycap hints (R / B) on the action buttons
+    // for keyboard players, and skip them on touch where the icon is the control.
+    hud.classList.add(touch ? 'touch' : 'keys');
+    if (touch) {
       (hud.querySelector('.help') as HTMLElement).textContent =
         'Drag to move · 🏃 Run · 💬 Talk';
     }
@@ -1575,12 +1591,12 @@ export class Hud {
     el.classList.add('show');
   }
 
-  // ---------- run toggle (shown on touch devices; R does the same on keys) ----------
+  // ---------- run toggle (always shown; click or R key toggles always-run) ----------
 
   initRun(onToggle: () => boolean) {
     const btn = document.querySelector('#hud .run-btn') as HTMLElement;
-    const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (touch) btn.classList.add('show');
+    // visible on desktop + touch; the R keycap hint (CSS, #hud.keys) teaches the key
+    btn.classList.add('show');
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       this.setRunState(onToggle());
