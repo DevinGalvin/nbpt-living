@@ -809,6 +809,10 @@ export class Hud {
   private joyId = -1;
   private joyBaseX = 0;
   private joyBaseY = 0;
+  // a touch that began on the run/bike button: held here until it either lifts (a tap — the
+  // button's own click toggles it) or drags far enough to become the joystick (so the lower-right
+  // steering thumb isn't a dead zone). Anchored at the original down point.
+  private joyPend: { id: number; x: number; y: number } | null = null;
   private bannerTimer = 0;
   private pointers = new Set<number>();
   onTap?: (x: number, y: number) => void;   // a quick tap/click on the world (drives tap-to-pet)
@@ -941,11 +945,19 @@ export class Hud {
   }
 
   private onDown(e: PointerEvent) {
-    const onUI = !!(e.target as HTMLElement)?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .run-btn, .bike-btn, .talk-btn, .dlg, .objective, .hcard');
-    // remember a press on the world (not UI), any pointer type, for tap-to-pet
-    this.tapDown = onUI ? null : { x: e.clientX, y: e.clientY, id: e.pointerId, t: performance.now(), moved: false };
+    const tgt = e.target as HTMLElement;
+    const onUI = !!tgt?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .talk-btn, .dlg, .objective, .hcard');
+    // run/bike sit right under the steering thumb: don't dead-zone them. A tap toggles (their own
+    // click handler); a drag promotes to the joystick (handled in onMove). Defer either way.
+    const onSoftBtn = !onUI && !!tgt?.closest?.('.run-btn, .bike-btn');
+    // remember a press on the world (not UI, not a button) for tap-to-pet
+    this.tapDown = (onUI || onSoftBtn) ? null : { x: e.clientX, y: e.clientY, id: e.pointerId, t: performance.now(), moved: false };
     if (e.pointerType !== 'touch') return;
     if (onUI) return; // UI, not joystick
+    if (onSoftBtn) {
+      if (this.joyId === -1) this.joyPend = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      return; // wait for a drag (onMove) before claiming the joystick
+    }
     this.pointers.add(e.pointerId);
     if (this.joyId === -1) {
       this.joyId = e.pointerId;
@@ -959,6 +971,17 @@ export class Hud {
   }
 
   private onMove(e: PointerEvent) {
+    // a deferred run/bike-button touch that's now clearly dragging takes over as the joystick,
+    // anchored where the thumb first landed (so the throw direction reads from the real origin)
+    if (this.joyPend && e.pointerId === this.joyPend.id) {
+      if (Math.hypot(e.clientX - this.joyPend.x, e.clientY - this.joyPend.y) <= 10) return;
+      this.joyId = e.pointerId;
+      this.joyBaseX = this.joyPend.x;
+      this.joyBaseY = this.joyPend.y;
+      this.joyActive = true;
+      this.pointers.add(e.pointerId);
+      this.joyPend = null;
+    }
     if (this.tapDown && e.pointerId === this.tapDown.id && Math.hypot(e.clientX - this.tapDown.x, e.clientY - this.tapDown.y) > 12) this.tapDown.moved = true;
     if (e.pointerId !== this.joyId) return;
     let dx = e.clientX - this.joyBaseX, dy = e.clientY - this.joyBaseY;
@@ -979,6 +1002,9 @@ export class Hud {
   }
 
   private onUp(e: PointerEvent) {
+    // a deferred button touch that lifted without dragging was just a tap — drop the candidate
+    // and let the button's own click toggle it
+    if (this.joyPend && e.pointerId === this.joyPend.id) this.joyPend = null;
     if (this.tapDown && e.pointerId === this.tapDown.id) {
       const td = this.tapDown; this.tapDown = null;
       if (!td.moved && performance.now() - td.t < 500) this.onTap?.(e.clientX, e.clientY);
