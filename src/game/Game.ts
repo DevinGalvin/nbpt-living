@@ -509,7 +509,15 @@ export class Game {
     // per-chunk textures) over the whole-map impostor — so you see the town's 3D shape from the
     // air without the 768² ground-texture churn that OOM-crashes the tab. Use a tighter ring than
     // desktop (decor is cheap, but it still churns at cruise) — the impostor fills everything else.
+    //
+    // WALKING: each "center" below loads the whole mx±rad SQUARE (not a disk). Two squares offset
+    // *diagonally* along the camera-forward vector don't fully overlap — they leave an uncovered
+    // wedge in the off-diagonal direction that widens with zoom, so zoomed-out you'd get a blurry
+    // impostor patch sitting right beside you. One forward-biased square is gap-free by construction;
+    // reach/ahead are clamped so a max zoom-out can't balloon the live chunk set (and OOM phones).
     const decorOnly = this.mobile && this.flying;
+    const reach = Math.max(1000, Math.min(2400, 1280 * z));   // half-extent of the loaded square
+    const ahead = Math.max(500, Math.min(1200, 1000 * z));    // bias it toward where you're looking
     const centers: [number, number, number][] = this.flying
       ? (this.mobile
           ? [
@@ -522,8 +530,7 @@ export class Game {
               [this.px + fx * 4300, this.pz + fz * 4300, 1250],
             ])
       : [
-          [this.px, this.pz, 1150 * z],
-          [this.px + fx * 1250 * z, this.pz + fz * 1250 * z, 1150 * z]
+          [this.px + fx * ahead, this.pz + fz * ahead, reach]
         ];
     for (const [mx, mz, rad] of centers) {
       const x0 = Math.floor((mx - rad) / CHUNK), x1 = Math.floor((mx + rad) / CHUNK);
