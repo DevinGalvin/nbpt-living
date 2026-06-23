@@ -78,6 +78,25 @@ const css = `
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
+/* a one-time nudge after a fresh visitor picks "just explore", so they know the
+   story toggle lives behind the gear; clears the moment they open Settings */
+#hud .settings-btn.pulse { animation: nbpt-gear-pulse 1.1s ease-in-out 3; }
+@keyframes nbpt-gear-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232,196,79,0.0); }
+  50% { box-shadow: 0 0 0 7px rgba(232,196,79,0.32); }
+}
+#hud .settings-hint {
+  position: absolute; top: 72px; left: 66px; z-index: 41; max-width: 200px;
+  background: var(--panel); border: 1.5px solid rgba(216,185,74,0.6); border-radius: 10px;
+  padding: 8px 11px; font-size: 12px; line-height: 1.35; color: #f3f1e8;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4); pointer-events: none;
+  opacity: 0; transform: translateX(-6px); transition: opacity 0.3s, transform 0.3s;
+}
+#hud .settings-hint::before {
+  content: ''; position: absolute; top: 12px; left: -7px; width: 0; height: 0;
+  border: 6px solid transparent; border-right-color: rgba(216,185,74,0.6); border-left: 0;
+}
+#hud .settings-hint.show { opacity: 1; transform: translateX(0); }
 #hud .settings-pop {
   position: absolute; top: 66px; left: 66px; min-width: 188px; max-width: 240px;
   background: var(--panel); border: 1.5px solid rgba(216,185,74,0.5); border-radius: 12px;
@@ -860,6 +879,7 @@ export class Hud {
       <div class="bag-btn" title="Backpack (I)">🎒<span class="bag-badge">NEW</span></div>
       <div class="bag-tip"></div>
       <div class="settings-btn" title="Settings">⚙️</div>
+      <div class="settings-hint">📖 Story mode lives here — tap ⚙️ anytime</div>
       <div class="settings-pop">
         <div class="sp-hdr">SETTINGS</div>
         <div class="sp-row" data-set="story">
@@ -1609,6 +1629,19 @@ export class Hud {
   // first-run choice (fresh visitors only): explore freely or follow the story.
   // Dismissing — backdrop tap or Escape — counts as "just explore", the gentle default.
   // `onChoose(true)` = story on, `onChoose(false)` = explore. Fires exactly once.
+  // a one-time nudge after a fresh visitor chooses "just explore": pulse the gear and show
+  // a small pointer that the Story toggle lives there. Clears on the first Settings open.
+  hintStoryToggle() {
+    const btn = document.querySelector('#hud .settings-btn') as HTMLElement | null;
+    const hint = document.querySelector('#hud .settings-hint') as HTMLElement | null;
+    if (!btn || !hint) return;
+    btn.classList.add('pulse');
+    hint.classList.add('show');
+    const clear = () => { btn.classList.remove('pulse'); hint.classList.remove('show'); };
+    btn.addEventListener('click', clear, { once: true });
+    setTimeout(clear, 7000);
+  }
+
   showModePick(onChoose: (story: boolean) => void) {
     const el = document.querySelector('#hud .modepick') as HTMLElement;
     let done = false;
@@ -1616,6 +1649,7 @@ export class Hud {
       if (done) return;
       done = true;
       el.classList.remove('show');
+      if (!story) this.hintStoryToggle();   // point explorers at the gear's Story toggle
       onChoose(story);
     };
     (el.querySelector('.mp-explore') as HTMLElement).onclick = (e) => { e.stopPropagation(); choose(false); };

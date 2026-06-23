@@ -229,7 +229,8 @@ const WATCHER_INTRO: Line[] = [
   { who: 'Birdwatcher', text: 'Joppa Flats. Best birding in the state — and the mud’ll take your boot clean off if you sass it.' },
   { who: 'Birdwatcher', text: 'These flats fed the whole town once. Low tide, everyone was out here digging clams by the bucket.' },
   { who: 'You', text: 'People dug dinner out of the mud?' },
-  { who: 'Birdwatcher', text: 'Best clams in New England. Anyway — here, my spare binoculars. I count ducks; you count whatever’s keeping you up at night.' },
+  { who: 'Birdwatcher', text: 'Best clams in New England.' },
+  { who: 'Birdwatcher', text: 'Anyway — here. My spare binoculars. I count ducks; you count whatever’s keeping you up at night.' },
   { who: 'Birdwatcher', text: 'See the lighthouse, out at the river mouth? Good. Now look a little to the left of it…' }
 ];
 // shown AFTER the camera swings out to the light, so you're seeing it as she names it
@@ -246,10 +247,12 @@ const GRAM_KAYAK: Line[] = [
   { who: 'You', text: 'Gram — there’s a light out past the lighthouse. Right where the chart says there’s nothing.' },
   { who: 'Gram', text: '…So you’ve seen it too.' },
   { who: 'You', text: 'You KNOW about it?' },
-  { who: 'Gram', text: 'Your grandfather chased that light for years. Rowed out after it more nights than I could count.' },
-  { who: 'Gram', text: 'Never would say what he found out there. Only that the chart was wrong, and the old-timers weren’t.' },
+  { who: 'Gram', text: 'Your grandfather chased that light for years.' },
+  { who: 'Gram', text: 'Rowed out after it more nights than I could count.' },
+  { who: 'Gram', text: 'Never would say what he found. Only that the chart was wrong, and the old-timers weren’t.' },
   { who: 'You', text: 'I want to see it.' },
-  { who: 'Gram', text: 'Course you do. His kayak’s still tied at the slip, down the end of the street. Been waiting for someone stubborn enough.' },
+  { who: 'Gram', text: 'Course you do. His kayak’s still tied at the slip, down the end of the street.' },
+  { who: 'Gram', text: 'Been waiting for someone stubborn enough.' },
   { who: 'Gram', text: 'Go on. Keep your eyes on the water, not your feet.' }
 ];
 const SLIP_TAKE: Line[] = [
@@ -263,7 +266,8 @@ const WALK_REVEAL: Line[] = [
   { who: 'You', text: 'It’s a foundation. Something STOOD here.' },
   { who: '', text: 'Cut into the cornerstone, worn but certain: a little lighthouse — and an arrow, pointing up the beach toward where the lighthouse stands today.' },
   { who: 'You', text: 'It moved. The whole lighthouse moved off this spot.' },
-  { who: 'You', text: 'It WALKED, Clipper. The light that walks is real — and this “ghost” out here is just where it used to stand.' },
+  { who: 'You', text: 'It WALKED, Clipper. The light that walks is real.' },
+  { who: 'You', text: 'This “ghost” out here? Just where it used to stand.' },
   { who: 'You', text: 'So who’s been lighting it?' }
 ];
 
