@@ -1305,7 +1305,7 @@ export class Hud {
     const card = document.createElement('div');
     card.className = 'm-card ' + m.state + (m.active ? ' expanded' : '');
     const dotCol = m.state === 'done' ? '#9ec98a' : m.state === 'active' ? '#f0d27a' : '#565c68';
-    const dotCh = m.state === 'locked' ? '○' : '●';
+    const dotCh = m.state === 'done' ? '✓' : m.state === 'locked' ? '○' : '●';
     const title = (m.chapter != null ? 'Chapter ' + m.chapter + ' · ' : m.kicker ? m.kicker + ' · ' : '') + m.title;
     const prog = (m.count != null && m.total != null) ? '<span class="m-prog">' + m.count + '/' + m.total + '</span>' : '';
     const rep = (m.replay != null && m.state !== 'locked') ? '<span class="m-rep" data-c="' + m.replay + '">↻</span>' : '';
