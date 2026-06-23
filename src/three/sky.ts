@@ -161,7 +161,9 @@ export class Sky {
   setTod(t: number) { this.tod = ((t % 1) + 1) % 1; }
   // cinematic dusk dip — hold the sky at `target` (sunset ≈ 0.92) until duskOut() eases it back
   duskIn(target = 0.955) { this.cine = { mode: 'to', target, saved: this.cine ? this.cine.saved : this.tod }; }
-  duskOut() { if (this.cine) this.cine.mode = 'from'; }
+  // ease the held sky back. With no arg it returns to the time we dipped from; pass `to`
+  // to ease to a specific time instead (the finale calms to a fixed Christmas morning).
+  duskOut(to?: number) { if (this.cine) { if (to !== undefined) this.cine.saved = to; this.cine.mode = 'from'; } }
   // force a shower (1) / clear (0) / release back to auto (null)
   forceWeather(w: number | null) { this.forced = w; }
 

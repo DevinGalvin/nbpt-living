@@ -282,22 +282,22 @@ const LOBSTER_KEEPER: Line[] = [
   { who: 'Lobsterman', text: 'No ghost out there. That’s old Eben — rows out every night and lights a lamp on the drowned foundation. Has for years.' },
   { who: 'Lobsterman', text: 'Since your grandfather stopped, some say. The two of ’em chased that light together, back when.' },
   { who: 'You', text: 'But the lighthouse moved. Why keep lighting an empty spot?' },
-  { who: 'Lobsterman', text: 'A man gets used to a star. Trouble is, his hands are too stiff for a night like this — the gale keeps blowin’ his lamps out.' },
-  { who: 'Lobsterman', text: 'Paddle out and light ’em for him, every last one. Don’t leave the old fella out there alone.' },
+  { who: 'Lobsterman', text: 'A man gets used to a star. Trouble is, his hands are too stiff now — the wind keeps blowin’ his lamps out faster’n he can strike ’em.' },
+  { who: 'Lobsterman', text: 'And there’s weather coming. Paddle out and light ’em for him, every last one — don’t leave the old fella out there alone.' },
   { who: 'You', text: 'Light every lamp. Come on, Clipper.' }
 ];
 // beat 2: relit every lamp and reached Eben at his last one — he knew your grandfather, hands you
 // the watch, and lets the old light rest (no peril, no villain).
 const KEEPER_MEET: Line[] = [
-  { who: '', text: 'His last lamp — and the man himself, hunched over it on the old foundation, a wool cap soaked through, white hair plastered down.' },
+  { who: '', text: 'His last lamp — and the man himself, hunched over it on the old foundation, white hair wind-tossed, a wool cap pulled low.' },
   { who: 'Keeper', text: 'You lit every one. Haven’t seen her burn this bright in years.' },
   { who: '', text: 'You lean across and light the last wick. The whole ring of lamps glows warm against the dark water.' },
   { who: 'Keeper', text: 'You’ve got his stroke, you know — your grandfather’s. I’d know that paddle anywhere.' },
   { who: 'You', text: 'You knew him?' },
-  { who: 'Keeper', text: 'Kept this light between us, him and me. The harbor moved its light ashore years back. But a man gets used to a star.' },
-  { who: 'Keeper', text: 'Storm like this, the real light downtown’s gone dark. That’s the one that brings boats home now.' },
-  { who: 'Keeper', text: 'Go wake her, kid. I’ll see my lamps to bed — they’ve had their good night.' },
-  { who: 'You', text: 'Goodnight, Eben. Come on, Clipper — to the harbor light.' }
+  { who: 'Keeper', text: 'Kept this light between us, him and me. The harbor moved its real light ashore years back. But a man gets used to a star.' },
+  { who: 'Keeper', text: 'She’s had her good night now. Time I let her rest — I’ll see the lamps to bed.' },
+  { who: 'Keeper', text: 'There’s a hard blow coming in off the water. Get yourself home, kid — and if this town ever needs its light kept… well. You’ve got the hands for it now.' },
+  { who: 'You', text: 'Goodnight, Eben. Come on, Clipper — let’s beat the storm in.' }
 ];
 
 // Chapter 4 "Bring the Light Home" — beat 1: the storm is here, the harbor light is dark,
@@ -1433,6 +1433,11 @@ export class QuestRunner {
     this.apply();
   }
 
+  // Level 2 "walking light" mystery window: after the Ch1 reveal (ch5≥1) and before the
+  // finale storm takes the sky (ch8<1). Game polls this to hold a winter dusk over the
+  // whole ghost-light arc — the premise says the light "comes on after dark."
+  get l2Night(): boolean { return this.storyOn && this.l2 && this.ch5 >= 1 && this.ch8 < 1; }
+
   // explore vs play toggle (driven by the first-run pick + the settings gear). Off
   // hides the directive HUD and stops the proactive story triggers; on resumes the
   // story right where it stands. Persisted so the choice sticks across visits.
@@ -1911,11 +1916,12 @@ export class QuestRunner {
         this.setCh7(1);
       });
     } else if (this.ch7 >= 2 && this.ch8 === 0) {
-      // the finale: the storm hits and the lobsterman sends you to light the harbor
+      // the finale: break the storm AS he hails you, so the sky matches the "wind has teeth
+      // now" narration; the lobsterman then sends you to light the harbor
+      this.stormStarted = true;
+      this.onStorm();              // the nor'easter rolls in
       this.hud.showDialogue(LOBSTER_STORM, () => {
         this.hud.chapterCard('LEVEL 2 · CHAPTER 4', 'Bring the Light Home', 'the storm is here · the harbor light is dark');
-        this.stormStarted = true;
-        this.onStorm();              // the nor'easter rolls in
         this.setCh8(1);
       });
     }
