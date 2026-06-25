@@ -507,90 +507,135 @@ for (const el of raw.elements) {
   }
 }
 
-// ---------- ocean from coastline ----------
-
-const [WPX_W, WPX_N] = px(BBOX.n, BBOX.w);
-const [WPX_E, WPX_S] = px(BBOX.s, BBOX.e);
-const corners = {
-  nw: [WPX_W, WPX_N], ne: [WPX_E, WPX_N], se: [WPX_E, WPX_S], sw: [WPX_W, WPX_S]
-};
-const LAND_REFS = [px(42.81135, -70.86976), px(42.81523, -70.81894), px(42.79616, -70.84156)]; // Market Sq, lighthouse, airport
-
-function edgeOf(x, y) {
-  const dW = Math.abs(x - WPX_W), dE = Math.abs(x - WPX_E), dN = Math.abs(y - WPX_N), dS = Math.abs(y - WPX_S);
-  const m = Math.min(dW, dE, dN, dS);
-  return m === dE ? 'e' : m === dN ? 'n' : m === dS ? 's' : 'w';
-}
-
-// walk the bbox perimeter from edge A to edge B in a given rotation, collecting corners
-function perimeter(fromX, fromY, toX, toY, cw) {
-  const orderCW = ['n', 'e', 's', 'w'];
-  const cornerCW = { n: corners.ne, e: corners.se, s: corners.sw, w: corners.nw }; // corner at end of edge going CW
-  const cornerCCW = { n: corners.nw, w: corners.sw, s: corners.se, e: corners.ne };
-  let edge = edgeOf(fromX, fromY);
-  const target = edgeOf(toX, toY);
-  const pts = [];
-  let guard = 8;
-  while (guard-- > 0) {
-    if (edge === target) break;
-    if (cw) { pts.push(cornerCW[edge]); edge = orderCW[(orderCW.indexOf(edge) + 1) % 4]; }
-    else { pts.push(cornerCCW[edge]); edge = orderCW[(orderCW.indexOf(edge) + 3) % 4]; }
-  }
-  return pts;
-}
-
+// ---------- ocean from coastline (general boundary sweep — works for any town) ----------
+// OSM convention: every `natural=coastline` way is directed with LAND on its LEFT (water
+// on the right). We rebuild the sea as polygons by stitching coastline into chains, then
+// tracing closed water loops: follow each coast chain, and where it meets the map edge run
+// along the bbox perimeter to the next chain's start. Closed coast loops are islands, punched
+// out as holes. This handles a simple monotonic coast (Newburyport: Plum Island barrier +
+// Merrimack mouth) and harbors / multiple landmasses (a peninsula town like Salem) alike — no
+// hardcoded land references, no latitude-sort assumption. Orientation is chosen so downtown
+// (ORIGIN, px 0,0) stays on land, so it self-corrects for whatever coastline winding a town uses.
 {
-  // Coastline ways weave in/out of the bbox east edge, so clipping fragments them.
-  // This coast progresses monotonically south -> north (island shore, river mouth,
-  // Salisbury shore), so order fragments by latitude instead of nearest-endpoint
-  // stitching. Straight bridges between fragments land in open ocean — invisible.
-  const islandRings = [];
-  const openRuns = [];
-  for (const run of coastChains) {
-    const dx = run[0] - run[run.length - 2], dy = run[1] - run[run.length - 1];
-    if (run.length >= 8 && dx * dx + dy * dy < 40 * 40) islandRings.push(run);
-    else openRuns.push(run);
-  }
+  const [BW, BN] = px(BBOX.n, BBOX.w);   // bbox px corners: west/north = (minX, minY)
+  const [BE, BS] = px(BBOX.s, BBOX.e);   //                  east/south = (maxX, maxY); y grows south
+  const PCORN = [[BW, BN], [BE, BN], [BE, BS], [BW, BS]]; // perimeter corners at param t = 0,1,2,3
 
-  for (const ring of islandRings) {
-    const areaM2 = Math.abs(ringArea(ring)) / (PX_PER_M * PX_PER_M);
-    if (areaM2 >= 300) {
-      world.polys.push({ k: 'island', p: simplify(ring), z: 8 });
-      bump('island');
-    }
-  }
-
-  // normalize each run to start at its southern end (px y grows southward)
-  const dirRuns = openRuns.map((r) => {
-    if (r[1] < r[r.length - 1]) {
-      const rev = [];
-      for (let i = r.length - 2; i >= 0; i -= 2) rev.push(r[i], r[i + 1]);
-      return rev;
-    }
-    return r.slice();
-  });
-  dirRuns.sort((a, b) => b[1] - a[1]); // southernmost start first
-  const chain = dirRuns.flat();
-
-  let oceanOK = false;
-  if (chain.length >= 8) {
-    const sx = chain[0], sy = chain[1], ex = chain[chain.length - 2], ey = chain[chain.length - 1];
-    for (const cw of [true, false]) {
-      const closure = perimeter(ex, ey, sx, sy, cw).flat();
-      const ring = chain.concat(closure);
-      const bad = LAND_REFS.some(([lx, ly]) => pointInRing(lx, ly, ring));
-      const areaM2 = Math.abs(ringArea(ring)) / (PX_PER_M * PX_PER_M);
-      if (!bad && areaM2 > 100_000) {
-        world.polys.push({ k: 'ocean', p: ring, z: 7 });
-        console.log(`ocean: ${(areaM2 / 1e6).toFixed(2)} km² (closure ${cw ? 'cw' : 'ccw'})`);
-        oceanOK = true;
-        break;
+  // stitch coast ways into maximal chains: repeatedly merge any two whose endpoints touch
+  // (either end, either direction) until none remain. Order-independent (unlike a greedy
+  // one-end stitch), so a coastline split mid-map by runsOf — e.g. the Merrimack's tidal
+  // reach, where natural=coastline ends upriver — rejoins into one edge-to-edge chain
+  // instead of leaving a dangling mid-map endpoint that snaps to a bbox edge and floods.
+  const stitchCoast = (segs, joinTol = 120) => {
+    const chains = segs.map((c) => c.slice());
+    const near = (a, b) => { const dx = a[0] - b[0], dy = a[1] - b[1]; return dx * dx + dy * dy <= joinTol * joinTol; };
+    const ends = (c) => [[c[0], c[1]], [c[c.length - 2], c[c.length - 1]]];
+    const rev = (c) => { const r = []; for (let k = c.length - 2; k >= 0; k -= 2) r.push(c[k], c[k + 1]); return r; };
+    let merged = true;
+    while (merged) {
+      merged = false;
+      outer:
+      for (let i = 0; i < chains.length; i++) {
+        for (let j = i + 1; j < chains.length; j++) {
+          const a = chains[i], b = chains[j], [as, ae] = ends(a), [bs, be] = ends(b);
+          let nc = null;
+          if (near(ae, bs)) nc = a.concat(b.slice(2));
+          else if (near(ae, be)) nc = a.concat(rev(b).slice(2));
+          else if (near(as, bs)) nc = rev(a).concat(b.slice(2));
+          else if (near(as, be)) nc = b.concat(a.slice(2));
+          if (nc) { chains.splice(j, 1); chains.splice(i, 1, nc); merged = true; break outer; }
+        }
       }
     }
+    const islands = [], opens = [];
+    for (const c of chains) {
+      const dx = c[0] - c[c.length - 2], dy = c[1] - c[c.length - 1];
+      if (c.length >= 8 && dx * dx + dy * dy <= joinTol * joinTol) islands.push(c); else opens.push(c);
+    }
+    return { islands, opens };
+  };
+
+  // snap a near-edge point onto the bbox boundary; perimeter param t in [0,4):
+  // top NW→NE [0,1), right NE→SE [1,2), bottom SE→SW [2,3), left SW→NW [3,4)
+  const snapEdge = ([x, y]) => {
+    const dW = Math.abs(x - BW), dE = Math.abs(x - BE), dN = Math.abs(y - BN), dS = Math.abs(y - BS), m = Math.min(dW, dE, dN, dS);
+    return m === dW ? [BW, y] : m === dE ? [BE, y] : m === dN ? [x, BN] : [x, BS];
+  };
+  const perimT = ([x, y]) => {
+    const dW = Math.abs(x - BW), dE = Math.abs(x - BE), dN = Math.abs(y - BN), dS = Math.abs(y - BS), m = Math.min(dW, dE, dN, dS);
+    if (m === dN) return (x - BW) / (BE - BW);
+    if (m === dE) return 1 + (y - BN) / (BS - BN);
+    if (m === dS) return 2 + (BE - x) / (BE - BW);
+    return 3 + (BS - y) / (BS - BN);
+  };
+  const fwdT = (from, to, dir) => { const d = dir > 0 ? to - from : from - to; return ((d % 4) + 4) % 4; };
+  const cornersBetween = (t0, t1, dir) => {
+    const out = []; let t = t0;
+    for (let g = 0; g < 8; g++) {
+      let nc = dir > 0 ? Math.floor(t + 1e-9) + 1 : Math.ceil(t - 1e-9) - 1; nc = ((nc % 4) + 4) % 4;
+      if (fwdT(t, t1, dir) <= fwdT(t, nc, dir) + 1e-9) break;
+      out.push(PCORN[nc]); t = nc;
+    }
+    return out;
+  };
+  // trace closed water rings: chain → perimeter arc → next chain → … (dir picks the rotation)
+  const assembleWater = (opensIn, dir) => {
+    const segs = opensIn.map((c) => {
+      const cc = c.slice(), s = snapEdge([cc[0], cc[1]]), e = snapEdge([cc[cc.length - 2], cc[cc.length - 1]]);
+      cc[0] = s[0]; cc[1] = s[1]; cc[cc.length - 2] = e[0]; cc[cc.length - 1] = e[1];
+      return cc;
+    });
+    const used = new Array(segs.length).fill(false), rings = [];
+    for (let st = 0; st < segs.length; st++) {
+      if (used[st]) continue;
+      const ring = []; let ci = st, ok = false, g = 0;
+      while (g++ < segs.length + 3) {
+        used[ci] = true;
+        const c = segs[ci];
+        for (let i = 0; i < c.length; i += 2) ring.push(c[i], c[i + 1]);
+        const tEnd = perimT([c[c.length - 2], c[c.length - 1]]);
+        let best = -1, bd = Infinity;
+        for (let j = 0; j < segs.length; j++) {
+          if (used[j] && j !== st) continue;
+          let d = fwdT(tEnd, perimT([segs[j][0], segs[j][1]]), dir); if (d < 1e-9) d += 4;
+          if (d < bd) { bd = d; best = j; }
+        }
+        if (best < 0) break;
+        for (const cr of cornersBetween(tEnd, perimT([segs[best][0], segs[best][1]]), dir)) ring.push(cr[0], cr[1]);
+        if (best === st) { ok = true; break; }
+        ci = best;
+      }
+      if (ok && ring.length >= 8) rings.push(ring);
+    }
+    return rings;
+  };
+
+  const { islands: coastIslands, opens: coastOpens } = stitchCoast(coastChains);
+
+  // closed coast loops render as land discs (as before) — and become holes in the sea below
+  for (const ring of coastIslands) {
+    const areaM2 = Math.abs(ringArea(ring)) / (PX_PER_M * PX_PER_M);
+    if (areaM2 >= 300) { world.polys.push({ k: 'island', p: simplify(ring), z: 8 }); bump('island'); }
+  }
+
+  // assemble sea polygons; flip rotation if downtown (ORIGIN) lands inside (means we traced land)
+  let seaRings = assembleWater(coastOpens, 1);
+  if (seaRings.some((r) => pointInRing(0, 0, r))) seaRings = assembleWater(coastOpens, -1);
+
+  let oceanOK = false;
+  for (const ring of seaRings) {
+    const areaM2 = Math.abs(ringArea(ring)) / (PX_PER_M * PX_PER_M);
+    if (areaM2 < 5000) continue; // drop slivers
+    const poly = { k: 'ocean', p: simplify(ring), z: 7 };
+    const holes = coastIslands.filter((h) => { const [hx, hy] = centroid(h); return pointInRing(hx, hy, ring); }).map((h) => simplify(h));
+    if (holes.length) poly.h = holes;
+    world.polys.push(poly);
+    console.log(`ocean: ${(areaM2 / 1e6).toFixed(2)} km²${holes.length ? ` (${holes.length} island hole${holes.length > 1 ? 's' : ''})` : ''}`);
+    oceanOK = true;
   }
   if (!oceanOK) console.warn('WARNING: ocean polygon could not be built');
-  stats['ocean-built'] = oceanOK ? 1 : 0;
-  stats['coast-islands'] = islandRings.length;
+  stats['ocean-built'] = seaRings.length;
+  stats['coast-islands'] = coastIslands.length;
 }
 
 // ---------- real surveyed trees ----------
