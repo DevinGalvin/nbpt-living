@@ -2677,7 +2677,34 @@ function ghost(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: num
   }
 }
 
-// pumpkins by the front door — some carved and glowing — plus pots of mums
+// a round, squat, lightly-ribbed pumpkin body — replaces octoCanopy's pointy 4-sided diamond
+// (which read as little pinecones) with a proper bulging sphere, flat-capped at top/bottom so
+// the stem sits cleanly. Centered on (x,y,z); rests on the ground when y ≈ g + r*0.7.
+function pumpkinBody(bk: Bucket, x: number, y: number, z: number, r: number, col: THREE.Color) {
+  const N = 8, SQ = 0.82;                                  // 8 facets, a touch wider than tall
+  const bands = [-0.86, -0.5, 0, 0.5, 0.86];               // latitudes (sin θ) — bulge in the middle
+  const ring = (s: number): [number, number, number][] => {
+    const rr = r * Math.sqrt(Math.max(0.0001, 1 - s * s)), yy = y + r * SQ * s;
+    const p: [number, number, number][] = [];
+    for (let i = 0; i < N; i++) { const a = (i / N) * Math.PI * 2, rib = 1 - 0.08 * (i % 2); p.push([x + Math.cos(a) * rr * rib, yy, z + Math.sin(a) * rr * rib]); }
+    return p;
+  };
+  const R = bands.map(ring);
+  for (let b = 0; b < R.length - 1; b++) for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N, lo = R[b], hi = R[b + 1];
+    const nx = (lo[i][0] + lo[j][0]) / 2 - x, nz = (lo[i][2] + lo[j][2]) / 2 - z, nl = Math.hypot(nx, nz) || 1;
+    const sh = 0.8 + 0.2 * (i % 2 ? 1 : 0.55);
+    bk.quad(lo[i][0], lo[i][1], lo[i][2], lo[j][0], lo[j][1], lo[j][2], hi[j][0], hi[j][1], hi[j][2], hi[i][0], hi[i][1], hi[i][2], nx / nl, 0.3, nz / nl, col.r * sh, col.g * sh, col.b * sh);
+  }
+  const hi = R[R.length - 1], lo = R[0], topY = y + r * SQ * 0.86, botY = y - r * SQ * 0.86;   // flat caps (no spike)
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    bk.triUV(x, topY, z, hi[i][0], hi[i][1], hi[i][2], hi[j][0], hi[j][1], hi[j][2], 0, 1, 0, col.r * 0.96, col.g * 0.96, col.b * 0.96, 0, 0, 0, 0, 0, 0);
+    bk.triUV(x, botY, z, lo[j][0], lo[j][1], lo[j][2], lo[i][0], lo[i][1], lo[i][2], 0, -1, 0, col.r * 0.66, col.g * 0.66, col.b * 0.66, 0, 0, 0, 0, 0, 0);
+  }
+}
+
+// pumpkins by the front door — most carved and glowing — plus pots of mums
 function pumpkins(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: number; nx: number; nz: number }, g: number, seed: number) {
   const rng = mulberry32(hash32(seed, 91, 7));
   const n = 8 + (hash32(seed, 3, 11) % 6);   // 8–13 pumpkins: an overflowing Salem patch
@@ -2686,27 +2713,28 @@ function pumpkins(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: 
     const px = f.x + f.tx * off + f.nx * (10 + (rng() - 0.5) * 6);   // out into the yard, not tucked on the wall
     const pz = f.z + f.tz * off + f.nz * (10 + (rng() - 0.5) * 6);
     const r = 8 + rng() * 5;   // WAY bigger — giant New England pumpkins
-    tmp.set(rng() < 0.85 ? '#d97a28' : '#e8e2cf');
-    octoCanopy(buckets[PLAIN], px, g + r * 0.85, pz, r, tmp.clone());
-    buckets[PLAIN].box(px, pz, 0.4, 0.4, g + r * 1.55, g + r * 1.55 + 1.3, '#5e4a28');
-    if (rng() < 0.55) {
-      // jack-o'-lantern: glowing face toward the street
-      const cxf = px + f.nx * (r * 0.92), czf = pz + f.nz * (r * 0.92);
-      const ty = g + r * 0.95;
-      tmp.set('#ffc14e');
-      for (const sd of [-1, 1]) {
-        buckets[GLOW].triUV(
-          cxf + f.tx * (sd * 0.9 - 0.42), ty, czf + f.tz * (sd * 0.9 - 0.42),
-          cxf + f.tx * (sd * 0.9 + 0.42), ty, czf + f.tz * (sd * 0.9 + 0.42),
-          cxf + f.tx * sd * 0.9, ty + 0.8, czf + f.tz * sd * 0.9,
-          f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0
-        );
-      }
-      buckets[GLOW].quad(
-        cxf - f.tx * 1.25, ty - 1.15, czf - f.tz * 1.25, cxf + f.tx * 1.25, ty - 1.15, czf + f.tz * 1.25,
-        cxf + f.tx * 1.25, ty - 0.6, czf + f.tz * 1.25, cxf - f.tx * 1.25, ty - 0.6, czf - f.tz * 1.25,
-        f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b
-      );
+    tmp.set(rng() < 0.82 ? '#f0801e' : '#df6a16');   // bright pumpkin orange (no pale/white ones)
+    pumpkinBody(buckets[PLAIN], px, g + r * 0.7, pz, r, tmp.clone());
+    buckets[PLAIN].box(px, pz, r * 0.08, r * 0.08, g + r * 1.32, g + r * 1.32 + r * 0.3, '#6b5a2e');   // stubby green stem
+    if (rng() < 0.82) {
+      // jack-o'-lantern: glowing triangular eyes + nose + a grin on the street-facing side,
+      // all scaled to the pumpkin so a big one gets a big face.
+      const cxf = px + f.nx * (r * 0.86), czf = pz + f.nz * (r * 0.86), ty = g + r * 0.74;
+      tmp.set('#ffb43a');
+      const tri = (ox: number, oy: number, hw: number, hh: number) => buckets[GLOW].triUV(
+        cxf + f.tx * (ox - hw), ty + oy, czf + f.tz * (ox - hw),
+        cxf + f.tx * (ox + hw), ty + oy, czf + f.tz * (ox + hw),
+        cxf + f.tx * ox, ty + oy + hh, czf + f.tz * ox,
+        f.nx, 0.1, f.nz, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0);
+      tri(-r * 0.34, r * 0.1, r * 0.16, r * 0.22);   // left eye ▲
+      tri(r * 0.34, r * 0.1, r * 0.16, r * 0.22);    // right eye ▲
+      tri(0, -r * 0.04, r * 0.09, r * 0.16);         // nose ▲
+      buckets[GLOW].quad(                            // wide toothy grin
+        cxf - f.tx * r * 0.42, ty - r * 0.42, czf - f.tz * r * 0.42,
+        cxf + f.tx * r * 0.42, ty - r * 0.42, czf + f.tz * r * 0.42,
+        cxf + f.tx * r * 0.32, ty - r * 0.24, czf + f.tz * r * 0.32,
+        cxf - f.tx * r * 0.32, ty - r * 0.24, czf - f.tz * r * 0.32,
+        f.nx, 0.1, f.nz, tmp.r, tmp.g, tmp.b);
     }
   }
   // pots of mums on the steps
