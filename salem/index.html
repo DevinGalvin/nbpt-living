@@ -45,12 +45,8 @@
     }
     /* full-bleed: cover the whole device incl. safe areas (fixes iOS home-screen
        dark bars). The HUD insets itself by the safe areas; the canvas does not. */
-    /* touch-action:none must live on the actual touch target (the canvas), not
-       just body — otherwise iOS treats a drag near the screen bottom as a
-       browser toolbar/scroll gesture, fires pointercancel, and the joystick
-       dies mid-steer (a dead band ~3/4 down the screen). */
-    #game { position: fixed; inset: 0; touch-action: none; }
-    #game canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+    #game { position: fixed; inset: 0; }
+    #game canvas { display: block; width: 100%; height: 100%; }
     #loading {
       position: absolute;
       inset: 0;
@@ -78,7 +74,7 @@
       #loading .rule { width: 220px; }
     }
   </style>
-  <script type="module" crossorigin src="./assets/index-CquZ6rkE.js"></script>
+  <script type="module" crossorigin src="./assets/index-Bso4vzAk.js"></script>
 </head>
 <body>
   <div id="game"></div>
