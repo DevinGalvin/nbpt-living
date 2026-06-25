@@ -249,9 +249,26 @@ function hasStorefrontEvidence(ring) {
   return false;
 }
 
-// Downtown commercial core (the 1811 brick blocks): Market Sq / State to ~Essex St /
-// Pleasant / Inn / Water. Deliberately tight — the South End's wood colonials begin
-// immediately south of this box (lat 42.8093).
+// Data-driven downtown/commercial core (replaces the old hand-drawn box): a building
+// reads as masonry/brick if it sits in a retail/commercial landuse zone, or is ringed
+// by a dense cluster of shop/amenity POIs (the commercial district). 99% of footprints
+// are untagged `building=yes`, so material has to come from spatial context, not tags.
+const NEAR_R2 = (62 * PX_PER_M) ** 2;   // count retail POIs within ~62 m of the centroid
+function commercialDowntown(ring) {
+  const [cx, cy] = centroid(ring);
+  for (const z of retailZones) if (pointInRing(cx, cy, z)) return true;
+  let near = 0;
+  for (const [px2, py2] of retailPts) {
+    const dx = px2 - cx, dy = py2 - cy;
+    if (dx * dx + dy * dy <= NEAR_R2 && ++near >= 5) return true;
+  }
+  return false;
+}
+
+// Curated historic-core fallback (Newburyport): the dense 1811 brick downtown — Market Sq /
+// State to ~Essex / Pleasant / Inn / Water. OR'd with commercialDowntown above, because NBPT's
+// mapped shop POIs are too sparse to carry the whole brick core on data alone. Deliberately
+// tight: the South End's wood colonials begin immediately south of this box (lat 42.8093).
 const CORE_NW = px(42.8146, -70.8748);
 const CORE_SE = px(42.8093, -70.8652);
 function inDowntownCore(ring) {
@@ -306,9 +323,12 @@ for (const el of raw.elements) {
     if (areaM2 < 6) continue;
     let k = buildingKind(t);
     if (k === 'house' && areaM2 < 40) k = 'shed';
-    // Downtown core: untagged 'building=yes' blocks are the 1811 brick rebuild —
-    // render them as brick commercial unless they're something more specific.
-    if (k === 'house' && areaM2 >= 150 && inDowntownCore(ring)) k = 'commercial';
+    // Untagged 'building=yes' blocks in a commercial district render as brick commercial
+    // (downtown is almost all brick) unless they're something more specific. Data-driven
+    // (retail landuse zone / dense shop-POI cluster) OR the curated historic-core box:
+    // NBPT's 1811 brick downtown has sparser mapped shop POIs than the box covers, so the
+    // box backstops the dense core while the data method adds districts the box misses.
+    if (k === 'house' && ((areaM2 >= 90 && commercialDowntown(ring)) || (areaM2 >= 150 && inDowntownCore(ring)))) k = 'commercial';
     // real storefront evidence (retail land-use zone or in-building shop POI):
     // ground floor becomes a storefront, wall material stays whatever it is
     let sf = 0;
