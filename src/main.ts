@@ -6,7 +6,7 @@ import type { WorldData } from './world/types';
 // source commit is live: open the console, or read `window.__build`.
 declare const __BUILD__: string;
 (window as unknown as { __build?: string }).__build = __BUILD__;
-console.info(`Clipper Town — build ${__BUILD__}`);
+console.info(`Salem (world-only) — build ${__BUILD__}`);
 
 async function boot() {
   // single-file share builds inline the map + terrain as globals

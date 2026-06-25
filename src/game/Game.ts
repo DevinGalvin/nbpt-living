@@ -362,7 +362,9 @@ export class Game {
     this.scene.add(this.bike.root);
     this.hud.initMinimap(world);
     if (BARE) {
-      // world-only sandbox: no quest / history / eggs. Keep the ⚙️ gear (sound) alive.
+      // world-only sandbox: no quest / history / eggs. Hide the story-only chrome
+      // (compass) and keep the ⚙️ gear (sound) alive.
+      this.hud.setBare(true);
       this.hud.initSettings(false, () => false);
     } else {
       this.quest = new QuestRunner(this.scene, this.index, this.hud, this.audio, () => this.enterTunnel(), () => {
@@ -386,10 +388,10 @@ export class Game {
     // tap (or click) Clipper to pet him — replaces the old always-on PET button
     this.hud.onTap = (sx, sy) => this.tryPetTap(sx, sy);
 
-    if (SEASON === 'winter') {
+    if (!BARE && SEASON === 'winter') {
       // the big tree in Market Square (snow now falls from the Sky weather system)
       this.scene.add(this.buildHolidayTree(-100, -48));
-    } else if (SEASON === 'fall') {
+    } else if (!BARE && SEASON === 'fall') {
       // a Halloween patch in Market Square — scarecrow, pumpkins, hay bales
       this.scene.add(this.buildHalloweenDisplay(-100, -48));
     }
@@ -479,16 +481,22 @@ export class Game {
     // mobile and many just want to wander), and finally a light nudge to find their own
     // street. No gate — dismissing the pick just keeps the clean explore default.
     const fresh = localStorage.getItem('nbpt-welcomed') !== '1';
-    if (fresh) {
-      setTimeout(() => this.hud.showModePick((story) => {
-        this.quest?.setStory(story);
-        this.hud.refreshSettings(this.quest?.story ?? false);
-        setTimeout(() => this.hud.showStreetNudge(() => localStorage.setItem('nbpt-welcomed', '1')), 600);
-      }), 1500);
+    if (BARE) {
+      // Salem (world-only): no story → skip the explore-vs-story mode pick AND the flight
+      // promo (flight is off here). Keep just the find-your-street nudge — the real hook.
+      if (fresh) setTimeout(() => this.hud.showStreetNudge(() => localStorage.setItem('nbpt-welcomed', '1')), 1500);
+    } else {
+      if (fresh) {
+        setTimeout(() => this.hud.showModePick((story) => {
+          this.quest?.setStory(story);
+          this.hud.refreshSettings(this.quest?.story ?? false);
+          setTimeout(() => this.hud.showStreetNudge(() => localStorage.setItem('nbpt-welcomed', '1')), 600);
+        }), 1500);
+      }
+      // one-time "what's new" promo for a freshly-shipped feature (flight just went public).
+      // Stagger after the street nudge for newcomers so the two don't stack.
+      setTimeout(() => this.tryFlightPromo(), fresh ? 11000 : 3500);
     }
-    // one-time "what's new" promo for a freshly-shipped feature (flight just went public).
-    // Stagger after the street nudge for newcomers so the two don't stack.
-    setTimeout(() => this.tryFlightPromo(), fresh ? 11000 : 3500);
   }
 
   // pop the flight "what's new" card once, when nothing else is on screen — otherwise

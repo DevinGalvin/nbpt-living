@@ -9,14 +9,15 @@ const css = `
    Newburyport = maroon + gold. Swap the maroon/gold values to re-theme for
    another town; the radius/shadow/motion scale below is shared chrome. */
 :root {
-  --panel: linear-gradient(177deg, rgba(58,29,37,0.985), rgba(42,20,25,0.985) 58%, rgba(30,14,20,0.985));
-  --maroon: 46, 22, 28;      /* chrome chips / buttons (use as rgba(var(--maroon), a)) */
-  --maroon-lt: 60, 30, 38;   /* lighter chips & cards */
-  /* gold scale — one source of truth for every accent (was 3 stray literals) */
-  --gold-rgb: 216, 185, 74;
-  --gold: #d8b94a;           /* base accent (underlines, borders) */
-  --gold-mid: #e8c44f;       /* labels / kickers */
-  --gold-bright: #f6dd8a;    /* brightest highlight / hovers */
+  /* SALEM palette: deep plum chrome + amber accent (Newburyport's is maroon + gold) */
+  --panel: linear-gradient(177deg, rgba(60,36,76,0.985), rgba(46,28,60,0.985) 58%, rgba(32,18,44,0.985));
+  --maroon: 48, 28, 60;      /* chrome chips / buttons (use as rgba(var(--maroon), a)) */
+  --maroon-lt: 66, 42, 82;   /* lighter chips & cards */
+  /* amber scale — one source of truth for every accent (was 3 stray literals) */
+  --gold-rgb: 224, 162, 58;
+  --gold: #e0a23a;           /* base accent (underlines, borders) */
+  --gold-mid: #eeb24a;       /* labels / kickers */
+  --gold-bright: #f8d488;    /* brightest highlight / hovers */
   /* ink (text on the dark panels) */
   --ink: #f3f1e8;
   --ink-dim: #c8bd96;
@@ -67,6 +68,8 @@ const css = `
   display: flex; align-items: center; justify-content: center;
 }
 #hud .compass .needle { font-size: 15px; font-weight: 700; color: #f0d27a; will-change: transform; }
+/* world-only: hide the compass + the (empty) 🧭 missions button until there's content */
+#hud.bare .compass, #hud.bare .journey-btn { display: none; }
 #hud .travel-btn {
   position: absolute; top: 14px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
@@ -1620,6 +1623,11 @@ export class Hud {
     (document.querySelector('#hud .bike-btn') as HTMLElement).classList.toggle('on', on);
   }
 
+  // world-only (Salem): tag #hud so CSS can hide story-only chrome (e.g. the compass)
+  setBare(on: boolean) {
+    document.getElementById('hud')?.classList.toggle('bare', on);
+  }
+
   setRunState(on: boolean) {
     const btn = document.querySelector('#hud .run-btn') as HTMLElement | null;
     btn?.classList.toggle('on', on);
@@ -1905,7 +1913,7 @@ export class Hud {
   // turns the town to a new season — it stays up through the fade + reload that follows
   seasonCard(season: string) {
     const meta: Record<string, [string, string, string]> = {
-      fall:   ['\u{1F342} THE SEASON TURNS', 'Autumn', 'the leaves redden over Clipper Town'],
+      fall:   ['\u{1F342} THE SEASON TURNS', 'Autumn', 'the leaves redden over Salem'],
       winter: ['❄️ THE SEASON TURNS', 'Winter', 'first snow settles over the harbor'],
       spring: ['\u{1F338} THE SEASON TURNS', 'Spring', 'the marsh wakes up'],
       summer: ['☀️ THE SEASON TURNS', 'Summer', 'the harbor warms again']
@@ -1986,7 +1994,7 @@ export class Hud {
   showStreetNudge(onSeen?: () => void) {
     onSeen?.();                              // mark it seen now, so it never nags twice
     const el = document.querySelector('#hud .streettip') as HTMLElement;
-    el.innerHTML = '📍 This is the real map of Newburyport.<br><b>Tap to find your street →</b>';
+    el.innerHTML = '📍 This is the real map of Salem.<br><b>Tap to find your street →</b>';
     el.classList.add('show');
     el.onclick = () => { el.classList.remove('show'); clearTimeout(this.streetTipTimer); this.toggleTravel(true); };
     clearTimeout(this.streetTipTimer);

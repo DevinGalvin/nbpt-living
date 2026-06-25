@@ -6,24 +6,24 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Clipper Town" />
-  <meta name="theme-color" content="#2a1419" />
-  <title>Clipper Town — explore Newburyport, MA</title>
-  <meta name="description" content="A cozy, all-ages adventure on the exact map of Newburyport, Massachusetts. Walk the real streets, find your own house, and dig up the town’s true history." />
+  <meta name="apple-mobile-web-app-title" content="Salem" />
+  <meta name="theme-color" content="#2a1838" />
+  <title>Salem — walk the real map of Salem, MA in 3D</title>
+  <meta name="description" content="A cozy, all-ages 3D walk through the exact map of Salem, Massachusetts. Wander the real streets, harbor, and Common — and find your own house." />
   <!-- Social link previews (Open Graph + Twitter Card). Absolute URLs so the card unfurls. -->
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Clipper Town" />
-  <meta property="og:title" content="Clipper Town — explore Newburyport, MA" />
-  <meta property="og:description" content="A cozy, all-ages adventure on the real map of Newburyport. Walk the streets, find your own house, and dig up the town’s true history." />
-  <meta property="og:url" content="https://clippertown.io/" />
+  <meta property="og:site_name" content="Salem in 3D" />
+  <meta property="og:title" content="Salem — walk the real map of Salem, MA in 3D" />
+  <meta property="og:description" content="A cozy, all-ages 3D walk through the real map of Salem. Wander the streets, harbor, and Common — and find your own house." />
+  <meta property="og:url" content="https://clippertown.io/salem/" />
   <meta property="og:image" content="https://clippertown.io/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:type" content="image/png" />
-  <meta property="og:image:alt" content="A voxel clipper ship sailing past Newburyport’s brick downtown and church steeple" />
+  <meta property="og:image:alt" content="A 3D voxel view of historic Salem, Massachusetts" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Clipper Town — explore Newburyport, MA" />
-  <meta name="twitter:description" content="Walk the real map of Newburyport — find your own street." />
+  <meta name="twitter:title" content="Salem — walk the real map of Salem, MA in 3D" />
+  <meta name="twitter:description" content="Walk the real map of Salem — find your own street." />
   <meta name="twitter:image" content="https://clippertown.io/og-image.png" />
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
@@ -37,8 +37,8 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #2a1419;
-      background: linear-gradient(180deg, #361b23, #1b0e13);
+      background: #2a1838;
+      background: linear-gradient(180deg, #3a2450, #1c1228);
       touch-action: none;
       -webkit-user-select: none;
       user-select: none;
@@ -62,7 +62,7 @@
     }
     #loading .title { font-size: 34px; letter-spacing: 3px; animation: loadrise 0.8s cubic-bezier(0.22,1,0.36,1) both; }
     #loading .rule { width: 0; height: 2px; border-radius: 2px;
-      background: linear-gradient(90deg, transparent, #d8b94a, transparent);
+      background: linear-gradient(90deg, transparent, #e0a23a, transparent);
       animation: loadrule 0.9s 0.25s cubic-bezier(0.22,1,0.36,1) both; }
     #loading .sub { font-size: 13px; letter-spacing: 2px; opacity: 0.7;
       font-family: -apple-system, system-ui, sans-serif; animation: loadpulse 1.9s 0.6s ease-in-out infinite; }
@@ -74,13 +74,38 @@
       #loading .rule { width: 220px; }
     }
   </style>
+  <script>
+    // Salem is served at clippertown.io/salem but shares the clippertown.io ORIGIN with
+    // Newburyport, so it would share localStorage too. Namespace all of Salem's saved
+    // state behind a "salem:" prefix (keeps season/save/flags out of the live NBPT game),
+    // and switch on the world-only extras (bike + kayak + free seasons). Runs before the bundle.
+    (function () {
+      try {
+        var P = 'salem:', real = window.localStorage;
+        var pref = function () { return Object.keys(real).filter(function (k) { return k.indexOf(P) === 0; }); };
+        var shim = {
+          getItem: function (k) { return real.getItem(P + k); },
+          setItem: function (k, v) { real.setItem(P + k, String(v)); },
+          removeItem: function (k) { real.removeItem(P + k); },
+          clear: function () { pref().forEach(function (k) { real.removeItem(k); }); },
+          key: function (i) { var k = pref()[i]; return k ? k.slice(P.length) : null; },
+          get length() { return pref().length; }
+        };
+        Object.defineProperty(window, 'localStorage', { configurable: true, get: function () { return shim; } });
+        shim.setItem('nbpt-bike', '1');           // bike always available in Salem
+        shim.setItem('nbpt-kayak', '1');          // kayak always available near water
+        shim.setItem('nbpt-seasons-rewarded', '1'); // season picker unlocked
+        if (!shim.getItem('nbpt-season')) shim.setItem('nbpt-season', 'summer'); // default; picker choice persists
+      } catch (e) { /* fall back to shared storage if the browser won't let us shadow it */ }
+    })();
+  </script>
 </head>
 <body>
   <div id="game"></div>
   <div id="loading">
-    <div class="title">CLIPPER TOWN</div>
+    <div class="title">SALEM</div>
     <div class="rule"></div>
-    <div class="sub">Exploring Newburyport, Massachusetts</div>
+    <div class="sub">Exploring Salem, Massachusetts</div>
   </div>
   <script type="module" src="/src/main.ts"></script>
   <!-- GoatCounter analytics (privacy-friendly). Kept in source so every build keeps it —
