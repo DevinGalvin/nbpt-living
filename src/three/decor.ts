@@ -2565,7 +2565,51 @@ function buildRidgeCarriage(buckets: Bucket[], b: Building, g: number, index: Wo
   gableEnd(buckets[PLAIN], ox + f.nx * 1.6, oz + f.nz * 1.6, 4, eave + 9, eave + 12, ang, f.nx, f.nz, TRIM);
 }
 
+// Salem's Jonathan Corwin House — "The Witch House," the most recognizable First-Period house in
+// America: near-black charcoal clapboard, three steep street-facing gables, a massive central brick
+// chimney, jettied floor lines, and diamond-pane leaded casements. (The OSM footprint is named
+// "The Witch House" and was rendering as a generic brick block.)
+function witchHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  tmp.set('#363a3e'); const dr = tmp.r, dg = tmp.g, db = tmp.b;     // charcoal clapboard
+  tmp.set('#2c2e32'); const sr = tmp.r, sg = tmp.g, sb = tmp.b;     // near-black shingle
+  const fs = frontSegment(b, index);                               // which width-side faces the street
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;        // +lz world dir = (-sa, ca)
+  const FW = front * (W + 1.4), BW = -front * (W + 1.4);           // eave overhang past the wall
+  const eaveH = g + 26;
+  clad(buckets[CLAP], b.p, g - 2, eaveH, '#363a3e');               // near-black walls on the exact footprint
+  walls(buckets[PLAIN], b.p, g + 11, g + 12.4, '#25272a', 0);      // jetty shadow line (2nd floor overhang)
+  walls(buckets[PLAIN], b.p, eaveH - 1.3, eaveH, '#25272a', 0);    // eave shadow line
+  { const cc = pt(0, 0, 0); buckets[BRICK].box(cc[0], cc[2], 4, 3.4, eaveH + 6, eaveH + 34, '#7c4a38', 1); }  // central brick chimney
+  // three steep street-facing cross-gables, tiling the facade
+  const gw = L / 3, rise = Math.max(26, gw * 1.25), ridgeY = eaveH + rise;
+  for (const c of [-2 * L / 3, 0, 2 * L / 3]) {
+    const aF = pt(c, FW, ridgeY), aB = pt(c, BW, ridgeY);
+    const fL = pt(c - gw, FW, eaveH), fR = pt(c + gw, FW, eaveH), bL = pt(c - gw, BW, eaveH), bR = pt(c + gw, BW, eaveH);
+    buckets[CLAP].triUV(fL[0], fL[1], fL[2], fR[0], fR[1], fR[2], aF[0], aF[1], aF[2], -sa * front, 0, ca * front, dr, dg, db, 0, 0, 0, 0, 0, 0);   // front gable end
+    buckets[CLAP].triUV(bR[0], bR[1], bR[2], bL[0], bL[1], bL[2], aB[0], aB[1], aB[2], sa * front, 0, -ca * front, dr, dg, db, 0, 0, 0, 0, 0, 0);   // back gable end
+    buckets[SHINGLE].quad(fL[0], fL[1], fL[2], bL[0], bL[1], bL[2], aB[0], aB[1], aB[2], aF[0], aF[1], aF[2], -ca, 0.5, -sa, sr, sg, sb);          // left roof slope
+    buckets[SHINGLE].quad(aF[0], aF[1], aF[2], aB[0], aB[1], aB[2], bR[0], bR[1], bR[2], fR[0], fR[1], fR[2], ca, 0.5, sa, sr * 0.9, sg * 0.9, sb * 0.9);  // right roof slope
+  }
+  // diamond-pane leaded casements: a light pane proud of the dark wall + a lead cross
+  const win = (lx: number, y: number, hw: number, hh: number) => {
+    const c0 = pt(lx, front * W, y), nx = -sa * front, nz = ca * front, ax = ca, az = sa, pr = 0.4;
+    const C = (sx: number, sy: number): [number, number, number] => [c0[0] + ax * hw * sx + nx * pr, c0[1] + hh * sy, c0[2] + az * hw * sx + nz * pr];
+    const a = C(-1, -1), bb = C(1, -1), cc = C(1, 1), dd = C(-1, 1);
+    tmp.set('#a4b5bb'); buckets[PLAIN].quad(a[0], a[1], a[2], bb[0], bb[1], bb[2], cc[0], cc[1], cc[2], dd[0], dd[1], dd[2], nx, 0, nz, tmp.r, tmp.g, tmp.b);
+    tmp.set('#565f64'); const v0 = C(0, -1), v1 = C(0, 1), h0 = C(-1, 0), h1 = C(1, 0), tw = 0.16;
+    buckets[PLAIN].quad(v0[0] - ax * tw, v0[1], v0[2] - az * tw, v0[0] + ax * tw, v0[1], v0[2] + az * tw, v1[0] + ax * tw, v1[1], v1[2] + az * tw, v1[0] - ax * tw, v1[1], v1[2] - az * tw, nx, 0, nz, tmp.r, tmp.g, tmp.b);
+    buckets[PLAIN].quad(h0[0], h0[1] - 0.16, h0[2], h1[0], h1[1] - 0.16, h1[2], h1[0], h1[1] + 0.16, h1[2], h0[0], h0[1] + 0.16, h0[2], nx, 0, nz, tmp.r, tmp.g, tmp.b);
+  };
+  for (const c of [-2 * L / 3, 0, 2 * L / 3]) win(c, eaveH + rise * 0.4, 2.6, 3.2);                // a window up in each gable
+  for (const lx of [-L * 0.62, -L * 0.2, L * 0.2, L * 0.62]) { win(lx, g + 16, 2.9, 3.8); win(lx, g + 5.5, 2.9, 3.8); }  // upper + lower casements
+}
+
 const HEROES: Record<string, HeroBuilder> = {
+  'The Witch House': witchHouse,
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,
@@ -2707,12 +2751,12 @@ function pumpkinBody(bk: Bucket, x: number, y: number, z: number, r: number, col
 // pumpkins by the front door — most carved and glowing — plus pots of mums
 function pumpkins(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: number; nx: number; nz: number }, g: number, seed: number) {
   const rng = mulberry32(hash32(seed, 91, 7));
-  const n = 8 + (hash32(seed, 3, 11) % 6);   // 8–13 pumpkins: an overflowing Salem patch
+  const n = 3 + (hash32(seed, 3, 11) % 3);   // 3–5 pumpkins: a tidy stoop cluster, not a pile
   for (let i = 0; i < n; i++) {
-    const off = (i - (n - 1) / 2) * 7 + (rng() - 0.5) * 3.4;   // spread wide across the front
-    const px = f.x + f.tx * off + f.nx * (10 + (rng() - 0.5) * 6);   // out into the yard, not tucked on the wall
-    const pz = f.z + f.tz * off + f.nz * (10 + (rng() - 0.5) * 6);
-    const r = 8 + rng() * 5;   // WAY bigger — giant New England pumpkins
+    const off = (i - (n - 1) / 2) * 8.5 + (rng() - 0.5) * 2.4;   // well-spaced, no clumping/overlap
+    const px = f.x + f.tx * off + f.nx * (8 + (rng() - 0.5) * 3);   // a neat row by the door
+    const pz = f.z + f.tz * off + f.nz * (8 + (rng() - 0.5) * 3);
+    const r = 5 + rng() * 2.5;   // smaller again (was too big)
     tmp.set(rng() < 0.82 ? '#f0801e' : '#df6a16');   // bright pumpkin orange (no pale/white ones)
     pumpkinBody(buckets[PLAIN], px, g + r * 0.7, pz, r, tmp.clone());
     buckets[PLAIN].box(px, pz, r * 0.08, r * 0.08, g + r * 1.32, g + r * 1.32 + r * 0.3, '#6b5a2e');   // stubby green stem
