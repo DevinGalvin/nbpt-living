@@ -329,6 +329,63 @@ function complexGable(shin: Bucket, clap: Bucket, ring: number[], eaveAbs: numbe
   complexGable(shin, clap, B, eaveAbs, roofHex, wallHex, depth + 1);
 }
 
+// A hipped roof (pyramid = true → a single apex) built from the building's oriented
+// box: all four sides slope up to a ridge/apex. Used on simple rectangular footprints
+// to break the all-gabled monotony; complex/L-shaped footprints still use complexGable.
+// A hip has no gable end, so the walls stay flat-topped at the eave (the caller already
+// raised them to eaveAbs) — no wallsToRoof needed.
+function hipRoof(shin: Bucket, obb: OBB, eaveH: number, ridgeH: number, ov: number, roofHex: string, pyramid: boolean) {
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl + ov, W = obb.hw + ov;
+  const rL = pyramid ? 0 : Math.max(0, L - W);   // half ridge length; hips inset ~W from each end
+  const ridge = eaveH + ridgeH;
+  tmp.set(roofHex);
+  const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  const pt = (l: number, w: number, y: number): [number, number, number] =>
+    [obb.cx + l * ca - w * sa, y, obb.cz + l * sa + w * ca];
+  const U = (l: number, w: number): [number, number] => [l / TEX_SCALE, w / TEX_SCALE];
+  const A = pt(-L, W, eaveH), B = pt(L, W, eaveH), C = pt(L, -W, eaveH), D = pt(-L, -W, eaveH);
+  const RE = pt(rL, 0, ridge), RW = pt(-rL, 0, ridge);
+  const norm = (p: number[], q: number[], s: number[]): [number, number, number, number] => {
+    let nx = (q[1] - p[1]) * (s[2] - p[2]) - (q[2] - p[2]) * (s[1] - p[1]);
+    let ny = (q[2] - p[2]) * (s[0] - p[0]) - (q[0] - p[0]) * (s[2] - p[2]);
+    let nz = (q[0] - p[0]) * (s[1] - p[1]) - (q[1] - p[1]) * (s[0] - p[0]);
+    const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+    if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    return [nx, ny, nz, 0.8 + 0.2 * Math.max(0, nx * 0.35 + nz * 0.85)];
+  };
+  const quad = (p: number[], q: number[], s: number[], t: number[], up: number[], uq: number[], us: number[], ut: number[]) => {
+    const [nx, ny, nz, sh] = norm(p, q, s);
+    shin.quadUV(p[0], p[1], p[2], q[0], q[1], q[2], s[0], s[1], s[2], t[0], t[1], t[2], nx, ny, nz, rr * sh, rg * sh, rb * sh, up[0], up[1], uq[0], uq[1], us[0], us[1], ut[0], ut[1]);
+  };
+  const tri = (p: number[], q: number[], s: number[], up: number[], uq: number[], us: number[]) => {
+    const [nx, ny, nz, sh] = norm(p, q, s);
+    shin.triUV(p[0], p[1], p[2], q[0], q[1], q[2], s[0], s[1], s[2], nx, ny, nz, rr * sh, rg * sh, rb * sh, up[0], up[1], uq[0], uq[1], us[0], us[1]);
+  };
+  if (rL > 0.5) {
+    quad(A, B, RE, RW, U(-L, W), U(L, W), U(rL, 0), U(-rL, 0));   // long slope
+    quad(C, D, RW, RE, U(L, -W), U(-L, -W), U(-rL, 0), U(rL, 0)); // long slope
+    tri(B, C, RE, U(L, W), U(L, -W), U(rL, 0));                   // hip end
+    tri(D, A, RW, U(-L, -W), U(-L, W), U(-rL, 0));                // hip end
+  } else {
+    const AP = pt(0, 0, ridge);
+    tri(A, B, AP, U(-L, W), U(L, W), U(0, 0));
+    tri(B, C, AP, U(L, W), U(L, -W), U(0, 0));
+    tri(C, D, AP, U(L, -W), U(-L, -W), U(0, 0));
+    tri(D, A, AP, U(-L, -W), U(-L, W), U(0, 0));
+  }
+}
+
+// roof shape for a simple rectangular house: square-ish → pyramid/hip, medium → hip/gable
+// mix, long → gable. Seeded so a street reads as a varied mix, not one repeated shape.
+function pickHouseRoof(obb: OBB, seed: number): 'gable' | 'hip' | 'pyramid' {
+  const ar = obb.hl / Math.max(1, obb.hw);
+  const h = hash32(seed, 17, 3) % 100;
+  if (ar < 1.3) return h < 65 ? 'pyramid' : 'hip';
+  if (ar < 2.1) return h < 50 ? 'hip' : 'gable';
+  return 'gable';
+}
+
 // windows (+shutters), door, along the exact footprint walls.
 // Commercial buildings get a storefront ground floor: display glass, awnings, sign band.
 // `g` = ground height at the building, `eaveH` = ABSOLUTE eave height.
@@ -1205,6 +1262,20 @@ function lighthouse(plain: Bucket, cx: number, cz: number, g: number) {
   walls(plain, oct(8.5), g + 86, g + 100, '#c0392b', 0);
   flatRoof(plain, oct(9.5), g + 100, '#f0ede2');
   flatRoof(plain, oct(5), g + 104, '#c0392b');
+}
+
+// A small bronze figure on a granite pedestal — the data-driven archetype for
+// tourism=artwork / historic=monument|memorial points (statues, town monuments).
+// Reads as "a statue stands here" at exploration scale; it's a silhouette, not the
+// specific likeness. Works in any town that maps its monuments.
+function landmarkStatue(plain: Bucket, cx: number, cz: number, g: number) {
+  const GRANITE = '#9c968b', GRANITE_D = '#857f74', BRONZE = '#4a4334';
+  plain.box(cx, cz, 4.0, 4.0, g, g + 12, GRANITE);          // pedestal
+  plain.box(cx, cz, 4.6, 4.6, g + 12, g + 14, GRANITE_D);   // cap lip
+  plain.box(cx, cz, 3.0, 3.0, g + 14, g + 16, GRANITE);     // figure block
+  plain.box(cx, cz, 1.4, 1.1, g + 16, g + 24, BRONZE);      // legs + torso
+  plain.box(cx, cz, 2.1, 1.3, g + 24, g + 28, BRONZE);      // shoulders
+  plain.box(cx, cz, 1.0, 1.0, g + 28, g + 31, BRONZE);      // head
 }
 
 function buildingDims(b: Building, areaM2: number): { eave: number; lvEff: number } {
@@ -2726,12 +2797,17 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       : buckets[CLAP];                       // painted clapboard — most of the island, like town
     walls(wallBucket, b.p, base, eaveAbs, wallHex);
 
+    const obb = obbOf(b.p);
+    const fill = ringAreaPx2(b.p) / Math.max(1, 4 * obb.hl * obb.hw);   // 1 = a clean rectangle
     const gabled = b.k === 'house' || b.k === 'shed' || b.k === 'church';
     if (gabled) {
-      const obb = obbOf(b.p);
       const ridgeH = Math.max(7, Math.min(22, obb.hw * 0.55));
       const roofHex = pick(STYLE.building.roofs, seed);
-      complexGable(buckets[SHINGLE], beachShake ? buckets[SHINGLE] : buckets[CLAP], b.p, eaveAbs, roofHex, wallHex, 0, b.k !== 'shed');
+      // simple rectangular houses get hip/pyramid variety to break the all-gabled
+      // monotony; L/T-shaped houses, sheds + churches keep the footprint-clipped gable
+      const roofShape = b.k === 'house' && fill >= 0.74 ? pickHouseRoof(obb, seed) : 'gable';
+      if (roofShape !== 'gable') hipRoof(buckets[SHINGLE], obb, eaveAbs, ridgeH, 4, roofHex, roofShape === 'pyramid');
+      else complexGable(buckets[SHINGLE], beachShake ? buckets[SHINGLE] : buckets[CLAP], b.p, eaveAbs, roofHex, wallHex, 0, b.k !== 'shed');
       if (b.k === 'house') {
         houseTrim(buckets[PLAIN], b.p, eaveAbs, base);
         if (rng() < 0.7 && obb.hl > 18) {
@@ -2744,6 +2820,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         // every church gets a real square-tower steeple at its street end
         steeple(buckets, b, g, index, false);
       }
+    } else if (b.k === 'civic' && fill >= 0.74 && ringAreaM2(b.p) < 1100) {
+      // town halls / libraries / small civic blocks read better hipped than as a flat box;
+      // big modern civic footprints (schools) stay flat below
+      const ridgeC = Math.max(8, Math.min(20, obb.hw * 0.4));
+      hipRoof(buckets[SHINGLE], obb, eaveAbs, ridgeC, 4, pick(STYLE.building.roofs, seed), obb.hl / Math.max(1, obb.hw) < 1.3);
     } else {
       flatRoof(buckets[PLAIN], b.p, eaveAbs, pick(STYLE.building.roofsCommercial, seed));
       walls(wallBucket, b.p, eaveAbs, eaveAbs + 3.5, wallHex);
@@ -3231,13 +3312,19 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     }
   }
   for (const poi of world.pois) {
-    if (poi.k !== 'windsock') continue;
     if (poi.x < ox || poi.x >= ox + CHUNK || poi.y < oy || poi.y >= oy + CHUNK) continue;
-    const g = index.heightAtPx(poi.x, poi.y);
-    const a = ((hash32(Math.round(poi.x), 7) % 100) / 100) * Math.PI * 2;
-    buckets[PLAIN].box(poi.x, poi.y, 0.6, 0.6, g, g + 20, '#d8d5cc');
-    rotBox(buckets[PLAIN], poi.x + Math.cos(a) * 4, poi.y + Math.sin(a) * 4, 4, 1.4, g + 17, g + 19.4, a, '#e8762e');
-    rotBox(buckets[PLAIN], poi.x + Math.cos(a) * 9.5, poi.y + Math.sin(a) * 9.5, 2.2, 0.9, g + 17.6, g + 18.9, a, '#e8762e');
+    if (poi.k === 'windsock') {
+      const g = index.heightAtPx(poi.x, poi.y);
+      const a = ((hash32(Math.round(poi.x), 7) % 100) / 100) * Math.PI * 2;
+      buckets[PLAIN].box(poi.x, poi.y, 0.6, 0.6, g, g + 20, '#d8d5cc');
+      rotBox(buckets[PLAIN], poi.x + Math.cos(a) * 4, poi.y + Math.sin(a) * 4, 4, 1.4, g + 17, g + 19.4, a, '#e8762e');
+      rotBox(buckets[PLAIN], poi.x + Math.cos(a) * 9.5, poi.y + Math.sin(a) * 9.5, 2.2, 0.9, g + 17.6, g + 18.9, a, '#e8762e');
+    } else if (poi.k === 'lighthouse') {
+      // a lighthouse mapped as a point (not a building footprint) — e.g. Fort Pickering Light
+      lighthouse(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    } else if (poi.k === 'statue') {
+      landmarkStatue(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    }
   }
 
   // real property-line barriers: stockade fences, hedges, stone walls

@@ -285,7 +285,10 @@ export class Game {
     this.waterUpdate = water.update;
 
     this.life = new Life(this.scene, this.index);
-    this.gillis = new GillisBridge(this.scene, this.index, world);
+    // SALEM world-only experiment: skip all Newburyport story content + bespoke set pieces.
+    // Defaults to bare; pass ?story to restore the full Newburyport game wiring.
+    const BARE = !new URLSearchParams(location.search).has('story');
+    if (!BARE) this.gillis = new GillisBridge(this.scene, this.index, world);
 
     // spawn at Market Square — or, after a season turned the town, exactly where
     // you stood (a one-shot resume point so the re-skin reload doesn't teleport you)
@@ -358,22 +361,27 @@ export class Game {
     this.bike.root.visible = false;
     this.scene.add(this.bike.root);
     this.hud.initMinimap(world);
-    this.quest = new QuestRunner(this.scene, this.index, this.hud, this.audio, () => this.enterTunnel(), () => {
-      localStorage.setItem('nbpt-bike', '1');
-      this.bikeEarned();
-    }, () => this.boatRide(), () => this.enterStar(), () => this.enterNews(), () => this.enterDen(),
-      (x: number, z: number) => this.lookOutToSea(x, z), () => this.endLookOut(), () => this.enterKayak(),
-      (x: number, z: number) => this.landAtShore(x, z),
-      () => this.beginStorm(), () => this.enterSweep(), () => this.endSweep());
-    // ⚙️ Story-mode toggle: explore vs play. The quest is the source of truth, so the
-    // switch mirrors whatever it actually applies.
-    this.hud.initSettings(this.quest.story, (next) => { this.quest!.setStory(next); return this.quest!.story; });
-    this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
-    this.eggs = new EggRunner(
-      this.scene, this.index, this.hud, this.audio,
-      () => ({ x: this.dog.root.position.x, z: this.dog.root.position.z }),
-      () => this.goldenHoodie()
-    );
+    if (BARE) {
+      // world-only sandbox: no quest / history / eggs. Keep the ⚙️ gear (sound) alive.
+      this.hud.initSettings(false, () => false);
+    } else {
+      this.quest = new QuestRunner(this.scene, this.index, this.hud, this.audio, () => this.enterTunnel(), () => {
+        localStorage.setItem('nbpt-bike', '1');
+        this.bikeEarned();
+      }, () => this.boatRide(), () => this.enterStar(), () => this.enterNews(), () => this.enterDen(),
+        (x: number, z: number) => this.lookOutToSea(x, z), () => this.endLookOut(), () => this.enterKayak(),
+        (x: number, z: number) => this.landAtShore(x, z),
+        () => this.beginStorm(), () => this.enterSweep(), () => this.endSweep());
+      // ⚙️ Story-mode toggle: explore vs play. The quest is the source of truth, so the
+      // switch mirrors whatever it actually applies.
+      this.hud.initSettings(this.quest.story, (next) => { this.quest!.setStory(next); return this.quest!.story; });
+      this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
+      this.eggs = new EggRunner(
+        this.scene, this.index, this.hud, this.audio,
+        () => ({ x: this.dog.root.position.x, z: this.dog.root.position.z }),
+        () => this.goldenHoodie()
+      );
+    }
 
     // tap (or click) Clipper to pet him — replaces the old always-on PET button
     this.hud.onTap = (sx, sy) => this.tryPetTap(sx, sy);

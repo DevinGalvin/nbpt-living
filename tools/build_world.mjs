@@ -8,10 +8,13 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 
 const PX_PER_M = 8;
-const ORIGIN = { lat: 42.81135, lon: -70.86976 }; // Market Square
+// SALEM, MA experiment (world-only). Origin = downtown Salem (≈ bbox center).
+const ORIGIN = { lat: 42.515, lon: -70.900 };
 const M_PER_DEG_LAT = 111089.0;
-const M_PER_DEG_LON = 81791.7; // at 42.81°N
-const BBOX = { s: 42.763, w: -70.955, n: 42.84, e: -70.795 }; // all of Newburyport
+const M_PER_DEG_LON = 81891.0; // at 42.515°N
+const BBOX = { s: 42.485, w: -70.945, n: 42.545, e: -70.855 }; // Salem, MA (tight, clips the Sound)
+// world-only build: skip the Newburyport curated layer (landmarks, businesses, manual buildings)
+const BARE = true;
 
 const px = (lat, lon) => [
   Math.round((lon - ORIGIN.lon) * M_PER_DEG_LON * PX_PER_M),
@@ -143,7 +146,7 @@ const raw = JSON.parse(await readFile(new URL('../data/raw/overpass.json', impor
 
 const world = {
   meta: {
-    name: 'Newburyport, MA',
+    name: 'Salem, MA',
     pxPerMeter: PX_PER_M,
     origin: ORIGIN,
     bbox: BBOX,
@@ -595,7 +598,13 @@ for (const el of raw.elements) {
     continue;
   }
   if (!t.name) continue;
-  const k = t.historic ? 'historic' : t.tourism ? t.tourism : t.amenity ? t.amenity : t.shop ? 'shop' : t.leisure ? t.leisure : t.man_made === 'lighthouse' ? 'lighthouse' : null;
+  // landmark archetypes (rendered in 3D by decor.ts): a lighthouse node, or a
+  // statue/monument point (artwork / memorial / monument). Checked BEFORE the generic
+  // historic/tourism fallthrough, so a lighthouse tagged historic=maritime still reads
+  // as a lighthouse and a memorial reads as a statue.
+  const k = t.man_made === 'lighthouse' ? 'lighthouse'
+    : (t.tourism === 'artwork' || t.historic === 'monument' || t.historic === 'memorial') ? 'statue'
+    : t.historic ? 'historic' : t.tourism ? t.tourism : t.amenity ? t.amenity : t.shop ? 'shop' : t.leisure ? t.leisure : null;
   if (!k) continue;
   const [x, y] = px(el.lat, el.lon);
   world.pois.push({ x, y, k, n: t.name });
@@ -638,7 +647,7 @@ const LM = [
   ['cherry-hill', 'Cherry Hill Fields', 'Soccer Saturdays', 42.81752, -70.91964, 90],
   ['spl-farm', 'Spencer-Peirce-Little Farm', 'Stone farmhouse, 1690', 42.79506, -70.85203, 80]
 ];
-for (const [id, name, sub, lat, lon, rM] of LM) {
+if (!BARE) for (const [id, name, sub, lat, lon, rM] of LM) {
   const [x, y] = px(lat, lon);
   world.landmarks.push({ id, name, sub, x, y, r: Math.round(rM * PX_PER_M) });
 }
@@ -747,7 +756,7 @@ const addrMap = new Map();
     anchorsByStreet.get(s2).push({ num: num2, x: v2[0], y: v2[1] });
   }
   let placed = 0;
-  for (const [name, num, street, kind] of CURATED) {
+  if (!BARE) for (const [name, num, street, kind] of CURATED) {
     let spot = addrMap.get(num + '|' + street);
     if (!spot) {
       // address interpolation between bracketing numbers, preferring same parity (street side)
@@ -810,7 +819,7 @@ const MANUAL_BUILDINGS = [
   // the rear carriage house (the 4th home)
   { p: [-1315, 3960, -1259, 4006, -1294, 4049, -1350, 4004], k: 'house', lv: 1.5, n: 'Ridge Carriage House' },
 ];
-for (const b of MANUAL_BUILDINGS) world.buildings.push(b);
+if (!BARE) for (const b of MANUAL_BUILDINGS) world.buildings.push(b);
 
 // ---------- sort, QA, write ----------
 

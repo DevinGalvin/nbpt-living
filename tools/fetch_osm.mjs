@@ -10,7 +10,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 // Whittier Bridge, Chain Bridge/Deer Island, Moseley Woods, Storey Ave, the
 // full Merrimack with the Salisbury/Amesbury banks, downtown through Joppa,
 // the causeway, airport, and Plum Island point to lighthouse.
-const BBOX = [42.763, -70.955, 42.84, -70.795];
+const BBOX = [42.485, -70.945, 42.545, -70.855]; // Salem, MA (tight box, clips the Sound)
 const bbox = BBOX.join(',');
 
 // Ways are clipped to the bbox; relations are fetched with FULL geometry so their

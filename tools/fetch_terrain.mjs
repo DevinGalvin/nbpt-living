@@ -12,9 +12,9 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { PNG } from 'pngjs';
 
-const ORIGIN = { lat: 42.81135, lon: -70.86976 };
+const ORIGIN = { lat: 42.515, lon: -70.900 }; // Salem (MUST match build_world.mjs)
 const M_PER_DEG_LAT = 111089.0;
-const M_PER_DEG_LON = 81791.7;
+const M_PER_DEG_LON = 81891.0;
 const PX_PER_M = 8;
 const Z = 14;
 const SPACING = 64; // px between samples (8 m) ≈ source resolution at z14
@@ -157,11 +157,11 @@ console.log(`elevation range: ${min.toFixed(1)}m .. ${max.toFixed(1)}m`);
 
 // QA: known spots
 const spots = [
-  ['Market Square', 42.81135, -70.86976],
-  ['High St ridge (Cushing House)', 42.80667, -70.87111],
-  ["March's Hill top", 42.80133, -70.86646],
-  ['Plum Island beach', 42.805, -70.805],
-  ['Joppa shore', 42.807, -70.858]
+  ['Salem Common', 42.5206, -70.8918],
+  ['Downtown / Essex St', 42.5215, -70.8967],
+  ['Gallows Hill', 42.5210, -70.9080],
+  ['Salem Willows', 42.5270, -70.8720],
+  ['Winter Island', 42.5265, -70.8660]
 ];
 for (const [name, lat, lon] of spots) console.log(`  ${name}: ${elevAt(lat, lon).toFixed(1)}m`);
 
