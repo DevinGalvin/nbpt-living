@@ -1364,9 +1364,11 @@ export class Game {
 
     // the pumpkin patch (carved jack-o'-lanterns face out toward the square)
     const patch: [number, number, number, boolean, number][] = [
-      [16, 9, 5.5, true, 0.4], [24, -7, 4, false, 0], [7, -15, 5, true, -0.6],
-      [-13, 11, 6, true, 0.1], [-22, -5, 4.5, false, 0], [3, 18, 3.6, false, 0],
-      [-7, -19, 4.6, true, 0.3], [13, 18, 4, true, 1.2],
+      [16, 9, 9, true, 0.4], [27, -7, 7, false, 0], [7, -15, 8.5, true, -0.6],
+      [-13, 11, 10, true, 0.1], [-25, -5, 7.5, false, 0], [3, 20, 6.5, true, 0.2],
+      [-7, -21, 8, true, 0.3], [14, 20, 7, true, 1.2], [-19, 17, 6.5, false, -0.4],
+      [21, 8, 6.5, true, -0.9], [-3, -8, 13, true, 0.0], [11, -23, 6.5, false, 0.5],
+      [-28, 7, 7, true, 1.5], [30, 3, 6, true, -0.3], [-15, -16, 7.5, true, 0.8],
     ];
     for (const [px, pz, r, carved, fa] of patch) g.add(pumpkin(px, pz, r, carved, fa));
 
@@ -1379,6 +1381,37 @@ export class Game {
         stalk.rotation.z = Math.cos(a) * 0.12; stalk.rotation.x = Math.sin(a) * 0.1;
         g.add(stalk);
       }
+    }
+
+    // Frankenstein & Dracula flank the patch — the Halloween Capital's welcoming committee.
+    {
+      const fr = new THREE.Group();
+      const fm = (geo: THREE.BufferGeometry, hex: string, px: number, py: number, pz: number, e = false) => {
+        const m = new THREE.Mesh(geo, e ? glow(hex) : lam(hex)); m.position.set(px, py, pz); m.castShadow = !e; fr.add(m);
+      };
+      fm(new THREE.BoxGeometry(5, 14, 5), '#1b1916', -4, 7, 0); fm(new THREE.BoxGeometry(5, 14, 5), '#1b1916', 4, 7, 0);  // legs
+      fm(new THREE.BoxGeometry(15, 18, 9), '#2b2823', 0, 22, 0);                                                          // coat/torso
+      for (const s of [-1, 1]) { fm(new THREE.BoxGeometry(4.5, 16, 5), '#2b2823', s * 9.5, 22, 0); fm(new THREE.BoxGeometry(4.5, 5, 8), '#6f8f3f', s * 9.5, 16, 7); } // arms reaching out
+      fm(new THREE.BoxGeometry(11, 12, 10), '#6f8f3f', 0, 37, 0);                                                         // flat-top green head
+      fm(new THREE.BoxGeometry(11.4, 2.6, 10.4), '#15120e', 0, 43.2, 0);                                                  // flat black hair
+      for (const s of [-1, 1]) fm(new THREE.BoxGeometry(3, 1.8, 1.8), '#b7b7ad', s * 6.6, 33, 0);                         // neck bolts
+      for (const s of [-1, 1]) fm(new THREE.BoxGeometry(2, 2, 1), '#ffd23c', s * 2.6, 38, 5.1, true);                     // glowing eyes
+      fr.position.set(-46, 0, 2); fr.rotation.y = 0.3; g.add(fr);
+    }
+    {
+      const dr = new THREE.Group();
+      const dm = (geo: THREE.BufferGeometry, hex: string, px: number, py: number, pz: number, e = false) => {
+        const m = new THREE.Mesh(geo, e ? glow(hex) : lam(hex)); m.position.set(px, py, pz); m.castShadow = !e; dr.add(m);
+      };
+      dm(new THREE.BoxGeometry(16, 24, 3), '#100e15', 0, 23, -3.6);                                                       // cape behind
+      dm(new THREE.BoxGeometry(5, 14, 5), '#100e15', -4, 7, 0); dm(new THREE.BoxGeometry(5, 14, 5), '#100e15', 4, 7, 0);  // legs
+      dm(new THREE.BoxGeometry(12, 18, 7), '#100e15', 0, 22, 0);                                                          // suit
+      dm(new THREE.BoxGeometry(2.6, 12, 2), '#7a1420', 0, 22, 3.6);                                                       // red sash
+      for (const s of [-1, 1]) dm(new THREE.BoxGeometry(3, 13, 1.6), '#100e15', s * 5.6, 33, -2.2);                       // high collar
+      dm(new THREE.BoxGeometry(8, 11, 7), '#e7ddc8', 0, 37, 0);                                                          // pale head
+      dm(new THREE.BoxGeometry(8.4, 2.6, 7.4), '#15120f', 0, 42.5, 0);                                                    // slicked hair
+      for (const s of [-1, 1]) dm(new THREE.BoxGeometry(1.8, 1.8, 1), '#ff3b2e', s * 2.2, 38, 3.6, true);                 // red glowing eyes
+      dr.position.set(46, 0, 2); dr.rotation.y = -0.3; g.add(dr);
     }
 
     g.position.set(x, gy, z);

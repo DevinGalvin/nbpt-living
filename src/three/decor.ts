@@ -2680,12 +2680,12 @@ function ghost(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: num
 // pumpkins by the front door — some carved and glowing — plus pots of mums
 function pumpkins(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: number; nx: number; nz: number }, g: number, seed: number) {
   const rng = mulberry32(hash32(seed, 91, 7));
-  const n = 4 + (hash32(seed, 3, 11) % 4);   // 4–7 pumpkins: a real New England patch
+  const n = 8 + (hash32(seed, 3, 11) % 6);   // 8–13 pumpkins: an overflowing Salem patch
   for (let i = 0; i < n; i++) {
-    const off = (i - (n - 1) / 2) * 4.6 + (rng() - 0.5) * 2.2;   // spread across the front
-    const px = f.x + f.tx * off + f.nx * (5.2 + (rng() - 0.5) * 2.4);
-    const pz = f.z + f.tz * off + f.nz * (5.2 + (rng() - 0.5) * 2.4);
-    const r = 3.8 + rng() * 2.6;   // bigger
+    const off = (i - (n - 1) / 2) * 7 + (rng() - 0.5) * 3.4;   // spread wide across the front
+    const px = f.x + f.tx * off + f.nx * (10 + (rng() - 0.5) * 6);   // out into the yard, not tucked on the wall
+    const pz = f.z + f.tz * off + f.nz * (10 + (rng() - 0.5) * 6);
+    const r = 8 + rng() * 5;   // WAY bigger — giant New England pumpkins
     tmp.set(rng() < 0.85 ? '#d97a28' : '#e8e2cf');
     octoCanopy(buckets[PLAIN], px, g + r * 0.85, pz, r, tmp.clone());
     buckets[PLAIN].box(px, pz, 0.4, 0.4, g + r * 1.55, g + r * 1.55 + 1.3, '#5e4a28');
@@ -2719,6 +2719,71 @@ function pumpkins(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: 
     tmp.set(mums[hash32(seed, i, 31) % mums.length]);
     octoCanopy(buckets[PLAIN], mx, g + 2.7, mz, 1.7, tmp.clone());
   }
+}
+
+// ---------- Halloween monsters (Salem's extreme fall): blocky, friendly-spooky figures —
+// Frankenstein & Dracula loom in the yards, witches soar on brooms overhead. Glowing eyes. ----------
+type Front = { x: number; z: number; tx: number; tz: number; nx: number; nz: number };
+
+// Frankenstein's monster: flat-top green head, neck bolts, stiff arms reaching at the street.
+function franken(buckets: Bucket[], f: Front, g: number, seed: number) {
+  const rng = mulberry32(hash32(seed, 71, 9));
+  const off = (rng() < 0.5 ? -1 : 1) * (9 + rng() * 7);
+  const x = f.x + f.tx * off + f.nx * (9 + rng() * 5);
+  const z = f.z + f.tz * off + f.nz * (9 + rng() * 5);
+  const skin = '#6f8f3f', coat = '#2b2823';
+  for (const s of [-1, 1]) buckets[PLAIN].box(x + f.tx * s * 2.4, z + f.tz * s * 2.4, 1.8, 1.8, g, g + 9, '#1b1916');   // legs
+  buckets[PLAIN].box(x, z, 4.6, 3, g + 8, g + 20, coat);                                                                // torso
+  for (const s of [-1, 1]) {                                                                                            // stiff arms reaching the street
+    const ax = x + f.tx * s * 5.4, az = z + f.tz * s * 5.4;
+    buckets[PLAIN].box(ax, az, 1.7, 1.7, g + 12, g + 19, coat);
+    buckets[PLAIN].box(ax + f.nx * 4.5, az + f.nz * 4.5, 1.7, 1.7, g + 12, g + 13.6, skin);
+  }
+  buckets[PLAIN].box(x, z, 3.5, 3.1, g + 20, g + 28, skin);                                                             // flat-top green head
+  buckets[PLAIN].box(x, z, 3.6, 3.2, g + 27.4, g + 29, '#15120e');                                                      // flat black hair
+  for (const s of [-1, 1]) buckets[PLAIN].box(x + f.tx * s * 4.1, z + f.tz * s * 4.1, 0.85, 0.85, g + 21, g + 23.5, '#b7b7ad'); // neck bolts
+  tmp.set('#ffd23c');
+  for (const s of [-1, 1]) octoCanopy(buckets[GLOW], x + f.tx * s * 1.4 + f.nx * 3.1, g + 24, z + f.tz * s * 1.4 + f.nz * 3.1, 0.7, tmp.clone()); // glowing eyes
+}
+
+// Dracula: black suit + high-collared cape flaring behind, pale face, red eyes.
+function dracula(buckets: Bucket[], f: Front, g: number, seed: number) {
+  const rng = mulberry32(hash32(seed, 83, 11));
+  const off = (rng() < 0.5 ? -1 : 1) * (9 + rng() * 7);
+  const x = f.x + f.tx * off + f.nx * (9 + rng() * 5);
+  const z = f.z + f.tz * off + f.nz * (9 + rng() * 5);
+  const ang = Math.atan2(f.nz, f.nx);
+  const blk = '#100e15', pale = '#e7ddc8';
+  rotBox(buckets[PLAIN], x - f.nx * 2.6, z - f.nz * 2.6, 1, 6.4, g + 1, g + 22, ang, blk);                  // cape panel behind
+  for (const s of [-1, 1]) buckets[PLAIN].box(x + f.tx * s * 2.2, z + f.tz * s * 2.2, 1.7, 1.7, g, g + 9, blk); // legs
+  buckets[PLAIN].box(x, z, 4, 2.6, g + 8, g + 19, blk);                                                       // suit torso
+  buckets[PLAIN].box(x + f.nx * 0.6, z + f.nz * 0.6, 0.9, 1, g + 12, g + 18, '#7a1420');                       // red sash down the front
+  for (const s of [-1, 1]) rotBox(buckets[PLAIN], x + f.tx * s * 2.4 - f.nx * 1.4, z + f.tz * s * 2.4 - f.nz * 1.4, 0.6, 2.6, g + 18, g + 27, ang, blk); // high collar
+  buckets[PLAIN].box(x, z, 2.7, 2.4, g + 19, g + 25, pale);                                                   // pale head
+  buckets[PLAIN].box(x, z, 2.8, 2.5, g + 24.6, g + 26, '#15120f');                                            // slicked black hair
+  tmp.set('#ff3b2e');
+  for (const s of [-1, 1]) octoCanopy(buckets[GLOW], x + f.tx * s * 1.1 + f.nx * 2.5, g + 22.4, z + f.tz * s * 1.1 + f.nz * 2.5, 0.6, tmp.clone()); // red glowing eyes
+}
+
+// a witch soaring on a broomstick, high over the rooftops (Salem fall).
+function witch(buckets: Bucket[], f: Front, g: number, seed: number) {
+  const rng = mulberry32(hash32(seed, 97, 13));
+  const a = rng() * Math.PI * 2;                 // flight heading
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const px2 = Math.cos(a + Math.PI / 2), pz2 = Math.sin(a + Math.PI / 2);
+  const x = f.x + (rng() - 0.5) * 34;
+  const z = f.z + (rng() - 0.5) * 34;
+  const y = g + 46 + rng() * 36;                 // soaring overhead
+  const blk = '#16121d', skin = '#7aa84a';
+  rotBox(buckets[PLAIN], x, z, 9, 0.55, y - 0.6, y + 0.6, a, '#7a4a1e');         // broom handle along the heading
+  tmp.set('#c8a24a'); cone(buckets[PLAIN], x - ca * 9.5, y - 2, z - sa * 9.5, 1.8, 4.5, tmp.clone()); // straw bristles
+  tmp.set(blk); cone(buckets[PLAIN], x, y - 2, z, 5, 7, tmp.clone());            // robe, flaring at the hem
+  tmp.set(blk); octoCanopy(buckets[PLAIN], x, y + 4.5, z, 3.6, tmp.clone());     // hunched body
+  tmp.set(skin); octoCanopy(buckets[PLAIN], x + ca * 1.2, y + 9, z + sa * 1.2, 2.4, tmp.clone()); // green head, leaning forward
+  buckets[PLAIN].box(x + ca * 1.2, z + sa * 1.2, 4.2, 4.2, y + 10.3, y + 11, blk); // hat brim
+  tmp.set(blk); cone(buckets[PLAIN], x + ca * 1.2, y + 11, z + sa * 1.2, 3, 9.5, tmp.clone()); // pointed hat
+  tmp.set('#b9ff4a');
+  for (const s of [-1, 1]) octoCanopy(buckets[GLOW], x + ca * 3 + px2 * s * 1.1, y + 9, z + sa * 3 + pz2 * s * 1.1, 0.5, tmp.clone()); // glowing eyes
 }
 
 // front-yard snowman, dressed for the season
@@ -2960,7 +3025,13 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
 
     const obb = obbOf(b.p);
     const fill = ringAreaPx2(b.p) / Math.max(1, 4 * obb.hl * obb.hw);   // 1 = a clean rectangle
-    const gabled = b.k === 'house' || b.k === 'shed' || b.k === 'church';
+    // Real houses don't span a city block. A handful of footprints are big structures (a
+    // parking garage, ferry terminal, market) left as untagged building=yes → 'house'; a
+    // single pitched roof over their bounding box becomes an enormous slab jutting past the
+    // walls. Above a house-plausible size, fall through to the flat branch (which clips to the
+    // exact footprint). Churches are exempt — they need this branch for their steeple.
+    const pitchable = b.k === 'church' || (areaM2 < 2000 && obb.hw < 200);
+    const gabled = (b.k === 'house' || b.k === 'shed' || b.k === 'church') && pitchable;
     if (gabled) {
       const ridgeH = Math.max(7, Math.min(22, obb.hw * 0.55));
       const roofHex = pick(STYLE.building.roofs, seed);
@@ -3043,6 +3114,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (porch) pumpkins(buckets, frontSegment(b, index), g, seed);
       // ghosts haunting a good chunk of the front yards
       if (b.k === 'house' && hash32(seed, 53, 7) % 100 < 38) ghost(buckets, frontSegment(b, index), g, seed);
+      // monsters loom in the yards (Frankenstein, Dracula) and witches soar overhead — the
+      // Halloween Capital goes all out. Independent rolls, so a yard can stack several.
+      if (b.k === 'house' && hash32(seed, 61, 7) % 100 < 16) franken(buckets, frontSegment(b, index), g, seed);
+      if (b.k === 'house' && hash32(seed, 73, 7) % 100 < 16) dracula(buckets, frontSegment(b, index), g, seed);
+      if (hash32(seed, 89, 7) % 100 < 9) witch(buckets, frontSegment(b, index), g, seed);   // flying — over any building
       // cobwebs in the eave corners — on shops AND homes now, a few each
       {
         const ring = b.p, np = ring.length / 2;
