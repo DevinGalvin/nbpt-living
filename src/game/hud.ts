@@ -81,6 +81,25 @@ const css = `
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
+/* a one-time nudge after a fresh visitor picks "just explore", so they know the
+   story toggle lives behind the gear; clears the moment they open Settings */
+#hud .settings-btn.pulse { animation: nbpt-gear-pulse 1.1s ease-in-out 3; }
+@keyframes nbpt-gear-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232,196,79,0.0); }
+  50% { box-shadow: 0 0 0 7px rgba(232,196,79,0.32); }
+}
+#hud .settings-hint {
+  position: absolute; top: 72px; left: 66px; z-index: 41; max-width: 200px;
+  background: var(--panel); border: 1.5px solid rgba(216,185,74,0.6); border-radius: 10px;
+  padding: 8px 11px; font-size: 12px; line-height: 1.35; color: #f3f1e8;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4); pointer-events: none;
+  opacity: 0; transform: translateX(-6px); transition: opacity 0.3s, transform 0.3s;
+}
+#hud .settings-hint::before {
+  content: ''; position: absolute; top: 12px; left: -7px; width: 0; height: 0;
+  border: 6px solid transparent; border-right-color: rgba(216,185,74,0.6); border-left: 0;
+}
+#hud .settings-hint.show { opacity: 1; transform: translateX(0); }
 #hud .settings-pop {
   position: absolute; top: 66px; left: 66px; min-width: 188px; max-width: 240px;
   background: var(--panel); border: 1.5px solid rgba(216,185,74,0.5); border-radius: 12px;
@@ -148,7 +167,7 @@ const css = `
 #hud .run-btn.show { display: flex; }
 #hud .run-btn.on { background: rgba(216, 185, 74, 0.45); border-color: #e8c44f; }
 #hud .bike-btn {
-  position: absolute; right: 18px; bottom: 192px; width: 58px; height: 58px; border-radius: 50%;
+  position: absolute; right: 18px; bottom: 122px; width: 58px; height: 58px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
   display: none; align-items: center; justify-content: center; font-size: 26px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
@@ -334,7 +353,7 @@ const css = `
 }
 #hud .dlg .dlg-next:hover { background: #f0d27a; }
 #hud .talk-btn {
-  position: absolute; right: 18px; bottom: 122px; min-width: 58px; height: 58px;
+  position: absolute; right: 18px; bottom: 192px; min-width: 58px; height: 58px;
   border-radius: 29px; background: rgba(216, 185, 74, 0.92); color: #1c2430;
   border: 2px solid #f0d27a; display: none; align-items: center; justify-content: center;
   font-size: 14px; font-weight: 800; letter-spacing: 1px; padding: 0 16px;
@@ -547,7 +566,10 @@ const css = `
   margin: 14px auto 0; max-width: 26em; animation: lpUp 0.6s 0.72s both;
 }
 #hud .levelpromo .lp-go {
-  margin-top: 24px; pointer-events: auto; cursor: pointer; border: 0; font-family: inherit;
+  /* inherit pointer-events from .levelpromo (none until .show) — an explicit auto
+     here would leave this invisible, screen-centered button eating touches and
+     dead-zoning the joystick after the level-up promo is dismissed */
+  margin-top: 24px; cursor: pointer; border: 0; font-family: inherit;
   font-weight: 800; font-size: 16px; letter-spacing: 2px; color: #2a1c0a;
   background: linear-gradient(180deg, #ffe9a6, #e8c44f); padding: 14px 32px; border-radius: 30px;
   animation: lpAppear 0.5s 0.92s both, lpBtn 2.2s 1.6s ease-in-out infinite; transition: transform 0.12s ease;
@@ -598,7 +620,11 @@ const css = `
 #hud .promo-body { font-size: 13.5px; line-height: 1.5; color: #c8d2dd; margin: 0 auto 16px; max-width: 30em; }
 #hud .promo-acts { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 #hud .promo-cta {
-  pointer-events: auto; cursor: pointer; border: 0; font-family: inherit; font-weight: 800;
+  /* No explicit pointer-events here: inherit from the parent .promo, which is
+     none until it has .show. Otherwise the invisible CTA stays clickable after
+     dismissal and, sitting bottom-center, steals taps from the talk button
+     (e.g. pressing RIBBIT teleported you to the airport). */
+  cursor: pointer; border: 0; font-family: inherit; font-weight: 800;
   font-size: 14.5px; letter-spacing: 0.6px; color: #2a1c0a;
   background: linear-gradient(180deg, #ffe9a6, #e8c44f); padding: 12px 26px; border-radius: 24px;
   transition: transform 0.12s var(--ease-out); width: 100%; max-width: 260px;
@@ -629,10 +655,14 @@ const css = `
 #hud .modepick-body { font-size: 13.5px; line-height: 1.5; color: #c8d2dd; margin: 0 auto 16px; max-width: 30em; }
 #hud .modepick-acts { display: flex; flex-direction: column; align-items: stretch; gap: 9px; }
 #hud .modepick-acts button {
-  pointer-events: auto; cursor: pointer; border: 0; font-family: inherit; font-weight: 800;
+  pointer-events: none; cursor: pointer; border: 0; font-family: inherit; font-weight: 800;
   font-size: 14.5px; letter-spacing: 0.4px; padding: 13px 18px; border-radius: 13px;
   transition: transform 0.12s var(--ease-out);
 }
+/* only live while the modal is actually up — otherwise these flex-centered, invisible
+   buttons keep eating touches mid-screen and dead-zone the joystick (pointer-events:auto
+   on a child overrides the dismissed parent's pointer-events:none) */
+#hud .modepick.show .modepick-acts button { pointer-events: auto; }
 #hud .modepick-acts button:active { transform: scale(0.97); }
 #hud .modepick-acts .mp-explore { color: #2a1c0a; background: linear-gradient(180deg, #ffe9a6, #e8c44f); }
 #hud .modepick-acts .mp-explore:hover { transform: scale(1.03); }
@@ -852,6 +882,7 @@ export class Hud {
       <div class="bag-btn" title="Backpack (I)">🎒<span class="bag-badge">NEW</span></div>
       <div class="bag-tip"></div>
       <div class="settings-btn" title="Settings">⚙️</div>
+      <div class="settings-hint">📖 Story mode lives here — tap ⚙️ anytime</div>
       <div class="settings-pop">
         <div class="sp-hdr">SETTINGS</div>
         <div class="sp-row" data-set="story">
@@ -977,6 +1008,15 @@ export class Hud {
       if (this.joyId === -1) this.joyPend = { id: e.pointerId, x: e.clientX, y: e.clientY };
       return; // wait for a drag (onMove) before claiming the joystick
     }
+    // a genuine steering touch: claim the gesture so iOS/Android browsers don't
+    // hijack it as a scroll / toolbar swipe (which cancels the pointer mid-drag
+    // and leaves a dead band near the bottom of the screen)
+    e.preventDefault();
+    // unlatch a dead joystick: iOS can swallow a pointer's up/cancel when it
+    // tries to steal the drag, leaving joyId stuck so every later touch falls
+    // through to the sprint branch and nothing steers. A fresh *primary* touch
+    // means the old "first finger" is gone — reclaim instead of latching.
+    if (this.joyId !== -1 && e.isPrimary) this.clearStick();
     this.pointers.add(e.pointerId);
     if (this.joyId === -1) {
       this.joyId = e.pointerId;
@@ -1003,6 +1043,7 @@ export class Hud {
     }
     if (this.tapDown && e.pointerId === this.tapDown.id && Math.hypot(e.clientX - this.tapDown.x, e.clientY - this.tapDown.y) > 12) this.tapDown.moved = true;
     if (e.pointerId !== this.joyId) return;
+    e.preventDefault();   // keep the steering drag from becoming a browser gesture
     let dx = e.clientX - this.joyBaseX, dy = e.clientY - this.joyBaseY;
     // a bigger throw = finer steering (small finger moves no longer swing the
     // heading), and a wider walk→run range so you can creep through tight streets
@@ -1037,6 +1078,19 @@ export class Hud {
       this.stickBase.style.display = 'none';
       this.stickKnob.style.display = 'none';
     }
+    if (this.pointers.size <= 1) this.sprintTouch = false;
+  }
+
+  // tear down the active joystick without the tap/sprint bookkeeping in onUp —
+  // used to unlatch a stale pointer so a new touch can take over steering
+  private clearStick() {
+    if (this.joyId !== -1) this.pointers.delete(this.joyId);
+    this.joyId = -1;
+    this.joyActive = false;
+    this.joyX = 0;
+    this.joyY = 0;
+    this.stickBase.style.display = 'none';
+    this.stickKnob.style.display = 'none';
     if (this.pointers.size <= 1) this.sprintTouch = false;
   }
 
@@ -1274,7 +1328,7 @@ export class Hud {
     const card = document.createElement('div');
     card.className = 'm-card ' + m.state + (m.active ? ' expanded' : '');
     const dotCol = m.state === 'done' ? '#9ec98a' : m.state === 'active' ? '#f0d27a' : '#565c68';
-    const dotCh = m.state === 'locked' ? '○' : '●';
+    const dotCh = m.state === 'done' ? '✓' : m.state === 'locked' ? '○' : '●';
     const title = (m.chapter != null ? 'Chapter ' + m.chapter + ' · ' : m.kicker ? m.kicker + ' · ' : '') + m.title;
     const prog = (m.count != null && m.total != null) ? '<span class="m-prog">' + m.count + '/' + m.total + '</span>' : '';
     const rep = (m.replay != null && m.state !== 'locked') ? '<span class="m-rep" data-c="' + m.replay + '">↻</span>' : '';
@@ -1578,6 +1632,19 @@ export class Hud {
   // first-run choice (fresh visitors only): explore freely or follow the story.
   // Dismissing — backdrop tap or Escape — counts as "just explore", the gentle default.
   // `onChoose(true)` = story on, `onChoose(false)` = explore. Fires exactly once.
+  // a one-time nudge after a fresh visitor chooses "just explore": pulse the gear and show
+  // a small pointer that the Story toggle lives there. Clears on the first Settings open.
+  hintStoryToggle() {
+    const btn = document.querySelector('#hud .settings-btn') as HTMLElement | null;
+    const hint = document.querySelector('#hud .settings-hint') as HTMLElement | null;
+    if (!btn || !hint) return;
+    btn.classList.add('pulse');
+    hint.classList.add('show');
+    const clear = () => { btn.classList.remove('pulse'); hint.classList.remove('show'); };
+    btn.addEventListener('click', clear, { once: true });
+    setTimeout(clear, 7000);
+  }
+
   showModePick(onChoose: (story: boolean) => void) {
     const el = document.querySelector('#hud .modepick') as HTMLElement;
     let done = false;
@@ -1585,6 +1652,7 @@ export class Hud {
       if (done) return;
       done = true;
       el.classList.remove('show');
+      if (!story) this.hintStoryToggle();   // point explorers at the gear's Story toggle
       onChoose(story);
     };
     (el.querySelector('.mp-explore') as HTMLElement).onclick = (e) => { e.stopPropagation(); choose(false); };

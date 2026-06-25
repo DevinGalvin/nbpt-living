@@ -148,6 +148,7 @@ export class Game {
   private sweeping = false;
   private beamAz = Math.PI;          // beam compass direction (π = due north, out over the water)
   private stormOn = false;           // the nor'easter ambiance is engaged (idempotent)
+  private nightHeld = false;          // Level 2 walking-light mystery: the sky is held at winter dusk
   // ✈️ scenic flight (Plum Island Airport): a free overground flight mode
   private flying = false;
   private ridePlane: THREE.Group | null = null;
@@ -789,8 +790,24 @@ export class Game {
   private calmStorm() {
     if (!this.stormOn) return;
     this.stormOn = false;
-    this.sky.duskOut();            // ease the held night back toward the real cycle time
+    this.nightHeld = false;        // the long night is over; release the mystery's dusk-hold too
+    this.sky.duskOut(0.22);        // ease all the way to a bright winter Christmas morning (not back to whenever the storm hit)
     this.sky.forceWeather(null);   // release to auto (light winter snow)
+  }
+
+  // Level 2 "walking light" mystery (after the Ch1 reveal, through Ch3): hold the sky at a
+  // deep winter twilight so the ghost light is paddled at dusk, as the premise promises —
+  // not in broad daylight. The frame loop polls quest.l2Night to engage/release this; the
+  // storm (Ch4) takes the sky over from here, and the finale calms it to morning.
+  private holdNight() {
+    if (this.nightHeld || this.stormOn) return;
+    this.nightHeld = true;
+    this.sky.duskIn(0.9);          // blue-hour twilight — moody but navigable; the gold beacon + lamps pop
+  }
+  private releaseNight() {
+    if (!this.nightHeld) return;
+    this.nightHeld = false;
+    if (!this.stormOn) this.sky.duskOut();   // back to the natural cycle (the storm, if up, keeps its own sky)
   }
 
   // climb the Rear Range Light and take the beam: lock the player at the tower,
@@ -1676,6 +1693,9 @@ export class Game {
     this.hud.setCompass(Math.PI - this.camAz);
     this.hud.pos = { x: this.px, y: this.pz }; // journey panel's direction hint
 
+    // Level 2: hold the walking-light mystery at winter dusk (reload-safe — polled every
+    // frame from the quest's own step state), so the ghost light is never paddled at noon
+    if (this.quest?.l2Night) this.holdNight(); else this.releaseNight();
     // day–night cycle drives the sun, sky dome, and weather; the shadow
     // window rides with the player
     const sky = this.sky.update(dt, this.px, this.pz, t, this.camera.position);

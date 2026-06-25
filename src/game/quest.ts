@@ -42,8 +42,9 @@ const LIGHT = { x: 12000, z: -2200 };            // the mystery light, way out o
 const GRAM_HOME = { x: 7450, z: 4250, face: 2.4 };  // Gram lives in Joppa now (post Level 1)
 const SLIP = { x: 7950, z: 4430 };                  // the Joppa slip — the kayak is tied here
 const LOBSTER = { x: 9570, z: 1780, face: 2.6 };    // the lobsterman's boat, anchored out on the water on the paddle home from the light — you meet him there (Ch3 & Ch4 start)
-// Ch3: the mooncusser's false lamps, scattered on the water around the foundation — you
-// paddle to each and snuff it. Two on the south approach, two past the light to the north.
+// Ch3: the keeper's marker-lamps, scattered on the water around the foundation and blown
+// dark by the gale — you paddle to each and RELIGHT it. Two on the south approach, two
+// past the light to the north.
 const DECOYS = [
   { x: 11720, z: -2030 }, { x: 12290, z: -2060 },
   { x: 11760, z: -2420 }, { x: 12300, z: -2380 }
@@ -228,7 +229,8 @@ const WATCHER_INTRO: Line[] = [
   { who: 'Birdwatcher', text: 'Joppa Flats. Best birding in the state — and the mud’ll take your boot clean off if you sass it.' },
   { who: 'Birdwatcher', text: 'These flats fed the whole town once. Low tide, everyone was out here digging clams by the bucket.' },
   { who: 'You', text: 'People dug dinner out of the mud?' },
-  { who: 'Birdwatcher', text: 'Best clams in New England. Anyway — here, my spare binoculars. I count ducks; you count whatever’s keeping you up at night.' },
+  { who: 'Birdwatcher', text: 'Best clams in New England.' },
+  { who: 'Birdwatcher', text: 'Anyway — here. My spare binoculars. I count ducks; you count whatever’s keeping you up at night.' },
   { who: 'Birdwatcher', text: 'See the lighthouse, out at the river mouth? Good. Now look a little to the left of it…' }
 ];
 // shown AFTER the camera swings out to the light, so you're seeing it as she names it
@@ -245,10 +247,12 @@ const GRAM_KAYAK: Line[] = [
   { who: 'You', text: 'Gram — there’s a light out past the lighthouse. Right where the chart says there’s nothing.' },
   { who: 'Gram', text: '…So you’ve seen it too.' },
   { who: 'You', text: 'You KNOW about it?' },
-  { who: 'Gram', text: 'Your grandfather chased that light for years. Rowed out after it more nights than I could count.' },
-  { who: 'Gram', text: 'Never would say what he found out there. Only that the chart was wrong, and the old-timers weren’t.' },
+  { who: 'Gram', text: 'Your grandfather chased that light for years.' },
+  { who: 'Gram', text: 'Rowed out after it more nights than I could count.' },
+  { who: 'Gram', text: 'Never would say what he found. Only that the chart was wrong, and the old-timers weren’t.' },
   { who: 'You', text: 'I want to see it.' },
-  { who: 'Gram', text: 'Course you do. His kayak’s still tied at the slip, down the end of the street. Been waiting for someone stubborn enough.' },
+  { who: 'Gram', text: 'Course you do. His kayak’s still tied at the slip, down the end of the street.' },
+  { who: 'Gram', text: 'Been waiting for someone stubborn enough.' },
   { who: 'Gram', text: 'Go on. Keep your eyes on the water, not your feet.' }
 ];
 const SLIP_TAKE: Line[] = [
@@ -262,29 +266,38 @@ const WALK_REVEAL: Line[] = [
   { who: 'You', text: 'It’s a foundation. Something STOOD here.' },
   { who: '', text: 'Cut into the cornerstone, worn but certain: a little lighthouse — and an arrow, pointing up the beach toward where the lighthouse stands today.' },
   { who: 'You', text: 'It moved. The whole lighthouse moved off this spot.' },
-  { who: 'You', text: 'It WALKED, Clipper. The light that walks is real — and this “ghost” out here is just where it used to stand.' },
+  { who: 'You', text: 'It WALKED, Clipper. The light that walks is real.' },
+  { who: 'You', text: 'This “ghost” out here? Just where it used to stand.' },
   { who: 'You', text: 'So who’s been lighting it?' }
 ];
 
-// Chapter 3 "The Mooncusser" — beat 1: a salty lobsterman, met out on the water as you paddle
-// home, explains the mooncusser (kid-clear), warns of the storm, and sends you to snuff the lamps.
-const LOBSTER_MOONCUSSER: Line[] = [
+// Chapter 3 "The Lamplighter" — beat 1: a salty lobsterman, met out on the water as you paddle
+// home, explains that the "ghost light" is old Eben — a keeper, your grandfather's friend, who
+// rows out and lights the drowned foundation every night. The gale keeps snuffing his lamps and
+// his hands are too stiff to keep up, so he sends you out to relight them for him.
+const LOBSTER_KEEPER: Line[] = [
   { who: '', text: 'A lobster boat rides the swell on your way in, traps stacked high. A waterman in oilskins, beaded with spray, lifts a hand and waves you over.' },
   { who: 'Lobsterman', text: 'You’re the one paddlin’ your grandfather’s kayak. Figured you’d come askin’ about that light.' },
   { who: 'You', text: 'Who’s lighting it?' },
-  { who: 'Lobsterman', text: 'A mooncusser. Sets false lamps out on the rocks. A boat sees one, thinks it’s the harbor, and steers straight onto the sandbar.' },
-  { who: 'You', text: 'So it wrecks — and he takes whatever washes in. That’s robbery with a LAMP.' },
-  { who: 'Lobsterman', text: 'Ayuh. They’d even cuss the moon for it — a bright night shows the real shore and spoils the trick. Mooncussers.' },
-  { who: 'Lobsterman', text: 'He’s strung a whole line of false lamps out there tonight, and there’s a big blow comin’. Paddle out and put every last one of ’em out.' },
-  { who: 'You', text: 'Every lamp. Got it. Come on, Clipper.' }
+  { who: 'Lobsterman', text: 'No ghost out there. That’s old Eben — rows out every night and lights a lamp on the drowned foundation. Has for years.' },
+  { who: 'Lobsterman', text: 'Since your grandfather stopped, some say. The two of ’em chased that light together, back when.' },
+  { who: 'You', text: 'But the lighthouse moved. Why keep lighting an empty spot?' },
+  { who: 'Lobsterman', text: 'A man gets used to a star. Trouble is, his hands are too stiff now — the wind keeps blowin’ his lamps out faster’n he can strike ’em.' },
+  { who: 'Lobsterman', text: 'And there’s weather coming. Paddle out and light ’em for him, every last one — don’t leave the old fella out there alone.' },
+  { who: 'You', text: 'Light every lamp. Come on, Clipper.' }
 ];
-// beat 2: snuffed every decoy and reached his last light — caught (no peril, he just slinks off).
-const MOONCUSSER_CATCH: Line[] = [
-  { who: '', text: 'His last lamp — and the man himself, hunched over it on the old foundation.' },
-  { who: 'Mooncusser', text: 'You! You snuffed my whole line. Took me half the night to set those.' },
-  { who: 'You', text: 'No more fake lights. No more wrecks.' },
-  { who: '', text: 'You lean across and snuff his last lantern. The dark closes in, and the mooncusser slinks off into it, grumbling at the rising wind.' },
-  { who: 'You', text: 'That’s all of them, Clipper. The only light left to worry about is the real one — and tomorrow night, we bring it home.' }
+// beat 2: relit every lamp and reached Eben at his last one — he knew your grandfather, hands you
+// the watch, and lets the old light rest (no peril, no villain).
+const KEEPER_MEET: Line[] = [
+  { who: '', text: 'His last lamp — and the man himself, hunched over it on the old foundation, white hair wind-tossed, a wool cap pulled low.' },
+  { who: 'Keeper', text: 'You lit every one. Haven’t seen her burn this bright in years.' },
+  { who: '', text: 'You lean across and light the last wick. The whole ring of lamps glows warm against the dark water.' },
+  { who: 'Keeper', text: 'You’ve got his stroke, you know — your grandfather’s. I’d know that paddle anywhere.' },
+  { who: 'You', text: 'You knew him?' },
+  { who: 'Keeper', text: 'Kept this light between us, him and me. The harbor moved its real light ashore years back. But a man gets used to a star.' },
+  { who: 'Keeper', text: 'She’s had her good night now. Time I let her rest — I’ll see the lamps to bed.' },
+  { who: 'Keeper', text: 'There’s a hard blow coming in off the water. Get yourself home, kid — and if this town ever needs its light kept… well. You’ve got the hands for it now.' },
+  { who: 'You', text: 'Goodnight, Eben. Come on, Clipper — let’s beat the storm in.' }
 ];
 
 // Chapter 4 "Bring the Light Home" — beat 1: the storm is here, the harbor light is dark,
@@ -474,8 +487,8 @@ export class QuestRunner {
   private l2built = false;      // lazily spawn the Joppa props once Level 1 ends
   private mysteryLight: THREE.Group | null = null;   // the light out on the water (Ch1 reveal → Ch2 target)
   private foundation: THREE.Group | null = null;     // the old lighthouse base under the light (Ch2 reveal)
-  private decoyLights: THREE.Group[] = [];           // the mooncusser's scattered false lamps (Ch3)
-  private snuffed = new Set<number>();               // which decoy lamps you've put out
+  private decoyLights: THREE.Group[] = [];           // the keeper's scattered marker-lamps you relight (Ch3)
+  private litLamps = new Set<number>();              // which of the keeper's lamps you've relit
   private tiedKayak: THREE.Group | null = null;      // the ride kayak parked at the Joppa slip; update() hides it while you're paddling
   private beam: THREE.Group | null = null;           // the Rear Range Light's sweeping beam (Ch4 finale)
   private lostBoats: THREE.Group[] = [];             // the boats out in the storm — the beam guides them home
@@ -545,8 +558,8 @@ export class QuestRunner {
     this.ch5 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch5-step') || '0', 10) || 0));
     this.ch6 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch6-step') || '0', 10) || 0));
     this.ch7 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch7-step') || '0', 10) || 0));
-    const dmask = parseInt(localStorage.getItem('nbpt-ch7-decoys') || '0', 10) || 0;   // bitmask of snuffed lamps
-    for (let i = 0; i < DECOYS.length; i++) if (dmask & (1 << i)) this.snuffed.add(i);
+    const dmask = parseInt(localStorage.getItem('nbpt-ch7-decoys') || '0', 10) || 0;   // bitmask of relit lamps
+    for (let i = 0; i < DECOYS.length; i++) if (dmask & (1 << i)) this.litLamps.add(i);
     this.ch8 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch8-step') || '0', 10) || 0));
     const bmask = parseInt(localStorage.getItem('nbpt-ch8-boats') || '0', 10) || 0;    // bitmask of boats guided home
     for (let i = 0; i < LOST.length; i++) if (bmask & (1 << i)) this.caught.add(i);
@@ -765,8 +778,8 @@ export class QuestRunner {
     bellPost(BELL_WHARF.x, BELL_WHARF.z);
   }
 
-  // a soft warm additive glow sprite (a lit lantern) — shared by the mooncusser's lantern
-  // and his scattered decoy lamps so every false light reads the same
+  // a soft warm additive glow sprite (a lit lantern) — shared by the keeper's lantern
+  // and his scattered marker-lamps so every light reads the same
   private warmGlow(scale: number): THREE.Sprite {
     const cv = document.createElement('canvas');
     cv.width = cv.height = 64;
@@ -828,7 +841,7 @@ export class QuestRunner {
     halo.scale.set(520, 520, 1);
     g.add(halo);
     g.position.set(LIGHT.x, WATER_Y + 7, LIGHT.z);
-    g.visible = this.ch5 >= 1 && this.ch7 < 2;   // the false light burns until you snuff it in Ch3
+    g.visible = this.ch5 >= 1 && this.ch7 < 2;   // the keeper's light burns out past the flats until he puts it to bed at the end of Ch3
     this.mysteryLight = g;
     this.scene.add(g);
 
@@ -857,40 +870,47 @@ export class QuestRunner {
     dock.rotation.y = 2.36;            // deck (+z) points NE into the water (the harbor)
     this.scene.add(dock);
 
-    // the mooncusser (Chapter 3): a hooded figure crouched on the drowned foundation,
-    // tending the false lantern. Hidden until you go to catch them (apply() toggles on
-    // ch7===1); placed on the near (south) edge of the ring so you see them on approach.
-    const moon = npcMesh('#c7a98a', '#23271f', '#1b1d21', '#2c281f', 'cap');
+    // the lamplighter — old Eben (Chapter 3): a stooped keeper in a wool cap and navy sweater,
+    // white-haired, tending his lantern on the drowned foundation. Hidden until you go out to
+    // meet him (apply() toggles on ch7===1); placed on the near (south) edge of the ring so you
+    // see him on approach.
+    const keep = npcMesh('#d8c2a2', '#39506b', '#4a4640', '#dcdad2', 'cap');
     const lantern = new THREE.Mesh(
       new THREE.BoxGeometry(3.2, 4.4, 3.2),
       new THREE.MeshBasicMaterial({ color: '#ffd56a', fog: false })
     );
     lantern.position.set(4, 9.5, 3);
-    moon.add(lantern);
-    // a warm glow on his lantern so the "false light" reads up close (the big mystery glow
-    // shrinks to nothing as you arrive; this is what's left — just a lamp). Shared with the decoys.
+    keep.add(lantern);
+    // a warm glow on his lantern so his light reads up close (the big mystery glow shrinks to
+    // nothing as you arrive; this is what's left — just an old man and a lamp). Shared with the lamps.
     const lglow = this.warmGlow(70);
     lglow.position.set(4, 10, 3);
-    moon.add(lglow);
-    moon.position.set(LIGHT.x, WATER_Y + 11, LIGHT.z + 50);   // standing on the ring, near side
-    moon.rotation.y = Math.PI;          // facing south, toward the kid paddling up
-    moon.visible = false;
-    this.npcs.mooncusser = moon;
-    this.scene.add(moon);
+    keep.add(lglow);
+    keep.position.set(LIGHT.x, WATER_Y + 11, LIGHT.z + 50);   // standing on the ring, near side
+    keep.rotation.y = Math.PI;          // facing south, toward the kid paddling up
+    keep.visible = false;
+    this.npcs.lamplighter = keep;
+    this.scene.add(keep);
 
-    // the mooncusser's scattered false lamps (Ch3): a buoy-post + a lit lantern on the water.
-    // Built once; apply() shows the un-snuffed ones during ch7===1, update() snuffs on contact.
+    // the keeper's scattered marker-lamps (Ch3): a buoy-post topped by a lantern, blown dark by
+    // the gale. Built once; apply() stands the un-lit posts on the water during ch7===1, update()
+    // RELIGHTS each on contact (turns its `flame` subgroup on). The lit state persists.
     this.decoyLights = DECOYS.map((d) => {
       const lamp = new THREE.Group();
       const post = box(1.6, 15, 1.6, '#2c2a26');     // a dark stake out of the water
       post.position.y = 5;
       lamp.add(post);
+      // the flame: a lit lantern box + warm halo, hidden until you relight it
+      const flame = new THREE.Group();
       const lbox = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 3), new THREE.MeshBasicMaterial({ color: '#ffd56a', fog: false }));
       lbox.position.y = 13;
-      lamp.add(lbox);
+      flame.add(lbox);
       const gl = this.warmGlow(58);
       gl.position.y = 13;
-      lamp.add(gl);
+      flame.add(gl);
+      flame.visible = false;
+      (lamp as THREE.Group & { flame?: THREE.Group }).flame = flame;
+      lamp.add(flame);
       lamp.position.set(d.x, WATER_Y - 1.5, d.z);
       lamp.visible = false;
       this.scene.add(lamp);
@@ -1165,10 +1185,10 @@ export class QuestRunner {
         this.hud.setObjective('Paddle home — the lobsterman’s waving you over');
         target = { x: LOBSTER.x, z: LOBSTER.z };
       } else if (this.l2 && this.ch7 === 1) {
-        const left = DECOYS.length - this.snuffed.size;
+        const left = DECOYS.length - this.litLamps.size;
         this.hud.setObjective(left > 0
-          ? `Snuff the mooncusser’s false lamps — ${this.snuffed.size} of ${DECOYS.length}`
-          : 'Catch the mooncusser at his last light');
+          ? `Relight the keeper’s lamps — ${this.litLamps.size} of ${DECOYS.length}`
+          : 'Reach the keeper at his last lamp');
         target = { x: LIGHT.x, z: LIGHT.z };   // update() refines the beacon to the next lamp
       } else if (this.l2 && this.ch7 >= 2 && this.ch8 === 0) {
         this.hud.setObjective('Paddle to the lobsterman — the storm’s breaking');
@@ -1208,11 +1228,15 @@ export class QuestRunner {
     if (this.ch3 >= 4 && !this.c5built) { this.c5built = true; this.buildC5Props(); }
     // Level 2 (gated): the Joppa birdwatcher appears once Level 1 is finished
     if (this.l2 && this.ch4 >= 4 && !this.l2built) { this.l2built = true; this.buildL2Props(); }
-    // Ch3: the mooncusser only stands on the foundation while you're going to catch them
-    if (this.npcs.mooncusser) this.npcs.mooncusser.visible = this.l2 && this.ch6 >= 3 && this.ch7 === 1;
-    // Ch3: his scattered false lamps glow on the water until you snuff each one
+    // Ch3: the keeper only stands on the foundation while you're out relighting his lamps
+    if (this.npcs.lamplighter) this.npcs.lamplighter.visible = this.l2 && this.ch6 >= 3 && this.ch7 === 1;
+    // Ch3: his marker-lamps stand on the water during the hunt; each shows its flame once relit
+    // (persisted), and they all go dark when he puts them to bed at the chapter's end (ch7 >= 2)
     for (let i = 0; i < this.decoyLights.length; i++) {
-      this.decoyLights[i].visible = this.l2 && this.ch6 >= 3 && this.ch7 === 1 && !this.snuffed.has(i);
+      const lamp = this.decoyLights[i];
+      lamp.visible = this.l2 && this.ch6 >= 3 && this.ch7 === 1;
+      const flame = (lamp as THREE.Group & { flame?: THREE.Group }).flame;
+      if (flame) flame.visible = this.litLamps.has(i);
     }
     // the lobsterman's boat rides the water once Ch2 is done; it's gone by the finale (he heads
     // ashore once the storm sends you to the tower — "that's my boat in the line" at the end)
@@ -1373,12 +1397,12 @@ export class QuestRunner {
         ]
       });
       missions.push({
-        id: 'l2c3', group: 'story', level: 2, levelName: L2_NAME, chapter: 3, title: 'The Mooncusser',
+        id: 'l2c3', group: 'story', level: 2, levelName: L2_NAME, chapter: 3, title: 'The Lamplighter',
         state: this.ch7 >= 2 ? 'done' : this.ch6 >= 3 ? 'active' : 'locked', active: active === 8, replay: 7,
         steps: [
           { label: 'Meet the lobsterman on the water as you paddle home', done: this.ch7 >= 1 },
-          { label: 'Snuff the mooncusser’s false lamps', done: this.ch7 >= 2 || this.snuffed.size >= DECOYS.length, count: this.snuffed.size, total: DECOYS.length },
-          { label: 'Catch the mooncusser at his last light', done: this.ch7 >= 2 }
+          { label: 'Relight the keeper’s lamps', done: this.ch7 >= 2 || this.litLamps.size >= DECOYS.length, count: this.litLamps.size, total: DECOYS.length },
+          { label: 'Reach the keeper at his last lamp', done: this.ch7 >= 2 }
         ]
       });
       missions.push({
@@ -1408,6 +1432,11 @@ export class QuestRunner {
   refresh() {
     this.apply();
   }
+
+  // Level 2 "walking light" mystery window: after the Ch1 reveal (ch5≥1) and before the
+  // finale storm takes the sky (ch8<1). Game polls this to hold a winter dusk over the
+  // whole ghost-light arc — the premise says the light "comes on after dark."
+  get l2Night(): boolean { return this.storyOn && this.l2 && this.ch5 >= 1 && this.ch8 < 1; }
 
   // explore vs play toggle (driven by the first-run pick + the settings gear). Off
   // hides the directive HUD and stops the proactive story triggers; on resumes the
@@ -1488,25 +1517,25 @@ export class QuestRunner {
       this.revealWalk();
     }
     // Level 2: meet the lobsterman OUT ON THE WATER as you paddle home — his anchored boat
-    // sits on the route in, and drawing near it opens Ch3 (the mooncusser) then Ch4 (the storm).
+    // sits on the route in, and drawing near it opens Ch3 (the lamplighter) then Ch4 (the storm).
     if (this.storyOn && this.l2 && this.hud.kayaking && !this.hud.dialogueOpen
         && ((this.ch6 >= 3 && this.ch7 === 0) || (this.ch7 >= 2 && this.ch8 === 0))
         && Math.hypot(px - LOBSTER.x, pz - LOBSTER.z) < 170) {
       this.meetLobster();
     }
-    // Level 2 Ch3 "The Mooncusser": hunt his scattered false lamps. The beacon marks the
-    // nearest un-snuffed lamp; paddle into it to snuff it. Once every lamp is out, the beacon
-    // swings to the foundation and reaching it catches the mooncusser at his last light.
+    // Level 2 Ch3 "The Lamplighter": relight the keeper's scattered marker-lamps. The beacon
+    // marks the nearest dark lamp; paddle up to it to light it. Once every lamp is lit, the
+    // beacon swings to the foundation and reaching it meets the keeper at his last lamp.
     if (this.storyOn && this.l2 && this.ch6 >= 3 && this.ch7 === 1 && this.hud.kayaking && !this.hud.dialogueOpen) {
       let tgt: { x: number; z: number } | null = null, best = Infinity;
       for (let i = 0; i < DECOYS.length; i++) {
-        if (this.snuffed.has(i)) continue;
+        if (this.litLamps.has(i)) continue;
         const d = Math.hypot(px - DECOYS[i].x, pz - DECOYS[i].z);
-        if (d < 60) { this.snuffDecoy(i); continue; }   // paddled into it — snuff it
+        if (d < 60) { this.lightLamp(i); continue; }    // paddled up to it — relight it
         if (d < best) { best = d; tgt = DECOYS[i]; }
       }
-      if (!tgt) {                                       // all lamps out — go catch him
-        if (Math.hypot(px - LIGHT.x, pz - LIGHT.z) < 130) { this.catchMooncusser(); }
+      if (!tgt) {                                       // every lamp lit — go meet him
+        if (Math.hypot(px - LIGHT.x, pz - LIGHT.z) < 130) { this.meetKeeper(); }
         else tgt = LIGHT;
       }
       if (tgt && this.beacon.visible) {                 // steer the beacon + "!" to the live target
@@ -1876,48 +1905,52 @@ export class QuestRunner {
   }
 
   // Level 2: met out on the water as you paddle home from the light. The same waterman opens
-  // Chapter 3 (the mooncusser), then Chapter 4 (the storm). update() fires this when the kayak
+  // Chapter 3 (the lamplighter), then Chapter 4 (the storm). update() fires this when the kayak
   // draws near his anchored boat — no land affordance, the meeting IS the trip home.
   private meetLobster() {
     this.beacon.visible = false;
     this.bang.visible = false;
     if (this.ch6 >= 3 && this.ch7 === 0) {
-      this.hud.showDialogue(LOBSTER_MOONCUSSER, () => {
-        this.hud.chapterCard('LEVEL 2 · CHAPTER 3', 'The Mooncusser', 'a false light on the old rocks');
+      this.hud.showDialogue(LOBSTER_KEEPER, () => {
+        this.hud.chapterCard('LEVEL 2 · CHAPTER 3', 'The Lamplighter', 'an old man keeps a light that walked away');
         this.setCh7(1);
       });
     } else if (this.ch7 >= 2 && this.ch8 === 0) {
-      // the finale: the storm hits and the lobsterman sends you to light the harbor
+      // the finale: break the storm AS he hails you, so the sky matches the "wind has teeth
+      // now" narration; the lobsterman then sends you to light the harbor
+      this.stormStarted = true;
+      this.onStorm();              // the nor'easter rolls in
       this.hud.showDialogue(LOBSTER_STORM, () => {
         this.hud.chapterCard('LEVEL 2 · CHAPTER 4', 'Bring the Light Home', 'the storm is here · the harbor light is dark');
-        this.stormStarted = true;
-        this.onStorm();              // the nor'easter rolls in
         this.setCh8(1);
       });
     }
   }
 
-  // Level 2 Ch3: paddled into a decoy lamp — put it out, save progress, refresh the count
-  private snuffDecoy(i: number) {
-    if (this.snuffed.has(i)) return;
-    this.snuffed.add(i);
+  // Level 2 Ch3: paddled up to one of the keeper's dark lamps — relight it, save progress,
+  // refresh the count. Its flame turns on (apply() reflects litLamps); the post stays put.
+  private lightLamp(i: number) {
+    if (this.litLamps.has(i)) return;
+    this.litLamps.add(i);
     let mask = 0;
-    for (const k of this.snuffed) mask |= (1 << k);
+    for (const k of this.litLamps) mask |= (1 << k);
     localStorage.setItem('nbpt-ch7-decoys', String(mask));
-    if (this.decoyLights[i]) this.decoyLights[i].visible = false;
-    this.audio.thump();   // a soft snuff
+    const flame = this.decoyLights[i] && (this.decoyLights[i] as THREE.Group & { flame?: THREE.Group }).flame;
+    if (flame) flame.visible = true;
+    this.audio.bell();    // the lamp catches — a warm note
     this.apply();         // refresh the "X of N" objective + mission count
   }
 
-  // Level 2 Ch3: you've snuffed every decoy and reached his last light — catch the mooncusser
-  private catchMooncusser() {
+  // Level 2 Ch3: you've relit every lamp and reached Eben at his last one — he knew your
+  // grandfather, hands you the watch, and lets the old light rest.
+  private meetKeeper() {
     this.beacon.visible = false;
     this.bang.visible = false;
-    this.hud.showDialogue(MOONCUSSER_CATCH, () => {
+    this.hud.showDialogue(KEEPER_MEET, () => {
       this.audio.jingle();
-      if (this.npcs.mooncusser) this.npcs.mooncusser.visible = false;   // melts into the dusk
-      if (this.mysteryLight) this.mysteryLight.visible = false;         // false light snuffed for good
-      this.hud.chapterCard('LEVEL 2 · CHAPTER 3 COMPLETE', 'The Mooncusser', 'the false light is out — but a storm is coming');
+      if (this.npcs.lamplighter) this.npcs.lamplighter.visible = false;   // he sees his lamps to bed
+      if (this.mysteryLight) this.mysteryLight.visible = false;           // the old light, put to rest
+      this.hud.chapterCard('LEVEL 2 · CHAPTER 3 COMPLETE', 'The Lamplighter', 'the old light rests — but a storm is coming');
       this.setCh7(2);
       // again: no teleport — you paddle home, and the lobsterman flags you down on the way in
       // (auto-triggers in update()) with the storm send-off that opens the finale.
