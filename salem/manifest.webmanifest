@@ -1,13 +1,13 @@
 {
-  "name": "Clipper Town",
-  "short_name": "Clipper Town",
-  "description": "Explore Newburyport, Massachusetts — an all-ages adventure on the real town map.",
+  "name": "Salem in 3D",
+  "short_name": "Salem",
+  "description": "Walk the real map of Salem, Massachusetts — a cozy, all-ages 3D town to explore.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#2a1419",
-  "theme_color": "#2a1419",
+  "background_color": "#2a1838",
+  "theme_color": "#2a1838",
   "icons": [
     { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
