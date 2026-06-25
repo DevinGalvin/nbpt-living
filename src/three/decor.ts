@@ -1389,6 +1389,37 @@ function landmarkArch(plain: Bucket, cx: number, cz: number, g: number) {
   plain.box(cx, cz, span + pierW + 0.7, 3.2, g + h + 5, g + h + 7, SD);  // cornice
 }
 
+// A tiered stone fountain — octagonal basin with water + a central two-bowl jet.
+// For amenity=fountain points (e.g. East India Square Fountain). Town-square staple.
+function landmarkFountain(plain: Bucket, cx: number, cz: number, g: number) {
+  const STONE = '#b9b2a3', STONE_D = '#9b9486', WATER = '#5f88a8';
+  const oct = (r: number): number[] => { const ring: number[] = []; for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; ring.push(cx + Math.cos(a) * r, cz + Math.sin(a) * r); } return ring; };
+  walls(plain, oct(10), g, g + 2.2, STONE_D);          // base foot
+  walls(plain, oct(9), g, g + 5.5, STONE);             // basin rim
+  flatRoof(plain, oct(8), g + 4.2, WATER);             // water surface
+  plain.box(cx, cz, 1.7, 1.7, g + 4, g + 10, STONE);   // central pedestal
+  flatRoof(plain, oct(3.4), g + 10, STONE_D);          // lower bowl
+  plain.box(cx, cz, 1.0, 1.0, g + 10, g + 15, STONE);  // upper stem
+  flatRoof(plain, oct(2.1), g + 15, STONE_D);          // upper bowl
+  plain.box(cx, cz, 0.5, 0.5, g + 15, g + 19, STONE_D); // jet
+}
+
+// A small coastal redoubt — square stone ramparts with raised corner bastions, an
+// earthwork interior, and a flag. For historic=fort points (e.g. Fort Pickering).
+function landmarkFort(plain: Bucket, cx: number, cz: number, g: number) {
+  const STONE = '#8f8a7e', STONE_D = '#777264', EARTH = '#6e6550';
+  const R = 18, H = 10;
+  plain.box(cx, cz - R, R + 2.5, 2.6, g, g + H, STONE);   // ramparts (4 walls)
+  plain.box(cx, cz + R, R + 2.5, 2.6, g, g + H, STONE);
+  plain.box(cx - R, cz, 2.6, R + 2.5, g, g + H, STONE);
+  plain.box(cx + R, cz, 2.6, R + 2.5, g, g + H, STONE);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1])
+    plain.box(cx + sx * R, cz + sz * R, 4.2, 4.2, g, g + H + 3.5, STONE_D);   // corner bastions
+  plain.box(cx, cz, R - 3, R - 3, g, g + 3.5, EARTH);      // earthwork interior
+  plain.box(cx, cz, 0.45, 0.45, g + 3.5, g + 28, STONE_D); // flagpole
+  plain.box(cx + 3.2, cz, 3.2, 0.3, g + 22, g + 26.5, '#b03a3a'); // flag
+}
+
 // A standalone tower (man_made=tower / building=tower): tall stone shaft + pointed
 // spire. Covers bell towers, observation towers, clock towers in any town.
 function buildTower(buckets: Bucket[], b: Building, g: number) {
@@ -2894,6 +2925,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       buildTower(buckets, b, g);
       continue;
     }
+    if (b.k === 'gazebo') {
+      buildGazebo(buckets, b, g);
+      continue;
+    }
     // a home the map names an architecture style for — render it in that style
     if (b.style) {
       styledHouse(buckets, b, g, index);
@@ -3460,6 +3495,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       landmarkObelisk(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
     } else if (poi.k === 'arch') {
       landmarkArch(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    } else if (poi.k === 'fountain') {
+      landmarkFountain(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    } else if (poi.k === 'fort') {
+      landmarkFort(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
     }
   }
 

@@ -182,6 +182,7 @@ function buildingKind(t) {
   const lighty = ((t.name || '') + (t.alt_name || '')).toLowerCase().includes('light');
   if (t.man_made === 'lighthouse' || b === 'lighthouse' || (b === 'tower' && lighty)) return 'light';
   if (b === 'tower' || t.man_made === 'tower' || b === 'campanile') return 'tower';   // standalone tower → tall-shaft archetype
+  if (t.leisure === 'bandstand' || t.shelter_type === 'gazebo' || b === 'bandstand') return 'gazebo';   // open deck + posts + conical roof
   if (['school', 'civic', 'public', 'government', 'hospital', 'university', 'fire_station', 'train_station'].includes(b)
     || ['townhall', 'courthouse', 'library', 'fire_station', 'police', 'school', 'hospital', 'theatre', 'community_centre'].includes(t.amenity)) return 'civic';
   if (['commercial', 'retail', 'office', 'supermarket', 'hotel'].includes(b) || t.shop || t.tourism === 'hotel') return 'commercial';
@@ -598,6 +599,19 @@ for (const el of raw.elements) {
     bump('windsock');
     continue;
   }
+  // fountains + forts are distinct landmarks worth rendering even when unnamed
+  if (t.amenity === 'fountain') {
+    const [x, y] = px(el.lat, el.lon);
+    world.pois.push({ x, y, k: 'fountain', n: t.name || '' });
+    bump('fountain');
+    continue;
+  }
+  if (t.historic === 'fort') {
+    const [x, y] = px(el.lat, el.lon);
+    world.pois.push({ x, y, k: 'fort', n: t.name || '' });
+    bump('fort');
+    continue;
+  }
   if (!t.name) continue;
   // landmark archetypes (rendered in 3D by decor.ts): a lighthouse node, or a
   // statue/monument point (artwork / memorial / monument). Checked BEFORE the generic
@@ -614,6 +628,19 @@ for (const el of raw.elements) {
   if (!k) continue;
   const [x, y] = px(el.lat, el.lon);
   world.pois.push({ x, y, k, n: t.name });
+}
+
+// amenity=fountain WAYS render flat as polys — drop the tiered fountain archetype at
+// each one's centroid too, skipping any that already have a fountain point nearby
+{
+  const fpts = world.pois.filter((p) => p.k === 'fountain');
+  for (const poly of world.polys) {
+    if (poly.k !== 'fountain') continue;
+    const [cx, cy] = centroid(poly.p);
+    if (fpts.some((p) => (p.x - cx) ** 2 + (p.y - cy) ** 2 < 55 * 55)) continue;
+    world.pois.push({ x: Math.round(cx), y: Math.round(cy), k: 'fountain', n: '' });
+    bump('fountain-way');
+  }
 }
 
 // ---------- curated landmarks (verified coords from research) ----------
