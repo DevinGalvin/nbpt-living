@@ -411,18 +411,54 @@ function mansardRoof(shin: Bucket, plain: Bucket, obb: OBB, eaveH: number, ov: n
   shin.quadUV(a[0],a[1],a[2], b2[0],b2[1],b2[2], c2[0],c2[1],c2[2], d2[0],d2[1],d2[2], 0,1,0, rr*0.88,rg*0.88,rb*0.88,
     -sL/TEX_SCALE,sW/TEX_SCALE, sL/TEX_SCALE,sW/TEX_SCALE, sL/TEX_SCALE,-sW/TEX_SCALE, -sL/TEX_SCALE,-sW/TEX_SCALE);   // near-flat cap
   // dormers in the two long faces
-  const nd = Math.max(1, Math.min(3, Math.floor(sL / 16)));
+  const nd = Math.max(1, Math.min(3, Math.floor(sL / 18)));
   for (const side of [1, -1]) {
     for (let i = 0; i < nd; i++) {
-      const l0 = nd === 1 ? 0 : -sL * 0.62 + (i / (nd - 1)) * sL * 1.24;
-      const wIn = side * (W - 1.4);
-      const cx = obb.cx + l0 * ca - wIn * sa, cz = obb.cz + l0 * sa + wIn * ca;
-      rotBox(plain, cx, cz, 5.2, 3.0, eaveH + 4, eaveH + lowerH * 0.7, obb.ang, '#efe9da');                          // dormer cheeks
-      rotBox(plain, cx, cz, 5.8, 3.6, eaveH + lowerH * 0.7, eaveH + lowerH * 0.7 + 2.4, obb.ang, '#bdb8ab');         // little cap
-      const wOut = side * (W + 0.7);
-      rotBox(plain, obb.cx + l0 * ca - wOut * sa, obb.cz + l0 * sa + wOut * ca, 3.4, 0.5, eaveH + 6.5, eaveH + lowerH * 0.58, obb.ang, '#34383d'); // window
+      const l0 = nd === 1 ? 0 : -sL * 0.58 + (i / (nd - 1)) * sL * 1.16;
+      mansardDormer(plain, obb, l0, side, W, eaveH, lowerH);
     }
   }
+}
+
+// A bold gabled dormer projecting from a mansard's steep face: cream body + dark window
+// + a peaked roof whose triangular gable end reads toward the street. Placed in the OBB
+// frame at l0 along the wall, on the side*W face.
+function mansardDormer(plain: Bucket, obb: OBB, l0: number, side: number, W: number, eaveH: number, lowerH: number) {
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const dw = 6.5;                          // half width along the wall (~1.6 m)
+  const wF = side * (W + 2.5);             // front, proud of the eave
+  const wB = side * (W - 6.5);             // back, set into the roof
+  const yBase = eaveH + Math.max(4, lowerH * 0.16);            // lifted into the dark roof field for contrast
+  const yTop = eaveH + Math.min(lowerH * 0.74, lowerH - 4);
+  const ridgeY = Math.min(yTop + 5, eaveH + lowerH - 1);
+  const pt = (l: number, w: number, y: number): [number, number, number] =>
+    [obb.cx + l * ca - w * sa, y, obb.cz + l * sa + w * ca];
+  const bmid = (wB + wF) / 2;
+  rotBox(plain, obb.cx + l0 * ca - bmid * sa, obb.cz + l0 * sa + bmid * ca, dw, Math.abs(wF - wB) / 2, yBase, yTop, obb.ang, '#f6f1e7');  // bright body — pops on the dark mansard
+  const wWin = wF - side * 0.4;
+  rotBox(plain, obb.cx + l0 * ca - wWin * sa, obb.cz + l0 * sa + wWin * ca, dw - 2.2, 0.5, yBase + 2, yTop - 1.5, obb.ang, '#33373c');     // window
+  tmp.set('#d7d0c0'); const rr = tmp.r, rg = tmp.g, rb = tmp.b;   // light dormer roof
+  const sh = (p: number[], q: number[], s: number[]): [number, number, number, number] => {
+    let nx = (q[1]-p[1])*(s[2]-p[2]) - (q[2]-p[2])*(s[1]-p[1]);
+    let ny = (q[2]-p[2])*(s[0]-p[0]) - (q[0]-p[0])*(s[2]-p[2]);
+    let nz = (q[0]-p[0])*(s[1]-p[1]) - (q[1]-p[1])*(s[0]-p[0]);
+    const nl = Math.hypot(nx, ny, nz) || 1; nx/=nl; ny/=nl; nz/=nl;
+    return [nx, ny, nz, 0.76 + 0.24 * Math.max(0, Math.abs(nx)*0.35 + ny*0.5 + Math.abs(nz)*0.6)];
+  };
+  const Lt = pt(l0 - dw, wB, yTop), Lf = pt(l0 - dw, wF, yTop);
+  const Rt = pt(l0 + dw, wB, yTop), Rf = pt(l0 + dw, wF, yTop);
+  const Kb = pt(l0, wB, ridgeY), Kf = pt(l0, wF, ridgeY);
+  const q4 = (a: number[], b: number[], c: number[], d: number[]) => {
+    const [nx, ny, nz, s2] = sh(a, b, c);
+    plain.quad(a[0],a[1],a[2], b[0],b[1],b[2], c[0],c[1],c[2], d[0],d[1],d[2], nx,ny,nz, rr*s2, rg*s2, rb*s2);
+  };
+  const t3 = (a: number[], b: number[], c: number[]) => {
+    const [nx, ny, nz, s2] = sh(a, b, c);
+    plain.triUV(a[0],a[1],a[2], b[0],b[1],b[2], c[0],c[1],c[2], nx,ny,nz, rr*s2, rg*s2, rb*s2, 0,0,0,0,0,0);
+  };
+  q4(Lt, Lf, Kf, Kb);   // left roof slope
+  q4(Rf, Rt, Kb, Kf);   // right roof slope
+  t3(Lf, Rf, Kf);       // street-facing gable triangle
 }
 
 // roof shape for a simple rectangular house: square-ish → pyramid/hip, medium → hip/gable
