@@ -222,12 +222,12 @@ export class Game {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('game')!.appendChild(this.renderer.domElement);
 
-    const fogRange: [number, number] = SEASON === 'fall' ? [1050, 2500] : SEASON === 'winter' ? [1250, 2900] : [1500, 3200];
+    const fogRange: [number, number] = SEASON === 'fall' ? [780, 2050] : SEASON === 'winter' ? [1250, 2900] : [1500, 3200];   // fall pulls in closer — moodier, spookier
     this.scene.fog = new THREE.Fog(STYLE.sky, fogRange[0], fogRange[1]);
     this.camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 10, 6000);
 
     this.hemi = SEASON === 'winter' ? new THREE.HemisphereLight('#dde9f8', '#a8b2bc', 0.55)
-      : SEASON === 'fall' ? new THREE.HemisphereLight('#f2e6cc', '#8a8058', 0.5)
+      : SEASON === 'fall' ? new THREE.HemisphereLight('#e6c49a', '#5a4a60', 0.4)
       : new THREE.HemisphereLight('#e3f2fd', '#90a06c', 0.5);
     this.sun = new THREE.DirectionalLight(SEASON === 'winter' ? '#ffe0b0' : SEASON === 'fall' ? '#ffd9a0' : '#fff2d8', SEASON === 'summer' ? 1.5 : 1.4);
     this.sun.castShadow = true;
@@ -245,7 +245,7 @@ export class Game {
     this.sun.shadow.camera.updateProjectionMatrix();
     this.scene.add(this.hemi, this.sun, this.sun.target, this.kid.root, this.dog.root);
     // day–night cycle + weather; winter precipitation falls as snow
-    this.sky = new Sky(this.scene, { startTod: 0.34, period: 420, snow: SEASON === 'winter' });
+    this.sky = new Sky(this.scene, { startTod: SEASON === 'fall' ? 0.78 : 0.34, period: 420, snow: SEASON === 'winter' });   // fall opens at spooky dusk
 
     // street-lamp lighting pool: a soft warm glow disc on the ground + a real
     // PointLight, both reassigned to the nearest lamps and lit only at night
@@ -293,6 +293,7 @@ export class Game {
     // spawn at Market Square — or, after a season turned the town, exactly where
     // you stood (a one-shot resume point so the re-skin reload doesn't teleport you)
     let sx = 0, sz = 40;
+    if (BARE) { sx = 3550; sz = -5800; }   // Salem: drop into the heart of downtown (Essex St pedestrian mall, by Lappin Park)
     try {
       const r = JSON.parse(localStorage.getItem('nbpt-resume-pos') || 'null');
       if (r && typeof r.x === 'number' && typeof r.z === 'number') { sx = r.x; sz = r.z; }   // keep it: the poll keeps it current, so any refresh resumes here; a story reset clears it
@@ -388,12 +389,13 @@ export class Game {
     // tap (or click) Clipper to pet him — replaces the old always-on PET button
     this.hud.onTap = (sx, sy) => this.tryPetTap(sx, sy);
 
-    if (!BARE && SEASON === 'winter') {
-      // the big tree in Market Square (snow now falls from the Sky weather system)
-      this.scene.add(this.buildHolidayTree(-100, -48));
-    } else if (!BARE && SEASON === 'fall') {
-      // a Halloween patch in Market Square — scarecrow, pumpkins, hay bales
-      this.scene.add(this.buildHalloweenDisplay(-100, -48));
+    if (SEASON === 'winter') {
+      // the big tree in Market Square (snow now falls from the Sky weather system) — NBPT only
+      if (!BARE) this.scene.add(this.buildHolidayTree(-100, -48));
+    } else if (SEASON === 'fall') {
+      // a Halloween patch — scarecrow, pumpkins, hay bales. Salem (the Halloween Capital
+      // of the World) gets it dead-center downtown; Newburyport gets its Market Square one.
+      this.scene.add(this.buildHalloweenDisplay(BARE ? 3470 : -100, BARE ? -5740 : -48));
     }
 
     window.addEventListener('keydown', (e) => {

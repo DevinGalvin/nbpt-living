@@ -3035,24 +3035,24 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         snowman(buckets, frontSegment(b, index), g, seed);
       }
     } else if (SEASON === 'fall' && b.k !== 'shed') {
-      // Halloween eave lights (orange + purple) on the shops and many homes
-      const festive = b.k === 'commercial' || b.k === 'civic' || !!b.sf || hash32(seed, 19, 3) % 100 < 55;
+      // SALEM = the Halloween Capital of the World: deck nearly EVERYTHING out —
+      // orange+purple eave lights, pumpkin patches on every stoop, ghosts, cobwebs.
+      const festive = b.k === 'commercial' || b.k === 'civic' || !!b.sf || hash32(seed, 19, 3) % 100 < 92;
       if (festive) stringLights(buckets[GLOW], b.p, eaveAbs - 1.5, HALLOWEEN_BULBS);
-      const porch = b.k === 'house' ? hash32(seed, 23, 5) % 100 < 88
-        : (b.k === 'commercial' || !!b.sf) && hash32(seed, 23, 5) % 100 < 65;
+      const porch = b.k === 'house' || ((b.k === 'commercial' || !!b.sf) && hash32(seed, 23, 5) % 100 < 90);
       if (porch) pumpkins(buckets, frontSegment(b, index), g, seed);
-      // a friendly ghost haunting some front yards
-      if (b.k === 'house' && hash32(seed, 53, 7) % 100 < 15) ghost(buckets, frontSegment(b, index), g, seed);
-      // cobwebs in the eave corners of the shops (a couple per storefront)
-      if (b.k === 'commercial' || b.sf) {
+      // ghosts haunting a good chunk of the front yards
+      if (b.k === 'house' && hash32(seed, 53, 7) % 100 < 38) ghost(buckets, frontSegment(b, index), g, seed);
+      // cobwebs in the eave corners — on shops AND homes now, a few each
+      {
         const ring = b.p, np = ring.length / 2;
         let webs = 0;
-        for (let i = 0; i < np && webs < 2; i++) {
-          if (hash32(seed, i, 29) % 100 > 32) continue;
+        for (let i = 0; i < np && webs < 3; i++) {
+          if (hash32(seed, i, 29) % 100 > 50) continue;
           const vx = ring[i * 2], vz = ring[i * 2 + 1];
           const pi = ((i - 1 + np) % np) * 2, ni = ((i + 1) % np) * 2;
-          let ux = ring[pi] - vx, uz = ring[pi + 1] - vz; const lu = Math.hypot(ux, uz) || 1;
-          let wx = ring[ni] - vx, wz = ring[ni + 1] - vz; const lw = Math.hypot(wx, wz) || 1;
+          const ux = ring[pi] - vx, uz = ring[pi + 1] - vz, lu = Math.hypot(ux, uz) || 1;
+          const wx = ring[ni] - vx, wz = ring[ni + 1] - vz, lw = Math.hypot(wx, wz) || 1;
           if (lu < 14 || lw < 14) continue;                 // skip tiny/noisy edges
           cobweb(buckets[GLOW], vx, vz, ux / lu, uz / lu, wx / lw, wz / lw, eaveAbs - 1.3);
           webs++;
