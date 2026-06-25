@@ -1364,6 +1364,42 @@ function landmarkStatue(plain: Bucket, cx: number, cz: number, g: number) {
   plain.box(cx, cz, 1.0, 1.0, g + 28, g + 31, BRONZE);      // head
 }
 
+// A granite obelisk on a stepped base — the archetype for war/civic memorials
+// (historic=memorial named "…Memorial/War/Veterans"): tapered shaft + pyramidion.
+function landmarkObelisk(plain: Bucket, cx: number, cz: number, g: number) {
+  const S = '#a8a299', SD = '#8d877d';
+  plain.box(cx, cz, 4.6, 4.6, g, g + 5, SD);         // base step
+  plain.box(cx, cz, 3.4, 3.4, g + 5, g + 9, S);      // plinth
+  plain.box(cx, cz, 2.3, 2.3, g + 9, g + 31, S);     // shaft
+  plain.box(cx, cz, 1.8, 1.8, g + 31, g + 48, SD);   // upper shaft
+  plain.box(cx, cz, 1.35, 1.35, g + 48, g + 57, S);
+  cone(plain, cx, g + 57, cz, 1.9, 6.5, new THREE.Color('#8d877d'));   // pyramidion
+}
+
+// A memorial arch / gateway — two piers + an entablature, opening between them
+// (historic=memorial named "…Arch", e.g. Washington Arch). Axis-aligned.
+function landmarkArch(plain: Bucket, cx: number, cz: number, g: number) {
+  const S = '#cfc7b6', SD = '#b3aa97';
+  const span = 7, pierW = 2.5, h = 25;
+  for (const s of [-1, 1]) {
+    plain.box(cx + s * span, cz, pierW + 0.9, 3.1, g, g + 3, SD);        // pier base
+    plain.box(cx + s * span, cz, pierW, 2.5, g + 3, g + h, S);           // pier
+  }
+  plain.box(cx, cz, span + pierW, 2.9, g + h, g + h + 5, S);             // entablature
+  plain.box(cx, cz, span + pierW + 0.7, 3.2, g + h + 5, g + h + 7, SD);  // cornice
+}
+
+// A standalone tower (man_made=tower / building=tower): tall stone shaft + pointed
+// spire. Covers bell towers, observation towers, clock towers in any town.
+function buildTower(buckets: Bucket[], b: Building, g: number) {
+  const obb = obbOf(b.p);
+  const w = Math.min(obb.hw, obb.hl);
+  const top = g + Math.max(46, Math.min(100, w * 5));
+  walls(buckets[PLAIN], b.p, g - 4, top, '#b8b0a2');                                   // tall stone shaft
+  flatRoof(buckets[PLAIN], b.p, top, '#938b7e');                                       // cap deck
+  hipRoof(buckets[SHINGLE], obb, top, Math.max(12, w * 1.6), 1.5, '#6b5a48', true);    // pointed spire
+}
+
 function buildingDims(b: Building, areaM2: number): { eave: number; lvEff: number } {
   let lv = Math.max(1, Math.min(5, b.lv || 1.5));
   switch (b.k) {
@@ -2854,6 +2890,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       lighthouse(buckets[PLAIN], cx, cz, g);
       continue;
     }
+    if (b.k === 'tower') {
+      buildTower(buckets, b, g);
+      continue;
+    }
     // a home the map names an architecture style for — render it in that style
     if (b.style) {
       styledHouse(buckets, b, g, index);
@@ -3416,6 +3456,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       lighthouse(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
     } else if (poi.k === 'statue') {
       landmarkStatue(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    } else if (poi.k === 'obelisk') {
+      landmarkObelisk(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    } else if (poi.k === 'arch') {
+      landmarkArch(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
     }
   }
 

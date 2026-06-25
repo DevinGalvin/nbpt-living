@@ -181,6 +181,7 @@ function buildingKind(t) {
   if (b === 'church' || b === 'chapel' || b === 'cathedral' || t.amenity === 'place_of_worship') return 'church';
   const lighty = ((t.name || '') + (t.alt_name || '')).toLowerCase().includes('light');
   if (t.man_made === 'lighthouse' || b === 'lighthouse' || (b === 'tower' && lighty)) return 'light';
+  if (b === 'tower' || t.man_made === 'tower' || b === 'campanile') return 'tower';   // standalone tower → tall-shaft archetype
   if (['school', 'civic', 'public', 'government', 'hospital', 'university', 'fire_station', 'train_station'].includes(b)
     || ['townhall', 'courthouse', 'library', 'fire_station', 'police', 'school', 'hospital', 'theatre', 'community_centre'].includes(t.amenity)) return 'civic';
   if (['commercial', 'retail', 'office', 'supermarket', 'hotel'].includes(b) || t.shop || t.tourism === 'hotel') return 'commercial';
@@ -602,8 +603,13 @@ for (const el of raw.elements) {
   // statue/monument point (artwork / memorial / monument). Checked BEFORE the generic
   // historic/tourism fallthrough, so a lighthouse tagged historic=maritime still reads
   // as a lighthouse and a memorial reads as a statue.
+  const nm = t.name;
+  const monumentLike = t.tourism === 'artwork' || t.historic === 'monument' || t.historic === 'memorial';
+  // split monuments by archetype: an arch (Washington Arch), a war/civic obelisk, or a figure statue
   const k = t.man_made === 'lighthouse' ? 'lighthouse'
-    : (t.tourism === 'artwork' || t.historic === 'monument' || t.historic === 'memorial') ? 'statue'
+    : monumentLike ? (/\barch\b/i.test(nm) ? 'arch'
+        : (t.historic === 'memorial' && /memorial|monument|veterans?|soldiers?|\bwar\b/i.test(nm) && !/statue/i.test(nm)) ? 'obelisk'
+        : 'statue')
     : t.historic ? 'historic' : t.tourism ? t.tourism : t.amenity ? t.amenity : t.shop ? 'shop' : t.leisure ? t.leisure : null;
   if (!k) continue;
   const [x, y] = px(el.lat, el.lon);
