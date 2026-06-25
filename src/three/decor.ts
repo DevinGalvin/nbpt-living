@@ -2565,36 +2565,39 @@ function buildRidgeCarriage(buckets: Bucket[], b: Building, g: number, index: Wo
   gableEnd(buckets[PLAIN], ox + f.nx * 1.6, oz + f.nz * 1.6, 4, eave + 9, eave + 12, ang, f.nx, f.nz, TRIM);
 }
 
-// Salem's Jonathan Corwin House — "The Witch House," the most recognizable First-Period house in
-// America: near-black charcoal clapboard, three steep street-facing gables, a massive central brick
-// chimney, jettied floor lines, and diamond-pane leaded casements. (The OSM footprint is named
-// "The Witch House" and was rendering as a generic brick block.)
-function witchHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+// ---------- Salem First-Period houses (17th c.): dark weathered wood, steep street-facing
+// cross-gables tiling the facade, a massive central chimney, jettied floor lines, and small-pane
+// leaded casements. Parameterized so one builder serves the Witch House, the House of the Seven
+// Gables (many varied gables), Hathaway, and Narbonne. ----------
+type FirstPeriodOpts = { wall: string; shingle: string; jetty?: string; nGables?: number; vary?: boolean; chimney?: 'central' | 'big' | 'none'; eave?: number };
+function firstPeriod(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: FirstPeriodOpts) {
   const obb = obbOf(b.p);
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
   const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
   const L = obb.hl, W = obb.hw;
-  tmp.set('#363a3e'); const dr = tmp.r, dg = tmp.g, db = tmp.b;     // charcoal clapboard
-  tmp.set('#2c2e32'); const sr = tmp.r, sg = tmp.g, sb = tmp.b;     // near-black shingle
-  const fs = frontSegment(b, index);                               // which width-side faces the street
-  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;        // +lz world dir = (-sa, ca)
-  const FW = front * (W + 1.4), BW = -front * (W + 1.4);           // eave overhang past the wall
-  const eaveH = g + 26;
-  clad(buckets[CLAP], b.p, g - 2, eaveH, '#363a3e');               // near-black walls on the exact footprint
-  walls(buckets[PLAIN], b.p, g + 11, g + 12.4, '#25272a', 0);      // jetty shadow line (2nd floor overhang)
-  walls(buckets[PLAIN], b.p, eaveH - 1.3, eaveH, '#25272a', 0);    // eave shadow line
-  { const cc = pt(0, 0, 0); buckets[BRICK].box(cc[0], cc[2], 4, 3.4, eaveH + 6, eaveH + 34, '#7c4a38', 1); }  // central brick chimney
-  // three steep street-facing cross-gables, tiling the facade
-  const gw = L / 3, rise = Math.max(26, gw * 1.25), ridgeY = eaveH + rise;
-  for (const c of [-2 * L / 3, 0, 2 * L / 3]) {
+  tmp.set(o.wall); const dr = tmp.r, dg = tmp.g, db = tmp.b;
+  tmp.set(o.shingle); const sr = tmp.r, sg = tmp.g, sb = tmp.b;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;     // +lz world dir = (-sa, ca)
+  const FW = front * (W + 1.4), BW = -front * (W + 1.4);
+  const eaveH = g + (o.eave ?? 26);
+  clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
+  walls(buckets[PLAIN], b.p, g + 11, g + 12.4, o.jetty ?? '#25272a', 0);
+  walls(buckets[PLAIN], b.p, eaveH - 1.3, eaveH, o.jetty ?? '#25272a', 0);
+  if (o.chimney !== 'none') { const cc = pt(0, 0, 0), cw = o.chimney === 'big' ? 5 : 3.7; buckets[BRICK].box(cc[0], cc[2], cw, cw - 0.5, eaveH + 6, eaveH + (o.chimney === 'big' ? 42 : 32), '#6f4636', 1); }
+  const n = o.nGables ?? 3, gw = L / n;
+  const ridges: [number, number][] = [];   // [center, ridgeY] for window placement
+  for (let i = 0; i < n; i++) {
+    const c = -L + gw * (2 * i + 1);
+    const rise = o.vary ? 22 + ((i * 53 + 13) % 5) * 4.5 + (i % 2 ? 5 : 0) : Math.max(26, gw * 1.25);
+    const ridgeY = eaveH + rise; ridges.push([c, ridgeY]);
     const aF = pt(c, FW, ridgeY), aB = pt(c, BW, ridgeY);
-    const fL = pt(c - gw, FW, eaveH), fR = pt(c + gw, FW, eaveH), bL = pt(c - gw, BW, eaveH), bR = pt(c + gw, BW, eaveH);
-    buckets[CLAP].triUV(fL[0], fL[1], fL[2], fR[0], fR[1], fR[2], aF[0], aF[1], aF[2], -sa * front, 0, ca * front, dr, dg, db, 0, 0, 0, 0, 0, 0);   // front gable end
-    buckets[CLAP].triUV(bR[0], bR[1], bR[2], bL[0], bL[1], bL[2], aB[0], aB[1], aB[2], sa * front, 0, -ca * front, dr, dg, db, 0, 0, 0, 0, 0, 0);   // back gable end
-    buckets[SHINGLE].quad(fL[0], fL[1], fL[2], bL[0], bL[1], bL[2], aB[0], aB[1], aB[2], aF[0], aF[1], aF[2], -ca, 0.5, -sa, sr, sg, sb);          // left roof slope
-    buckets[SHINGLE].quad(aF[0], aF[1], aF[2], aB[0], aB[1], aB[2], bR[0], bR[1], bR[2], fR[0], fR[1], fR[2], ca, 0.5, sa, sr * 0.9, sg * 0.9, sb * 0.9);  // right roof slope
+    const fL = pt(c - gw * 1.02, FW, eaveH), fR = pt(c + gw * 1.02, FW, eaveH), bL = pt(c - gw * 1.02, BW, eaveH), bR = pt(c + gw * 1.02, BW, eaveH);
+    buckets[CLAP].triUV(fL[0], fL[1], fL[2], fR[0], fR[1], fR[2], aF[0], aF[1], aF[2], -sa * front, 0, ca * front, dr, dg, db, 0, 0, 0, 0, 0, 0);
+    buckets[CLAP].triUV(bR[0], bR[1], bR[2], bL[0], bL[1], bL[2], aB[0], aB[1], aB[2], sa * front, 0, -ca * front, dr, dg, db, 0, 0, 0, 0, 0, 0);
+    buckets[SHINGLE].quad(fL[0], fL[1], fL[2], bL[0], bL[1], bL[2], aB[0], aB[1], aB[2], aF[0], aF[1], aF[2], -ca, 0.5, -sa, sr, sg, sb);
+    buckets[SHINGLE].quad(aF[0], aF[1], aF[2], aB[0], aB[1], aB[2], bR[0], bR[1], bR[2], fR[0], fR[1], fR[2], ca, 0.5, sa, sr * 0.9, sg * 0.9, sb * 0.9);
   }
-  // diamond-pane leaded casements: a light pane proud of the dark wall + a lead cross
   const win = (lx: number, y: number, hw: number, hh: number) => {
     const c0 = pt(lx, front * W, y), nx = -sa * front, nz = ca * front, ax = ca, az = sa, pr = 0.4;
     const C = (sx: number, sy: number): [number, number, number] => [c0[0] + ax * hw * sx + nx * pr, c0[1] + hh * sy, c0[2] + az * hw * sx + nz * pr];
@@ -2604,12 +2607,94 @@ function witchHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex
     buckets[PLAIN].quad(v0[0] - ax * tw, v0[1], v0[2] - az * tw, v0[0] + ax * tw, v0[1], v0[2] + az * tw, v1[0] + ax * tw, v1[1], v1[2] + az * tw, v1[0] - ax * tw, v1[1], v1[2] - az * tw, nx, 0, nz, tmp.r, tmp.g, tmp.b);
     buckets[PLAIN].quad(h0[0], h0[1] - 0.16, h0[2], h1[0], h1[1] - 0.16, h1[2], h1[0], h1[1] + 0.16, h1[2], h0[0], h0[1] + 0.16, h0[2], nx, 0, nz, tmp.r, tmp.g, tmp.b);
   };
-  for (const c of [-2 * L / 3, 0, 2 * L / 3]) win(c, eaveH + rise * 0.4, 2.6, 3.2);                // a window up in each gable
-  for (const lx of [-L * 0.62, -L * 0.2, L * 0.2, L * 0.62]) { win(lx, g + 16, 2.9, 3.8); win(lx, g + 5.5, 2.9, 3.8); }  // upper + lower casements
+  for (const [c, ridgeY] of ridges) win(c, eaveH + (ridgeY - eaveH) * 0.42, 2.4, 3);   // a window up each gable
+  const cols = Math.max(4, n * 2);
+  for (let i = 0; i < cols; i++) { const lx = -L + (2 * L) * (i + 0.5) / cols; win(lx, g + 16, 2.6, 3.5); win(lx, g + 5.5, 2.6, 3.5); }   // rows of casements
+}
+function witchHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  firstPeriod(buckets, b, g, index, { wall: '#363a3e', shingle: '#2c2e32', nGables: 3, chimney: 'central' });   // charcoal, 3 gables
+}
+function sevenGables(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  firstPeriod(buckets, b, g, index, { wall: '#2f2823', shingle: '#241e19', jetty: '#1b1713', nGables: 6, vary: true, chimney: 'big', eave: 28 });   // dark brown, a spiky cluster of varied gables + huge chimney
+}
+function hathawayHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  firstPeriod(buckets, b, g, index, { wall: '#3a342b', shingle: '#2a2620', nGables: 2, chimney: 'central', eave: 24 });   // dark weathered brown
+}
+function narbonneHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  firstPeriod(buckets, b, g, index, { wall: '#574f43', shingle: '#3f3a32', jetty: '#3a342c', nGables: 1, chimney: 'central', eave: 22 });   // plain weathered grey-brown
+}
+
+// Salem Custom House (1819) — red Federal brick, low slate hip, a central pedimented portico, and
+// the signature gilded eagle on a white octagonal cupola. (Where Hawthorne worked; the Scarlet Letter.)
+function customHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1, FW = front * (W + 0.6);
+  const eaveH = g + 32;
+  walls(buckets[BRICK], b.p, g - 4, eaveH, '#9c4d3c');                 // red Federal brick
+  walls(buckets[PLAIN], b.p, g + 15, g + 16.4, '#efe9dc', 0);          // white belt course
+  walls(buckets[PLAIN], b.p, eaveH - 2, eaveH, '#efe9dc', 0);          // white cornice
+  flatRoof(buckets[SHINGLE], b.p, eaveH + 1.5, '#4a4e54');             // low slate hip
+  tmp.set('#efe9dc'); const tr = tmp.r, tg = tmp.g, tb = tmp.b;
+  const pL = pt(-L * 0.26, FW, eaveH), pR = pt(L * 0.26, FW, eaveH), pPk = pt(0, FW, eaveH + 7);
+  buckets[PLAIN].triUV(pL[0], pL[1], pL[2], pR[0], pR[1], pR[2], pPk[0], pPk[1], pPk[2], -sa * front, 0, ca * front, tr, tg, tb, 0, 0, 0, 0, 0, 0);  // central pediment
+  for (const lx of [-L * 0.24, -L * 0.08, L * 0.08, L * 0.24]) { const c = pt(lx, FW + front * 1.5, 0); buckets[PLAIN].box(c[0], c[2], 0.9, 0.9, g, eaveH, '#efe9dc'); }  // portico columns
+  const cc = pt(0, 0, 0), base = eaveH + 2;
+  buckets[PLAIN].box(cc[0], cc[2], 3, 3, base, base + 4, '#f6f1e6');                        // cupola base (slim)
+  walls(buckets[PLAIN], octRing(cc[0], cc[2], 2.5), base + 4, base + 11, '#f8f4ea', 0);     // octagonal lantern
+  tmp.set('#cdd2cf'); cone(buckets[PLAIN], cc[0], base + 11, cc[2], 2.7, 3.5, tmp.clone()); // dome
+  const ey = base + 15, gx = -sa * front, gz = ca * front;                                  // gilded eagle on top — the signature
+  tmp.set('#eab73c');
+  octoCanopy(buckets[GLOW], cc[0], ey + 1.5, cc[2], 2.4, tmp.clone());                      // body
+  octoCanopy(buckets[GLOW], cc[0] + gx * 2.6, ey + 3, cc[2] + gz * 2.6, 1.3, tmp.clone());  // head, forward
+  for (const s of [-1, 1]) octoCanopy(buckets[GLOW], cc[0] + ca * s * 4.6, ey + 3.4, cc[2] + sa * s * 4.6, 1.9, tmp.clone());  // spread wings
+}
+
+// Salem Witch Museum — the building is the old East Church (Gothic Revival brownstone): dark rough
+// stone, a battlemented (crenellated) parapet, two squat octagonal corner towers flanking a tall
+// central pointed-arch (lancet) window. The "haunted castle" silhouette tourists know.
+function witchMuseum(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const STONE = '#5e4339', eaveH = g + 42;
+  walls(buckets[BRICK], b.p, g - 3, eaveH, STONE);                     // dark brownstone
+  flatRoof(buckets[SHINGLE], b.p, eaveH - 1, '#332b26');               // low roof behind the parapet
+  const merlon = (ring: number[], y: number, h: number, size: number) => {   // crenellations
+    for (let i = 0; i < ring.length; i += 2) {
+      const ax = ring[i], az = ring[i + 1], bx = ring[(i + 2) % ring.length], bz = ring[(i + 3) % ring.length];
+      const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz); if (len < 4) continue;
+      const ux = dx / len, uz = dz / len;
+      for (let d = 3; d < len - 2; d += 6.5) buckets[BRICK].box(ax + ux * d, az + uz * d, size, size, y, y + h, STONE, 0);
+    }
+  };
+  merlon(b.p, eaveH, 4, 1.7);
+  for (const s of [-1, 1]) {                                           // two squat octagonal corner towers
+    const tc = pt(s * L * 0.82, front * W * 0.74, 0), ring = octRing(tc[0], tc[2], 4.6);
+    walls(buckets[BRICK], ring, g - 3, eaveH + 9, STONE, 0);
+    merlon(ring, eaveH + 9, 3.2, 1.4);
+  }
+  const cF = pt(0, front * (W + 0.4), 0), nx = -sa * front, nz = ca * front, ax = ca, az = sa;   // central lancet window
+  const Wp = (sx: number, y: number): [number, number, number] => [cF[0] + ax * 3 * sx + nx * 0.3, y, cF[2] + az * 3 * sx + nz * 0.3];
+  tmp.set('#41335a'); const wr = tmp.r, wg = tmp.g, wb = tmp.b;        // dark stained glass
+  const la = Wp(-1, g + 10), lb = Wp(1, g + 10), lc = Wp(1, g + 30), ld = Wp(-1, g + 30), apex = pt(0, front * (W + 0.4), g + 39);
+  buckets[GLOW].quad(la[0], la[1], la[2], lb[0], lb[1], lb[2], lc[0], lc[1], lc[2], ld[0], ld[1], ld[2], nx, 0, nz, wr, wg, wb);
+  buckets[GLOW].triUV(ld[0], ld[1], ld[2], lc[0], lc[1], lc[2], apex[0], apex[1], apex[2], nx, 0, nz, wr, wg, wb, 0, 0, 0, 0, 0, 0);
 }
 
 const HEROES: Record<string, HeroBuilder> = {
   'The Witch House': witchHouse,
+  'The House of the Seven Gables': sevenGables,
+  'Hathaway House': hathawayHouse,
+  'Narbonne House': narbonneHouse,
+  'Custom House': customHouse,
+  'Salem Witch Museum': witchMuseum,
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,
