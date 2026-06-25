@@ -520,30 +520,38 @@ for (const el of raw.elements) {
   const [BE, BS] = px(BBOX.s, BBOX.e);   //                  east/south = (maxX, maxY); y grows south
   const PCORN = [[BW, BN], [BE, BN], [BE, BS], [BW, BS]]; // perimeter corners at param t = 0,1,2,3
 
-  // stitch coast ways by endpoint adjacency; split closed loops (islands) from open chains
+  // stitch coast ways into maximal chains: repeatedly merge any two whose endpoints touch
+  // (either end, either direction) until none remain. Order-independent (unlike a greedy
+  // one-end stitch), so a coastline split mid-map by runsOf — e.g. the Merrimack's tidal
+  // reach, where natural=coastline ends upriver — rejoins into one edge-to-edge chain
+  // instead of leaving a dangling mid-map endpoint that snaps to a bbox edge and floods.
   const stitchCoast = (segs, joinTol = 120) => {
-    const open = segs.map((c) => c.slice()), islands = [], opens = [];
-    const isClosed = (c) => { const dx = c[0] - c[c.length - 2], dy = c[1] - c[c.length - 1]; return dx * dx + dy * dy <= joinTol * joinTol; };
-    for (let i = open.length - 1; i >= 0; i--) if (isClosed(open[i]) && open[i].length >= 8) islands.push(open.splice(i, 1)[0]);
-    let guard = 2000;
-    while (open.length && guard-- > 0) {
-      const a = open.pop();
-      if (isClosed(a) && a.length >= 8) { islands.push(a); continue; }
-      const ax = a[a.length - 2], ay = a[a.length - 1];
-      let best = -1, bd = joinTol * joinTol, rev = false;
-      for (let i = 0; i < open.length; i++) {
-        const b = open[i];
-        const d1 = (b[0] - ax) ** 2 + (b[1] - ay) ** 2, d2 = (b[b.length - 2] - ax) ** 2 + (b[b.length - 1] - ay) ** 2;
-        if (d1 < bd) { bd = d1; best = i; rev = false; }
-        if (d2 < bd) { bd = d2; best = i; rev = true; }
+    const chains = segs.map((c) => c.slice());
+    const near = (a, b) => { const dx = a[0] - b[0], dy = a[1] - b[1]; return dx * dx + dy * dy <= joinTol * joinTol; };
+    const ends = (c) => [[c[0], c[1]], [c[c.length - 2], c[c.length - 1]]];
+    const rev = (c) => { const r = []; for (let k = c.length - 2; k >= 0; k -= 2) r.push(c[k], c[k + 1]); return r; };
+    let merged = true;
+    while (merged) {
+      merged = false;
+      outer:
+      for (let i = 0; i < chains.length; i++) {
+        for (let j = i + 1; j < chains.length; j++) {
+          const a = chains[i], b = chains[j], [as, ae] = ends(a), [bs, be] = ends(b);
+          let nc = null;
+          if (near(ae, bs)) nc = a.concat(b.slice(2));
+          else if (near(ae, be)) nc = a.concat(rev(b).slice(2));
+          else if (near(as, bs)) nc = rev(a).concat(b.slice(2));
+          else if (near(as, be)) nc = b.concat(a.slice(2));
+          if (nc) { chains.splice(j, 1); chains.splice(i, 1, nc); merged = true; break outer; }
+        }
       }
-      if (best >= 0) {
-        let b = open.splice(best, 1)[0];
-        if (rev) { const r = []; for (let i = b.length - 2; i >= 0; i -= 2) r.push(b[i], b[i + 1]); b = r; }
-        open.push(a.concat(b));
-      } else opens.push(a);
     }
-    return { islands, opens: opens.concat(open) };
+    const islands = [], opens = [];
+    for (const c of chains) {
+      const dx = c[0] - c[c.length - 2], dy = c[1] - c[c.length - 1];
+      if (c.length >= 8 && dx * dx + dy * dy <= joinTol * joinTol) islands.push(c); else opens.push(c);
+    }
+    return { islands, opens };
   };
 
   // snap a near-edge point onto the bbox boundary; perimeter param t in [0,4):
