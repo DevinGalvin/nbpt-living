@@ -376,13 +376,63 @@ function hipRoof(shin: Bucket, obb: OBB, eaveH: number, ridgeH: number, ov: numb
   }
 }
 
+// A mansard (Second Empire) roof from the OBB: four steep lower slopes rising to a
+// setback, capped near-flat, with dormers punched into the two long faces. Very New
+// England — Salem/Newburyport are full of them. Walls already rise to the eave.
+function mansardRoof(shin: Bucket, plain: Bucket, obb: OBB, eaveH: number, ov: number, roofHex: string) {
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl + ov, W = obb.hw + ov;
+  const lowerH = Math.max(13, Math.min(26, Math.min(L, W) * 0.85));   // steep lower-slope rise
+  const inset = Math.min(L, W) * 0.32;                                // horizontal setback
+  const topY = eaveH + lowerH;
+  const sL = Math.max(2, L - inset), sW = Math.max(2, W - inset);
+  tmp.set(roofHex); const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  const pt = (l: number, w: number, y: number): [number, number, number] =>
+    [obb.cx + l * ca - w * sa, y, obb.cz + l * sa + w * ca];
+  const uv = (along: number, y: number): [number, number] => [along / TEX_SCALE, y / TEX_SCALE];
+  const norm = (p: number[], q: number[], s: number[]): [number, number, number, number] => {
+    let nx = (q[1]-p[1])*(s[2]-p[2]) - (q[2]-p[2])*(s[1]-p[1]);
+    let ny = (q[2]-p[2])*(s[0]-p[0]) - (q[0]-p[0])*(s[2]-p[2]);
+    let nz = (q[0]-p[0])*(s[1]-p[1]) - (q[1]-p[1])*(s[0]-p[0]);
+    const nl = Math.hypot(nx, ny, nz) || 1; nx/=nl; ny/=nl; nz/=nl;
+    if (ny < 0) { nx=-nx; ny=-ny; nz=-nz; }
+    return [nx, ny, nz, 0.8 + 0.2 * Math.max(0, nx*0.35 + nz*0.85)];
+  };
+  const face = (p: number[], q: number[], s: number[], t: number[], ua: number[], ub: number[], uc: number[], ud: number[]) => {
+    const [nx, ny, nz, sh] = norm(p, q, s);
+    shin.quadUV(p[0],p[1],p[2], q[0],q[1],q[2], s[0],s[1],s[2], t[0],t[1],t[2], nx,ny,nz, rr*sh,rg*sh,rb*sh, ua[0],ua[1], ub[0],ub[1], uc[0],uc[1], ud[0],ud[1]);
+  };
+  const A=pt(-L,W,eaveH), B=pt(L,W,eaveH), C=pt(L,-W,eaveH), D=pt(-L,-W,eaveH);
+  const a=pt(-sL,sW,topY), b2=pt(sL,sW,topY), c2=pt(sL,-sW,topY), d2=pt(-sL,-sW,topY);
+  face(A,B,b2,a,  uv(-L,eaveH),uv(L,eaveH),uv(sL,topY),uv(-sL,topY));   // south steep
+  face(C,D,d2,c2, uv(L,eaveH),uv(-L,eaveH),uv(-sL,topY),uv(sL,topY));   // north steep
+  face(B,C,c2,b2, uv(W,eaveH),uv(-W,eaveH),uv(-sW,topY),uv(sW,topY));   // east steep
+  face(D,A,a,d2,  uv(-W,eaveH),uv(W,eaveH),uv(sW,topY),uv(-sW,topY));   // west steep
+  shin.quadUV(a[0],a[1],a[2], b2[0],b2[1],b2[2], c2[0],c2[1],c2[2], d2[0],d2[1],d2[2], 0,1,0, rr*0.88,rg*0.88,rb*0.88,
+    -sL/TEX_SCALE,sW/TEX_SCALE, sL/TEX_SCALE,sW/TEX_SCALE, sL/TEX_SCALE,-sW/TEX_SCALE, -sL/TEX_SCALE,-sW/TEX_SCALE);   // near-flat cap
+  // dormers in the two long faces
+  const nd = Math.max(1, Math.min(3, Math.floor(sL / 16)));
+  for (const side of [1, -1]) {
+    for (let i = 0; i < nd; i++) {
+      const l0 = nd === 1 ? 0 : -sL * 0.62 + (i / (nd - 1)) * sL * 1.24;
+      const wIn = side * (W - 1.4);
+      const cx = obb.cx + l0 * ca - wIn * sa, cz = obb.cz + l0 * sa + wIn * ca;
+      rotBox(plain, cx, cz, 5.2, 3.0, eaveH + 4, eaveH + lowerH * 0.7, obb.ang, '#efe9da');                          // dormer cheeks
+      rotBox(plain, cx, cz, 5.8, 3.6, eaveH + lowerH * 0.7, eaveH + lowerH * 0.7 + 2.4, obb.ang, '#bdb8ab');         // little cap
+      const wOut = side * (W + 0.7);
+      rotBox(plain, obb.cx + l0 * ca - wOut * sa, obb.cz + l0 * sa + wOut * ca, 3.4, 0.5, eaveH + 6.5, eaveH + lowerH * 0.58, obb.ang, '#34383d'); // window
+    }
+  }
+}
+
 // roof shape for a simple rectangular house: square-ish → pyramid/hip, medium → hip/gable
-// mix, long → gable. Seeded so a street reads as a varied mix, not one repeated shape.
-function pickHouseRoof(obb: OBB, seed: number): 'gable' | 'hip' | 'pyramid' {
+// mix, long → gable, with a Second Empire mansard on a minority of sizeable squarish ones.
+function pickHouseRoof(obb: OBB, seed: number): 'gable' | 'hip' | 'pyramid' | 'mansard' {
   const ar = obb.hl / Math.max(1, obb.hw);
   const h = hash32(seed, 17, 3) % 100;
-  if (ar < 1.3) return h < 65 ? 'pyramid' : 'hip';
-  if (ar < 2.1) return h < 50 ? 'hip' : 'gable';
+  if (ar < 1.7 && obb.hw > 18 && obb.hl > 18 && h < 24) return 'mansard';
+  if (ar < 1.3) return h < 62 ? 'pyramid' : 'hip';
+  if (ar < 2.1) return h < 48 ? 'hip' : 'gable';
   return 'gable';
 }
 
@@ -2806,7 +2856,8 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       // simple rectangular houses get hip/pyramid variety to break the all-gabled
       // monotony; L/T-shaped houses, sheds + churches keep the footprint-clipped gable
       const roofShape = b.k === 'house' && fill >= 0.74 ? pickHouseRoof(obb, seed) : 'gable';
-      if (roofShape !== 'gable') hipRoof(buckets[SHINGLE], obb, eaveAbs, ridgeH, 4, roofHex, roofShape === 'pyramid');
+      if (roofShape === 'mansard') mansardRoof(buckets[SHINGLE], buckets[PLAIN], obb, eaveAbs, 4, roofHex);
+      else if (roofShape !== 'gable') hipRoof(buckets[SHINGLE], obb, eaveAbs, ridgeH, 4, roofHex, roofShape === 'pyramid');
       else complexGable(buckets[SHINGLE], beachShake ? buckets[SHINGLE] : buckets[CLAP], b.p, eaveAbs, roofHex, wallHex, 0, b.k !== 'shed');
       if (b.k === 'house') {
         houseTrim(buckets[PLAIN], b.p, eaveAbs, base);
@@ -2820,11 +2871,16 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         // every church gets a real square-tower steeple at its street end
         steeple(buckets, b, g, index, false);
       }
-    } else if (b.k === 'civic' && fill >= 0.74 && ringAreaM2(b.p) < 1100) {
-      // town halls / libraries / small civic blocks read better hipped than as a flat box;
-      // big modern civic footprints (schools) stay flat below
-      const ridgeC = Math.max(8, Math.min(20, obb.hw * 0.4));
-      hipRoof(buckets[SHINGLE], obb, eaveAbs, ridgeC, 4, pick(STYLE.building.roofs, seed), obb.hl / Math.max(1, obb.hw) < 1.3);
+    } else if ((b.k === 'civic' || (b.k === 'commercial' && areaM2 < 240)) && fill >= 0.74 && areaM2 < 1100) {
+      // town halls / libraries / small civic + small standalone shops read better pitched
+      // than as flat boxes; big civic (schools) + downtown commercial blocks stay flat below.
+      const roofHex2 = pick(STYLE.building.roofs, seed);
+      if (b.k === 'civic' && hash32(seed, 31, 7) % 100 < 38) {
+        mansardRoof(buckets[SHINGLE], buckets[PLAIN], obb, eaveAbs, 4, roofHex2);
+      } else {
+        const ridgeC = Math.max(8, Math.min(20, obb.hw * 0.4));
+        hipRoof(buckets[SHINGLE], obb, eaveAbs, ridgeC, 4, roofHex2, obb.hl / Math.max(1, obb.hw) < 1.3);
+      }
     } else {
       flatRoof(buckets[PLAIN], b.p, eaveAbs, pick(STYLE.building.roofsCommercial, seed));
       walls(wallBucket, b.p, eaveAbs, eaveAbs + 3.5, wallHex);
