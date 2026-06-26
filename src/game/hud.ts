@@ -70,12 +70,14 @@ const css = `
 #hud .compass .needle { font-size: 15px; font-weight: 700; color: #f0d27a; will-change: transform; }
 /* world-only: hide the compass + the (empty) 🧭 missions button until there's content */
 #hud.bare .compass, #hud.bare .journey-btn { display: none; }
-/* Salem (bare): no story spine → hide the Story-mode row + its hint. Seasons move INTO the
-   ⚙️ settings popover (there's no compass/missions toolbar for a floating season button to sit
-   beside), so hide the floating season toggle and show the in-settings picker instead. */
-#hud.bare .settings-pop .sp-row[data-set="story"], #hud.bare .settings-hint,
-#hud.bare .season-toggle, #hud.bare .season-pop { display: none; }
-#hud:not(.bare) .sp-season { display: none; }
+/* Salem (bare): no story spine → hide the Story-mode row + its hint. The season control stays ON
+   the interface like Newburyport — a floating 🍂 toggle — so the two towns are consistent. Salem's
+   left toolbar has no compass/missions, so slide the toggle up under the ⚙️ gear (the missions
+   slot). The in-settings season picker is retired; both towns now use the floating toggle. */
+#hud.bare .settings-pop .sp-row[data-set="story"], #hud.bare .settings-hint { display: none; }
+#hud .sp-season { display: none; }
+#hud.bare .bag-btn:not(.show) ~ .season-toggle,
+#hud.bare .bag-btn:not(.show) ~ .season-pop { top: 118px; }
 #hud .sp-season { padding: 8px 5px 3px; margin-top: 3px; border-top: 1px solid rgba(243,241,232,0.1); }
 #hud .sp-season-hdr { font-size: 11px; color: #e8c44f; font-weight: 700; padding: 0 0 7px; letter-spacing: 0.3px; }
 #hud .sp-season-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
