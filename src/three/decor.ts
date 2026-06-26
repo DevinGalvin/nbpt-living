@@ -301,7 +301,7 @@ function complexGable(shin: Bucket, clap: Bucket, ring: number[], eaveAbs: numbe
       return;
     }
     const ridgeH = Math.max(7, Math.min(22, obb.hw * 0.55));
-    gableRoof(shin, clap, ring, obb, eaveAbs, ridgeH, 4, roofHex, wallHex);
+    gableRoof(shin, clap, ring, obb, eaveAbs, ridgeH, 2.5, roofHex, wallHex);   // tight eave — sits on the foundation
   };
   // Accessory structures (garages/sheds) are single volumes — never split them
   // into two gabled wings (the "my one-car garage looks like two buildings" report).
@@ -3192,11 +3192,14 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     if (gabled) {
       const ridgeH = Math.max(7, Math.min(22, obb.hw * 0.55));
       const roofHex = pick(STYLE.building.roofs, seed);
-      // simple rectangular houses get hip/pyramid variety to break the all-gabled
-      // monotony; L/T-shaped houses, sheds + churches keep the footprint-clipped gable
-      const roofShape = b.k === 'house' && fill >= 0.74 ? pickHouseRoof(obb, seed) : 'gable';
-      if (roofShape === 'mansard') mansardRoof(buckets[SHINGLE], buckets[PLAIN], obb, eaveAbs, 4, roofHex);
-      else if (roofShape !== 'gable') hipRoof(buckets[SHINGLE], obb, eaveAbs, ridgeH, 4, roofHex, roofShape === 'pyramid');
+      // simple rectangular houses get hip/pyramid variety to break the all-gabled monotony;
+      // L/T-shaped (and any not-near-rectangular) houses keep the footprint-clipped gable. The
+      // OBB hip/mansard cover the bounding box, so on a footprint that doesn't fill it they'd
+      // jut out past the walls — only use them when the footprint IS the rectangle (fill ≥ 0.9),
+      // and with a tight eave (ov 2 ≈ 0.25 m) so the roof sits on the foundation, not over it.
+      const roofShape = b.k === 'house' && fill >= 0.9 ? pickHouseRoof(obb, seed) : 'gable';
+      if (roofShape === 'mansard') mansardRoof(buckets[SHINGLE], buckets[PLAIN], obb, eaveAbs, 2, roofHex);
+      else if (roofShape !== 'gable') hipRoof(buckets[SHINGLE], obb, eaveAbs, ridgeH, 2, roofHex, roofShape === 'pyramid');
       else complexGable(buckets[SHINGLE], beachShake ? buckets[SHINGLE] : buckets[CLAP], b.p, eaveAbs, roofHex, wallHex, 0, b.k !== 'shed');
       if (b.k === 'house') {
         houseTrim(buckets[PLAIN], b.p, eaveAbs, base);
