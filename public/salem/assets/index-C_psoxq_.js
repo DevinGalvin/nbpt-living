@@ -4704,7 +4704,7 @@ void main() {
       <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span></div>
       <div class="season-toggle" title="Season">🍂</div>
       <div class="season-pop"></div>
-      <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
+      <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><input class="travel-search" type="text" placeholder="Go anywhere… try “Essex Street” or “The Witch House”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q wp-q">➤</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
