@@ -2852,6 +2852,224 @@ function yinYuTang(buckets: Bucket[], b: Building, g: number, index: WorldIndex)
   const hc = pt(0, front * (W + 1.2), 0); rotBox(buckets[SHINGLE], hc[0], hc[2], 3.8, 1.4, g + 12.4, g + 13.4, obb.ang, TILE);
 }
 
+// ---------- Federal mansions & blocks (low hip / gable, c. 1800–1925) ----------
+// Shallow Federal hip roof in the PLAIN bucket (so the slate colour reads true), four trapezoid
+// slopes from the eave rectangle up to a small top deck.
+function lowHip(buckets: Bucket[], pt: (lx: number, lz: number, y: number) => [number, number, number], L: number, W: number, eaveH: number, ov: number, rise: number, roofHex: string) {
+  const Lr = L + ov, Wr = W + ov, tL = L * 0.4, tW = W * 0.4, topY = eaveH + rise;
+  tmp.set(roofHex); const r = tmp.r, gg = tmp.g, bb = tmp.b;
+  const E = [pt(-Lr, -Wr, eaveH), pt(Lr, -Wr, eaveH), pt(Lr, Wr, eaveH), pt(-Lr, Wr, eaveH)];
+  const T = [pt(-tL, -tW, topY), pt(tL, -tW, topY), pt(tL, tW, topY), pt(-tL, tW, topY)];
+  const sh = [0.9, 1.0, 0.86, 0.96];
+  for (let i = 0; i < 4; i++) { const j = (i + 1) % 4, s = sh[i]; buckets[PLAIN].quad(E[i][0], E[i][1], E[i][2], E[j][0], E[j][1], E[j][2], T[j][0], T[j][1], T[j][2], T[i][0], T[i][1], T[i][2], 0, 0.7, 0, r * s, gg * s, bb * s); }
+  buckets[PLAIN].quad(T[0][0], T[0][1], T[0][2], T[1][0], T[1][1], T[1][2], T[2][0], T[2][1], T[2][2], T[3][0], T[3][1], T[3][2], 0, 1, 0, r, gg, bb);
+}
+// a railing around the footprint at height y — plain Federal balustrade, or a denser "fret" lattice
+function roofRail(buckets: Bucket[], ring: number[], y: number, h: number, col: string, fret: boolean) {
+  for (let i = 0; i < ring.length; i += 2) {
+    const aX = ring[i], aZ = ring[i + 1], bX = ring[(i + 2) % ring.length], bZ = ring[(i + 3) % ring.length];
+    const dx = bX - aX, dz = bZ - aZ, len = Math.hypot(dx, dz); if (len < 2) continue;
+    const ang = Math.atan2(dz, dx);
+    for (let d = 1; d < len; d += fret ? 1.7 : 3) buckets[PLAIN].box(aX + dx / len * d, aZ + dz / len * d, 0.45, 0.45, y, y + h, col, 0);
+    rotBox(buckets[PLAIN], (aX + bX) / 2, (aZ + bZ) / 2, len / 2, 0.45, y + h, y + h + 0.8, ang, col);
+    if (fret) rotBox(buckets[PLAIN], (aX + bX) / 2, (aZ + bZ) / 2, len / 2, 0.4, y + h * 0.5, y + h * 0.5 + 0.5, ang, col);
+  }
+}
+type FederalOpts = {
+  wall: string; material: 'brick' | 'clap'; trim: string; roof: string;
+  storeys?: number; roofKind?: 'hip' | 'gable' | 'flat'; balustrade?: 'plain' | 'fret';
+  stringcourses?: boolean; chimney?: 'ends2' | 'interior4' | 'none'; bays?: number;
+  entrance?: 'pediment' | 'fan' | 'portico' | 'colossal' | 'canopy'; palladian?: 'single' | 'row';
+  cupola?: boolean; flag?: boolean; shutter?: string;
+};
+function federalHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: FederalOpts) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1, FW = front * (W + 0.4);
+  const nx = -sa * front, nz = ca * front, axw = ca, azw = sa;
+  const storeys = o.storeys ?? 2.5, eaveH = g + Math.round(storeys * 18 + 2);
+  const WALLBK = o.material === 'brick' ? BRICK : CLAP;
+  tmp.set(o.trim); const tr = tmp.r, tg = tmp.g, tb = tmp.b;
+
+  if (o.material === 'brick') walls(buckets[BRICK], b.p, g - 4, eaveH, o.wall);
+  else clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
+  walls(buckets[PLAIN], b.p, g + 0.5, g + 1.8, o.trim, 0);                                  // water table
+  if (o.stringcourses) { const per = (eaveH - g) / storeys; for (let i = 1; i < Math.round(storeys); i++) walls(buckets[PLAIN], b.p, g + per * i, g + per * i + 1.2, o.trim, 0); }
+  walls(buckets[PLAIN], b.p, eaveH - 1.6, eaveH + 0.3, o.trim, 0);                          // cornice
+
+  const ov = 1.3, rk = o.roofKind ?? 'hip', hipRise = storeys >= 3 ? 12 : 9;
+  let roofTopY = eaveH + 2;
+  if (rk === 'flat') flatRoof(buckets[PLAIN], b.p, eaveH + 1.5, o.roof);
+  else if (rk === 'gable') {
+    const ridgeY = eaveH + Math.min(W * 0.7, 22), Lr = L + ov, Wr = W + ov; roofTopY = ridgeY;
+    tmp.set(o.roof); const r = tmp.r, gg = tmp.g, bb = tmp.b;
+    for (const s of [1, -1] as const) { const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY); buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, r * 0.93, gg * 0.93, bb * 0.93); }
+    tmp.set(o.wall); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+    for (const sx of [1, -1] as const) { const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY); buckets[WALLBK].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, wr, wg, wb, 0, 0, 0, 0, 0, 0); }
+  } else { lowHip(buckets, pt, L, W, eaveH, ov, hipRise, o.roof); roofTopY = eaveH + hipRise; }
+
+  if (o.balustrade) roofRail(buckets, b.p, eaveH + (rk === 'flat' ? 1.6 : 0.3), 4.2, o.trim, o.balustrade === 'fret');
+
+  const chim = (lx: number, lz: number) => { const c = pt(lx, lz, 0); buckets[BRICK].box(c[0], c[2], 1.8, 1.8, eaveH, roofTopY + 9, '#7a4a39', 1); };
+  if (o.chimney === 'ends2') for (const s of [1, -1] as const) chim(s * L * 0.82, 0);
+  else if (o.chimney === 'interior4') for (const sx of [1, -1] as const) for (const sz of [1, -1] as const) chim(sx * L * 0.5, sz * W * 0.38);
+
+  const bays = o.bays ?? 5, floors = Math.max(2, Math.round(storeys)), fSpace = (eaveH - g - 7) / floors, mid = Math.floor(bays / 2);
+  const drawWin = (lx: number, y: number, hh: number) => {
+    const c0 = pt(lx, FW + front * 0.3, y);
+    tmp.set('#28333c'); buckets[PLAIN].quad(c0[0] - axw * 1.5, c0[1] - hh, c0[2] - azw * 1.5, c0[0] + axw * 1.5, c0[1] - hh, c0[2] + azw * 1.5, c0[0] + axw * 1.5, c0[1] + hh, c0[2] + azw * 1.5, c0[0] - axw * 1.5, c0[1] + hh, c0[2] - azw * 1.5, nx, 0, nz, tmp.r, tmp.g, tmp.b);
+    if (o.shutter) for (const s of [-1, 1]) { const sc = pt(lx + s * 2.3, FW + front * 0.25, y); rotBox(buckets[PLAIN], sc[0], sc[2], 0.65, 0.2, y - hh, y + hh, obb.ang, o.shutter); }
+  };
+  const palLite = (cx: number, y: number, hw: number, hh: number, arch: boolean) => {
+    tmp.set('#cfe0e6'); const gr = tmp.r, gg = tmp.g, gb = tmp.b;
+    const c0 = pt(cx, FW + front * 0.3, y);
+    buckets[PLAIN].quad(c0[0] - axw * hw, c0[1] - hh, c0[2] - azw * hw, c0[0] + axw * hw, c0[1] - hh, c0[2] + azw * hw, c0[0] + axw * hw, c0[1] + hh, c0[2] + azw * hw, c0[0] - axw * hw, c0[1] + hh, c0[2] - azw * hw, nx, 0, nz, gr, gg, gb);
+    if (arch) { const ctr = pt(cx, FW + front * 0.3, y + hh); for (let i = 0; i < 5; i++) { const a0 = Math.PI * i / 5, a1 = Math.PI * (i + 1) / 5, p0 = pt(cx + Math.cos(a0) * hw, FW + front * 0.3, y + hh + Math.sin(a0) * hw), p1 = pt(cx + Math.cos(a1) * hw, FW + front * 0.3, y + hh + Math.sin(a1) * hw); buckets[PLAIN].triUV(ctr[0], ctr[1], ctr[2], p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], nx, 0, nz, gr, gg, gb, 0, 0, 0, 0, 0, 0); } }
+  };
+  const palladian = (lx: number, y: number, s: number) => { palLite(lx - 2.4 * s, y, 0.9 * s, 2.4 * s, false); palLite(lx + 2.4 * s, y, 0.9 * s, 2.4 * s, false); palLite(lx, y, 1.1 * s, 2.8 * s, true); };
+  for (let bi = 0; bi < bays; bi++) {
+    const lx = -L * 0.74 + (L * 1.48) * (bi / (bays - 1));
+    for (let fl = 0; fl < floors; fl++) {
+      if (fl === 0 && bi === mid) continue;
+      if (o.palladian === 'row' && fl === floors - 1) { palladian(lx, g + 8 + fl * fSpace, 0.8); continue; }
+      drawWin(lx, g + 8 + fl * fSpace, fSpace * 0.3 + 1);
+    }
+  }
+  if (o.palladian === 'single') palladian(0, g + 8 + fSpace, 1);
+
+  // entrance (centred on the front)
+  const dc = pt(0, FW + front * 0.2, 0); rotBox(buckets[PLAIN], dc[0], dc[2], 2, 0.3, g, g + 10, obb.ang, '#3a2c22');
+  const ent = o.entrance ?? 'fan';
+  if (ent === 'colossal') {                                       // Andrew Safford — 4 giant columns ground→roof
+    const ph = eaveH - 2;
+    for (const t of [-1, -0.34, 0.34, 1]) { const c = pt(t * L * 0.34, FW + front * 2.6, 0); buckets[PLAIN].box(c[0], c[2], 1.2, 1.2, g, ph, o.trim, 0); }
+    const ec = pt(0, FW + front * 2.6, 0); rotBox(buckets[PLAIN], ec[0], ec[2], L * 0.4, 2.6, ph, ph + 3.6, obb.ang, o.trim);
+    const pl = pt(-L * 0.38, FW + front * 2.8, ph + 3.6), pr = pt(L * 0.38, FW + front * 2.8, ph + 3.6), pk = pt(0, FW + front * 2.8, ph + 9);
+    buckets[PLAIN].triUV(pl[0], pl[1], pl[2], pr[0], pr[1], pr[2], pk[0], pk[1], pk[2], nx, 0, nz, tr, tg, tb, 0, 0, 0, 0, 0, 0);
+  } else if (ent === 'portico') {
+    for (const s of [-1, 1]) { const c = pt(s * 3.2, FW + front * 3.2, 0); buckets[PLAIN].box(c[0], c[2], 0.8, 0.8, g, g + 12, o.trim, 0); }
+    const rc = pt(0, FW + front * 3, 0); rotBox(buckets[PLAIN], rc[0], rc[2], 4.4, 3.4, g + 12, g + 13.6, obb.ang, o.trim);
+    const pl = pt(-4.6, FW + front * 3.2, g + 13.6), pr = pt(4.6, FW + front * 3.2, g + 13.6), pk = pt(0, FW + front * 3.2, g + 17);
+    buckets[PLAIN].triUV(pl[0], pl[1], pl[2], pr[0], pr[1], pr[2], pk[0], pk[1], pk[2], nx, 0, nz, tr, tg, tb, 0, 0, 0, 0, 0, 0);
+  } else if (ent === 'canopy') {
+    const rc = pt(0, FW + front * 2.4, 0); rotBox(buckets[PLAIN], rc[0], rc[2], 4, 2.6, g + 10, g + 11.4, obb.ang, '#2c3550');   // awning
+  } else if (ent === 'pediment') {
+    for (const s of [-1, 1]) { const c = pt(s * 2.9, FW + front * 0.4, 0); rotBox(buckets[PLAIN], c[0], c[2], 0.5, 0.5, g, g + 10.5, obb.ang, o.trim); }
+    const pl = pt(-3.4, FW + front * 0.5, g + 10.5), pr = pt(3.4, FW + front * 0.5, g + 10.5), pk = pt(0, FW + front * 0.5, g + 14);
+    buckets[PLAIN].triUV(pl[0], pl[1], pl[2], pr[0], pr[1], pr[2], pk[0], pk[1], pk[2], nx, 0, nz, tr, tg, tb, 0, 0, 0, 0, 0, 0);
+  } else {                                                        // 'fan' — pilasters + semicircular fanlight
+    for (const s of [-1, 1]) { const c = pt(s * 2.7, FW + front * 0.4, 0); rotBox(buckets[PLAIN], c[0], c[2], 0.4, 0.4, g, g + 10.5, obb.ang, o.trim); }
+    tmp.set('#d7d2c4'); const fr = tmp.r, fg = tmp.g, fb = tmp.b; const R = 2.5, ctr = pt(0, FW + front * 0.4, g + 10.6);
+    for (let i = 0; i < 6; i++) { const a0 = Math.PI * i / 6, a1 = Math.PI * (i + 1) / 6, p0 = pt(Math.cos(a0) * R, FW + front * 0.4, g + 10.6 + Math.sin(a0) * R), p1 = pt(Math.cos(a1) * R, FW + front * 0.4, g + 10.6 + Math.sin(a1) * R); buckets[PLAIN].triUV(ctr[0], ctr[1], ctr[2], p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], nx, 0, nz, fr, fg, fb, 0, 0, 0, 0, 0, 0); }
+  }
+
+  if (o.cupola) { const cc = pt(0, 0, 0), base = roofTopY + 1; buckets[PLAIN].box(cc[0], cc[2], 3, 3, base, base + 3, o.trim, 0); walls(buckets[PLAIN], octRing(cc[0], cc[2], 2.4), base + 3, base + 9, o.trim, 0); tmp.set('#cdd2cf'); cone(buckets[PLAIN], cc[0], base + 9, cc[2], 2.6, 3, tmp.clone()); }
+  if (o.flag) { const fc = pt(L * 0.5, 0, 0); buckets[PLAIN].box(fc[0], fc[2], 0.4, 0.4, roofTopY, roofTopY + 16, '#d8d2c4', 0); buckets[GLOW].box(fc[0] + 3, fc[2], 3, 0.2, roofTopY + 11, roofTopY + 15, '#b03030', 0); }
+}
+
+// Gothic Revival GRANITE churches (First Church, St. Peter's): a grey-stone gable nave with tall
+// pointed lancet windows and a square crenellated front-centre tower (NO spire) — a little castle.
+function salemChurch(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: { stone: string; quatrefoil?: boolean }) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const eaveH = g + 30;
+  walls(buckets[BRICK], b.p, g - 3, eaveH, o.stone);                                    // granite ashlar
+  const ridgeY = eaveH + Math.min(W * 0.85, 19), Lr = L + 1, Wr = W + 1;
+  tmp.set('#34343a'); const rr = tmp.r, rg = tmp.g, rb = tmp.b;                          // dark slate roof
+  for (const s of [1, -1] as const) { const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY); buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr, rg, rb); }
+  tmp.set(o.stone); const sr = tmp.r, sg = tmp.g, sb = tmp.b;
+  for (const sx of [1, -1] as const) { const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY); buckets[BRICK].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, sr, sg, sb, 0, 0, 0, 0, 0, 0); }
+  // tall pointed lancet windows down the long sides (GLOW stained glass)
+  tmp.set('#3c4a6e'); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  const lancet = (lx: number, sLz: number) => {
+    const lzf = sLz * (W + 0.2), nx = -sa * sLz, nz = ca * sLz, C = (sx: number, y: number): [number, number, number] => pt(lx + sx * 1.3, lzf, y);
+    const a = C(-1, g + 8), bb = C(1, g + 8), cc = C(1, g + 22), dd = C(-1, g + 22), apex = pt(lx, lzf, g + 26);
+    buckets[GLOW].quad(a[0], a[1], a[2], bb[0], bb[1], bb[2], cc[0], cc[1], cc[2], dd[0], dd[1], dd[2], nx, 0, nz, wr, wg, wb);
+    buckets[GLOW].triUV(dd[0], dd[1], dd[2], cc[0], cc[1], cc[2], apex[0], apex[1], apex[2], nx, 0, nz, wr, wg, wb, 0, 0, 0, 0, 0, 0);
+  };
+  for (const s of [1, -1] as const) for (let i = 0; i < 4; i++) lancet(-L * 0.6 + L * 1.2 * (i / 3), s);
+  // square crenellated front-centre tower
+  const tw = Math.min(L * 0.4, 12), ring: number[] = [], TP = (lx: number, lz: number) => { const p = pt(lx, lz, 0); ring.push(p[0], p[2]); };
+  TP(-tw, front * (W - tw * 0.3)); TP(tw, front * (W - tw * 0.3)); TP(tw, front * (W + tw * 1.6)); TP(-tw, front * (W + tw * 1.6));
+  const towerH = ridgeY + 13;
+  walls(buckets[BRICK], ring, g - 3, towerH, o.stone, 0);
+  flatRoof(buckets[SHINGLE], ring, towerH + 0.4, '#2b2b30');
+  for (let i = 0; i < ring.length; i += 2) {                                            // crenellations + corner pinnacles
+    const aX = ring[i], aZ = ring[i + 1], bX = ring[(i + 2) % ring.length], bZ = ring[(i + 3) % ring.length], dx = bX - aX, dz = bZ - aZ, len = Math.hypot(dx, dz); if (len < 2) continue;
+    for (let d = 1.6; d < len - 1; d += 4) buckets[BRICK].box(aX + dx / len * d, aZ + dz / len * d, 1.2, 1.2, towerH, towerH + 3.5, o.stone, 0);
+    buckets[BRICK].box(aX, aZ, 1.5, 1.5, towerH, towerH + 5.5, o.stone, 0);
+  }
+  // tower front: a Tudor-arch door + a tall lancet (or quatrefoil) window above
+  const tf = front * (W + tw * 1.6), nx = -sa * front, nz = ca * front;
+  const door = pt(0, tf, 0); rotBox(buckets[PLAIN], door[0], door[2], 2.2, 0.3, g, g + 11, obb.ang, '#2c2620');
+  if (o.quatrefoil) { tmp.set('#3c4a6e'); const q = pt(0, tf, g + 22); for (const [dx, dy] of [[0, 1.6], [0, -1.6], [1.6, 0], [-1.6, 0]] as const) { const c = pt(dx, tf, g + 22 + dy); octoCanopy(buckets[GLOW], c[0], c[1], c[2], 1.3, tmp.clone()); } }
+  else { tmp.set('#3c4a6e'); const wr2 = tmp.r, wg2 = tmp.g, wb2 = tmp.b, C = (sx: number, y: number): [number, number, number] => pt(sx * 1.5, tf, y); const a = C(-1, g + 15), bb = C(1, g + 15), cc = C(1, g + 27), dd = C(-1, g + 27), apex = pt(0, tf, g + 32); buckets[GLOW].quad(a[0], a[1], a[2], bb[0], bb[1], bb[2], cc[0], cc[1], cc[2], dd[0], dd[1], dd[2], nx, 0, nz, wr2, wg2, wb2); buckets[GLOW].triUV(dd[0], dd[1], dd[2], cc[0], cc[1], cc[2], apex[0], apex[1], apex[2], nx, 0, nz, wr2, wg2, wb2, 0, 0, 0, 0, 0, 0); }
+}
+
+// Pedrick Store House — a long, low, bare-wood maritime warehouse: steep side-gable, big plank
+// cargo doors, a gable hoist beam, a few small windows.
+function warehouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: { wall: string; roof: string }) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const eaveH = g + 22;
+  clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
+  const ridgeY = eaveH + Math.min(W * 1.05, 24), Lr = L + 1.4, Wr = W + 1.4;
+  tmp.set(o.roof); const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  for (const s of [1, -1] as const) { const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY); buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr, rg, rb); }
+  tmp.set(o.wall); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  for (const sx of [1, -1] as const) { const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY); buckets[CLAP].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, wr, wg, wb, 0, 0, 0, 0, 0, 0); }
+  const fz = front * (W + 0.2);
+  for (const lx of [-L * 0.4, L * 0.4]) { const d = pt(lx, fz, 0); rotBox(buckets[PLAIN], d[0], d[2], 3, 0.3, g, g + 13, obb.ang, '#4a3f30'); }   // cargo doors
+  const up = pt(0, fz, 0); rotBox(buckets[PLAIN], up[0], up[2], 2.4, 0.3, g + 15, eaveH - 1, obb.ang, '#4a3f30');                                  // upper loading door
+  const hb = pt(0, front * (W + 4), ridgeY - 3); buckets[PLAIN].box(hb[0], hb[2], 0.5, 3.5, ridgeY - 3.5, ridgeY - 2.5, '#34291e', 0);            // hoist beam
+}
+
+// Friendship of Salem — the replica 1797 East Indiaman at Derby Wharf: black hull + cream sheer
+// stripe, three masts (main tallest), crossed yards (furled), a long bowsprit. The big surprise.
+function tallShip(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = Math.min(obb.hw, L * 0.22);
+  const HULL = '#2a2a30', CREAM = '#cdb985', DECK = '#6b5a42', SPAR = '#4a3d2e';
+  const wl = g, deck = g + 24;                                                                         // tall freeboard so it reads as a hull
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.82, W, wl, deck, obb.ang, HULL);                        // hull
+  for (const s of [1, -1] as const) { const a = pt(L * 0.82, s * W, wl), b2 = pt(L * 0.82, s * W, deck), t1 = pt(L * 1.04, 0, deck), t0 = pt(L * 1.04, 0, wl + 2); buckets[PLAIN].quad(a[0], a[1], a[2], b2[0], b2[1], b2[2], t1[0], t1[1], t1[2], t0[0], t0[1], t0[2], ca * s, 0.2, sa * s, 0.17, 0.17, 0.19); }   // bow wedge
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.83, W + 0.4, deck - 5, deck - 2.5, obb.ang, CREAM);     // cream sheer stripe
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.8, W - 0.6, deck, deck + 0.8, obb.ang, DECK);           // deck
+  const masts: [number, number][] = [[L * 0.46, L * 0.46], [-L * 0.04, L * 0.56], [-L * 0.5, L * 0.36]]; // fore / main / mizzen (main tallest)
+  for (const [mlx, mh] of masts) {
+    const m = pt(mlx, 0, 0); buckets[PLAIN].box(m[0], m[2], 1.1, 1.1, deck, deck + mh, SPAR, 0);
+    for (let k = 0; k < 3; k++) { const yh = deck + mh * (0.45 + 0.18 * k), yl = W * (1.5 - 0.32 * k); rotBox(buckets[PLAIN], m[0], m[2], 0.5, yl, yh, yh + 0.9, obb.ang, SPAR); }
+  }
+  const bsp = pt(L + L * 0.28, 0, 0); rotBox(buckets[PLAIN], bsp[0], bsp[2], L * 0.3, 0.6, deck + 5, deck + 7.5, obb.ang, SPAR);                    // bowsprit
+}
+
+// tiny utilitarian outbuildings: a one-room brick gable box (the Scale House by the Custom House).
+function brickShed(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: { wall: string; roof: string }) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw, eaveH = g + 11;
+  walls(buckets[BRICK], b.p, g - 2, eaveH, o.wall);
+  const ridgeY = eaveH + Math.min(W * 0.9, 8), Lr = L + 0.8, Wr = W + 0.8;
+  tmp.set(o.roof); const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  for (const s of [1, -1] as const) { const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY); buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr, rg, rb); }
+  tmp.set(o.wall); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  for (const sx of [1, -1] as const) { const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY); buckets[BRICK].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, wr, wg, wb, 0, 0, 0, 0, 0, 0); }
+}
+
 const HEROES: Record<string, HeroBuilder> = {
   'The Witch House': witchHouse,
   'The House of the Seven Gables': sevenGables,
@@ -2864,6 +3082,19 @@ const HEROES: Record<string, HeroBuilder> = {
   'Gardner-Pingree House': gardnerPingree,
   'Crowninshield-Bentley House': crowninshieldBentley,
   'Yin Yu Tang': yinYuTang,
+  'Hamilton Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#ece6d8', roof: '#7f848c', storeys: 3, roofKind: 'gable', stringcourses: true, palladian: 'row', entrance: 'portico', chimney: 'interior4' }),
+  'Andrew Safford House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#ece6d8', roof: '#7f848c', storeys: 3, roofKind: 'hip', balustrade: 'plain', entrance: 'colossal', palladian: 'single', shutter: '#23262a', chimney: 'interior4' }),
+  'Philips House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#e0ddd2', material: 'clap', trim: '#fbfaf6', roof: '#9aa0a8', storeys: 3, roofKind: 'hip', entrance: 'portico', palladian: 'single', shutter: '#2f3a30', chimney: 'interior4' }),
+  'Hawkes House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#d8c373', material: 'clap', trim: '#fbfaf6', roof: '#9aa0a8', storeys: 3, roofKind: 'hip', balustrade: 'plain', entrance: 'fan', shutter: '#3a5a3a', chimney: 'interior4' }),
+  'Nathaniel Bowditch House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#cfcdc2', material: 'clap', trim: '#fbfaf6', roof: '#9aa0a8', storeys: 3, roofKind: 'hip', balustrade: 'fret', entrance: 'fan', shutter: '#33403a', chimney: 'interior4' }),
+  'Salem Athenæum': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#ece6d8', roof: '#7f848c', storeys: 2, roofKind: 'hip', entrance: 'portico', palladian: 'single', stringcourses: true, chimney: 'ends2' }),
+  'Lyceum Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9e5340', material: 'brick', trim: '#d8d0c0', roof: '#7f848c', storeys: 2, roofKind: 'gable', entrance: 'fan' }),
+  'Hawthorne Hotel': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#97493a', material: 'brick', trim: '#e6e0d2', roof: '#3a3a3d', storeys: 6, roofKind: 'flat', entrance: 'canopy', flag: true, bays: 7 }),
+  'First Church in Salem': (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#7e7f83' }),
+  "St. Peter's Episcopal Church": (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#9a9b9d', quatrefoil: true }),
+  'Pedrick Store House': (bk, b, g, i) => warehouse(bk, b, g, i, { wall: '#6e6250', roof: '#4a4438' }),
+  'Friendship of Salem': tallShip,
+  'Scale House': (bk, b, g, i) => brickShed(bk, b, g, i, { wall: '#9c4d3c', roof: '#777c85' }),
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,
