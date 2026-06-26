@@ -2633,11 +2633,15 @@ function customHouse(buckets: Bucket[], b: Building, g: number, index: WorldInde
   const L = obb.hl, W = obb.hw;
   const fs = frontSegment(b, index);
   const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1, FW = front * (W + 0.6);
-  const eaveH = g + 32;
+  const eaveH = g + 45;
+  const exr = expandRing(b.p, 0.5);
   walls(buckets[BRICK], b.p, g - 4, eaveH, '#9c4d3c');                 // red Federal brick
-  walls(buckets[PLAIN], b.p, g + 15, g + 16.4, '#efe9dc', 0);          // white belt course
-  walls(buckets[PLAIN], b.p, eaveH - 2, eaveH, '#efe9dc', 0);          // white cornice
+  walls(buckets[PLAIN], exr, g + 23, g + 24.4, '#efe9dc', 0);          // white belt course (proud, between floors)
+  walls(buckets[PLAIN], exr, eaveH - 2, eaveH, '#efe9dc', 0);          // white cornice
   flatRoof(buckets[SHINGLE], b.p, eaveH + 1.5, '#4a4e54');             // low slate hip
+  facades(buckets[PLAIN], b.p, eaveH, 2, Math.round(obb.cx * 7 + obb.cz * 3), true, false, false, g);   // framed windows + a door
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
   tmp.set('#efe9dc'); const tr = tmp.r, tg = tmp.g, tb = tmp.b;
   const pL = pt(-L * 0.26, FW, eaveH), pR = pt(L * 0.26, FW, eaveH), pPk = pt(0, FW, eaveH + 7);
   buckets[PLAIN].triUV(pL[0], pL[1], pL[2], pR[0], pR[1], pR[2], pPk[0], pPk[1], pPk[2], -sa * front, 0, ca * front, tr, tg, tb, 0, 0, 0, 0, 0, 0);  // central pediment
@@ -2699,6 +2703,16 @@ type GambrelOpts = {
   storeys?: number; dormers?: number; chimney?: 'ends4' | 'ridge2';
   entrance?: 'pediment' | 'ionic'; shutter?: string; quoins?: boolean;
 };
+// a footprint ring nudged outward from its centroid, so trim/cornice/stringcourse bands sit
+// slightly PROUD of the wall instead of coplanar with it — kills the z-fighting flicker.
+function expandRing(ring: number[], out: number): number[] {
+  let cx = 0, cz = 0; const n = ring.length / 2;
+  for (let i = 0; i < ring.length; i += 2) { cx += ring[i]; cz += ring[i + 1]; }
+  cx /= n; cz /= n;
+  const e: number[] = [];
+  for (let i = 0; i < ring.length; i += 2) { const dx = ring[i] - cx, dz = ring[i + 1] - cz, d = Math.hypot(dx, dz) || 1; e.push(ring[i] + dx / d * out, ring[i + 1] + dz / d * out); }
+  return e;
+}
 function gambrelHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: GambrelOpts) {
   const obb = obbOf(b.p);
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
@@ -2718,7 +2732,9 @@ function gambrelHouse(buckets: Bucket[], b: Building, g: number, index: WorldInd
 
   if (o.material === 'brick') walls(buckets[BRICK], b.p, g - 4, eaveH, o.wall);
   else clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
-  walls(buckets[PLAIN], b.p, eaveH - 1.3, eaveH + 0.4, o.trim, 0);                 // eave cornice band
+  walls(buckets[PLAIN], expandRing(b.p, 0.5), eaveH - 1.3, eaveH + 0.4, o.trim, 0);   // eave cornice band (proud, no z-fight)
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);   // festive eave lights like the neighbours (glow at night)
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
 
   tmp.set(o.roof); const rr = tmp.r, rg = tmp.g, rb = tmp.b;                       // gambrel: steep lower + shallow upper, outward normals
   for (const s of [1, -1] as const) {
@@ -2752,21 +2768,10 @@ function gambrelHouse(buckets: Bucket[], b: Building, g: number, index: WorldInd
     rotBox(buckets[PLAIN], c[0], c[2], 3.5, 3, topY, topY + 1, dAng, o.roof);
   }
 
-  const ux = ridgeL ? ca : -sa, uz = ridgeL ? sa : ca;                            // along-ridge tangent (window width dir)
-  const drawWin = (al: number, y: number) => {
-    const ac = fsign * B, nx = axx * fsign, nz = axz * fsign;
-    const frame = (hw: number, hh: number, off: number, cr: number, cg: number, cb: number) => {
-      const c0 = P(al, ac + fsign * off, y);
-      buckets[PLAIN].quad(c0[0] - ux * hw, c0[1] - hh, c0[2] - uz * hw, c0[0] + ux * hw, c0[1] - hh, c0[2] + uz * hw, c0[0] + ux * hw, c0[1] + hh, c0[2] + uz * hw, c0[0] - ux * hw, c0[1] + hh, c0[2] - uz * hw, nx, 0, nz, cr, cg, cb);
-    };
-    frame(2.1, 3.3, 0.25, tcr, tcg, tcb);
-    tmp.set('#28333c'); frame(1.6, 2.8, 0.4, tmp.r, tmp.g, tmp.b);
-    if (o.shutter) for (const sx of [-1, 1]) { const sc = P(al + sx * 2.5, ac + fsign * 0.3, y); rotBox(buckets[PLAIN], sc[0], sc[2], 0.7, 0.2, y - 2.8, y + 2.8, dAng, o.shutter); }
-  };
-  for (let bi = 0; bi < 5; bi++) { const al = -A * 0.72 + (A * 1.44) * (bi / 4); drawWin(al, g + 30); if (bi !== 2) drawWin(al, g + 13); }
+  // windows + doors via the shared facade renderer: framed glass, lit-at-night panes, real doors
+  facades(buckets[PLAIN], b.p, eaveH, 2, Math.round(obb.cx * 13 + obb.cz * 7), true, !!o.shutter, false, g);
 
-  const ac0 = fsign * B, dC = P(0, ac0 + fsign * 0.3, 0);                          // centred entrance
-  rotBox(buckets[PLAIN], dC[0], dC[2], 2, 0.3, g, g + 9, dAng, '#3a2c22');
+  const ac0 = fsign * B;                                                           // grand entrance frame (the door itself is drawn by facades)
   if (o.entrance === 'ionic') {
     for (const sx of [-1, 1]) { const cc = P(sx * 3.4, ac0 + fsign * 3.6, 0); buckets[PLAIN].box(cc[0], cc[2], 0.7, 0.7, g, g + 12, o.trim, 0); }
     const rc = P(0, ac0 + fsign * 3.4, 0); rotBox(buckets[PLAIN], rc[0], rc[2], 4.6, 4, g + 12, g + 13.6, dAng, o.trim);
@@ -2801,11 +2806,14 @@ function gardnerPingree(buckets: Bucket[], b: Building, g: number, index: WorldI
   const L = obb.hl, W = obb.hw;
   const fs = frontSegment(b, index);
   const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1, FW = front * (W + 0.5);
-  const WHITE = '#efe9dc', eaveH = g + 46;
+  const WHITE = '#efe9dc', eaveH = g + 64;
+  const exr = expandRing(b.p, 0.5);                                     // proud bands so the marble trim doesn't z-fight the brick
   walls(buckets[BRICK], b.p, g - 4, eaveH, '#9c4d3c');                  // red Flemish-bond brick
-  walls(buckets[PLAIN], b.p, g + 1, g + 2, WHITE, 0);                   // marble water table
-  for (const y of [g + 16, g + 30]) walls(buckets[PLAIN], b.p, y, y + 1.4, WHITE, 0);   // stringcourses between floors
-  walls(buckets[PLAIN], b.p, eaveH - 2, eaveH, WHITE, 0);               // cornice band
+  walls(buckets[PLAIN], exr, g + 1, g + 2.4, WHITE, 0);                 // marble water table
+  for (const y of [g + 22, g + 43]) walls(buckets[PLAIN], exr, y, y + 1.6, WHITE, 0);   // marble stringcourses between the 3 floors
+  walls(buckets[PLAIN], exr, eaveH - 2.2, eaveH, WHITE, 0);             // cornice band
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);   // festive eave lights (glow at night)
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
   flatRoof(buckets[SHINGLE], b.p, eaveH + 1, '#4a4e54');                // low hip, reads flat
   for (let i = 0; i < b.p.length; i += 2) {                             // white roof balustrade: posts + rail
     const ax = b.p[i], az = b.p[i + 1], bx = b.p[(i + 2) % b.p.length], bz = b.p[(i + 3) % b.p.length];
@@ -2814,15 +2822,9 @@ function gardnerPingree(buckets: Bucket[], b: Building, g: number, index: WorldI
     rotBox(buckets[PLAIN], (ax + bx) / 2, (az + bz) / 2, len / 2, 0.5, eaveH + 5, eaveH + 5.8, Math.atan2(dz, dx), WHITE);
   }
   for (const sx of [1, -1] as const) { const c = pt(sx * L * 0.4, 0, 0); buckets[BRICK].box(c[0], c[2], 1.8, 1.8, eaveH, eaveH + 6, '#7a4a39', 1); }   // 2 low interior chimneys
-  const drawWin = (lx: number, y: number, hh: number) => {
-    const nx = -sa * front, nz = ca * front, c0 = pt(lx, FW + front * 0.4, y);
-    tmp.set('#28333c'); buckets[PLAIN].quad(c0[0] - ca * 1.5, c0[1] - hh, c0[2] - sa * 1.5, c0[0] + ca * 1.5, c0[1] - hh, c0[2] + sa * 1.5, c0[0] + ca * 1.5, c0[1] + hh, c0[2] + sa * 1.5, c0[0] - ca * 1.5, c0[1] + hh, c0[2] - sa * 1.5, nx, 0, nz, tmp.r, tmp.g, tmp.b);
-    const ll = pt(lx, FW + front * 0.5, 0); buckets[PLAIN].box(ll[0], ll[2], 2, 0.4, y + hh, y + hh + 1, WHITE, 0);   // marble lintel
-    for (const sx of [-1, 1]) { const sc = pt(lx + sx * 2.3, FW + front * 0.3, 0); rotBox(buckets[PLAIN], sc[0], sc[2], 0.6, 0.2, y - hh, y + hh, obb.ang, '#23262a'); }   // black shutters
-  };
-  for (let bi = 0; bi < 5; bi++) { const lx = -L * 0.72 + (L * 1.44) * (bi / 4); drawWin(lx, g + 32, 3); drawWin(lx, g + 20, 4); if (bi !== 2) drawWin(lx, g + 8, 4); }
-  const door = pt(0, FW, 0); rotBox(buckets[PLAIN], door[0], door[2], 2, 0.3, g, g + 10, obb.ang, '#3a2c22');
-  for (const t of [-0.95, -0.32, 0.32, 0.95]) { const c = pt(t * 5, FW + front * 4.5 * (1 - t * t * 0.5), 0); buckets[PLAIN].box(c[0], c[2], 0.7, 0.7, g, g + 13, WHITE, 0); }   // curved colonnade
+  // 3 floors of framed glass + a door, via the shared facade renderer (black shutters, lit-at-night)
+  facades(buckets[PLAIN], b.p, eaveH, 3, Math.round(obb.cx * 9 + obb.cz * 5), true, true, false, g);
+  for (const t of [-0.95, -0.32, 0.32, 0.95]) { const c = pt(t * 5, FW + front * 4.5 * (1 - t * t * 0.5), 0); buckets[PLAIN].box(c[0], c[2], 0.7, 0.7, g, g + 13, WHITE, 0); }   // curved colonnade (frames the facade door)
   const dc = pt(0, FW + front * 3, 0); tmp.set('#dcd6c8'); cone(buckets[PLAIN], dc[0], g + 13, dc[2], 5.4, 3, tmp.clone());   // shallow dome
 }
 
@@ -2889,16 +2891,19 @@ function federalHouse(buckets: Bucket[], b: Building, g: number, index: WorldInd
   const L = obb.hl, W = obb.hw;
   const fs = frontSegment(b, index);
   const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1, FW = front * (W + 0.4);
-  const nx = -sa * front, nz = ca * front, axw = ca, azw = sa;
-  const storeys = o.storeys ?? 2.5, eaveH = g + Math.round(storeys * 18 + 2);
+  const nx = -sa * front, nz = ca * front;
+  const storeys = o.storeys ?? 2.5, floors = Math.max(2, Math.round(storeys)), eaveH = g + floors * 19 + 7;   // size walls to the 19px window rhythm
   const WALLBK = o.material === 'brick' ? BRICK : CLAP;
   tmp.set(o.trim); const tr = tmp.r, tg = tmp.g, tb = tmp.b;
 
   if (o.material === 'brick') walls(buckets[BRICK], b.p, g - 4, eaveH, o.wall);
   else clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
-  walls(buckets[PLAIN], b.p, g + 0.5, g + 1.8, o.trim, 0);                                  // water table
-  if (o.stringcourses) { const per = (eaveH - g) / storeys; for (let i = 1; i < Math.round(storeys); i++) walls(buckets[PLAIN], b.p, g + per * i, g + per * i + 1.2, o.trim, 0); }
-  walls(buckets[PLAIN], b.p, eaveH - 1.6, eaveH + 0.3, o.trim, 0);                          // cornice
+  const exr = expandRing(b.p, 0.5);                                                         // proud trim bands (no z-fight)
+  walls(buckets[PLAIN], exr, g + 0.5, g + 1.8, o.trim, 0);                                  // water table
+  if (o.stringcourses) { const per = (eaveH - g) / floors; for (let i = 1; i < floors; i++) walls(buckets[PLAIN], exr, g + per * i, g + per * i + 1.2, o.trim, 0); }
+  walls(buckets[PLAIN], exr, eaveH - 1.6, eaveH + 0.3, o.trim, 0);                          // cornice
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);   // festive eave lights (glow at night, like the neighbours)
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
 
   const ov = 1.3, rk = o.roofKind ?? 'hip', hipRise = storeys >= 3 ? 12 : 9;
   let roofTopY = eaveH + 2;
@@ -2917,31 +2922,10 @@ function federalHouse(buckets: Bucket[], b: Building, g: number, index: WorldInd
   if (o.chimney === 'ends2') for (const s of [1, -1] as const) chim(s * L * 0.82, 0);
   else if (o.chimney === 'interior4') for (const sx of [1, -1] as const) for (const sz of [1, -1] as const) chim(sx * L * 0.5, sz * W * 0.38);
 
-  const bays = o.bays ?? 5, floors = Math.max(2, Math.round(storeys)), fSpace = (eaveH - g - 7) / floors, mid = Math.floor(bays / 2);
-  const drawWin = (lx: number, y: number, hh: number) => {
-    const c0 = pt(lx, FW + front * 0.3, y);
-    tmp.set('#28333c'); buckets[PLAIN].quad(c0[0] - axw * 1.5, c0[1] - hh, c0[2] - azw * 1.5, c0[0] + axw * 1.5, c0[1] - hh, c0[2] + azw * 1.5, c0[0] + axw * 1.5, c0[1] + hh, c0[2] + azw * 1.5, c0[0] - axw * 1.5, c0[1] + hh, c0[2] - azw * 1.5, nx, 0, nz, tmp.r, tmp.g, tmp.b);
-    if (o.shutter) for (const s of [-1, 1]) { const sc = pt(lx + s * 2.3, FW + front * 0.25, y); rotBox(buckets[PLAIN], sc[0], sc[2], 0.65, 0.2, y - hh, y + hh, obb.ang, o.shutter); }
-  };
-  const palLite = (cx: number, y: number, hw: number, hh: number, arch: boolean) => {
-    tmp.set('#cfe0e6'); const gr = tmp.r, gg = tmp.g, gb = tmp.b;
-    const c0 = pt(cx, FW + front * 0.3, y);
-    buckets[PLAIN].quad(c0[0] - axw * hw, c0[1] - hh, c0[2] - azw * hw, c0[0] + axw * hw, c0[1] - hh, c0[2] + azw * hw, c0[0] + axw * hw, c0[1] + hh, c0[2] + azw * hw, c0[0] - axw * hw, c0[1] + hh, c0[2] - azw * hw, nx, 0, nz, gr, gg, gb);
-    if (arch) { const ctr = pt(cx, FW + front * 0.3, y + hh); for (let i = 0; i < 5; i++) { const a0 = Math.PI * i / 5, a1 = Math.PI * (i + 1) / 5, p0 = pt(cx + Math.cos(a0) * hw, FW + front * 0.3, y + hh + Math.sin(a0) * hw), p1 = pt(cx + Math.cos(a1) * hw, FW + front * 0.3, y + hh + Math.sin(a1) * hw); buckets[PLAIN].triUV(ctr[0], ctr[1], ctr[2], p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], nx, 0, nz, gr, gg, gb, 0, 0, 0, 0, 0, 0); } }
-  };
-  const palladian = (lx: number, y: number, s: number) => { palLite(lx - 2.4 * s, y, 0.9 * s, 2.4 * s, false); palLite(lx + 2.4 * s, y, 0.9 * s, 2.4 * s, false); palLite(lx, y, 1.1 * s, 2.8 * s, true); };
-  for (let bi = 0; bi < bays; bi++) {
-    const lx = -L * 0.74 + (L * 1.48) * (bi / (bays - 1));
-    for (let fl = 0; fl < floors; fl++) {
-      if (fl === 0 && bi === mid) continue;
-      if (o.palladian === 'row' && fl === floors - 1) { palladian(lx, g + 8 + fl * fSpace, 0.8); continue; }
-      drawWin(lx, g + 8 + fl * fSpace, fSpace * 0.3 + 1);
-    }
-  }
-  if (o.palladian === 'single') palladian(0, g + 8 + fSpace, 1);
+  // windows + doors via the shared facade renderer (framed glass, lit-at-night panes, real doors)
+  facades(buckets[PLAIN], b.p, eaveH, floors, Math.round(obb.cx * 11 + obb.cz * 3), true, !!o.shutter, false, g);
 
-  // entrance (centred on the front)
-  const dc = pt(0, FW + front * 0.2, 0); rotBox(buckets[PLAIN], dc[0], dc[2], 2, 0.3, g, g + 10, obb.ang, '#3a2c22');
+  // grand entrance frame on the front (the door itself is drawn by facades)
   const ent = o.entrance ?? 'fan';
   if (ent === 'colossal') {                                       // Andrew Safford — 4 giant columns ground→roof
     const ph = eaveH - 2;
