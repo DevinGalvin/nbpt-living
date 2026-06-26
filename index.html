@@ -85,6 +85,7 @@
     // and switch on the world-only extras (bike + kayak + free seasons). Runs before the bundle.
     (function () {
       try {
+        window.__townPath = '/salem/';            // this build IS the Salem town (the Fast-Travel switcher reads it)
         var P = 'salem:', real = window.localStorage;
         var pref = function () { return Object.keys(real).filter(function (k) { return k.indexOf(P) === 0; }); };
         var shim = {

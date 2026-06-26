@@ -271,6 +271,17 @@ const css = `
 #hud .travel-item:hover { background: rgba(216, 185, 74, 0.18); }
 #hud .travel-item .tn { color: #f3f1e8; font-size: 14px; font-weight: 600; }
 #hud .travel-item .ts { color: #c8bd96; font-size: 11px; margin-top: 2px; }
+/* town switcher — hop between Newburyport, Salem (and future towns), at the top of Fast Travel */
+#hud .travel-towns { margin: 0 0 14px; }
+#hud .tt-hdr { font-size: 10.5px; letter-spacing: 1.5px; color: #c9a84e; font-weight: 700; margin: 0 0 8px; }
+#hud .tt-row { display: flex; gap: 8px; flex-wrap: wrap; }
+#hud .tt-chip { flex: 1 1 0; min-width: 132px; display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 10px; background: rgba(243,241,232,0.07); border: 1px solid rgba(243,241,232,0.16); cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+#hud .tt-chip:hover { background: rgba(216,185,74,0.18); border-color: rgba(216,185,74,0.5); }
+#hud .tt-chip.cur { background: rgba(216,185,74,0.16); border-color: #d8b94a; cursor: default; }
+#hud .tt-emoji { font-size: 22px; line-height: 1; flex: none; }
+#hud .tt-info { line-height: 1.2; min-width: 0; }
+#hud .tt-name { color: #f3f1e8; font-size: 14px; font-weight: 700; }
+#hud .tt-tag { color: #c8bd96; font-size: 11px; margin-top: 1px; }
 #hud .season-row { display: flex; gap: 8px; margin: 0 0 12px; }
 #hud .season-btn {
   flex: 1; text-align: center; padding: 9px 4px; border-radius: 9px; cursor: pointer;
@@ -820,6 +831,14 @@ const css = `
 }
 `;
 
+// The towns in the set, for the Fast-Travel town switcher. To ADD A TOWN: add an entry here
+// (and mirror it in the Newburyport src/ hud.ts), then deploy that town's bundle under `path`.
+// `path` is an absolute site path; the current town is detected from location.pathname.
+const TOWNS: { name: string; emoji: string; path: string; tag: string }[] = [
+  { name: 'Newburyport', emoji: '⚓', path: '/', tag: 'Clipper City' },
+  { name: 'Salem', emoji: '🎃', path: '/salem/', tag: 'Witch City' },
+];
+
 export class Hud {
   joyActive = false;
   joyX = 0;
@@ -927,7 +946,7 @@ export class Hud {
       <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span></div>
       <div class="season-toggle" title="Season">🍂</div>
       <div class="season-pop"></div>
-      <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><input class="travel-search" type="text" placeholder="Go anywhere… try “Essex Street” or “The Witch House”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
+      <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><div class="travel-towns"><div class="tt-hdr">EXPLORE ANOTHER TOWN</div><div class="tt-row"></div></div><input class="travel-search" type="text" placeholder="Go anywhere… try “Essex Street” or “The Witch House”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q wp-q">➤</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
@@ -1142,6 +1161,22 @@ export class Hud {
   // ---------- fast travel ----------
 
   initTravel(items: { id: string; name: string; sub: string }[], onPick: (id: string) => void) {
+    // town switcher row — current town highlighted, the others navigate on tap
+    const ttRow = document.querySelector('#hud .tt-row');
+    if (ttRow && TOWNS.length > 1) {
+      const here = ((window as unknown as { __townPath?: string }).__townPath || location.pathname).replace(/\/+$/, '');
+      const cur = TOWNS.filter((t) => t.path !== '/').sort((a, b) => b.path.length - a.path.length)
+        .find((t) => { const p = t.path.replace(/\/+$/, ''); return here === p || here.startsWith(p + '/'); })
+        || TOWNS.find((t) => t.path === '/');
+      for (const t of TOWNS) {
+        const isCur = t === cur;
+        const chip = document.createElement('div');
+        chip.className = 'tt-chip' + (isCur ? ' cur' : '');
+        chip.innerHTML = `<span class="tt-emoji">${t.emoji}</span><div class="tt-info"><div class="tt-name">${t.name}</div><div class="tt-tag">${t.tag}${isCur ? ' · you’re here' : ''}</div></div>`;
+        if (!isCur) chip.addEventListener('click', () => { location.href = t.path; });
+        ttRow.appendChild(chip);
+      }
+    }
     const grid = document.querySelector('#hud .travel-grid')!;
     for (const it of items) {
       const el = document.createElement('div');
