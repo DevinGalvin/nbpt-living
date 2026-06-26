@@ -563,6 +563,9 @@ export class QuestRunner {
     this.ch8 = Math.min(9, Math.max(0, parseInt(localStorage.getItem('nbpt-ch8-step') || '0', 10) || 0));
     const bmask = parseInt(localStorage.getItem('nbpt-ch8-boats') || '0', 10) || 0;    // bitmask of boats guided home
     for (let i = 0; i < LOST.length; i++) if (bmask & (1 << i)) this.caught.add(i);
+    // once the finale's done, the Rear Range Light is a free on/off switch you flip by walking
+    // up to it — its state persists in nbpt-beam-on (default lit for anyone who already finished).
+    if (this.ch8 >= 2) this.beamLit = localStorage.getItem('nbpt-beam-on') !== '0';
     // already past the keeper on an old save? treat the Gram beat as done (no backtrack)
     this.gramSent = localStorage.getItem('nbpt-ch5-gram') === '1' || this.ch4 >= 1;
     try {
@@ -1098,6 +1101,9 @@ export class QuestRunner {
             } else if (this.l2 && this.ch8 === 1 && !this.hud.sweeping) {
               // …climb the Rear Range Light and wake the lamp (the beam-sweep is auto after)
               c.push({ tag: 'tower', x: TOWER.x, z: TOWER.z, label: '\u{1F526} LIGHT IT', r: 95 });
+            } else if (this.l2 && this.ch8 >= 2) {
+              // finale's done — the light is yours to switch on or off whenever you walk past it
+              c.push({ tag: 'tower', x: TOWER.x, z: TOWER.z, label: this.beamLit ? '\u{1F311} DOUSE THE LIGHT' : '\u{1F526} LIGHT IT', r: 95 });
             }
           }
         }
@@ -1248,7 +1254,7 @@ export class QuestRunner {
     if (this.foundation) this.foundation.visible = this.ch5 >= 1;
     // Ch4 finale: on a reload after the chapter's done, restore the peaceful tableau —
     // the light stays lit, the fleet stays moored up the river ("yours to keep lit").
-    if (this.l2 && this.ch8 >= 2) { this.beamLit = true; this.homing = true; }
+    if (this.l2 && this.ch8 >= 2) this.homing = this.beamLit;   // post-finale: the fleet follows the (toggleable) beam
     // the beam burns once you've relit it (and forever after the finale); the lost boats
     // sit out on the storm-water for the whole chapter; the Coast Guard leads once homing.
     if (this.beam) this.beam.visible = this.l2 && this.ch8 >= 1 && this.beamLit;
@@ -1887,6 +1893,13 @@ export class QuestRunner {
         this.apply();
         this.onSweep();              // lock at the tower + start sweeping the harbor
       });
+    } else if (tag === 'tower' && this.l2 && this.ch8 >= 2) {
+      // finale's done — a plain walk-up on/off switch (no cinematic): flip it and remember it
+      this.beamLit = !this.beamLit;
+      localStorage.setItem('nbpt-beam-on', this.beamLit ? '1' : '0');
+      this.homing = this.beamLit;
+      this.audio.jingle();
+      this.apply();
     }
   }
 

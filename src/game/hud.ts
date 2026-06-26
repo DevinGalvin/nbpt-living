@@ -485,7 +485,10 @@ const css = `
 #hud .m-card.locked .m-title { color: #787e8a; }
 #hud .m-card.done .m-title { color: #c4ccbb; }
 #hud .m-prog { font: 800 12px system-ui, sans-serif; color: #f0d27a; flex: none; }
-#hud .m-rep { color: #8fa8bc; font-size: 11px; opacity: 0.7; cursor: pointer; flex: none; }
+#hud .m-rep { color: #e8a89a; font-size: 10.5px; font-weight: 600; letter-spacing: 0.3px; cursor: pointer; flex: none; white-space: nowrap; border: 1px solid rgba(216,90,74,0.45); border-radius: 7px; padding: 3px 8px; }
+#hud .m-rep:hover, #hud .m-rep[data-arm="1"] { background: rgba(216,90,74,0.2); border-color: rgba(216,90,74,0.7); }
+#hud .m-lrep { float: right; color: #e8a89a; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; cursor: pointer; white-space: nowrap; border: 1px solid rgba(216,90,74,0.45); border-radius: 7px; padding: 3px 9px; margin-top: -2px; }
+#hud .m-lrep:hover, #hud .m-lrep[data-arm="1"] { background: rgba(216,90,74,0.2); border-color: rgba(216,90,74,0.7); }
 #hud .m-caret { color: #8fa8bc; font-size: 10px; flex: none; transition: transform 0.18s ease; }
 #hud .m-card.expanded .m-caret { transform: rotate(90deg); }
 #hud .m-card.locked .m-caret, #hud .m-card.locked .m-rep { display: none; }
@@ -1305,8 +1308,15 @@ export class Hud {
       const inLv = story.filter((m) => (m.level ?? 1) === lv);
       const h = document.createElement('div');
       h.className = 'm-level';
-      h.innerHTML = '<span class="m-lk">LEVEL ' + lv + '</span> · ' + (inLv[0].levelName || '');
+      // a one-tap "replay this whole level" — restarts from the level's first chapter, which
+      // (like any chapter restart) also resets every chapter after it
+      const lvRep = inLv.find((m) => m.replay != null)?.replay;
+      const lrep = (lvRep != null && inLv.some((m) => m.state !== 'locked'))
+        ? '<span class="m-lrep" data-c="' + lvRep + '" title="Replay this whole level from Chapter 1 — resets later chapters too">↻ Replay level</span>' : '';
+      h.innerHTML = '<span class="m-lk">LEVEL ' + lv + '</span> · ' + (inLv[0].levelName || '') + lrep;
       root.appendChild(h);
+      const lrepEl = h.querySelector('.m-lrep') as HTMLElement | null;
+      if (lrepEl) lrepEl.addEventListener('click', (ev) => this.onReplayClick(ev, lrepEl));
       for (const m of inLv) root.appendChild(this.missionCard(m));
     }
     // Town Jobs (none yet) still live under the Story tab when they exist
@@ -1328,7 +1338,7 @@ export class Hud {
     const dotCh = m.state === 'done' ? '✓' : m.state === 'locked' ? '○' : '●';
     const title = (m.chapter != null ? 'Chapter ' + m.chapter + ' · ' : m.kicker ? m.kicker + ' · ' : '') + m.title;
     const prog = (m.count != null && m.total != null) ? '<span class="m-prog">' + m.count + '/' + m.total + '</span>' : '';
-    const rep = (m.replay != null && m.state !== 'locked') ? '<span class="m-rep" data-c="' + m.replay + '">↻</span>' : '';
+    const rep = (m.replay != null && m.state !== 'locked') ? '<span class="m-rep" data-c="' + m.replay + '" title="Replay from this chapter — resets every chapter after it too">↻ Replay</span>' : '';
     const opensAlbum = m.opens === 'history-album';
     const caret = (m.steps.length || opensAlbum) ? '<span class="m-caret">▸</span>' : '';
     const row = document.createElement('div');
@@ -1363,28 +1373,34 @@ export class Hud {
     return card;
   }
 
-  // two-tap "replay this chapter": clears that chapter's keys + every chapter after it
+  // every chapter's localStorage keys, in play order. Restarting chapter N wipes N AND every
+  // chapter after it, so the later ones go back to "not done" and must be replayed (they don't
+  // stay complete with an unfinished chapter before them). Indices match each chapter's `replay`.
+  private static readonly CH_KEYS: string[][] = [
+    ['nbpt-ch0-step'],                                      // L1·1 Overdue
+    ['nbpt-ch1-step', 'nbpt-ch1-carded'],                  // L1·2 The Door Under Downtown
+    ['nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike'],      // L1·3 The Daily News (Bicycle)
+    ['nbpt-ch3-step'],                                      // L1·4 Low Water
+    ['nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-gram'],  // L1·5 The Custom House Star
+    ['nbpt-ch5-step'],                                      // L2·1 The False Light
+    ['nbpt-ch6-step', 'nbpt-kayak'],                        // L2·2 The Walking Light (Grandpa's kayak)
+    ['nbpt-ch7-step', 'nbpt-ch7-decoys'],                  // L2·3 The Lamplighter
+    ['nbpt-ch8-step', 'nbpt-ch8-boats', 'nbpt-beam-on'],   // L2·4 Bring the Light Home
+  ];
+
+  // two-tap "replay from here": clears this chapter's keys + every chapter after it, then reloads
   private onReplayClick(ev: Event, tg: HTMLElement) {
     ev.stopPropagation();
-    const cN = tg.dataset.c;
-    if (cN == null) return;
+    const idx = Number(tg.dataset.c);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= Hud.CH_KEYS.length) return;
     if (tg.dataset.arm !== '1') {
       tg.dataset.arm = '1';
-      tg.textContent = '↻ replay?';
-      setTimeout(() => { tg.dataset.arm = '0'; tg.textContent = '↻'; }, 3000);
+      if (tg.dataset.label == null) tg.dataset.label = tg.textContent || '↻';
+      tg.textContent = '↻ Tap again to confirm';
+      setTimeout(() => { tg.dataset.arm = '0'; tg.textContent = tg.dataset.label || '↻'; }, 3500);
       return;
     }
-    const cascade = [
-      ['nbpt-ch0-step', 'nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch6-step', 'nbpt-kayak'],
-      ['nbpt-ch1-step', 'nbpt-ch1-carded', 'nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch6-step', 'nbpt-kayak'],
-      ['nbpt-ch2-step', 'nbpt-ch2-stops', 'nbpt-bike', 'nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch6-step', 'nbpt-kayak'],
-      ['nbpt-ch3-step', 'nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch6-step', 'nbpt-kayak'],
-      ['nbpt-ch4-step', 'nbpt-ch4-bells', 'nbpt-ch5-step', 'nbpt-ch6-step', 'nbpt-kayak'],
-      ['nbpt-ch5-step', 'nbpt-ch6-step', 'nbpt-kayak'],
-      ['nbpt-ch6-step', 'nbpt-kayak']
-    ][+cN];
-    if (!cascade) return;
-    for (const kk of cascade) localStorage.removeItem(kk);
+    for (const grp of Hud.CH_KEYS.slice(idx)) for (const kk of grp) localStorage.removeItem(kk);
     location.reload();
   }
 
