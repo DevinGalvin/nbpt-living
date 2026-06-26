@@ -2688,6 +2688,170 @@ function witchMuseum(buckets: Bucket[], b: Building, g: number, index: WorldInde
   buckets[GLOW].triUV(ld[0], ld[1], ld[2], lc[0], lc[1], lc[2], apex[0], apex[1], apex[2], nx, 0, nz, wr, wg, wb, 0, 0, 0, 0, 0, 0);
 }
 
+// ---------- Georgian & Federal landmark mansions ----------
+// A parameterized GAMBREL-roofed builder for the Salem mansions that share that barn-roof
+// silhouette: Derby House (brick), Crowninshield-Bentley (mustard clapboard), and the Ropes
+// Mansion (dove-grey clapboard). Built in OBB-local pt-space like firstPeriod/customHouse
+// (z passed straight through). All decor materials are DoubleSide so winding is free — the
+// quad normals are for sun shading only. The ridge runs parallel to the street facade.
+type GambrelOpts = {
+  wall: string; material: 'brick' | 'clap'; roof: string; trim: string;
+  storeys?: number; dormers?: number; chimney?: 'ends4' | 'ridge2';
+  entrance?: 'pediment' | 'ionic'; shutter?: string; quoins?: boolean;
+};
+function gambrelHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: GambrelOpts) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const fs = frontSegment(b, index);
+  const pW = fs.nx * (-sa) + fs.nz * ca, pL = fs.nx * ca + fs.nz * sa;   // street normal · each OBB axis
+  const ridgeL = Math.abs(pW) >= Math.abs(pL);          // ridge ∥ facade: slopes face the street axis
+  const A = ridgeL ? obb.hl : obb.hw, B = ridgeL ? obb.hw : obb.hl;
+  const fsign = (ridgeL ? pW : pL) >= 0 ? 1 : -1;       // which front↔back side faces the street
+  const P = (al: number, ac: number, y: number): [number, number, number] => ridgeL ? pt(al, ac, y) : pt(ac, al, y);
+  const axx = ridgeL ? -sa : ca, axz = ridgeL ? ca : sa;          // world dir of +across (front)
+  const dAng = ridgeL ? obb.ang : obb.ang + Math.PI / 2;          // box angle aligned to the ridge
+  const storeys = o.storeys ?? 2.5, eaveH = g + (storeys >= 2.5 ? 44 : 36);
+  const ov = 1.6, Ar = A + ov, Br = B + ov, kn = 0.64, r1 = B * 0.38, r2 = B * 0.14, yK = eaveH + r1, yR = yK + r2;
+  const WALLBK = o.material === 'brick' ? BRICK : CLAP;
+  tmp.set(o.trim); const tcr = tmp.r, tcg = tmp.g, tcb = tmp.b;
+
+  if (o.material === 'brick') walls(buckets[BRICK], b.p, g - 4, eaveH, o.wall);
+  else clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
+  walls(buckets[PLAIN], b.p, eaveH - 1.3, eaveH + 0.4, o.trim, 0);                 // eave cornice band
+
+  tmp.set(o.roof); const rr = tmp.r, rg = tmp.g, rb = tmp.b;                       // gambrel: steep lower + shallow upper, outward normals
+  for (const s of [1, -1] as const) {
+    const e0 = P(-Ar, s * Br, eaveH), e1 = P(Ar, s * Br, eaveH), k0 = P(-Ar, s * kn * Br, yK), k1 = P(Ar, s * kn * Br, yK), u0 = P(-Ar, 0, yR), u1 = P(Ar, 0, yR);
+    const loA = s * r1, loY = Br * (1 - kn), loN = Math.hypot(loA, loY), upA = s * r2, upY = kn * Br, upN = Math.hypot(upA, upY);
+    const shLo = 0.82 + 0.18 * (loY / loN), shUp = 0.82 + 0.18 * (upY / upN);   // PLAIN bucket (untextured) so the slate colour reads true; bake a little slope shade
+    buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], k1[0], k1[1], k1[2], k0[0], k0[1], k0[2], axx * loA / loN, loY / loN, axz * loA / loN, rr * shLo, rg * shLo, rb * shLo);
+    buckets[PLAIN].quad(k0[0], k0[1], k0[2], k1[0], k1[1], k1[2], u1[0], u1[1], u1[2], u0[0], u0[1], u0[2], axx * upA / upN, upY / upN, axz * upA / upN, rr * shUp, rg * shUp, rb * shUp);
+  }
+  tmp.set(o.wall); const wr = tmp.r, wg = tmp.g, wb = tmp.b;                       // gambrel-profile gable-end walls at ±A
+  for (const sx of [1, -1] as const) {
+    const nx = (ridgeL ? ca : -sa) * sx, nz = (ridgeL ? sa : ca) * sx;
+    const p = [P(sx * A, B, eaveH), P(sx * A, kn * B, yK), P(sx * A, 0, yR), P(sx * A, -kn * B, yK), P(sx * A, -B, eaveH)];
+    for (const [i, j] of [[1, 2], [2, 3], [3, 4]] as const)
+      buckets[WALLBK].triUV(p[0][0], p[0][1], p[0][2], p[i][0], p[i][1], p[i][2], p[j][0], p[j][1], p[j][2], nx, 0, nz, wr, wg, wb, 0, 0, 0, 0, 0, 0);
+  }
+
+  const chim = (al: number, ac: number, top: number) => { const c = P(al, ac, 0); buckets[BRICK].box(c[0], c[2], 1.9, 1.9, eaveH + 3, top, '#7a4a39', 1); };
+  if (o.chimney === 'ends4') { for (const sx of [1, -1] as const) for (const sz of [1, -1] as const) chim(sx * A * 0.82, sz * B * 0.4, yR + 4); }
+  else for (const sx of [1, -1] as const) chim(sx * A * 0.34, 0, yR + 7);
+
+  const nDorm = o.dormers ?? 3;                                                    // pedimented dormers seated on the front lower slope
+  const dt = 0.32;                                                                 // fraction up the lower slope
+  for (let i = 0; i < nDorm; i++) {
+    const al = nDorm === 1 ? 0 : -A * 0.62 + (A * 1.24) * (i / (nDorm - 1));
+    const baseY = eaveH + r1 * dt, ac = fsign * Br * (1 - dt * (1 - kn)), topY = baseY + 8, c = P(al, ac, 0), gc = P(al, ac + fsign * 2.4, 0);
+    rotBox(buckets[WALLBK], c[0], c[2], 3, 2.4, baseY, topY, dAng, o.trim);
+    rotBox(buckets[PLAIN], gc[0], gc[2], 1.6, 0.35, baseY + 1.4, topY - 1, dAng, '#26333c');
+    const pl = P(al - 3.2, ac + fsign * 0.2, topY), pr = P(al + 3.2, ac + fsign * 0.2, topY), pk = P(al, ac + fsign * 0.2, topY + 4);
+    buckets[WALLBK].triUV(pl[0], pl[1], pl[2], pr[0], pr[1], pr[2], pk[0], pk[1], pk[2], axx * fsign, 0, axz * fsign, tcr, tcg, tcb, 0, 0, 0, 0, 0, 0);
+    rotBox(buckets[PLAIN], c[0], c[2], 3.5, 3, topY, topY + 1, dAng, o.roof);
+  }
+
+  const ux = ridgeL ? ca : -sa, uz = ridgeL ? sa : ca;                            // along-ridge tangent (window width dir)
+  const drawWin = (al: number, y: number) => {
+    const ac = fsign * B, nx = axx * fsign, nz = axz * fsign;
+    const frame = (hw: number, hh: number, off: number, cr: number, cg: number, cb: number) => {
+      const c0 = P(al, ac + fsign * off, y);
+      buckets[PLAIN].quad(c0[0] - ux * hw, c0[1] - hh, c0[2] - uz * hw, c0[0] + ux * hw, c0[1] - hh, c0[2] + uz * hw, c0[0] + ux * hw, c0[1] + hh, c0[2] + uz * hw, c0[0] - ux * hw, c0[1] + hh, c0[2] - uz * hw, nx, 0, nz, cr, cg, cb);
+    };
+    frame(2.1, 3.3, 0.25, tcr, tcg, tcb);
+    tmp.set('#28333c'); frame(1.6, 2.8, 0.4, tmp.r, tmp.g, tmp.b);
+    if (o.shutter) for (const sx of [-1, 1]) { const sc = P(al + sx * 2.5, ac + fsign * 0.3, y); rotBox(buckets[PLAIN], sc[0], sc[2], 0.7, 0.2, y - 2.8, y + 2.8, dAng, o.shutter); }
+  };
+  for (let bi = 0; bi < 5; bi++) { const al = -A * 0.72 + (A * 1.44) * (bi / 4); drawWin(al, g + 30); if (bi !== 2) drawWin(al, g + 13); }
+
+  const ac0 = fsign * B, dC = P(0, ac0 + fsign * 0.3, 0);                          // centred entrance
+  rotBox(buckets[PLAIN], dC[0], dC[2], 2, 0.3, g, g + 9, dAng, '#3a2c22');
+  if (o.entrance === 'ionic') {
+    for (const sx of [-1, 1]) { const cc = P(sx * 3.4, ac0 + fsign * 3.6, 0); buckets[PLAIN].box(cc[0], cc[2], 0.7, 0.7, g, g + 12, o.trim, 0); }
+    const rc = P(0, ac0 + fsign * 3.4, 0); rotBox(buckets[PLAIN], rc[0], rc[2], 4.6, 4, g + 12, g + 13.6, dAng, o.trim);
+  } else {
+    for (const sx of [-1, 1]) { const pc = P(sx * 2.9, ac0 + fsign * 0.4, 0); rotBox(buckets[PLAIN], pc[0], pc[2], 0.5, 0.5, g, g + 10.5, dAng, o.trim); }
+    const pl = P(-3.4, ac0 + fsign * 0.5, g + 10.5), pr = P(3.4, ac0 + fsign * 0.5, g + 10.5), pk = P(0, ac0 + fsign * 0.5, g + 14);
+    buckets[PLAIN].triUV(pl[0], pl[1], pl[2], pr[0], pr[1], pr[2], pk[0], pk[1], pk[2], axx * fsign, 0, axz * fsign, tcr, tcg, tcb, 0, 0, 0, 0, 0, 0);
+  }
+
+  if (o.quoins) for (const sx of [1, -1] as const) for (const sz of [1, -1] as const) {
+    const c = P(sx * (A - 0.5), sz * (B - 0.5), 0);
+    for (let y = g + 1; y < eaveH - 2; y += 3.4) buckets[PLAIN].box(c[0], c[2], 1.1, 1.1, y, y + 1.9, o.trim, 0);
+  }
+}
+function ropesMansion(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  gambrelHouse(buckets, b, g, index, { wall: '#e4e2da', material: 'clap', roof: '#b6bbc3', trim: '#fbfaf7', storeys: 2.5, dormers: 3, chimney: 'ridge2', entrance: 'ionic', quoins: true, shutter: '#23262a' });   // white Georgian w/ black shutters + light slate roof — the Hocus Pocus house (sources: stark-white facade, NOT grey/red)
+}
+function derbyHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  gambrelHouse(buckets, b, g, index, { wall: '#9c4d3c', material: 'brick', roof: '#aeb3bb', trim: '#efe9dc', storeys: 2.5, dormers: 3, chimney: 'ends4', entrance: 'pediment' });   // 1762 red brick, 4 end-wall chimneys
+}
+function crowninshieldBentley(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  gambrelHouse(buckets, b, g, index, { wall: '#c69a3f', material: 'clap', roof: '#b3a892', trim: '#f3efe3', storeys: 2.5, dormers: 3, chimney: 'ridge2', entrance: 'pediment' });   // mustard-gold clapboard, weathered-shingle roof
+}
+
+// Gardner-Pingree House (McIntire, 1804) — three-storey red Federal brick banded by white marble
+// stringcourses, a low hip rimmed by a white roof balustrade, and the signature semicircular domed
+// Corinthian entrance portico. Shortened third-floor windows, black shutters.
+function gardnerPingree(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1, FW = front * (W + 0.5);
+  const WHITE = '#efe9dc', eaveH = g + 46;
+  walls(buckets[BRICK], b.p, g - 4, eaveH, '#9c4d3c');                  // red Flemish-bond brick
+  walls(buckets[PLAIN], b.p, g + 1, g + 2, WHITE, 0);                   // marble water table
+  for (const y of [g + 16, g + 30]) walls(buckets[PLAIN], b.p, y, y + 1.4, WHITE, 0);   // stringcourses between floors
+  walls(buckets[PLAIN], b.p, eaveH - 2, eaveH, WHITE, 0);               // cornice band
+  flatRoof(buckets[SHINGLE], b.p, eaveH + 1, '#4a4e54');                // low hip, reads flat
+  for (let i = 0; i < b.p.length; i += 2) {                             // white roof balustrade: posts + rail
+    const ax = b.p[i], az = b.p[i + 1], bx = b.p[(i + 2) % b.p.length], bz = b.p[(i + 3) % b.p.length];
+    const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz); if (len < 2) continue;
+    for (let d = 1.5; d < len; d += 3) buckets[PLAIN].box(ax + (dx / len) * d, az + (dz / len) * d, 0.5, 0.5, eaveH + 1, eaveH + 5, WHITE, 0);
+    rotBox(buckets[PLAIN], (ax + bx) / 2, (az + bz) / 2, len / 2, 0.5, eaveH + 5, eaveH + 5.8, Math.atan2(dz, dx), WHITE);
+  }
+  for (const sx of [1, -1] as const) { const c = pt(sx * L * 0.4, 0, 0); buckets[BRICK].box(c[0], c[2], 1.8, 1.8, eaveH, eaveH + 6, '#7a4a39', 1); }   // 2 low interior chimneys
+  const drawWin = (lx: number, y: number, hh: number) => {
+    const nx = -sa * front, nz = ca * front, c0 = pt(lx, FW + front * 0.4, y);
+    tmp.set('#28333c'); buckets[PLAIN].quad(c0[0] - ca * 1.5, c0[1] - hh, c0[2] - sa * 1.5, c0[0] + ca * 1.5, c0[1] - hh, c0[2] + sa * 1.5, c0[0] + ca * 1.5, c0[1] + hh, c0[2] + sa * 1.5, c0[0] - ca * 1.5, c0[1] + hh, c0[2] - sa * 1.5, nx, 0, nz, tmp.r, tmp.g, tmp.b);
+    const ll = pt(lx, FW + front * 0.5, 0); buckets[PLAIN].box(ll[0], ll[2], 2, 0.4, y + hh, y + hh + 1, WHITE, 0);   // marble lintel
+    for (const sx of [-1, 1]) { const sc = pt(lx + sx * 2.3, FW + front * 0.3, 0); rotBox(buckets[PLAIN], sc[0], sc[2], 0.6, 0.2, y - hh, y + hh, obb.ang, '#23262a'); }   // black shutters
+  };
+  for (let bi = 0; bi < 5; bi++) { const lx = -L * 0.72 + (L * 1.44) * (bi / 4); drawWin(lx, g + 32, 3); drawWin(lx, g + 20, 4); if (bi !== 2) drawWin(lx, g + 8, 4); }
+  const door = pt(0, FW, 0); rotBox(buckets[PLAIN], door[0], door[2], 2, 0.3, g, g + 10, obb.ang, '#3a2c22');
+  for (const t of [-0.95, -0.32, 0.32, 0.95]) { const c = pt(t * 5, FW + front * 4.5 * (1 - t * t * 0.5), 0); buckets[PLAIN].box(c[0], c[2], 0.7, 0.7, g, g + 13, WHITE, 0); }   // curved colonnade
+  const dc = pt(0, FW + front * 3, 0); tmp.set('#dcd6c8'); cone(buckets[PLAIN], dc[0], g + 13, dc[2], 5.4, 3, tmp.clone());   // shallow dome
+}
+
+// Yin Yu Tang (荫余堂) — the Qing-dynasty Huizhou house at the PEM. Tall plain whitewashed walls,
+// a low dark inward-pitching tile roof barely seen from outside, and the signature stepped
+// "horse-head" firewalls (马头墙) rising over the gable ends, each step capped in dark tile.
+function yinYuTang(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const WHITE = '#e9e6dc', GREY = '#cbc7bc', TILE = '#333436';
+  const eaveH = g + 34;
+  walls(buckets[PLAIN], b.p, g - 3, eaveH, WHITE, 0);                   // tall plain lime-plaster walls
+  walls(buckets[PLAIN], b.p, g - 3, g + 6, GREY, 0);                    // grimier weathered base
+  flatRoof(buckets[SHINGLE], b.p, eaveH + 2, TILE);                     // low dark inward-pitch tile roof
+  const seg = [[0, 0.34, 25], [0.34, 0.67, 17], [0.67, 1, 9]] as const; // stepped horse-head gable on each end
+  for (const sx of [1, -1] as const) for (const sz of [1, -1] as const) for (const [z0, z1, h] of seg) {
+    const mid = sz * W * (z0 + z1) / 2, half = W * (z1 - z0) / 2, c = pt(sx * L, mid, 0);
+    rotBox(buckets[PLAIN], c[0], c[2], 0.7, half, eaveH, eaveH + h, obb.ang, WHITE);
+    rotBox(buckets[SHINGLE], c[0], c[2], 1.2, half + 0.5, eaveH + h, eaveH + h + 1.3, obb.ang, TILE);   // dark tile cap
+  }
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1, dh = pt(0, front * (W + 0.3), 0);   // recessed door + carved hood (门罩)
+  rotBox(buckets[PLAIN], dh[0], dh[2], 2.4, 0.3, g, g + 11, obb.ang, '#3b342c');
+  rotBox(buckets[BRICK], dh[0], dh[2], 3.4, 0.5, g + 11, g + 12.4, obb.ang, '#6b6258');
+  const hc = pt(0, front * (W + 1.2), 0); rotBox(buckets[SHINGLE], hc[0], hc[2], 3.8, 1.4, g + 12.4, g + 13.4, obb.ang, TILE);
+}
+
 const HEROES: Record<string, HeroBuilder> = {
   'The Witch House': witchHouse,
   'The House of the Seven Gables': sevenGables,
@@ -2695,6 +2859,11 @@ const HEROES: Record<string, HeroBuilder> = {
   'Narbonne House': narbonneHouse,
   'Custom House': customHouse,
   'Salem Witch Museum': witchMuseum,
+  'Ropes Mansion': ropesMansion,
+  'Derby House': derbyHouse,
+  'Gardner-Pingree House': gardnerPingree,
+  'Crowninshield-Bentley House': crowninshieldBentley,
+  'Yin Yu Tang': yinYuTang,
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,
