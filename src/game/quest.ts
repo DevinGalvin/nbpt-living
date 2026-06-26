@@ -1219,6 +1219,10 @@ export class QuestRunner {
     // feed the two HUD systems from this one sync point: the backpack + missions log
     this.hud.setBag(this.buildBag());
     this.hud.setMissions(this.buildMissions());
+    // explore mode strips the story-progress chrome too (compass dial + 🧭 missions + 🎒
+    // backpack); story mode restores it. Toggled here so init, the first-run pick, and the
+    // settings gear all converge on this one place.
+    this.hud.setStoryChrome(this.storyOn);
     // the rowboat waits on the launch bank during Chapter 4 (the one-time den discovery row)
     this.ensureRowboat();
     const showBoat = this.step >= 6 && this.ch2 >= 4 && this.ch3 < 4 && !this.hud.boating;

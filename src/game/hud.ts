@@ -137,6 +137,15 @@ const css = `
    flush under the compass instead of leaving a gap. Both ease back down once it appears. */
 #hud .bag-btn:not(.show) ~ .season-toggle,
 #hud .bag-btn:not(.show) ~ .season-pop { top: 170px; }
+/* explore mode (Story mode off): the story-progress chrome is hidden — the top-right
+   compass dial, the 🧭 missions log, and the 🎒 backpack. Travel + settings + season
+   stay, and the 🍂 season toggle slides up under ⚙️ settings (the now-empty 🧭 slot) so
+   the left column reads flush. Toggled by setStoryChrome() from quest.apply(). */
+#hud.no-story .compass,
+#hud.no-story .journey-btn,
+#hud.no-story .bag-btn { display: none !important; }
+#hud.no-story .season-toggle,
+#hud.no-story .season-pop { top: 118px !important; }
 #hud .season-pop {
   position: absolute; top: 222px; left: 66px; min-width: 152px;
   transition: top 0.3s ease;
@@ -863,6 +872,7 @@ export class Hud {
   private histMarkers: { id: string; title: string; year: string; body: string; stamp?: string }[] = [];
   private albumPanel: HTMLElement | null = null;
 
+  private root: HTMLElement;            // the #hud element itself (for explore-mode class toggling)
   private pill: HTMLElement;
   private banner: HTMLElement;
   private bannerName: HTMLElement;
@@ -955,6 +965,7 @@ export class Hud {
       (hud.querySelector('.help') as HTMLElement).textContent =
         'Drag to move · 🏃 Run · 💬 Talk';
     }
+    this.root = hud;
     this.pill = hud.querySelector('.pill')!;
     this.banner = hud.querySelector('.banner')!;
     this.bannerName = hud.querySelector('.banner .name')!;
@@ -1127,6 +1138,14 @@ export class Hud {
   setCompass(rot: number) {
     if (!this.needle) this.needle = document.querySelector('#hud .compass .needle');
     if (this.needle) this.needle.style.transform = `rotate(${rot}rad)`;
+  }
+
+  // Explore mode (Story mode off) hides the story-progress chrome — the compass dial,
+  // the 🧭 missions log, and the 🎒 backpack — via the #hud.no-story class (see CSS).
+  // Driven from quest.apply()'s HUD sync point, so it tracks the initial state, the
+  // first-run mode pick, and the settings-gear toggle alike.
+  setStoryChrome(on: boolean) {
+    this.root.classList.toggle('no-story', !on);
   }
 
   // ---------- fast travel ----------
