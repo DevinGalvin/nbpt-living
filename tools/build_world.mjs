@@ -6,6 +6,7 @@
 // Map data © OpenStreetMap contributors (ODbL).
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { SALEM_LM } from './salem_landmarks.mjs';
 
 const PX_PER_M = 8;
 // SALEM, MA experiment (world-only). Origin = downtown Salem (≈ bbox center).
@@ -742,6 +743,12 @@ const LM = [
 if (!BARE) for (const [id, name, sub, lat, lon, rM] of LM) {
   const [x, y] = px(lat, lon);
   world.landmarks.push({ id, name, sub, x, y, r: Math.round(rM * PX_PER_M) });
+}
+// Salem (BARE) curated landmarks. Coords are already world px (pulled from the built
+// world), so they go straight in — no lat/lon conversion. Kept in sync with the in-place
+// patch via the shared tools/salem_landmarks.mjs.
+if (BARE) for (const [id, name, sub, x, y, r] of SALEM_LM) {
+  world.landmarks.push({ id, name, sub, x, y, r });
 }
 
 // ---------- storefront corridors ----------
