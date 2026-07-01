@@ -373,6 +373,20 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
     const cols = Math.floor((len - 10) / spacing);
     if (cols < 1) continue;
     const gap = len / (cols + 1);
+    // Doors scale with the wall, not a flat one-per-side: a real entrance roughly
+    // every DOOR_PITCH of facade. A house's short front wall still reads as a single
+    // centered door (round() keeps it at one until the wall is genuinely long); a long
+    // mill / school / wharf wall earns a row of evenly-spread entrances. The street-
+    // facing longest wall always gets at least one; other walls need real length first,
+    // so back/short walls stay blank. doorCols is the set of columns that become doors.
+    const DOOR_PITCH = 120;
+    const doorCols = new Set<number>();
+    if (withDoor && (i === longest || len >= 280)) {
+      const nDoors = Math.min(cols, Math.max(1, Math.round(len / DOOR_PITCH)));
+      for (let d = 0; d < nDoors; d++) {
+        doorCols.add(Math.min(cols, Math.max(1, Math.round((cols + 1) * (d + 1) / (nDoors + 1)))));
+      }
+    }
     const edgeGetsAwnings = storefront && awningEdges < 4 && len >= 30;
     if (edgeGetsAwnings) {
       awningEdges++;
@@ -384,9 +398,8 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
     for (let c = 1; c <= cols && windows < maxWin; c++) {
       const t = gap * c;
       const wx = a.x + ux * t, wy = a.y + uy * t;
-      // the main door sits on the longest wall; institutional-length walls
-      // (schools, mills) get their own entrance too
-      const isDoorSlot = withDoor && c === Math.ceil(cols / 2) && (i === longest || len >= 280);
+      // doors for this wall were chosen up front (count scales with wall length)
+      const isDoorSlot = doorCols.has(c);
       for (let r = 0; r < rows; r++) {
         const yC = g + 13 + r * 19;
         if (yC + 6 > eaveH) break;
