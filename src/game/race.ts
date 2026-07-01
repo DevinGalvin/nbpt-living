@@ -24,6 +24,22 @@ export type Course = {
 
 export const COURSES: Course[] = [
   {
+    // course 2 (listed first: it's the shorter intro of the pair) — the western
+    // homecoming: from the Maudslay gate down twisty Pine Hill Rd, Ferry Rd and the
+    // Spofford descent, then Merrimac Street flat-out along the river into the square.
+    id: 'merrimack',
+    name: 'The Merrimack Run',
+    sub: 'Maudslay gate → Market Square',
+    start: { x: -34137, z: -9817 },
+    gates: [
+      [-32860, -12109], [-31522, -14475], [-29578, -16029], [-26964, -15254], [-24940, -13487],
+      [-24914, -16117], [-23575, -17623], [-21252, -16425], [-18904, -15042], [-16534, -13607],
+      [-14099, -12046], [-11842, -10340], [-9884, -8320], [-8303, -6194], [-6584, -4026],
+      [-5429, -3205], [-4420, -1953], [-3271, -1020], [-1808, -549], [-481, -197],
+      [-140, -130],
+    ],
+  },
+  {
     id: 'homecoming',
     name: 'Yankee Homecoming',
     sub: 'Plum Island Light → Market Square',
