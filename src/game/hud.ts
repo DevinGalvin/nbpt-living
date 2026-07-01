@@ -164,6 +164,36 @@ const css = `
 #hud .season-pop.locked .sp-item { opacity: 0.45; cursor: default; }
 #hud .season-pop.locked .sp-item:hover { background: none; }
 #hud .season-pop .sp-lock { font-size: 11px; color: #c9a23e; padding: 7px 5px 2px; line-height: 1.45; max-width: 158px; }
+/* ---------- Races 🏁: always-visible button + course picker ----------
+   Racing is front-door, not a secret: the 🏁 sits in the left column everywhere
+   (story AND explore), and picking a course fades you straight to its start line.
+   Column cascade mirrors the season toggle: slide up into whatever slots are empty. */
+#hud .race-btn {
+  position: absolute; top: 274px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  display: none; align-items: center; justify-content: center; font-size: 20px;
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: top 0.3s ease;
+}
+#hud .race-btn.show { display: flex; }
+#hud .bag-btn:not(.show) ~ .race-btn { top: 222px; }
+#hud.no-story .race-btn { top: 170px !important; }
+#hud .race-pop {
+  position: absolute; top: 274px; left: 66px; min-width: 210px; max-width: 260px;
+  background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-radius: 12px;
+  padding: 8px; display: none; pointer-events: auto; z-index: 40;
+  transition: top 0.3s ease;
+}
+#hud .bag-btn:not(.show) ~ .race-pop { top: 222px; }
+#hud.no-story .race-pop { top: 170px !important; }
+#hud .race-pop.open { display: block; }
+#hud .race-pop .rp-hdr { font-size: 11px; color: #e8c44f; font-weight: 700; padding: 2px 5px 7px; letter-spacing: 0.3px; }
+#hud .race-pop .rp-item { padding: 8px 9px; border-radius: 8px; cursor: pointer; }
+#hud .race-pop .rp-item:hover { background: rgba(216,185,74,0.18); }
+#hud .race-pop .rp-name { font-size: 13px; font-weight: 700; color: #f3f1e8; }
+#hud .race-pop .rp-sub { font-size: 11px; color: #9fb1c2; margin-top: 1px; }
+#hud .race-pop .rp-best { font-size: 11px; color: #f0d27a; font-weight: 700; margin-top: 3px; }
+#hud .race-pop .rp-hint { font-size: 10.5px; color: #c8bd96; padding: 7px 5px 2px; line-height: 1.4; border-top: 1px solid rgba(216,185,74,0.25); margin-top: 6px; }
 #hud .run-btn {
   position: absolute; right: 18px; bottom: 52px; width: 58px; height: 58px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
@@ -529,6 +559,28 @@ const css = `
 #hud .chapter .kick { font-size: 13px; letter-spacing: 4px; color: #e8c44f; font-weight: 700; margin-bottom: 10px; }
 #hud .chapter .big { font-family: Georgia, serif; font-size: clamp(30px, 6vw, 46px); color: #f6f3e8; }
 #hud .chapter .small { font-size: 13px; color: #c8bd96; margin-top: 12px; letter-spacing: 1px; }
+/* ---------- Races 🏁: countdown overlay + live timer chip ----------
+   NOT gated by .no-story — racing is the play tier, explore mode races too. */
+#hud .race-count {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  pointer-events: none; opacity: 0;
+}
+#hud .race-count.show { opacity: 1; }
+#hud .race-count .rc-num {
+  font-family: Georgia, serif; font-size: clamp(72px, 18vw, 150px); font-weight: 700;
+  color: #f0d27a; text-shadow: 0 4px 30px rgba(0,0,0,0.65), 0 0 60px rgba(232,196,79,0.35);
+  animation: nbpt-race-pop 0.9s cubic-bezier(0.2, 0.85, 0.3, 1.15) both;
+}
+@keyframes nbpt-race-pop { 0% { transform: scale(1.7); opacity: 0; } 25% { opacity: 1; } 100% { transform: scale(0.92); opacity: 0.95; } }
+#hud .race-timer {
+  position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+  display: none; align-items: baseline; gap: 9px;
+  background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-radius: 12px;
+  padding: 7px 14px; pointer-events: none; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+#hud .race-timer.show { display: flex; }
+#hud .race-timer .rt-cur { font: 800 20px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f6f3e8; letter-spacing: 0.5px; }
+#hud .race-timer .rt-best { font: 600 11px system-ui, sans-serif; color: #c8bd96; letter-spacing: 0.4px; }
 /* the end-of-Level-1 "Seasons Unlocked" reward — a richer take on the chapter card */
 #hud .chapter.reward { background: radial-gradient(ellipse at center, rgba(14, 22, 34, 0.9), rgba(8, 12, 20, 0.97)); }
 #hud .chapter.reward .big { animation: rewardBloom 0.7s cubic-bezier(.2, .85, .25, 1) both; }
@@ -721,7 +773,7 @@ const css = `
 
 /* ── round chrome buttons: one shared material + feel ──────────────── */
 #hud .compass, #hud .travel-btn, #hud .settings-btn, #hud .season-toggle,
-#hud .journey-btn, #hud .bag-btn {
+#hud .journey-btn, #hud .bag-btn, #hud .race-btn {
   background: var(--chrome-bg);
   border: 1.5px solid var(--chrome-bd);
   -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
@@ -731,13 +783,13 @@ const css = `
 }
 /* the 5 interactive ones lift on hover + press in on tap (compass is read-only) */
 #hud .travel-btn:hover, #hud .settings-btn:hover, #hud .season-toggle:hover,
-#hud .journey-btn:hover, #hud .bag-btn:hover {
+#hud .journey-btn:hover, #hud .bag-btn:hover, #hud .race-btn:hover {
   transform: scale(1.07); border-color: var(--gold);
   background: rgba(var(--maroon), 0.82);
   box-shadow: 0 6px 18px rgba(0,0,0,0.46), 0 0 0 1px rgba(var(--gold-rgb), 0.28);
 }
 #hud .travel-btn:active, #hud .settings-btn:active, #hud .season-toggle:active,
-#hud .journey-btn:active, #hud .bag-btn:active,
+#hud .journey-btn:active, #hud .bag-btn:active, #hud .race-btn:active,
 #hud .run-btn:active, #hud .bike-btn:active, #hud .talk-btn:active,
 #hud .modal-x:active { transform: scale(0.9); }
 /* journey + bag open panels — keep their gold ring after the group reset above */
@@ -927,10 +979,14 @@ export class Hud {
       <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span></div>
       <div class="season-toggle" title="Season">🍂</div>
       <div class="season-pop"></div>
+      <div class="race-btn" title="Races">🏁</div>
+      <div class="race-pop"></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><div class="travel-towns"><div class="tt-hdr">EXPLORE ANOTHER TOWN</div><div class="tt-row"></div></div><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q wp-q">➤</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
+      <div class="race-count"></div>
+      <div class="race-timer"><span class="rt-cur"></span><span class="rt-best"></span></div>
       <div class="runtip"></div>
       <div class="streettip"></div>
       <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
@@ -1026,7 +1082,7 @@ export class Hud {
 
   private onDown(e: PointerEvent) {
     const tgt = e.target as HTMLElement;
-    const onUI = !!tgt?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .talk-btn, .dlg, .objective, .hcard');
+    const onUI = !!tgt?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .talk-btn, .dlg, .objective, .hcard, .race-btn, .race-pop');
     // run/bike sit right under the steering thumb: don't dead-zone them. A tap toggles (their own
     // click handler); a drag promotes to the joystick (handled in onMove). Defer either way.
     const onSoftBtn = !onUI && !!tgt?.closest?.('.run-btn, .bike-btn');
@@ -1146,6 +1202,76 @@ export class Hud {
   // first-run mode pick, and the settings-gear toggle alike.
   setStoryChrome(on: boolean) {
     this.root.classList.toggle('no-story', !on);
+  }
+
+  // ---------- races 🏁: countdown overlay + live timer chip ----------
+
+  private raceGoT: ReturnType<typeof setTimeout> | null = null;
+  private rtEl: HTMLElement | null = null;
+  private rtCur: HTMLElement | null = null;
+  private rtBest: HTMLElement | null = null;
+  private fmtRace(s: number): string {
+    const m = Math.floor(s / 60), sec = s - m * 60;
+    return `${m}:${sec < 10 ? '0' : ''}${sec.toFixed(1)}`;
+  }
+
+  /** big center countdown; each call re-pops the number. null clears; 'GO!' self-clears. */
+  raceCountdown(text: string | null) {
+    const el = this.root.querySelector('.race-count') as HTMLElement;
+    if (this.raceGoT) { clearTimeout(this.raceGoT); this.raceGoT = null; }
+    if (text === null) { el.classList.remove('show'); el.innerHTML = ''; return; }
+    el.innerHTML = '<div class="rc-num"></div>';        // fresh node re-runs the pop animation
+    (el.firstChild as HTMLElement).textContent = text;
+    el.classList.add('show');
+    if (text === 'GO!') this.raceGoT = setTimeout(() => { el.classList.remove('show'); el.innerHTML = ''; }, 850);
+  }
+
+  /** live race clock under the objective pill; cur=null hides it */
+  setRaceTimer(cur: number | null, best: number | null) {
+    if (!this.rtEl) {
+      this.rtEl = this.root.querySelector('.race-timer');
+      this.rtCur = this.root.querySelector('.race-timer .rt-cur');
+      this.rtBest = this.root.querySelector('.race-timer .rt-best');
+    }
+    if (!this.rtEl || !this.rtCur || !this.rtBest) return;
+    if (cur === null) { this.rtEl.classList.remove('show'); return; }
+    this.rtEl.classList.add('show');
+    this.rtCur.textContent = this.fmtRace(cur);
+    this.rtBest.textContent = best !== null ? '★ ' + this.fmtRace(best) : 'first ride';
+  }
+
+  /** the front-door 🏁 button + course picker: always visible, no discovery needed.
+   *  `rows` is re-read on every open so best times stay fresh; picking a course
+   *  hands its id to the game, which fades you to the start line and begins. */
+  initRaces(rows: () => { id: string; name: string; sub: string; best: number | null }[], onPick: (id: string) => void) {
+    if (!rows().length) return;                       // townless build: keep the button hidden
+    const btn = this.root.querySelector('.race-btn') as HTMLElement;
+    const pop = this.root.querySelector('.race-pop') as HTMLElement;
+    btn.classList.add('show');
+    const rebuild = () => {
+      pop.innerHTML = '';
+      pop.appendChild(Object.assign(document.createElement('div'), { className: 'rp-hdr', textContent: '🏁 RACES — beat the clock' }));
+      for (const r of rows()) {
+        const it = document.createElement('div');
+        it.className = 'rp-item';
+        it.appendChild(Object.assign(document.createElement('div'), { className: 'rp-name', textContent: r.name }));
+        it.appendChild(Object.assign(document.createElement('div'), { className: 'rp-sub', textContent: r.sub }));
+        it.appendChild(Object.assign(document.createElement('div'), {
+          className: 'rp-best',
+          textContent: r.best !== null ? '★ best ' + this.fmtRace(r.best) : 'no time yet — set one!',
+        }));
+        it.addEventListener('click', () => { pop.classList.remove('open'); onPick(r.id); });
+        pop.appendChild(it);
+      }
+      pop.appendChild(Object.assign(document.createElement('div'), { className: 'rp-hint', textContent: 'You’ll ride to the start line — follow the gold gates home.' }));
+    };
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!pop.classList.contains('open')) rebuild();
+      pop.classList.toggle('open');
+    });
+    pop.addEventListener('click', (e) => e.stopPropagation());
+    window.addEventListener('click', () => pop.classList.remove('open'));
   }
 
   // ---------- fast travel ----------

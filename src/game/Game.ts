@@ -14,6 +14,7 @@ import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
 import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
+import { RaceRunner, COURSES } from './race';
 import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
 import { STYLE, SEASON } from '../world/style';
@@ -120,6 +121,7 @@ export class Game {
   private sky!: Sky;
   private tunnel: TunnelScene | null = null;
   private history: HistoryRunner | null = null;
+  private race: RaceRunner | null = null;
   private eggs: EggRunner | null = null;
   private golden = false;
   private inTunnel = false;
@@ -370,6 +372,17 @@ export class Game {
     // switch mirrors whatever it actually applies.
     this.hud.initSettings(this.quest.story, (next) => { this.quest!.setStory(next); return this.quest!.story; });
     this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
+    this.race = new RaceRunner(this.scene, this.index, this.hud, this.audio, (on) => this.lendBike(on));
+    // 🏁 front door: pick a course anywhere in town → fade to its start line → countdown.
+    // (The in-world start flag still works for players who ride up to it.)
+    this.hud.initRaces(
+      () => COURSES.map((c) => ({ id: c.id, name: c.name, sub: c.sub, best: this.race!.bestFor(c.id) })),
+      (id) => {
+        const c = COURSES.find((k) => k.id === id);
+        if (!c || !this.race) return;
+        this.hud.fadeThrough(() => { this.travelToXY(c.start.x, c.start.z); this.race!.startById(id); });
+      }
+    );
     this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,
       () => ({ x: this.dog.root.position.x, z: this.dog.root.position.z }),
@@ -458,6 +471,13 @@ export class Game {
         heapMB: Math.round((((performance as unknown as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize) || 0) / 1048576),
       }),
       _quest: this.quest,
+      // dev: teleport to a course start + begin it (nbpt.race() = the homecoming run)
+      race: (id = 'homecoming') => {
+        const c = COURSES.find((k) => k.id === id);
+        if (!c || !this.race) return 'unknown course: ' + id;
+        this.travelToXY(c.start.x, c.start.z);
+        return this.race.startById(id) ? 'racing ' + c.name : 'could not start';
+      },
       landmarks: world.landmarks.map((l) => l.id),
       _game: this,
       _THREE: THREE
@@ -665,6 +685,7 @@ export class Game {
     this.bike.root.visible = this.riding;
     this.hud.setBikeState(this.riding);
     this.audio.bell();
+    if (!this.riding) this.race?.cancel();   // hopping off mid-race abandons the run
   }
 
   /** Take the bike off, unconditionally. The tunnel/interior entries flip their
@@ -675,6 +696,21 @@ export class Game {
     this.riding = false;
     this.bike.root.visible = false;
     this.hud.setBikeState(false);
+    this.race?.cancel();                     // tunnels/interiors/boats end any run
+  }
+
+  /** Races lend a bike regardless of the earned flag (explore-mode kids race too);
+   *  returning it dismounts only riders who hadn't earned their own. */
+  private lendBike(on: boolean) {
+    if (on) {
+      if (this.riding || this.inside || this.onWater) return;
+      this.riding = true;
+      this.bike.root.visible = true;
+      this.hud.setBikeState(true);
+      this.audio.bell();
+    } else if (localStorage.getItem('nbpt-bike') !== '1') {
+      this.dismount();
+    }
   }
 
   /** Tap-to-pet: a tap/click near Clipper on screen pets him (hearts + the secret).
@@ -1473,6 +1509,7 @@ export class Game {
     // them. Force a walk regardless of the run toggle or any stray riding state.
     if (this.inside) this.sprinting = false;
     let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
+    if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
     // streets are controllable. Kids kept overshooting into houses in the neighborhoods,
@@ -1716,9 +1753,13 @@ export class Game {
     else if (this.interior) this.interior.update(dt, this.px, this.pz);
     else if (this.quest) {
       this.quest.update(dt, this.px, this.pz);
-      if (this.history) this.history.update(dt, this.px, this.pz, this.quest.nearActive || this.flying);
-      // eggs speak last: quest beats, then history markers, then secrets
-      if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.flying || this.quest.nearActive || (this.history ? this.history.nearActive : false));
+      // the race runs after quest (its per-frame hud.guide write wins while racing)
+      // but before history/eggs, which both yield to an armed start line or a live run
+      if (this.race) this.race.update(dt, this.px, this.pz, this.quest.nearActive || this.flying);
+      const raceBusy = this.race ? (this.race.active || this.race.nearActive) : false;
+      if (this.history) this.history.update(dt, this.px, this.pz, this.quest.nearActive || this.flying || raceBusy);
+      // eggs speak last: quest beats, then race flags, then history markers, then secrets
+      if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.flying || this.quest.nearActive || raceBusy || (this.history ? this.history.nearActive : false));
     }
     this.audio.update(dt, movingNow && !this.riding, this.sprinting, () =>
       this.inside ? 'hard'
@@ -1944,6 +1985,7 @@ export class Game {
   }
 
   travelToXY(x: number, y: number) {
+    this.race?.cancel();               // fast travel abandons any run
     const spot = this.findFree(x, y);
     this.px = spot.x;
     this.pz = spot.y;
