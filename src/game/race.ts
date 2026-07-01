@@ -214,7 +214,7 @@ export class RaceRunner {
     this.course = c;
     this.gate = 0;
     this.state = 'count';
-    this.countT = 3.0;
+    this.countT = 5.0;   // a real breath at the line — the picker teleports you in cold
     this.lastCount = -1;
     this.nearId = null;
     this.hud.showTalk(null);
