@@ -56,9 +56,18 @@ export const COURSES: Course[] = [
   },
 ];
 
-const GATE_R = 36;                     // ride-through radius (generous for mobile steering)
+const GATE_R = 36;                     // "passed the arch" radius (feedback pop only — gates are guidance)
+const FINISH_R = 64;                   // the finish line is the ONLY thing you must actually cross
 const ARM_R = 60;                      // stand-this-close-to-the-flag to get the RACE button
 const GHOST_STEP = 0.2;                // ghost sample period (s)
+// squared distance from a point to a segment — route-snapping for the guidance arch
+function segD2(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
+  const dx = bx - ax, dz = bz - az;
+  const L2 = dx * dx + dz * dz || 1;
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / L2));
+  const qx = ax + dx * t, qz = az + dz * t;
+  return (px - qx) * (px - qx) + (pz - qz) * (pz - qz);
+}
 const bestKey = (id: string) => `nbpt-race-${id}-best`;
 const ghostKey = (id: string) => `nbpt-race-${id}-ghost`;
 
@@ -112,7 +121,9 @@ export function setRaceName(raw: string): { ok: boolean; name: string } {
 export class RaceRunner {
   private state: 'idle' | 'count' | 'run' = 'idle';
   private course: Course | null = null;
-  private gate = 0;                    // index of the NEXT gate to ride through
+  private gate = 0;                    // GUIDANCE index: which suggested waypoint the arch sits at
+  private routePts: [number, number][] = [];   // start + gates, cached at begin() for route-snapping
+  private popped = -1;                 // last arch the rider actually threaded (feedback pop dedupe)
   private clock = 0;                   // race timer (s)
   private countT = 0;                  // countdown remaining (s)
   private lastCount = -1;              // last whole second shown (tick sound dedupe)
@@ -275,21 +286,35 @@ export class RaceRunner {
     }
     const c = this.course!;
     this.hud.setRaceTimer(this.clock, this.bestFor(c.id));
+    // THE ONLY RULE: cross the finish line. Everything else is route freedom — users
+    // find the fastest way; the arches are suggestions, not requirements (Devin: "we
+    // just want general direction").
+    const [fx, fz] = c.gates[c.gates.length - 1];
+    if (Math.hypot(px - fx, pz - fz) < FINISH_R) { this.finish(px, pz); return; }
+    // Guidance: snap to the suggested-route segment nearest the RIDER and aim the arch
+    // at its far end — deep in a shortcut the arch sits wherever the route runs closest
+    // to you, never stranded at a waypoint you skipped. Backtracking only re-aims with a
+    // clear margin (1.5x closer) so the arch doesn't flap between adjacent legs.
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < this.routePts.length - 1; i++) {
+      const d2 = segD2(px, pz, this.routePts[i][0], this.routePts[i][1], this.routePts[i + 1][0], this.routePts[i + 1][1]);
+      if (d2 < bd) { bd = d2; bi = i; }
+    }
+    if (bi !== this.gate
+        && (bi > this.gate || bd * 1.5 < segD2(px, pz, this.routePts[this.gate][0], this.routePts[this.gate][1], this.routePts[this.gate + 1][0], this.routePts[this.gate + 1][1]))) {
+      this.gate = bi;
+      this.pointGate();
+    }
     const [gx, gz] = c.gates[this.gate];
     // the existing waypoint arrow + journey hint follow hud.guide; race runs after
     // quest in the frame, so this per-frame write wins while a race is on
     this.hud.guide = { x: gx, z: gz };
-    const d = Math.hypot(px - gx, pz - gz);
+    // a little tick when you actually thread an arch — pure feedback, no rule attached
+    if (this.popped !== this.gate && Math.hypot(px - gx, pz - gz) < GATE_R) { this.popped = this.gate; this.audio.pop(); }
     const pulse = 1 + 0.05 * Math.sin(this.t * 3);      // gentle breath, not a beacon
     this.gateRing.scale.set(pulse, pulse, 1);
     for (let i = 0; i < this.chevrons.length; i++) {    // bold shimmer racing toward the gate
       (this.chevrons[i].material as THREE.MeshBasicMaterial).opacity = 0.4 + 0.4 * (Math.sin(this.t * 5.5 - i * 1.1) + 1) / 2;
-    }
-    if (d < GATE_R) {
-      this.gate++;
-      if (this.gate >= c.gates.length) { this.finish(px, pz); return; }
-      this.audio.pop();
-      this.pointGate();
     }
   }
 
@@ -315,6 +340,8 @@ export class RaceRunner {
   private begin(c: Course) {
     this.course = c;
     this.gate = 0;
+    this.popped = -1;
+    this.routePts = [[c.start.x, c.start.z], ...c.gates];   // for route-snapping the guidance arch
     this.state = 'count';
     this.countT = 5.0;   // a real breath at the line — the picker teleports you in cold
     this.lastCount = -1;

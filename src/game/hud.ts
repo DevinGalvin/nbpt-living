@@ -1308,7 +1308,7 @@ export class Hud {
         it.addEventListener('click', () => { pop.classList.remove('open'); onPick(r.id); });
         pop.appendChild(it);
       }
-      pop.appendChild(Object.assign(document.createElement('div'), { className: 'rp-hint', textContent: 'You’ll ride to the start line — follow the flags home.' }));
+      pop.appendChild(Object.assign(document.createElement('div'), { className: 'rp-hint', textContent: 'The flags show the way, but any route counts — first to the finish line. Shortcuts welcome.' }));
       // rider name row: tap to edit inline; blocked names shake and stay put
       const row = document.createElement('div');
       row.className = 'rp-rider';
