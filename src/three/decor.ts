@@ -2598,8 +2598,8 @@ function firstPeriod(buckets: Bucket[], b: Building, g: number, index: WorldInde
     buckets[SHINGLE].quad(fL[0], fL[1], fL[2], bL[0], bL[1], bL[2], aB[0], aB[1], aB[2], aF[0], aF[1], aF[2], -ca, 0.5, -sa, sr, sg, sb);
     buckets[SHINGLE].quad(aF[0], aF[1], aF[2], aB[0], aB[1], aB[2], bR[0], bR[1], bR[2], fR[0], fR[1], fR[2], ca, 0.5, sa, sr * 0.9, sg * 0.9, sb * 0.9);
   }
-  const win = (lx: number, y: number, hw: number, hh: number) => {
-    const c0 = pt(lx, front * W, y), nx = -sa * front, nz = ca * front, ax = ca, az = sa, pr = 0.4;
+  const win = (lx: number, y: number, hw: number, hh: number, side = front) => {
+    const c0 = pt(lx, side * W, y), nx = -sa * side, nz = ca * side, ax = ca, az = sa, pr = 0.4;
     const C = (sx: number, sy: number): [number, number, number] => [c0[0] + ax * hw * sx + nx * pr, c0[1] + hh * sy, c0[2] + az * hw * sx + nz * pr];
     const a = C(-1, -1), bb = C(1, -1), cc = C(1, 1), dd = C(-1, 1);
     tmp.set('#a4b5bb'); buckets[PLAIN].quad(a[0], a[1], a[2], bb[0], bb[1], bb[2], cc[0], cc[1], cc[2], dd[0], dd[1], dd[2], nx, 0, nz, tmp.r, tmp.g, tmp.b);
@@ -2607,15 +2607,88 @@ function firstPeriod(buckets: Bucket[], b: Building, g: number, index: WorldInde
     buckets[PLAIN].quad(v0[0] - ax * tw, v0[1], v0[2] - az * tw, v0[0] + ax * tw, v0[1], v0[2] + az * tw, v1[0] + ax * tw, v1[1], v1[2] + az * tw, v1[0] - ax * tw, v1[1], v1[2] - az * tw, nx, 0, nz, tmp.r, tmp.g, tmp.b);
     buckets[PLAIN].quad(h0[0], h0[1] - 0.16, h0[2], h1[0], h1[1] - 0.16, h1[2], h1[0], h1[1] + 0.16, h1[2], h0[0], h0[1] + 0.16, h0[2], nx, 0, nz, tmp.r, tmp.g, tmp.b);
   };
-  for (const [c, ridgeY] of ridges) win(c, eaveH + (ridgeY - eaveH) * 0.42, 2.4, 3);   // a window up each gable
-  const cols = Math.max(4, n * 2);
-  for (let i = 0; i < cols; i++) { const lx = -L + (2 * L) * (i + 0.5) / cols; win(lx, g + 16, 2.6, 3.5); win(lx, g + 5.5, 2.6, 3.5); }   // rows of casements
+  // windows on BOTH long faces — front-only left the harbor/back side a windowless
+  // black blob (exactly Devin's Seven Gables complaint, and Hathaway had it too)
+  for (const side of [front, -front]) {
+    for (const [c, ridgeY] of ridges) win(c, eaveH + (ridgeY - eaveH) * 0.42, 2.4, 3, side);   // a window up each gable
+    const cols = Math.max(4, n * 2);
+    for (let i = 0; i < cols; i++) { const lx = -L + (2 * L) * (i + 0.5) / cols; win(lx, g + 16, 2.6, 3.5, side); win(lx, g + 5.5, 2.6, 3.5, side); }   // rows of casements
+  }
+  // festive eave lights like the neighbours (heroes skip the generic decor pass)
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
 }
 function witchHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   firstPeriod(buckets, b, g, index, { wall: '#363a3e', shingle: '#2c2e32', nGables: 3, chimney: 'central' });   // charcoal, 3 gables
 }
 function sevenGables(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
-  firstPeriod(buckets, b, g, index, { wall: '#2f2823', shingle: '#241e19', jetty: '#1b1713', nGables: 6, vary: true, chimney: 'big', eave: 28 });   // dark brown, a spiky cluster of varied gables + huge chimney
+  // The real mansion's plan is a rambling 14-vertex zigzag, so the firstPeriod OBB
+  // treatment buried it under a floating roof-mountain: mega-gables over the concave
+  // notches, yard pines poking through them, and windows on ONE face only — from
+  // Turner St it read as a windowless black blob (Devin's words). Build on the TRUE
+  // footprint instead: real walls, a shingle cap on the real polygon, a gable rising
+  // from EVERY long wall (spiky from every angle, like the house itself), shared
+  // facades() windows all around (the e48f320 lesson), and the massive chimney.
+  const WALL = '#3d342c', SHINGLE_HEX = '#2f2a24', JETTY = '#221d18';
+  const ring = b.p;
+  const eaveH = g + 26;
+  clad(buckets[CLAP], ring, g - 2, eaveH, WALL);
+  walls(buckets[PLAIN], expandRing(ring, 0.4), g + 11, g + 12.4, JETTY, 0);
+  walls(buckets[PLAIN], expandRing(ring, 0.4), eaveH - 1.3, eaveH, JETTY, 0);
+  facades(buckets[PLAIN], ring, eaveH, 1, hash32(Math.round(ring[0]), Math.round(ring[1])), true, false, false, g);
+  flatRoof(buckets[SHINGLE], expandRing(ring, 1.5), eaveH + 0.5, SHINGLE_HEX);
+  tmp.set(WALL); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  tmp.set(SHINGLE_HEX); const sr2 = tmp.r, sg2 = tmp.g, sb2 = tmp.b;
+  // ring winding decides which side is "inward" for normals + ridge points
+  let area = 0;
+  for (let i = 0; i < ring.length; i += 2) {
+    const j = (i + 2) % ring.length;
+    area += ring[i] * ring[j + 1] - ring[j] * ring[i + 1];
+  }
+  const inw = area > 0 ? 1 : -1;
+  const nv = ring.length / 2;
+  let gi = 0, longest = 0, chX = 0, chZ = 0;
+  for (let i = 0; i < nv; i++) {
+    const ax = ring[i * 2], az = ring[i * 2 + 1];
+    const bx = ring[((i + 1) % nv) * 2], bz = ring[((i + 1) % nv) * 2 + 1];
+    const dx = bx - ax, dz = bz - az;
+    const len = Math.hypot(dx, dz);
+    if (len < 1) continue;
+    const ux = dx / len, uz = dz / len;
+    const nx = -uz * inw, nz = ux * inw;         // inward normal
+    if (len > longest) { longest = len; chX = (ax + bx) / 2 + nx * 14; chZ = (az + bz) / 2 + nz * 14; }
+    if (len < 55) continue;
+    const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+    const hw = Math.min(len * 0.42, 32);
+    const depth = Math.min(hw * 0.9, 22);
+    const rise = 15 + ((gi * 53 + 13) % 5) * 3.2 + (gi % 2 ? 3 : 0);   // varied, like the real cluster
+    gi++;
+    const ridgeY = eaveH + rise;
+    const fx = mx - nx * 0.5, fz = mz - nz * 0.5;  // face sits a hair proud of the wall plane
+    const aX = fx - ux * hw, aZ = fz - uz * hw;
+    const bX = fx + ux * hw, bZ = fz + uz * hw;
+    const rX = mx + nx * depth, rZ = mz + nz * depth;
+    // clapboard face triangle + a small diamond-pane window up the gable
+    buckets[CLAP].triUV(aX, eaveH, aZ, bX, eaveH, bZ, fx, ridgeY, fz, -nx, 0, -nz, wr, wg, wb, 0, 0, 0, 0, 0, 0);
+    tmp.set('#ded8c8');
+    buckets[PLAIN].quad(
+      fx - ux * 3 - nx * 1.1, eaveH + rise * 0.28, fz - uz * 3 - nz * 1.1, fx + ux * 3 - nx * 1.1, eaveH + rise * 0.28, fz + uz * 3 - nz * 1.1,
+      fx + ux * 3 - nx * 1.1, eaveH + rise * 0.28 + 4.6, fz + uz * 3 - nz * 1.1, fx - ux * 3 - nx * 1.1, eaveH + rise * 0.28 + 4.6, fz - uz * 3 - nz * 1.1,
+      -nx, 0, -nz, tmp.r, tmp.g, tmp.b);
+    tmp.set('#8fa3ab');
+    buckets[PLAIN].quad(
+      fx - ux * 2.2 - nx * 1.4, eaveH + rise * 0.28 + 0.6, fz - uz * 2.2 - nz * 1.4, fx + ux * 2.2 - nx * 1.4, eaveH + rise * 0.28 + 0.6, fz + uz * 2.2 - nz * 1.4,
+      fx + ux * 2.2 - nx * 1.4, eaveH + rise * 0.28 + 4, fz + uz * 2.2 - nz * 1.4, fx - ux * 2.2 - nx * 1.4, eaveH + rise * 0.28 + 4, fz - uz * 2.2 - nz * 1.4,
+      -nx, 0, -nz, tmp.r, tmp.g, tmp.b);
+    // two shingle slopes back to the inward ridge point
+    buckets[SHINGLE].triUV(aX, eaveH, aZ, fx, ridgeY, fz, rX, ridgeY, rZ, -ux * 0.7, 0.7, -uz * 0.7, sr2, sg2, sb2, 0, 0, 0, 0, 0, 0);
+    buckets[SHINGLE].triUV(bX, eaveH, bZ, rX, ridgeY, rZ, fx, ridgeY, fz, ux * 0.7, 0.7, uz * 0.7, sr2 * 0.9, sg2 * 0.9, sb2 * 0.9, 0, 0, 0, 0, 0, 0);
+  }
+  // the famous massive chimney, seated inside the longest wing (never floating)
+  buckets[BRICK].box(chX, chZ, 5, 4.5, eaveH - 2, eaveH + 40, '#6f4636', 1);
+  // festive eave lights like the neighbours (heroes skip the generic decor pass)
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
 }
 function hathawayHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   firstPeriod(buckets, b, g, index, { wall: '#3a342b', shingle: '#2a2620', nGables: 2, chimney: 'central', eave: 24 });   // dark weathered brown
