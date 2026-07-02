@@ -10,7 +10,9 @@ import { WATER_Y } from '../three/water';
 
 const PEDS = 22;
 const CARS = 10;
-const BOATS = 4;
+// the cruising fleet follows the season, like the moored one (decor MOOR_FILL):
+// summer = a busy harbor, fall thins out, spring fewer still, winter = nobody out
+const BOATS = SEASON === 'summer' ? 13 : SEASON === 'fall' ? 5 : SEASON === 'spring' ? 3 : 0;
 const GULLS = 7;
 
 const SHIRTS = ['#b03a32', '#3e5c84', '#54652c', '#c8a142', '#7c4a68', '#2e6e63', '#8a4a2e', '#5b5e66', '#a8625a', '#46698c'];
@@ -295,6 +297,7 @@ class WanderBoat {
       this.root.add(house, roof);
     }
     this.speed = 40 + rng() * 45;
+    this.root.scale.setScalar(0.62 + rng() * 0.72);   // dinghies to near-yachts out on the water too
   }
 
   setTarget(x: number, z: number) {

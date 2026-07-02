@@ -1,10 +1,15 @@
 import * as THREE from 'three';
 import type { WorldData, Building, Poly } from '../world/types';
-import { WorldIndex, CHUNK, centroidOf, walkLine as walkLineD, obbOf, type OBB, distToPolylineSq } from '../world/index';
+import { WorldIndex, CHUNK, centroidOf, walkLine as walkLineD, obbOf, type OBB, distToPolylineSq, floatOutForWinter } from '../world/index';
 import { STYLE, SEASON, TREES, pick, hash32, mulberry32 } from '../world/style';
 import { clapboardTex, shingleTex, brickTex, plankTex } from './textures';
 import { WATER_Y } from './water';
 import { gillisCenter } from './gillis';
+
+// How full the harbor is — docked-boat slot occupancy (percent) per season.
+// Devin's law: summer = tons of boats everywhere, fall = fewer, spring = fewer
+// still, winter = none (and the floats themselves come out — floatOutForWinter).
+const MOOR_FILL = SEASON === 'summer' ? 82 : SEASON === 'fall' ? 30 : SEASON === 'spring' ? 20 : 0;
 
 // Per-chunk merged decor mesh with 5 textured material groups:
 // 0 plain · 1 clapboard siding · 2 brick · 3 shingle roofing · 4 deck planks.
@@ -583,18 +588,23 @@ function car(bk: Bucket, x: number, z: number, ang: number, hex: string, g = 0) 
 // Scaled up to read like real working boats beside the (tall, stylized) kid.
 function boat(bk: Bucket, x: number, z: number, ang: number, seed: number) {
   const ca = Math.cos(ang), sa = Math.sin(ang);
+  // a real harbor moors every size — dinghies to near-yachts. One seed-driven
+  // scale keeps the fleet varied but deterministic (Devin: "boats of different sizes")
+  const sc = 0.68 + (hash32(seed, 9, 2) % 100) / 100 * 0.8;
+  const vs = 0.82 + sc * 0.25;                      // heights grow slower than length
+  const H = (n: number) => WATER_Y + n * vs;
   const hullHex = pick(['#f4f1e8', '#f4f1e8', '#e9e6db', '#27425c', '#7e3434', '#3e5c50'], seed);
-  hull(bk, x, z, 32, 9.5, WATER_Y - 2.6, WATER_Y + 6.5, ang, hullHex);
+  hull(bk, x, z, 32 * sc, 9.5 * sc, WATER_Y - 2.6, H(6.5), ang, hullHex);
   // gunwale rail cap running the length of the deck
-  chamferBox(bk, x - ca * 2.5, z - sa * 2.5, 19, 6.4, WATER_Y + 6.5, WATER_Y + 8, ang, '#b9926a', 2.4);
+  chamferBox(bk, x - ca * 2.5 * sc, z - sa * 2.5 * sc, 19 * sc, 6.4 * sc, H(6.5), H(8), ang, '#b9926a', 2.4 * sc);
   if (hash32(seed, 5, 1) % 100 < 45) {
     // sloop with the sails down — tall mast + boom
-    bk.box(x, z, 0.9, 0.9, WATER_Y + 6, WATER_Y + 60, '#ece8dc');
-    chamferBox(bk, x - ca * 9, z - sa * 9, 13, 1.3, WATER_Y + 14, WATER_Y + 16.5, ang, '#d8d2c2', 1);
+    bk.box(x, z, 0.9, 0.9, H(6), H(60), '#ece8dc');
+    chamferBox(bk, x - ca * 9 * sc, z - sa * 9 * sc, 13 * sc, 1.3, H(14), H(16.5), ang, '#d8d2c2', 1);
   } else {
     // lobster-boat wheelhouse forward
-    chamferBox(bk, x + ca * 7, z + sa * 7, 11, 7, WATER_Y + 6.5, WATER_Y + 20, ang, '#f8f6ee', 2.6);
-    chamferBox(bk, x + ca * 7, z + sa * 7, 12, 8, WATER_Y + 19.5, WATER_Y + 21.6, ang, '#4a4640', 3);
+    chamferBox(bk, x + ca * 7 * sc, z + sa * 7 * sc, 11 * sc, 7 * sc, H(6.5), H(20), ang, '#f8f6ee', 2.6 * sc);
+    chamferBox(bk, x + ca * 7 * sc, z + sa * 7 * sc, 12 * sc, 8 * sc, H(19.5), H(21.6), ang, '#4a4640', 3 * sc);
   }
 }
 
@@ -2976,6 +2986,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const [mx, my] = centroidOf(poly.p);
     if (Math.floor(mx / CHUNK) !== ckx || Math.floor(my / CHUNK) !== cky) continue;
     if (poly.k === 'pier') {
+      if (floatOutForWinter(poly.p)) continue;   // the marina pulls its floats for winter
       // Pier POLYS are the full-width (solid finger) dock surface; OSM often ALSO maps a
       // centerline 'pierline' through them, and that line's deck renders at PIER_DECK_Y too
       // → two coplanar decks z-fight (the "dock flicker"). Lift the poly deck 1.5px so it
@@ -3110,12 +3121,12 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   // boats tied up along the real mooring docks
   for (const pi of bucket.paths) {
     const p = world.paths[pi];
-    if (!p.m) continue;
+    if (!p.m || !MOOR_FILL) continue;
     let flip = 1;
     walkLineD(p.p, 116, (x, z, tx, tz) => {
       flip = -flip;
       const h2 = hash32(Math.round(x), Math.round(z), 23);
-      if (h2 % 100 > 62) return;
+      if (h2 % 100 >= MOOR_FILL) return;
       const off = Math.max(p.w, 18) / 2 + 22;
       const bx = x - tz * flip * off, bz = z + tx * flip * off;
       if (bx < ox || bx >= ox + CHUNK || bz < oy || bz >= oy + CHUNK) return;
@@ -3126,13 +3137,15 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   }
   for (const pi of bucket.polys) {
     const poly = world.polys[pi];
-    if (poly.k !== 'pier' || !poly.m) continue;
+    // EVERY pier moors boats now, not just OSM mooring-tagged ones — a marina's
+    // whole float grid sat empty (Devin: "tons of boats docked at all the docks")
+    if (poly.k !== 'pier' || !MOOR_FILL || floatOutForWinter(poly.p)) continue;
     const ring = poly.p.concat(poly.p.slice(0, 2));
     let placed = 0;
-    walkLineD(ring, 104, (x, z, tx, tz) => {
-      if (placed >= 3) return;
+    walkLineD(ring, 74, (x, z, tx, tz) => {
+      if (placed >= 40) return;
       const h2 = hash32(Math.round(x), Math.round(z), 29);
-      if (h2 % 100 > 55) return;
+      if (h2 % 100 >= MOOR_FILL) return;
       for (const s of [1, -1]) {
         const bx = x - tz * s * 24, bz = z + tx * s * 24;
         if (!index.isWaterAt(bx, bz)) continue;
