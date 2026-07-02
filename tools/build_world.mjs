@@ -920,6 +920,27 @@ const MANUAL_BUILDINGS = [
 ];
 if (!BARE) for (const b of MANUAL_BUILDINGS) world.buildings.push(b);
 
+// ---------- manual level fixes: real heights OSM doesn't carry ----------
+// OSM building:levels coverage is thin (untagged big footprints default to 1.5-storey
+// "houses"), so known offenders get fixed by hand: each entry raises the building
+// CONTAINING the point. Devin: "Sofi at Salem Station is 4 floors high, you have it
+// as 2." For town-wide accuracy the real fix is joining a bulk height source
+// (Overture Maps / Microsoft ML building footprints) — future build-world overlay.
+const LEVEL_FIXES = [
+  // Sofi at Salem Station — the 4-storey apartment complex on the North River beside
+  // the MBTA station (the huge ~430 m² footprint that defaulted to a 1.5-storey house).
+  // NOTE the trap that bit the first attempt: addrs merge same-named streets across
+  // towns — "Grove Street" matched PEABODY's Grove St 14k px away. Anchor level fixes
+  // to geometry you've verified (here: the rail terminus = the station), never to a
+  // street-name lookup alone.
+  { x: 204, y: -8408, lv: 4 },
+];
+for (const f of LEVEL_FIXES) {
+  const hit = world.buildings.find((b) => pointInRing(f.x, f.y, b.p));
+  if (hit) hit.lv = f.lv;
+  else console.warn('LEVEL_FIX missed:', f);
+}
+
 // ---------- sort, QA, write ----------
 
 world.polys.sort((a, b) => (a.z - b.z) || (Math.abs(ringArea(b.p)) - Math.abs(ringArea(a.p))));
