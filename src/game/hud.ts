@@ -54,8 +54,8 @@ const css = `
 #hud .banner.show { opacity: 1; transform: translate(-50%, 0); }
 #hud .banner .name { font-family: Georgia, serif; font-size: 23px; color: #f6f3e8; letter-spacing: 0.5px; }
 #hud .banner .sub { font-size: 12px; color: #d8cfa8; margin-top: 3px; letter-spacing: 1px; }
-#hud .corner { position: absolute; font-size: 11px; color: rgba(30, 34, 30, 0.85); bottom: 6px;
-  text-shadow: 0 1px 2px rgba(255,255,255,0.5); }
+#hud .corner { position: absolute; font-size: 11px; color: rgba(243, 241, 232, 0.9); bottom: 6px;
+  text-shadow: 0 1px 3px rgba(20, 10, 14, 0.9), 0 0 6px rgba(20, 10, 14, 0.55); }
 #hud .help { left: 8px; }
 #hud .attr { right: 8px; font-size: 10px; }
 #hud .stick-base, #hud .stick-knob { position: absolute; border-radius: 50%; display: none; }
@@ -1423,7 +1423,9 @@ export class Hud {
         onQuit();
       } else {
         quit.classList.add('arm'); quit.textContent = 'QUIT?';
-        quitT = setTimeout(() => { quit.classList.remove('arm'); quit.textContent = '✕'; }, 2600);
+        // generous window: a kid taps, reads "QUIT?", thinks it over, taps again —
+        // 2.6s silently un-armed under them and the second tap re-armed instead of quitting
+        quitT = setTimeout(() => { quit.classList.remove('arm'); quit.textContent = '✕'; }, 6000);
       }
     });
     const rebuild = () => {
@@ -1545,7 +1547,8 @@ export class Hud {
     if (!sUnlocked) {
       const lk = document.createElement('div');
       lk.className = 'sp-lock';
-      lk.textContent = 'Finish the story to roam the seasons.';
+      // actionable for explore-mode kids too: name where the story starts, not just "the story"
+      lk.textContent = 'Finish Gram’s story to roam the seasons — she’s waiting in Market Square.';
       sPop.appendChild(lk);
     }
     sToggle.addEventListener('click', (e) => { e.stopPropagation(); sPop.classList.toggle('open'); });
@@ -2042,6 +2045,13 @@ export class Hud {
     const btn = document.querySelector('#hud .settings-btn') as HTMLElement | null;
     const hint = document.querySelector('#hud .settings-hint') as HTMLElement | null;
     if (!btn || !hint) return;
+    // one hint at a time: the street nudge owns the same corner of the screen, and the
+    // two rendered overlapping (both unreadable). Wait for it — and for any panel a
+    // nudge-tap opened — then take our turn.
+    if (document.querySelector('#hud .streettip.show, #hud .travel-panel.open, #hud .modepick.show')) {
+      setTimeout(() => this.hintStoryToggle(), 1500);
+      return;
+    }
     btn.classList.add('pulse');
     hint.classList.add('show');
     const clear = () => { btn.classList.remove('pulse'); hint.classList.remove('show'); };
@@ -2056,7 +2066,8 @@ export class Hud {
       if (done) return;
       done = true;
       el.classList.remove('show');
-      if (!story) this.hintStoryToggle();   // point explorers at the gear's Story toggle
+      // (the gear-hint for explorers is sequenced by Game AFTER the street nudge fades —
+      // firing it here put two tooltips on top of each other)
       onChoose(story);
     };
     (el.querySelector('.mp-explore') as HTMLElement).onclick = (e) => { e.stopPropagation(); choose(false); };
@@ -2506,8 +2517,28 @@ export class Hud {
     (document.querySelector('#hud .vignette') as HTMLElement).classList.toggle('on', on);
   }
 
+  // Force-close conversational UI before a scene jump. Every teleport routes through
+  // fadeThrough (race starts, fast travel, flight, tunnel doors), and a dialogue that
+  // rides along to the far side of town is worse than one you re-open — so drop it
+  // WITHOUT firing its onDone: no quest step may advance off a line nobody finished
+  // reading. Re-talking to the NPC replays it cleanly.
+  closeTransient() {
+    if (this.dlgEl?.classList.contains('open')) {
+      this.dlgEl.classList.remove('open');
+      this.dlgDone = null;
+      this.dlgCool = performance.now() + 280;
+    }
+    const hc = document.querySelector('#hud .hcard');
+    if (hc?.classList.contains('open')) { hc.classList.remove('open'); this.hcardOpen = false; }
+    document.querySelector('#hud .race-pop')?.classList.remove('open');
+    document.querySelector('#hud .season-pop')?.classList.remove('open');
+    document.querySelector('#hud .settings-pop')?.classList.remove('open');
+    document.querySelector('#hud .streettip')?.classList.remove('show');
+  }
+
   // quick fade to black around a teleport
   fadeThrough(action: () => void) {
+    this.closeTransient();
     const fade = document.querySelector('#hud .fade')!;
     fade.classList.add('on');
     setTimeout(() => {

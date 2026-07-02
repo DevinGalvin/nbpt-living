@@ -503,12 +503,18 @@ export class Game {
       setTimeout(() => this.hud.showModePick((story) => {
         this.quest?.setStory(story);
         this.hud.refreshSettings(this.quest?.story ?? false);
+        // one tip at a time: street nudge first (7s), then — for explorers — the
+        // gear hint takes its turn (hintStoryToggle also self-defers if anything
+        // from the nudge is still on screen)
         setTimeout(() => this.hud.showStreetNudge(() => localStorage.setItem('nbpt-welcomed', '1')), 600);
+        if (!story) setTimeout(() => this.hud.hintStoryToggle(), 8600);
       }), 1500);
+    } else {
+      // "what's new" promos wait for the SECOND visit: a first session already carries
+      // the mode pick + street nudge + gear hint, and the promo was landing right on a
+      // newcomer's first TALK tap. Returning players get it once things settle.
+      setTimeout(() => this.tryRacePromo(), 3500);
     }
-    // one-time "what's new" promo for a freshly-shipped feature (flight just went public).
-    // Stagger after the street nudge for newcomers so the two don't stack.
-    setTimeout(() => this.tryRacePromo(), fresh ? 11000 : 3500);
   }
 
   // "what's new" cards, one per visit so nobody gets promo-stacked: racing headlines
@@ -2010,6 +2016,10 @@ export class Game {
   }
 
   travelToXY(x: number, y: number) {
+    // most callers wrap this in fadeThrough (which also closes transient UI), but some
+    // teleport directly (promo CTAs, the nbpt.* debug hooks) — a dialogue must never
+    // ride along across town, so close here too (idempotent)
+    this.hud.closeTransient();
     this.race?.cancel('fast travel skips the ride — tap 🏁 to race again');
     const spot = this.findFree(x, y);
     this.px = spot.x;

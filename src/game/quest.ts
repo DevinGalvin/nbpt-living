@@ -1792,6 +1792,14 @@ export class QuestRunner {
     this.nearTag = null;
     if (this.step === 0 && tag === 'gram') {
       this.hud.showDialogue(GRAM_TALK, () => {
+        // engaging Gram IS choosing the story: an explore-mode kid who taps through her
+        // whole briefing just took two jobs — without this they'd get a chapter card and
+        // then silence (no pill, no beacon, no 🧭). Flip guidance on so the jobs are
+        // followable; the ⚙️ toggle still turns it back off.
+        if (!this.storyOn) {
+          this.setStory(true);
+          this.hud.refreshSettings(true);
+        }
         this.hud.chapterCard('CHAPTER 1', 'Overdue', 'Newburyport · first day of summer');
         this.setStep(1);
       });
