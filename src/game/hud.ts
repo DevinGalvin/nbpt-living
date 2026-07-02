@@ -592,6 +592,14 @@ const css = `
 #hud .race-timer.show { display: flex; }
 #hud .race-timer .rt-cur { font: 800 20px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f6f3e8; letter-spacing: 0.5px; }
 #hud .race-timer .rt-best { font: 600 11px system-ui, sans-serif; color: #c8bd96; letter-spacing: 0.4px; }
+/* the tap-out ✕: the one interactive part of the chip; arms red, second tap quits */
+#hud .race-timer .rt-quit {
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+  font: 700 12px system-ui, sans-serif; color: #9fb1c2; padding: 3px 7px; margin: -2px -6px -2px 0;
+  border-radius: 8px; border: 1px solid transparent; transition: color 0.15s ease, background 0.15s ease;
+}
+#hud .race-timer .rt-quit:hover { color: #e8a89a; }
+#hud .race-timer .rt-quit.arm { color: #fff; background: rgba(216,90,74,0.55); border-color: rgba(216,90,74,0.8); }
 /* the end-of-Level-1 "Seasons Unlocked" reward — a richer take on the chapter card */
 #hud .chapter.reward { background: radial-gradient(ellipse at center, rgba(14, 22, 34, 0.9), rgba(8, 12, 20, 0.97)); }
 #hud .chapter.reward .big { animation: rewardBloom 0.7s cubic-bezier(.2, .85, .25, 1) both; }
@@ -997,7 +1005,7 @@ export class Hud {
       <div class="objective"><span class="q wp-q">➤</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
       <div class="race-count"></div>
-      <div class="race-timer"><span class="rt-cur"></span><span class="rt-best"></span></div>
+      <div class="race-timer"><span class="rt-cur"></span><span class="rt-best"></span><span class="rt-quit">✕</span></div>
       <div class="runtip"></div>
       <div class="streettip"></div>
       <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
@@ -1221,6 +1229,7 @@ export class Hud {
   private rtEl: HTMLElement | null = null;
   private rtCur: HTMLElement | null = null;
   private rtBest: HTMLElement | null = null;
+  private rtQuit: HTMLElement | null = null;
   private fmtRace(s: number): string {
     const m = Math.floor(s / 60), sec = s - m * 60;
     return `${m}:${sec < 10 ? '0' : ''}${sec.toFixed(1)}`;
@@ -1243,9 +1252,14 @@ export class Hud {
       this.rtEl = this.root.querySelector('.race-timer');
       this.rtCur = this.root.querySelector('.race-timer .rt-cur');
       this.rtBest = this.root.querySelector('.race-timer .rt-best');
+      this.rtQuit = this.root.querySelector('.race-timer .rt-quit');
     }
     if (!this.rtEl || !this.rtCur || !this.rtBest) return;
-    if (cur === null) { this.rtEl.classList.remove('show'); return; }
+    if (cur === null) {
+      this.rtEl.classList.remove('show');
+      if (this.rtQuit) { this.rtQuit.classList.remove('arm'); this.rtQuit.textContent = '✕'; }   // disarm for the next run
+      return;
+    }
     this.rtEl.classList.add('show');
     this.rtCur.textContent = this.fmtRace(cur);
     this.rtBest.textContent = best !== null ? '★ ' + this.fmtRace(best) : 'first ride';
@@ -1258,11 +1272,27 @@ export class Hud {
     rows: () => { id: string; name: string; sub: string; best: number | null }[],
     onPick: (id: string) => void,
     rider: { get: () => string; set: (raw: string) => { ok: boolean; name: string }; has: () => boolean },
+    onQuit: () => void,
   ) {
     if (!rows().length) return;                       // townless build: keep the button hidden
     const btn = this.root.querySelector('.race-btn') as HTMLElement;
     const pop = this.root.querySelector('.race-pop') as HTMLElement;
     btn.classList.add('show');
+    // the race clock's ✕: arm on the first tap (so a stray tap can't kill a 2-minute
+    // run), quit on the second; auto-disarms after a beat
+    const quit = this.root.querySelector('.race-timer .rt-quit') as HTMLElement;
+    let quitT: ReturnType<typeof setTimeout> | null = null;
+    quit.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (quitT) clearTimeout(quitT);
+      if (quit.classList.contains('arm')) {
+        quit.classList.remove('arm'); quit.textContent = '✕';
+        onQuit();
+      } else {
+        quit.classList.add('arm'); quit.textContent = 'QUIT?';
+        quitT = setTimeout(() => { quit.classList.remove('arm'); quit.textContent = '✕'; }, 2600);
+      }
+    });
     const rebuild = () => {
       pop.innerHTML = '';
       pop.appendChild(Object.assign(document.createElement('div'), { className: 'rp-hdr', textContent: '🏁 RACES — beat the clock' }));
@@ -2323,6 +2353,15 @@ export class Hud {
     const label = name.toUpperCase();
     if (txt.textContent !== label) txt.textContent = label;
     this.pill.style.display = 'flex';
+  }
+
+  /** un-throttled landmark-style banner for system announcements (race endings etc.) */
+  announce(name: string, sub: string) {
+    this.bannerName.textContent = name;
+    this.bannerSub.textContent = sub;
+    this.banner.classList.add('show');
+    clearTimeout(this.bannerTimer);
+    this.bannerTimer = window.setTimeout(() => this.banner.classList.remove('show'), 3400);
   }
 
   maybeShowLandmark(lm: Landmark): boolean {

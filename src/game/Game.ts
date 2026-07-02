@@ -383,6 +383,7 @@ export class Game {
         this.hud.fadeThrough(() => { this.travelToXY(c.start.x, c.start.z); this.race!.startById(id); });
       },
       { get: getRaceName, set: setRaceName, has: hasRaceName },
+      () => this.race?.quit(),
     );
     this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,
@@ -686,8 +687,8 @@ export class Game {
     this.bike.root.visible = this.riding;
     this.hud.setBikeState(this.riding);
     this.audio.bell();
-    // hopping off mid-race abandons the run — but boarding the ✈️ doesn't (cheat mode)
-    if (!this.riding && !this.flying) this.race?.cancel();
+    // NOTE: hopping off mid-race is legal — locals cut through alleys on foot. Only the
+    // ✕ on the race clock, fast travel, or the finish line end a run.
   }
 
   /** Take the bike off, unconditionally. The tunnel/interior entries flip their
@@ -698,9 +699,8 @@ export class Game {
     this.riding = false;
     this.bike.root.visible = false;
     this.hud.setBikeState(false);
-    // tunnels/interiors/boats end any run; stowing the bike for the ✈️ doesn't —
-    // flying mid-race is a sanctioned easter-egg cheat (flying is set before this runs)
-    if (!this.flying) this.race?.cancel();
+    // races survive this on purpose: kayak hops, foot shortcuts and the ✈️ cheat are
+    // all legal mid-race — only the ✕ on the race clock or fast travel end a run early
   }
 
   /** Races auto-mount you at the start line; the finish leaves you in the saddle
@@ -1758,7 +1758,7 @@ export class Game {
       this.quest.update(dt, this.px, this.pz);
       // the race runs after quest (its per-frame hud.guide write wins while racing)
       // but before history/eggs, which both yield to an armed start line or a live run
-      if (this.race) this.race.update(dt, this.px, this.pz, this.quest.nearActive || this.flying, this.flying);
+      if (this.race) this.race.update(dt, this.px, this.pz, this.quest.nearActive || this.flying);
       const raceBusy = this.race ? (this.race.active || this.race.nearActive) : false;
       if (this.history) this.history.update(dt, this.px, this.pz, this.quest.nearActive || this.flying || raceBusy);
       // eggs speak last: quest beats, then race flags, then history markers, then secrets
@@ -1988,7 +1988,7 @@ export class Game {
   }
 
   travelToXY(x: number, y: number) {
-    this.race?.cancel();               // fast travel abandons any run
+    this.race?.cancel('fast travel skips the ride — tap 🏁 to race again');
     const spot = this.findFree(x, y);
     this.px = spot.x;
     this.pz = spot.y;

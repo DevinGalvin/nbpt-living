@@ -58,7 +58,6 @@ export const COURSES: Course[] = [
 
 const GATE_R = 36;                     // ride-through radius (generous for mobile steering)
 const ARM_R = 60;                      // stand-this-close-to-the-flag to get the RACE button
-const STRAY = 3600;                    // clearly wandered off the course → quiet cancel
 const GHOST_STEP = 0.2;                // ghost sample period (s)
 const bestKey = (id: string) => `nbpt-race-${id}-best`;
 const ghostKey = (id: string) => `nbpt-race-${id}-ghost`;
@@ -121,8 +120,6 @@ export class RaceRunner {
   private rec: number[] = [];          // ghost samples, flat [t(ds), x, z, ...]
   private recAcc = 0;
   private t = 0;                       // ambient anim clock
-  private wasAir = false;              // ✈️ cheat bookkeeping: detect the landing frame…
-  private airGrace = 0;                // …then give a grace window to ride back toward the course
 
   private flags = new Map<string, THREE.Group>();
   private gateMark: THREE.Group;           // origin-anchored holder: ring + arch + chevrons (world-positioned children)
@@ -222,10 +219,11 @@ export class RaceRunner {
     return isFinite(v) && v > 0 ? v : null;
   }
 
-  // `airborne`: the ✈️ cheat is sanctioned — flying keeps the clock running and gates
-  // still score on 2D distance (dive-bomb them if you can), but the stray-cancel is
-  // waived so banking wide over town doesn't quietly end the run.
-  update(dt: number, px: number, pz: number, suppressed: boolean, airborne = false) {
+  // There is NO off-course rule: the gates define the course, but HOW you get between
+  // them is the rider's business — shortcuts, back alleys, kayak hops and the ✈️ cheat
+  // (gates score on 2D distance, so overflying counts) are all legal. Only an explicit
+  // quit, fast travel, or the finish line ends a run — never silently.
+  update(dt: number, px: number, pz: number, suppressed: boolean) {
     this.t += dt;
     // start flags breathe while idle
     for (const g of this.flags.values()) {
@@ -292,14 +290,6 @@ export class RaceRunner {
       if (this.gate >= c.gates.length) { this.finish(px, pz); return; }
       this.audio.pop();
       this.pointGate();
-    } else if (d > STRAY) {
-      // quiet reset when someone clearly wanders off — but never mid-flight, and a
-      // touched-down flyer gets a long grace window (landing + getting your bearings
-      // + remounting takes a while, and the reset has no urgency) to head back on course
-      if (airborne) this.wasAir = true;
-      else if (this.wasAir) { this.wasAir = false; this.airGrace = 30; }
-      else if (this.airGrace > 0) this.airGrace -= dt;
-      else this.cancel();
     }
   }
 
@@ -357,17 +347,25 @@ export class RaceRunner {
     this.reset();
   }
 
-  /** abandon the run (dismount, fast travel, interiors, straying). Safe to call anytime. */
-  cancel() {
+  /** end the run without finishing. NEVER silent: pass `why` so the rider learns the
+   *  race is over (the old quiet stray-cancel let players ride to the finish of a race
+   *  that had already ended — worst feeling in the game). Safe to call anytime. */
+  cancel(why?: string) {
     if (this.state === 'idle') return;
+    if (why) this.hud.announce('🏁 Race ended', why);
+    this.reset();
+  }
+
+  /** the rider taps out (the ✕ on the race clock) */
+  quit() {
+    if (this.state === 'idle') return;
+    this.hud.announce('🏁 Race ended', 'the flags will be waiting when you want another go');
     this.reset();
   }
 
   private reset() {
     this.state = 'idle';
     this.course = null;
-    this.wasAir = false;
-    this.airGrace = 0;
     this.gateMark.visible = false;
     this.hud.raceCountdown(null);
     this.hud.setRaceTimer(null, null);
