@@ -63,8 +63,8 @@ const css = `
    Absolutely positioned into the 8px gap below each circle: zero layout shift. */
 #hud .blab {
   position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-  font-size: 8px; font-weight: 800; letter-spacing: 0.6px; line-height: 1;
-  padding-top: 1px; color: rgba(243, 241, 232, 0.85);
+  font-size: 8.5px; font-weight: 800; letter-spacing: 0.7px; line-height: 1;
+  padding-top: 5px; color: rgba(243, 241, 232, 0.85);
   text-shadow: 0 1px 2px rgba(20, 10, 14, 0.85); white-space: nowrap; pointer-events: none;
 }
 #hud .stick-base, #hud .stick-knob { position: absolute; border-radius: 50%; display: none; }
@@ -83,7 +83,7 @@ const css = `
   pointer-events: auto; cursor: pointer;
 }
 #hud .settings-btn {
-  position: absolute; top: 66px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  position: absolute; top: 78px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
@@ -95,7 +95,7 @@ const css = `
   50% { box-shadow: 0 0 0 7px rgba(232,196,79,0.32); }
 }
 #hud .settings-hint {
-  position: absolute; top: 72px; left: 66px; z-index: 41; max-width: 200px;
+  position: absolute; top: 84px; left: 66px; z-index: 41; max-width: 200px;
   background: var(--panel); border: 1.5px solid rgba(216,185,74,0.6); border-radius: 10px;
   padding: 8px 11px; font-size: 12px; line-height: 1.35; color: #f3f1e8;
   box-shadow: 0 6px 18px rgba(0,0,0,0.4); pointer-events: none;
@@ -107,7 +107,7 @@ const css = `
 }
 #hud .settings-hint.show { opacity: 1; transform: translateX(0); }
 #hud .settings-pop {
-  position: absolute; top: 66px; left: 66px; min-width: 188px; max-width: 240px;
+  position: absolute; top: 78px; left: 66px; min-width: 188px; max-width: 240px;
   background: var(--panel); border: 1.5px solid rgba(216,185,74,0.5); border-radius: 12px;
   padding: 7px; z-index: 40; display: none; pointer-events: auto;
   box-shadow: 0 8px 24px rgba(0,0,0,0.45);
@@ -134,7 +134,7 @@ const css = `
 #hud .settings-pop .sp-row.on .sp-sw { background: rgba(216,185,74,0.85); border-color: #e8c44f; }
 #hud .settings-pop .sp-row.on .sp-sw::after { transform: translateX(17px); }
 #hud .season-toggle {
-  position: absolute; top: 222px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  position: absolute; top: 270px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
@@ -145,7 +145,7 @@ const css = `
    absent, slide the season toggle (and its popover) up into that slot so the button sits
    flush under the compass instead of leaving a gap. Both ease back down once it appears. */
 #hud .bag-btn:not(.show) ~ .season-toggle,
-#hud .bag-btn:not(.show) ~ .season-pop { top: 170px; }
+#hud .bag-btn:not(.show) ~ .season-pop { top: 206px; }
 /* explore mode (Story mode off): the story-progress chrome is hidden — the top-right
    compass dial, the 🧭 missions log, and the 🎒 backpack. Travel + settings + season
    stay, and the 🍂 season toggle slides up under ⚙️ settings (the now-empty 🧭 slot) so
@@ -154,9 +154,9 @@ const css = `
 #hud.no-story .journey-btn,
 #hud.no-story .bag-btn { display: none !important; }
 #hud.no-story .season-toggle,
-#hud.no-story .season-pop { top: 118px !important; }
+#hud.no-story .season-pop { top: 142px !important; }
 #hud .season-pop {
-  position: absolute; top: 222px; left: 66px; min-width: 152px;
+  position: absolute; top: 270px; left: 66px; min-width: 152px;
   transition: top 0.3s ease;
   background: var(--panel); border: 1.5px solid rgba(216,185,74,0.5); border-radius: 12px;
   padding: 7px; z-index: 40; display: none; pointer-events: auto;
@@ -178,23 +178,23 @@ const css = `
    (story AND explore), and picking a course fades you straight to its start line.
    Column cascade mirrors the season toggle: slide up into whatever slots are empty. */
 #hud .race-btn {
-  position: absolute; top: 274px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  position: absolute; top: 334px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
   display: none; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
   transition: top 0.3s ease;
 }
 #hud .race-btn.show { display: flex; }
-#hud .bag-btn:not(.show) ~ .race-btn { top: 222px; }
-#hud.no-story .race-btn { top: 170px !important; }
+#hud .bag-btn:not(.show) ~ .race-btn { top: 270px; }
+#hud.no-story .race-btn { top: 206px !important; }
 #hud .race-pop {
-  position: absolute; top: 274px; left: 66px; min-width: 210px; max-width: 260px;
+  position: absolute; top: 334px; left: 66px; min-width: 210px; max-width: 260px;
   background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-radius: 12px;
   padding: 8px; display: none; pointer-events: auto; z-index: 40;
   transition: top 0.3s ease;
 }
-#hud .bag-btn:not(.show) ~ .race-pop { top: 222px; }
-#hud.no-story .race-pop { top: 170px !important; }
+#hud .bag-btn:not(.show) ~ .race-pop { top: 270px; }
+#hud.no-story .race-pop { top: 206px !important; }
 #hud .race-pop.open { display: block; }
 #hud .race-pop .rp-hdr { font-size: 11px; color: #e8c44f; font-weight: 700; padding: 2px 5px 7px; letter-spacing: 0.3px; }
 #hud .race-pop .rp-item { padding: 8px 9px; border-radius: 8px; cursor: pointer; }
@@ -276,7 +276,7 @@ const css = `
 #hud .run-btn.show { display: flex; }
 #hud .run-btn.on { background: rgba(216, 185, 74, 0.45); border-color: #e8c44f; }
 #hud .bike-btn {
-  position: absolute; right: 18px; bottom: 122px; width: 58px; height: 58px; border-radius: 50%;
+  position: absolute; right: 18px; bottom: 132px; width: 58px; height: 58px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
   display: none; align-items: center; justify-content: center; font-size: 26px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
@@ -485,7 +485,7 @@ const css = `
 }
 #hud .dlg .dlg-next:hover { background: #f0d27a; }
 #hud .talk-btn {
-  position: absolute; right: 18px; bottom: 192px; min-width: 58px; height: 58px;
+  position: absolute; right: 18px; bottom: 200px; min-width: 58px; height: 58px;
   border-radius: 29px; background: rgba(216, 185, 74, 0.92); color: #1c2430;
   border: 2px solid #f0d27a; display: none; align-items: center; justify-content: center;
   font-size: 14px; font-weight: 800; letter-spacing: 1px; padding: 0 16px;
@@ -494,9 +494,9 @@ const css = `
 #hud .talk-btn.show { display: flex; }
 /* if an action button (KAYAK / HOP OUT …) is ever live while a dialogue is open,
    lift it clear of the dialogue card instead of letting them overlap */
-#hud:has(.dlg.open) .talk-btn { bottom: 210px; transition: bottom 0.18s var(--ease-out); }
+#hud:has(.dlg.open) .talk-btn { bottom: 218px; transition: bottom 0.18s var(--ease-out); }
 #hud .journey-btn {
-  position: absolute; top: 118px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  position: absolute; top: 142px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(var(--maroon), 0.78); border: 1.5px solid rgba(216,185,74,0.6);
   display: flex; align-items: center; justify-content: center; font-size: 22px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
@@ -514,7 +514,7 @@ const css = `
 #hud .journey-panel.show .journey-card { transform: translateY(0) scale(1); }
 /* ---------- Backpack 🎒: a button that springs in on your first item ---------- */
 #hud .bag-btn {
-  position: absolute; top: 170px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  position: absolute; top: 206px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(var(--maroon), 0.78); border: 1.5px solid rgba(216,185,74,0.6);
   display: none; align-items: center; justify-content: center; font-size: 22px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
@@ -549,7 +549,7 @@ const css = `
 }
 #hud .bag-btn.wiggle { animation: nbpt-bag-wiggle 0.55s ease-in-out; }
 #hud .bag-tip {
-  position: absolute; top: 178px; left: 66px; background: rgba(var(--maroon-lt),0.94);
+  position: absolute; top: 214px; left: 66px; background: rgba(var(--maroon-lt),0.94);
   border: 1px solid rgba(216,185,74,0.55); color: #f3f1e8; font-size: 12.5px; font-weight: 600;
   padding: 7px 12px; border-radius: 14px; white-space: nowrap; pointer-events: none;
   opacity: 0; transform: translateX(-8px); z-index: 12;
