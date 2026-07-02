@@ -1,5 +1,19 @@
 import type { WorldData, Poly, Road, PathSeg, Label, Building } from './types';
 import { STYLE, SEASON, hash32, mulberry32 } from './style';
+
+// Floating docks come OUT for a New England winter: the marinas pull their floats,
+// only the big stone wharves stay. |area| < ~26k px² ≈ anything smaller than a
+// stone wharf. Shared by the deck renderer (decor.ts), footing, boat steering and
+// the collision mask — the floats vanish visually AND physically together.
+export function floatOutForWinter(ring: number[]): boolean {
+  if (SEASON !== 'winter') return false;
+  let a = 0;
+  for (let i = 0; i < ring.length; i += 2) {
+    const j = (i + 2) % ring.length;
+    a += ring[i] * ring[j + 1] - ring[j] * ring[i + 1];
+  }
+  return Math.abs(a / 2) < 26000;
+}
 import { Terrain } from './terrain';
 import { isFreezableWater, WATER_Y } from '../three/water';
 
@@ -1215,7 +1229,15 @@ export class WorldIndex {
       tracePoly(ctx, poly);
       ctx.fill('evenodd');
     }
-    drawKind(['island', 'sand', 'pier', 'stone', 'plaza'], '#000000');
+    drawKind(['island', 'sand', 'stone', 'plaza'], '#000000');
+    // piers un-block the water they cross — except floats that are out for the winter
+    for (const pi of bucket.polys) {
+      const poly = w.polys[pi];
+      if (poly.k !== 'pier' || floatOutForWinter(poly.p)) continue;
+      ctx.fillStyle = '#000000';
+      tracePoly(ctx, poly);
+      ctx.fill('evenodd');
+    }
     drawKind(['wetland'], '#0000ff');
     // real barriers block (roads/paths drawn after re-open the gaps at gates)
     ctx.strokeStyle = '#ff0000';
@@ -1281,7 +1303,7 @@ export class WorldIndex {
       }
       for (const pi of b.polys) {
         const poly = this.world.polys[pi];
-        if (poly.k === 'pier') d.piers.push(poly);
+        if (poly.k === 'pier' && !floatOutForWinter(poly.p)) d.piers.push(poly);
       }
       this.deckCache.set(key, d);
     }
@@ -1601,7 +1623,7 @@ export class WorldIndex {
   pierAt(x: number, y: number): boolean {
     if (!this.pierBB) {
       this.pierBB = [];
-      for (const poly of this.world.polys) if (poly.k === 'pier') this.pierBB.push({ poly, bb: bboxOf(poly.p) });
+      for (const poly of this.world.polys) if (poly.k === 'pier' && !floatOutForWinter(poly.p)) this.pierBB.push({ poly, bb: bboxOf(poly.p) });
     }
     const ckx = Math.floor(x / CHUNK), cky = Math.floor(y / CHUNK);
     const key = ckx + ',' + cky;
