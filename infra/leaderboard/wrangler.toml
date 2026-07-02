@@ -1,0 +1,11 @@
+name = "clippertown-leaderboard"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+
+# Create the namespace once with:
+#   npx wrangler kv namespace create BOARDS
+# then paste the id it prints below and deploy with:
+#   npx wrangler deploy
+[[kv_namespaces]]
+binding = "BOARDS"
+id = "PASTE_NAMESPACE_ID_HERE"

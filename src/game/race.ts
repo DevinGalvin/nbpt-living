@@ -141,6 +141,30 @@ const boardKey = (id: string) => `nbpt-race-${id}-board`;
 export function getBoard(id: string): BoardRow[] {
   try { const b = JSON.parse(localStorage.getItem(boardKey(id)) || '[]'); return Array.isArray(b) ? b : []; } catch { return []; }
 }
+// ---------- cloud sync (ships DARK until a worker URL is configured) ----------
+// Deploy infra/leaderboard/ (5-minute README in that folder) and paste the worker URL
+// here: every town board goes live worldwide. Empty string = local-only boards.
+const LEADERBOARD_URL: string = '';
+const TOWN = 'nbpt';
+function syncBoard(id: string) {
+  if (!LEADERBOARD_URL) return;
+  const base = LEADERBOARD_URL.replace(/\/+$/, '');
+  const me = hasRaceName() ? getRaceName() : null;
+  const mine = me ? getBoard(id).find((r) => r.n === me) : null;
+  // pull the town's board and adopt it locally (the cloud is the wider truth); any
+  // failure leaves the local board standing — offline play never notices
+  const pull = () => fetch(`${base}/board?town=${TOWN}&course=${id}`)
+    .then((r) => r.json())
+    .then((j) => { if (Array.isArray(j.rows) && j.rows.length) { try { localStorage.setItem(boardKey(id), JSON.stringify(j.rows)); } catch { /* private mode */ } } })
+    .catch(() => { /* offline: the local board stands */ });
+  if (mine) {
+    fetch(`${base}/board`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ town: TOWN, course: id, n: mine.n, t: mine.t }),
+    }).then(pull, pull);
+  } else pull();
+}
+
 /** record a named run (keeps each name's best); returns the rider's 1-based placement */
 export function postToBoard(id: string, name: string, t: number): number {
   const b = getBoard(id);
@@ -519,6 +543,7 @@ export class RaceRunner {
     this.course = c;
     this.gate = 0;
     this.popped = -1;
+    syncBoard(c.id);                         // freshen the town board for next time (dark when local-only)
     // load the town leader's ghost (if you lead, that's your own best — beat yourself)
     this.ghostRun = null;
     this.ghostCur = 0;
@@ -590,6 +615,7 @@ export class RaceRunner {
     } else {
       // the run goes on the town board; the card calls your placement
       const place = postToBoard(c.id, getRaceName(), this.clock);
+      syncBoard(c.id);
       const board = getBoard(c.id);
       let line: string;
       if (!newBest) line = 'best ' + fmtTime(prev!) + ' — the clock will be here all day';
@@ -611,6 +637,7 @@ export class RaceRunner {
         try { localStorage.setItem(ghostKey(id, name), run.ghost); } catch { /* private mode */ }
       }
       postToBoard(id, name, run.t);            // held runs make the town board too
+      syncBoard(id);
     }
     this.pending.clear();
   }
