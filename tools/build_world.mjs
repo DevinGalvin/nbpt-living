@@ -964,14 +964,22 @@ try {
         }
       }
     }
-    if (!best) continue;
-    const [, , h, nf] = best;
     const areaM2 = Math.abs(ringArea(p)) / (PX_PER_M * PX_PER_M);
+    if (!best || (best[2] == null && !best[3])) {
+      // Overture gap: apply the size-based inference the renderer used to do at
+      // render time (buildingDims trusts lv verbatim now), so unmatched
+      // buildings keep their old look. Houses at the untagged 1.5 default lift
+      // by footprint; big untagged commercial/civic blocks stay 3-storey.
+      if (b.k === 'house' && b.lv === 1.5) b.lv = areaM2 < 55 ? 1.8 : areaM2 < 100 ? 2.3 : areaM2 < 175 ? 2.7 : 3;
+      else if ((b.k === 'commercial' || b.k === 'civic') && areaM2 > 140 && b.lv < 3) b.lv = 3;
+      continue;
+    }
+    const [, , h, nf] = best;
     let lv;
     if (nf) lv = nf;
-    else if (h == null) continue;
     else if (areaM2 > 2000 && h < 11) lv = areaM2 > 4000 ? 1 : 1.5;
-    else lv = h < 5.2 ? 1 : h < 7.2 ? 1.5 : h < 9.8 ? 2 : h < 12.8 ? 3 : h < 16 ? 4 : h < 19.5 ? 5 : 6;
+    else if (h < 9.8) lv = h < 5.2 ? 1 : h < 7.2 ? 1.5 : 2; // pitched-home regime: ridge thresholds
+    else lv = (h - 1) / 3.2; // taller stock: ~3.2 m/storey + parapet, half-floor rounded below
     if (areaM2 > 5000) lv = Math.min(lv, 2);
     if (b.k === 'church') lv = Math.min(lv, 2.5);
     if (b.k === 'shed') lv = Math.min(lv, 1.5);

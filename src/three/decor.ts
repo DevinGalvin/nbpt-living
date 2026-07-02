@@ -1460,25 +1460,17 @@ function buildTower(buckets: Bucket[], b: Building, g: number) {
 }
 
 function buildingDims(b: Building, areaM2: number): { eave: number; lvEff: number } {
-  let lv = Math.max(1, Math.min(5, b.lv || 1.5));
+  // lv is AUTHORITATIVE: build_world overlays real Overture ML heights onto every
+  // untagged building and applies the size-based inference itself for the few with
+  // no height data (it knows which buildings went unmatched — the renderer can't
+  // tell). The old render-time compensations (area-lift for houses, min-3 for big
+  // commercial blocks) fought the real data and flattened downtown to one height.
+  const lv = Math.max(1, Math.min(6, b.lv || 1.5));
   switch (b.k) {
     case 'shed': return { eave: 16, lvEff: 1 };
-    case 'house': {
-      // Honor explicit OSM levels; otherwise infer height from the footprint.
-      // Newburyport's housing stock skews tall — dense 2.5–3 story Federal/
-      // Victorian homes downtown and through the South End — so untagged houses
-      // (the vast majority; OSM rarely tags levels here) shouldn't default to a
-      // squat 1.5 stories. build_world bakes 1.5 as the untagged-house default,
-      // so a value at ~1.5 means "unknown" and we lift it by size; a genuine
-      // tagged level (e.g. a 1-story ranch or a tagged 3-decker) is kept as-is.
-      const untagged = Math.abs((b.lv || 1.5) - 1.5) < 0.01;
-      if (untagged) lv = areaM2 < 55 ? 1.8 : areaM2 < 100 ? 2.3 : areaM2 < 175 ? 2.7 : 3;
-      return { eave: 12 + lv * 15, lvEff: lv };
-    }
     case 'church': return { eave: 30, lvEff: 2 };
     case 'commercial':
     case 'civic':
-      if (areaM2 > 140) lv = Math.max(lv, 3);     // Federal brick blocks: 3+ stories
       return { eave: 8 + lv * 23, lvEff: lv };
     case 'industrial': return { eave: 8 + lv * 21, lvEff: lv };
     default: return { eave: 12 + lv * 15, lvEff: lv };
