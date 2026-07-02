@@ -547,8 +547,13 @@ export class WorldIndex {
         const a = rng() * Math.PI * 2;
         const d = 32 + rng() * 52;
         const px = cx2 + Math.cos(a) * d, py = cy2 + Math.sin(a) * d;
-        if (!this.onPavementOrBuilding(px, py, bucket)
-          && !this.isWaterAt(px, py) && !this.onClearedGround(px, py, bucket)) {
+        // probe the CROWN, not just the trunk — a trunk 7px off a pool edge still
+        // hangs its canopy over the water. Fixed 9px probes (not rng-sized) so the
+        // rng call order — and every other yard in town — stays put.
+        const crownClear = (qx: number, qy: number) =>
+          !this.onPavementOrBuilding(qx, qy, bucket) && !this.isWaterAt(qx, qy) && !this.onClearedGround(qx, qy, bucket);
+        if (crownClear(px, py) && crownClear(px + 9, py) && crownClear(px - 9, py)
+          && crownClear(px, py + 9) && crownClear(px, py - 9)) {
           out.push({ x: px, y: py, r: 8 + rng() * 7, bush: false });
         }
       }
@@ -1224,7 +1229,7 @@ export class WorldIndex {
       // fences, hedges, AND low stone walls (graveyard/garden walls) are all
       // hop-over-able — every mapped barrier here renders waist-high, so none
       // of them block; buildings are the only hard property-line obstacle
-      if (w.barriers[bi].k === 'fence' || w.barriers[bi].k === 'hedge' || w.barriers[bi].k === 'wall') continue;
+      if (w.barriers[bi].k === 'fence' || w.barriers[bi].k === 'hedge' || w.barriers[bi].k === 'wall' || w.barriers[bi].k === 'picket') continue;
       strokeLine(ctx, w.barriers[bi].p);
     }
     ctx.strokeStyle = '#000000';
@@ -1667,7 +1672,7 @@ export class WorldIndex {
     const b = this.bucket(Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK));
     for (const bi of b.barriers) {
       const bar = this.world.barriers[bi];
-      if (bar.k !== 'fence' && bar.k !== 'hedge' && bar.k !== 'wall') continue;
+      if (bar.k !== 'fence' && bar.k !== 'hedge' && bar.k !== 'wall' && bar.k !== 'picket') continue;
       if (distToPolylineSq(x, y, bar.p) < 64) return true;   // within ~8px
     }
     return false;

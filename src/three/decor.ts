@@ -3256,6 +3256,42 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   // real property-line barriers: stockade fences, hedges, stone walls
   for (const bi of bucket.barriers) {
     const bar = world.barriers[bi];
+    // 'picket' = the white post-and-rail look of the synthetic front-yard fences
+    // (fencesFor below), but data-placed — used for hand-mapped yards
+    if (bar.k === 'picket') {
+      tmp.set('#f4f1e6');
+      const fr = tmp.r, fg = tmp.g, fb = tmp.b;
+      for (let i = 0; i + 3 < bar.p.length; i += 2) {
+        const x0 = bar.p[i], z0 = bar.p[i + 1], x1 = bar.p[i + 2], z1 = bar.p[i + 3];
+        const mx2 = (x0 + x1) / 2, mz2 = (z0 + z1) / 2;
+        if (mx2 < ox || mx2 >= ox + CHUNK || mz2 < oy || mz2 >= oy + CHUNK) continue;
+        const dx = x1 - x0, dz = z1 - z0;
+        const len = Math.hypot(dx, dz);
+        if (len < 0.5) continue;
+        const ux = dx / len, uz = dz / len;
+        const nx = -uz, nz = ux;
+        const posts = Math.max(1, Math.floor(len / 9.5));
+        for (let i2 = 0; i2 <= posts; i2++) {
+          const t = i2 / posts;
+          const px2 = x0 + dx * t, pz2 = z0 + dz * t;
+          const g = index.heightAtPx(px2, pz2);
+          buckets[PLAIN].quad(
+            px2 - ux * 0.5, g, pz2 - uz * 0.5, px2 + ux * 0.5, g, pz2 + uz * 0.5,
+            px2 + ux * 0.5, g + 7.5, pz2 + uz * 0.5, px2 - ux * 0.5, g + 7.5, pz2 - uz * 0.5,
+            nx, 0, nz, fr, fg, fb
+          );
+        }
+        const g0 = index.heightAtPx(x0, z0), g1 = index.heightAtPx(x1, z1);
+        for (const railY of [3, 5.8]) {
+          buckets[PLAIN].quad(
+            x0, g0 + railY, z0, x1, g1 + railY, z1,
+            x1, g1 + railY + 1.1, z1, x0, g0 + railY + 1.1, z0,
+            nx, 0, nz, fr * 0.94, fg * 0.94, fb * 0.94
+          );
+        }
+      }
+      continue;
+    }
     const style = bar.k === 'hedge'
       ? { hw: 4, h: 9.5, hex: '#4a7a42' }
       : bar.k === 'wall'

@@ -71,7 +71,7 @@ export interface Poi {
 
 export interface Barrier {
   p: number[];
-  k: string; // fence | hedge | wall
+  k: string; // fence | hedge | wall | picket (white post-and-rail, hand-mapped yards)
 }
 
 export interface WorldData {

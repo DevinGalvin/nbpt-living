@@ -877,6 +877,15 @@ const MANUAL_BUILDINGS = [
 ];
 for (const b of MANUAL_BUILDINGS) world.buildings.push(b);
 
+// ---------- manual yards: real backyard details OSM doesn't carry ----------
+// 13 Fox Run Drive (Devin's house): backyard pool + white picket fence enclosing
+// the yard. The house faces Fox Run Dr to the NORTH (-y), so the yard is the +y
+// side behind it; the fence runs from the west wing's rear corner around to the
+// east wall. k:'picket' renders as the white post-and-rail style (decor.ts) —
+// the stockade-tan k:'fence' stays for mapped OSM barriers.
+world.polys.push({ k: 'pool', z: 6.8, p: [-18759, 2932, -18707, 2932, -18695, 2944, -18695, 2972, -18707, 2984, -18759, 2984, -18771, 2972, -18771, 2944] });
+world.barriers.push({ k: 'picket', p: [-18822, 2795, -18822, 3055, -18645, 3055, -18645, 2813, -18660, 2812] });
+
 // ---------- sort, QA, write ----------
 
 world.polys.sort((a, b) => (a.z - b.z) || (Math.abs(ringArea(b.p)) - Math.abs(ringArea(a.p))));
