@@ -58,6 +58,10 @@ const css = `
   text-shadow: 0 1px 3px rgba(20, 10, 14, 0.9), 0 0 6px rgba(20, 10, 14, 0.55); }
 #hud .help { left: 8px; }
 #hud .attr { right: 8px; font-size: 10px; }
+/* phones: no instruction line at all (Devin: "too distracting" — the controls ARE
+   on screen); the OSM attribution must stay (ODbL license) but goes whisper-quiet */
+#hud.touch .help { display: none; }
+#hud.touch .attr { font-size: 8.5px; opacity: 0.55; }
 /* tiny always-on word under every icon-only button — 🧭 vs 🗺 vs 🎒 is a coin-flip
    for a 6-year-old (and TALK, our one labeled button, was always the clearest).
    Absolutely positioned into the 8px gap below each circle: zero layout shift. */
@@ -1582,12 +1586,14 @@ export class Hud {
       // whole concepts, not fragments — /bury/ matched NewBURYport and put a
       // gravestone on City Hall.
       const table: [RegExp, string][] = [
+        [/witch|bewitched/, '🧙'],   // Salem's whole brand — must beat house/museum
         [/frog|pond/, '🐸'], [/light(house)?\b|light /, '🗼'], [/airport|airfield|runway/, '✈️'],
         [/sled|march's hill/, '🛷'], [/skat/, '⛸'], [/playground|fountain/, '🛝'],
         [/burying|cemetery|graveyard/, '🪦'], [/bridge/, '🌉'], [/station|depot/, '🚂'],
+        [/tall ship|friendship|schooner|\bship\b/, '⛵'], [/hotel|inn\b/, '🏨'], [/fort\b|castle/, '🏰'],
         [/farm|pasture|orchard|\bfields\b/, '🚜'], [/flats|marsh|bird/, '🦆'],   // \b: "ballfields" is a park, not a farm
         [/beach|island|dune|sand/, '🏖'], [/boardwalk|waterfront|wharf|dock|harbor|landing/, '⚓'],
-        [/woods|forest|park|garden|common|maudslay|refuge|sanctuar/, '🌳'], [/trail|rail/, '🚲'],
+        [/woods|forest|park|garden|common|maudslay|willow|refuge|sanctuar/, '🌳'], [/trail|rail/, '🚲'],
         [/reservoir|lake|river/, '🌊'], [/statue|garrison/, '🗽'], [/church|chapel|meeting/, '⛪'],
         [/school|academy/, '🏫'], [/court/, '⚖️'], [/museum|house|hall|athen/, '🏛'],
         [/square|downtown|market/, '⛲'], [/street|road|lane/, '🛣'],
