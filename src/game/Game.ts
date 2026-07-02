@@ -14,7 +14,7 @@ import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
 import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
-import { RaceRunner, COURSES, getRaceName, setRaceName, hasRaceName } from './race';
+import { RaceRunner, COURSES, getRaceName, setRaceName, hasRaceName, getBoard } from './race';
 import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
 import { STYLE, SEASON } from '../world/style';
@@ -376,7 +376,7 @@ export class Game {
     // 🏁 front door: pick a course anywhere in town → fade to its start line → countdown.
     // (The in-world start flag still works for players who ride up to it.)
     this.hud.initRaces(
-      () => COURSES.map((c) => ({ id: c.id, name: c.name, sub: c.sub, best: this.race!.bestFor(c.id) })),
+      () => COURSES.map((c) => ({ id: c.id, name: c.name, sub: c.sub, best: this.race!.bestFor(c.id), leader: getBoard(c.id)[0] || null })),
       (id) => {
         const c = COURSES.find((k) => k.id === id);
         if (!c || !this.race) return;

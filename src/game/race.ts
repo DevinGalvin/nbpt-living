@@ -90,8 +90,9 @@ function segD2(px: number, pz: number, ax: number, az: number, bx: number, bz: n
   const qx = ax + dx * t, qz = az + dz * t;
   return (px - qx) * (px - qx) + (pz - qz) * (pz - qz);
 }
-const bestKey = (id: string) => `nbpt-race-${id}-best`;
-const ghostKey = (id: string) => `nbpt-race-${id}-ghost`;
+// times live on the town board (one entry per rider name — see getBoard below), so a
+// shared family iPad gives every kid their OWN "you" and their own ghost to race
+const ghostKey = (id: string, name: string) => `nbpt-race-${id}-ghost-${name}`;
 
 export function fmtTime(s: number): string {
   const m = Math.floor(s / 60);
@@ -131,6 +132,26 @@ export function getRaceName(): string {
 export function hasRaceName(): boolean {
   try { return !!(localStorage.getItem(NAME_KEY) || '').trim(); } catch { return false; }
 }
+// ---------- the town leaderboard (local, per course) ----------
+// One row per rider name — each racer's personal best on this device (a shared family
+// iPad becomes a real household board). The cloud per-town board syncs on top later;
+// this shape (name+time, kid-safe names enforced at entry) is upload-ready as-is.
+export type BoardRow = { n: string; t: number };
+const boardKey = (id: string) => `nbpt-race-${id}-board`;
+export function getBoard(id: string): BoardRow[] {
+  try { const b = JSON.parse(localStorage.getItem(boardKey(id)) || '[]'); return Array.isArray(b) ? b : []; } catch { return []; }
+}
+/** record a named run (keeps each name's best); returns the rider's 1-based placement */
+export function postToBoard(id: string, name: string, t: number): number {
+  const b = getBoard(id);
+  const i = b.findIndex((r) => r.n === name);
+  if (i >= 0) { if (t < b[i].t) b[i].t = +t.toFixed(2); } else b.push({ n: name, t: +t.toFixed(2) });
+  b.sort((x, y) => x.t - y.t);
+  if (b.length > 10) b.length = 10;
+  try { localStorage.setItem(boardKey(id), JSON.stringify(b)); } catch { /* private mode */ }
+  return Math.max(1, b.findIndex((r) => r.n === name) + 1);
+}
+
 /** sanitize + persist; returns what was saved, or ok:false (name unchanged) if blocked */
 export function setRaceName(raw: string): { ok: boolean; name: string } {
   const clean = raw.toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim().slice(0, 12);
@@ -162,7 +183,8 @@ export class RaceRunner {
   private gateMark: THREE.Group;           // origin-anchored holder: ring + arch + chevrons (world-positioned children)
   private gateRing: THREE.Mesh;
   private gateArch: THREE.Group;           // a race arch spanning the road at the next gate — visible from blocks away
-  private chevrons: THREE.Mesh[] = [];     // bold arrows on the pavement leading into it
+  private turnArrow: THREE.Group;          // big arrow atop the arch pointing down the EXIT street (the turn, telegraphed)
+  private chevrons: THREE.Mesh[] = [];     // bold arrows on the pavement leading into and THROUGH the corner
 
   constructor(
     private scene: THREE.Scene,
@@ -206,11 +228,22 @@ export class RaceRunner {
       seg.position.set(0, 22.6, -26 + 52 / 12 + i * (52 / 6));
       this.gateArch.add(seg);
     }
+    // the TURN ARROW rides on top of the banner, pointing down the EXIT street —
+    // "which way after the arch" answered from a block away. Flat, big, full-bright.
+    this.turnArrow = new THREE.Group();
+    const taShaft = new THREE.Mesh(new THREE.BoxGeometry(13, 0.8, 4.6), gold);
+    taShaft.position.set(-4.5, 0, 0);
+    const taHead = new THREE.BufferGeometry();
+    taHead.setAttribute('position', new THREE.Float32BufferAttribute([12, 0, 0, 2, 0, 7.5, 2, 0, -7.5], 3));
+    taHead.computeVertexNormals();
+    this.turnArrow.add(taShaft, new THREE.Mesh(taHead, gold));
+    this.turnArrow.position.y = 27.5;
+    this.gateArch.add(this.turnArrow);
     this.gateMark.add(this.gateArch);
     const chevron = new THREE.BufferGeometry();   // bold arrowhead on the road, tip = local +x
     chevron.setAttribute('position', new THREE.Float32BufferAttribute([16, 0, 0, -11, 0, 13, -11, 0, -13], 3));
     chevron.computeVertexNormals();
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 10; i++) {                // 7 pace the approach, 3 carry the line through the turn
       const ch = new THREE.Mesh(chevron, new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }));
       this.gateMark.add(ch);
       this.chevrons.push(ch);
@@ -251,9 +284,11 @@ export class RaceRunner {
   get freeze(): boolean { return this.state === 'count'; }   // Game zeroes speed during the countdown
   get nearActive(): boolean { return this.nearId !== null; }
 
+  /** the CURRENT rider's best on this course — their row on the town board */
   bestFor(id: string): number | null {
-    const v = parseFloat(localStorage.getItem(bestKey(id)) || '');
-    return isFinite(v) && v > 0 ? v : null;
+    if (!hasRaceName()) return null;
+    const row = getBoard(id).find((r) => r.n === getRaceName());
+    return row ? row.t : null;
   }
 
   // There is NO off-course rule: the gates define the course, but HOW you get between
@@ -361,28 +396,64 @@ export class RaceRunner {
     const R = c.route;
     const g = this.gate;
     const [gx, gz] = c.gates[g];
+    const nseg = R.length / 2 - 1;
     const ground = (x: number, z: number) => Math.max(this.index.heightAtPx(x, z), this.index.deckHeightAt(x, z));
-    // this leg's arc, cut from the REAL road polyline between the two gate projections —
-    // chevrons ride the bends with it instead of cutting a chord through the blocks
-    const s0 = g > 0 ? this.gateSeg[g - 1] : 0, t0 = g > 0 ? this.gateT[g - 1] : 0;
-    const s1 = this.gateSeg[g], t1 = this.gateT[g];
     const at = (s: number, t: number): [number, number] =>
       [R[s * 2] + (R[s * 2 + 2] - R[s * 2]) * t, R[s * 2 + 1] + (R[s * 2 + 3] - R[s * 2 + 1]) * t];
+    // this leg's arc from the REAL road, EXTENDED ~450px past the gate into the next
+    // street — the confusing moment is the corner itself, so the painted line flows
+    // THROUGH the turn instead of stopping at it
+    const s0 = g > 0 ? this.gateSeg[g - 1] : 0, t0 = g > 0 ? this.gateT[g - 1] : 0;
+    const s1 = this.gateSeg[g], t1 = this.gateT[g];
     const arc: [number, number][] = [at(s0, t0)];
     for (let i = s0 + 1; i <= s1; i++) arc.push([R[i * 2], R[i * 2 + 1]]);
     arc.push(at(s1, t1));
+    const gateIdx = arc.length - 1;                     // where the gate sits in the arc
+    if (g < c.gates.length - 1) {                       // walk the exit (never past the finish)
+      let left = 450;
+      let s = s1, t = t1;
+      while (left > 0 && s < nseg) {
+        const ex = R[s * 2 + 2], ez = R[s * 2 + 3];
+        const [cxx, czz] = at(s, t);
+        const d = Math.hypot(ex - cxx, ez - czz);
+        if (d >= left) { const f = t + (1 - t) * (left / (d || 1)); arc.push(at(s, Math.min(1, f))); break; }
+        arc.push([ex, ez]); left -= d; s++; t = 0;
+      }
+    }
     const lens = [0];
     for (let i = 1; i < arc.length; i++) lens.push(lens[i - 1] + Math.hypot(arc[i][0] - arc[i - 1][0], arc[i][1] - arc[i - 1][1]));
-    const L = lens[lens.length - 1] || 1;
-    // ring + arch at the gate, squared to the road's ACTUAL incoming direction
-    const last = arc.length - 1;
-    const [iax, iaz] = arc[Math.max(0, last - 1)];
-    const yaw = Math.atan2(-(arc[last][1] - iaz), arc[last][0] - iax);
+    const LGate = lens[gateIdx] || 1, LEnd = lens[lens.length - 1];
+    // arch squared to the road's incoming direction; the big TURN ARROW on top points
+    // down the exit street. Both directions are measured over ~70px of arc (adjacent
+    // vertices can sit ~2px apart where a gate lands on a route vertex — degenerate).
+    const atLen = (want: number): [number, number] => {
+      const wl = Math.max(0, Math.min(LEnd, want));
+      let k = 1;
+      while (k < lens.length - 1 && lens[k] < wl) k++;
+      const f = (wl - lens[k - 1]) / ((lens[k] - lens[k - 1]) || 1);
+      return [arc[k - 1][0] + (arc[k][0] - arc[k - 1][0]) * f, arc[k - 1][1] + (arc[k][1] - arc[k - 1][1]) * f];
+    };
+    const [ibx, ibz] = atLen(LGate - 70);
+    const inYaw = Math.atan2(-(arc[gateIdx][1] - ibz), arc[gateIdx][0] - ibx);
     this.gateRing.position.set(gx, ground(gx, gz) + 1.2, gz);
     this.gateArch.position.set(gx, ground(gx, gz), gz);
-    this.gateArch.rotation.y = yaw;
+    this.gateArch.rotation.y = inYaw;
+    if (LEnd > LGate + 20) {
+      const [obx, obz] = atLen(LGate + 70);
+      const outYaw = Math.atan2(-(obz - arc[gateIdx][1]), obx - arc[gateIdx][0]);
+      let d = outYaw - inYaw;
+      d = Math.atan2(Math.sin(d), Math.cos(d));         // shortest wrap, no 350° spins
+      this.turnArrow.visible = true;
+      this.turnArrow.rotation.y = d;
+    } else {
+      this.turnArrow.visible = false;                   // the finish: nowhere onward to point
+    }
+    // 7 chevrons pace the approach, 3 carry the line around the corner into the exit
+    const marks: number[] = [];
+    for (let i = 0; i < 7; i++) marks.push(LGate * (0.14 + i * 0.135));
+    for (const e of [110, 260, 430]) marks.push(Math.min(LEnd, LGate + e));
     for (let i = 0; i < this.chevrons.length; i++) {
-      const wantL = L * (0.12 + i * 0.11);
+      const wantL = marks[i];
       let k = 1;
       while (k < lens.length - 1 && lens[k] < wantL) k++;
       const f = (wantL - lens[k - 1]) / ((lens[k] - lens[k - 1]) || 1);
@@ -430,14 +501,11 @@ export class RaceRunner {
     const c = this.course!;
     this.rec.push(Math.round(this.clock * 10), Math.round(px), Math.round(pz));
     const named = hasRaceName();                          // no name, no board — but the run is held, not lost
-    const prev = this.bestFor(c.id);
+    const prev = this.bestFor(c.id);                      // this rider's row on the town board
     const newBest = named && (prev === null || this.clock < prev);
     const ghost = JSON.stringify({ v: 1, t: Math.round(this.clock * 1000), s: this.rec });
     if (newBest) {
-      try {
-        localStorage.setItem(bestKey(c.id), this.clock.toFixed(2));
-        localStorage.setItem(ghostKey(c.id), ghost);
-      } catch { /* private mode */ }
+      try { localStorage.setItem(ghostKey(c.id, getRaceName()), ghost); } catch { /* private mode */ }
     }
     this.audio.jingle();
     if (!named) {
@@ -452,27 +520,29 @@ export class RaceRunner {
         { save: (raw) => { const r = setRaceName(raw); if (!r.ok) return null; this.flushPending(); return r.name; } },
       );
     } else {
-      this.hud.chapterCard(
-        '🏁 ' + c.name.toUpperCase(),
-        fmtTime(this.clock),
-        newBest ? 'NEW BEST for ' + getRaceName() + '! The town will hear about this.'
-          : 'best ' + fmtTime(prev!) + ' — the clock will be here all day',
-      );
+      // the run goes on the town board; the card calls your placement
+      const place = postToBoard(c.id, getRaceName(), this.clock);
+      const board = getBoard(c.id);
+      let line: string;
+      if (!newBest) line = 'best ' + fmtTime(prev!) + ' — the clock will be here all day';
+      else if (board.length > 1 && place === 1) line = '👑 #1 in town — NEW BEST for ' + getRaceName() + '!';
+      else if (board.length > 1) line = 'NEW BEST for ' + getRaceName() + ' — #' + place + ' in town!';
+      else line = 'NEW BEST for ' + getRaceName() + '! The town will hear about this.';
+      this.hud.chapterCard('🏁 ' + c.name.toUpperCase(), fmtTime(this.clock), line);
     }
     this.reset();
   }
 
-  /** once a name exists, bank any held unnamed runs (better-than-stored only) */
+  /** once a name exists, bank any held unnamed runs (better-than-their-row only) */
   flushPending() {
     if (!hasRaceName() || !this.pending.size) return;
+    const name = getRaceName();
     for (const [id, run] of this.pending) {
-      const prev = this.bestFor(id);
-      if (prev === null || run.t < prev) {
-        try {
-          localStorage.setItem(bestKey(id), run.t.toFixed(2));
-          localStorage.setItem(ghostKey(id), run.ghost);
-        } catch { /* private mode */ }
+      const row = getBoard(id).find((r) => r.n === name);
+      if (!row || run.t < row.t) {
+        try { localStorage.setItem(ghostKey(id, name), run.ghost); } catch { /* private mode */ }
       }
+      postToBoard(id, name, run.t);            // held runs make the town board too
     }
     this.pending.clear();
   }

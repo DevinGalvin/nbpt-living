@@ -1285,7 +1285,7 @@ export class Hud {
    *  `rows` is re-read on every open so best times stay fresh; picking a course
    *  hands its id to the game, which fades you to the start line and begins. */
   initRaces(
-    rows: () => { id: string; name: string; sub: string; best: number | null }[],
+    rows: () => { id: string; name: string; sub: string; best: number | null; leader: { n: string; t: number } | null }[],
     onPick: (id: string) => void,
     rider: { get: () => string; set: (raw: string) => { ok: boolean; name: string }; has: () => boolean },
     onQuit: () => void,
@@ -1317,10 +1317,12 @@ export class Hud {
         it.className = 'rp-item';
         it.appendChild(Object.assign(document.createElement('div'), { className: 'rp-name', textContent: r.name }));
         it.appendChild(Object.assign(document.createElement('div'), { className: 'rp-sub', textContent: r.sub }));
-        it.appendChild(Object.assign(document.createElement('div'), {
-          className: 'rp-best',
-          textContent: r.best !== null ? '★ best ' + this.fmtRace(r.best) : 'no time yet — set one!',
-        }));
+        // the town board leads the line — the leaderboard is the point
+        let bestLine: string;
+        if (r.leader && r.leader.n === rider.get() && r.best !== null) bestLine = '👑 you lead the town — ' + this.fmtRace(r.leader.t);
+        else if (r.leader) bestLine = '👑 ' + r.leader.n + ' ' + this.fmtRace(r.leader.t) + (r.best !== null ? ' · you ' + this.fmtRace(r.best) : ' · no time yet');
+        else bestLine = r.best !== null ? '★ best ' + this.fmtRace(r.best) : 'no time yet — set one!';
+        it.appendChild(Object.assign(document.createElement('div'), { className: 'rp-best', textContent: bestLine }));
         it.addEventListener('click', () => { pop.classList.remove('open'); onPick(r.id); });
         pop.appendChild(it);
       }
