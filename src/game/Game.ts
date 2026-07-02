@@ -547,7 +547,7 @@ export class Game {
     if (this.promoBusy()) { setTimeout(() => this.tryFlightPromo(), 2500); return; }
     this.hud.featurePromo({
       key: 'nbpt-promo-flight', badge: 'NEW', icon: '✈️', title: 'Take Flight',
-      body: 'Scenic flights are open to everyone now. Head to Plum Island Airport, step onto the grass airfield, and tap ✈️ FLY to take off over Clipper Town.',
+      body: 'Scenic flights are open to everyone. Walk onto the grass at Plum Island Airport and tap ✈️ FLY to soar over Clipper Town — you can’t crash, promise.',
       cta: 'Take me to the airfield', onCta: () => this.travelToXY(AIRPORT.x, AIRPORT.z)
     });
   }
@@ -776,7 +776,10 @@ export class Game {
         if (this.index.isOpenWaterAt(x, y)) { lx = x; lz = y; found = true; break; }
       }
     }
-    if (!found) return;                 // no open water nearby — nothing to launch into
+    if (!found) {                       // no open water nearby — SAY so; a tap that does nothing reads as broken
+      this.hud.announce('🛶 No open water here', 'get closer to the river or the sea, then try again');
+      return;
+    }
     this.dismount();
     this.kayaking = true;
     this.hud.kayaking = true;           // the quest yields its action button (HOP OUT owns it)

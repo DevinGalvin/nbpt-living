@@ -58,6 +58,15 @@ const css = `
   text-shadow: 0 1px 3px rgba(20, 10, 14, 0.9), 0 0 6px rgba(20, 10, 14, 0.55); }
 #hud .help { left: 8px; }
 #hud .attr { right: 8px; font-size: 10px; }
+/* tiny always-on word under every icon-only button — 🧭 vs 🗺 vs 🎒 is a coin-flip
+   for a 6-year-old (and TALK, our one labeled button, was always the clearest).
+   Absolutely positioned into the 8px gap below each circle: zero layout shift. */
+#hud .blab {
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  font-size: 8px; font-weight: 800; letter-spacing: 0.6px; line-height: 1;
+  padding-top: 1px; color: rgba(243, 241, 232, 0.85);
+  text-shadow: 0 1px 2px rgba(20, 10, 14, 0.85); white-space: nowrap; pointer-events: none;
+}
 #hud .stick-base, #hud .stick-knob { position: absolute; border-radius: 50%; display: none; }
 #hud .stick-base { width: 128px; height: 128px; background: rgba(var(--maroon), 0.22); border: 2px solid rgba(243,241,232,0.5); }
 #hud .stick-knob { width: 44px; height: 44px; background: rgba(243,241,232,0.55); }
@@ -212,7 +221,7 @@ const css = `
   transform: translateY(18px) scale(0.95); transition: transform 0.26s cubic-bezier(0.2, 0.85, 0.3, 1.12);
 }
 #hud .board-panel.show .board-card { transform: translateY(0) scale(1); }
-#hud .board-card .bd-x { float: right; cursor: pointer; color: #9fb1c2; font-size: 17px; padding: 2px 8px; border-radius: 8px; }
+#hud .board-card .bd-x { float: right; cursor: pointer; color: #9fb1c2; font-size: 19px; padding: 12px 15px; margin: -8px -10px 0 0; border-radius: 12px; }
 #hud .board-card .bd-x:hover { color: #f3f1e8; background: rgba(216,185,74,0.18); }
 #hud .bd-kick { font-size: 11px; letter-spacing: 3px; color: #e8c44f; font-weight: 700; }
 #hud .bd-title { font-family: Georgia, serif; font-size: 22px; color: #f6f3e8; margin-top: 3px; }
@@ -299,10 +308,11 @@ const css = `
   background: var(--panel); border-radius: 14px; border-bottom: 3px solid #d8b94a;
   padding: 18px 20px 14px; width: min(560px, 92vw); max-height: 78vh; overflow-y: auto;
 }
-/* a tappable close on every modal card — mobile has little backdrop to tap */
+/* a tappable close on every modal card — mobile has little backdrop to tap.
+   44px: the touch-target floor for small hands (the old 30px was missable) */
 #hud .modal-x {
-  position: absolute; top: 8px; right: 10px; width: 30px; height: 30px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; font-size: 16px; line-height: 1;
+  position: absolute; top: 6px; right: 8px; width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 19px; line-height: 1;
   color: #cdbf94; background: rgba(0, 0, 0, 0.3); cursor: pointer; z-index: 3;
   user-select: none; -webkit-user-select: none;
 }
@@ -348,6 +358,10 @@ const css = `
   background: rgba(243, 241, 232, 0.07); border: 1px solid rgba(243, 241, 232, 0.14);
   border-radius: 9px; padding: 9px 12px; cursor: pointer; transition: background 0.15s;
 }
+/* grid cards lead with a place-emoji (search results stay text-only) */
+#hud .travel-grid .travel-item { display: flex; align-items: center; gap: 10px; }
+#hud .travel-item .ti-em { font-size: 21px; line-height: 1; flex: none; }
+#hud .travel-item .ti-tx { flex: 1; min-width: 0; }
 #hud .travel-item:hover { background: rgba(216, 185, 74, 0.18); }
 #hud .travel-item .tn { color: #f3f1e8; font-size: 14px; font-weight: 600; }
 #hud .travel-item .ts { color: #c8bd96; font-size: 11px; margin-top: 2px; }
@@ -445,7 +459,14 @@ const css = `
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
 #hud .dlg.open { display: block; }
-#hud .dlg .who { font-size: 11.5px; letter-spacing: 1.6px; color: #e8c44f; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; min-height: 13px; }
+/* 🔊 read-it-to-me — top-right of the card, a 44px target clear of tap-to-advance */
+#hud .dlg .dlg-say {
+  position: absolute; top: 2px; right: 4px; width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  border-radius: 50%; cursor: pointer; opacity: 0.75;
+}
+#hud .dlg .dlg-say:hover { opacity: 1; background: rgba(216,185,74,0.14); }
+#hud .dlg .who { font-size: 11.5px; letter-spacing: 1.6px; color: #e8c44f; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; min-height: 13px; padding-right: 44px; }
 #hud .dlg .line { font-size: 15.5px; line-height: 1.45; color: #f3f1e8; min-height: 46px; }
 #hud .dlg .dlg-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 7px; }
 /* secondary, ghosted next to the gold Next pill; hidden on the first line (no prior to
@@ -914,9 +935,9 @@ const css = `
 #hud .season-pop { box-shadow: var(--shadow-card); transform-origin: top left; animation: nbpt-pop-in 0.2s var(--ease-spring); }
 @keyframes nbpt-pop-in { from { transform: scale(0.86) translateY(-4px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
 
-/* ── modal close: a real, high-contrast 36px target ────────────────── */
+/* ── modal close: a real, high-contrast 44px target (kid-hand floor) ── */
 #hud .modal-x {
-  width: 36px; height: 36px; font-size: 17px; color: var(--ink-dim);
+  width: 44px; height: 44px; font-size: 19px; color: var(--ink-dim);
   background: rgba(0,0,0,0.3); border: 1px solid rgba(243,241,232,0.12);
   transition: transform 0.14s var(--ease-out), background 0.18s ease, color 0.18s ease;
 }
@@ -1046,11 +1067,11 @@ export class Hud {
       <div class="corner attr">Map data © OpenStreetMap contributors</div>
       <div class="stick-base"></div><div class="stick-knob"></div>
       <div class="compass"><div class="needle">N</div></div>
-      <div class="travel-btn" title="Travel (M)">🗺</div>
-      <div class="journey-btn" title="Missions (J)">🧭</div>
-      <div class="bag-btn" title="Backpack (I)">🎒<span class="bag-badge">NEW</span></div>
+      <div class="travel-btn" title="Travel (M)">🗺<span class="blab">MAP</span></div>
+      <div class="journey-btn" title="Missions (J)">🧭<span class="blab">QUESTS</span></div>
+      <div class="bag-btn" title="Backpack (I)">🎒<span class="bag-badge">NEW</span><span class="blab">BAG</span></div>
       <div class="bag-tip"></div>
-      <div class="settings-btn" title="Settings">⚙️</div>
+      <div class="settings-btn" title="Settings">⚙️<span class="blab">SETTINGS</span></div>
       <div class="settings-hint">📖 Story mode lives here — tap ⚙️ anytime</div>
       <div class="settings-pop">
         <div class="sp-hdr">SETTINGS</div>
@@ -1063,11 +1084,11 @@ export class Hud {
           <div class="sp-sw"></div>
         </div>
       </div>
-      <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span></div>
-      <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span></div>
-      <div class="season-toggle" title="Season">🍂</div>
+      <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span><span class="blab">RUN</span></div>
+      <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span><span class="blab">BIKE</span></div>
+      <div class="season-toggle" title="Season"><span class="s-em">🍂</span><span class="blab">SEASON</span></div>
       <div class="season-pop"></div>
-      <div class="race-btn" title="Races">🏁</div>
+      <div class="race-btn" title="Races">🏁<span class="blab">RACE</span></div>
       <div class="race-pop"></div>
       <div class="board-panel"><div class="board-card"></div></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><div class="travel-towns"><div class="tt-hdr">EXPLORE ANOTHER TOWN</div><div class="tt-row"></div></div><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
@@ -1078,7 +1099,7 @@ export class Hud {
       <div class="race-timer"><span class="rt-cur"></span><span class="rt-best"></span><span class="rt-quit">✕</span></div>
       <div class="runtip"></div>
       <div class="streettip"></div>
-      <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
+      <div class="dlg"><span class="dlg-say" title="Read it to me">🔊</span><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
       <div class="talk-btn">💬 TALK</div>
       <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div><div class="namer"><input maxlength="12" placeholder="YOUR NAME"><button>SAVE</button></div></div>
       <div class="promo"><div class="promo-card"><div class="promo-x">✕</div><div class="promo-badge"></div><div class="promo-icon"></div><div class="promo-title"></div><div class="promo-body"></div><div class="promo-acts"><button class="promo-cta"></button><span class="promo-skip">Maybe later</span></div></div></div>
@@ -1125,6 +1146,13 @@ export class Hud {
     this.dlgBack.addEventListener('pointerdown', (e) => {
       e.stopPropagation();   // intercept before the dlg box's tap-to-advance handler
       this.backDlg();
+    });
+    // 🔊 read-aloud: turns grade-4 dialog into something a 6-year-old can follow solo
+    const dlgSay = hud.querySelector('.dlg .dlg-say') as HTMLElement;
+    if (!('speechSynthesis' in window)) dlgSay.style.display = 'none';
+    dlgSay.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();   // speaking is not advancing
+      this.sayLine();
     });
 
     this.dlgEl.addEventListener('pointerdown', (e) => {
@@ -1540,10 +1568,33 @@ export class Hud {
       }
     }
     const grid = document.querySelector('#hud .travel-grid')!;
+    // a picture on every destination card: pre-readers navigate by icon, and even
+    // fluent kids scan a grid of emoji faster than a wall of names. Keyword-matched
+    // from name+sub so it stays data-driven — new towns get icons for free.
+    const placeEmoji = (name: string, sub: string): string => {
+      const s = (name + ' ' + sub).toLowerCase();
+      // ORDER IS THE RULE ENGINE: specific places beat broad categories ("Oak Hill
+      // Cemetery — garden cemetery" must hit 🪦 before /garden/ hits 🌳). And match
+      // whole concepts, not fragments — /bury/ matched NewBURYport and put a
+      // gravestone on City Hall.
+      const table: [RegExp, string][] = [
+        [/frog|pond/, '🐸'], [/light(house)?\b|light /, '🗼'], [/airport|airfield|runway/, '✈️'],
+        [/sled|march's hill/, '🛷'], [/skat/, '⛸'], [/playground|fountain/, '🛝'],
+        [/burying|cemetery|graveyard/, '🪦'], [/bridge/, '🌉'], [/station|depot/, '🚂'],
+        [/farm|pasture|orchard|\bfields\b/, '🚜'], [/flats|marsh|bird/, '🦆'],   // \b: "ballfields" is a park, not a farm
+        [/beach|island|dune|sand/, '🏖'], [/boardwalk|waterfront|wharf|dock|harbor|landing/, '⚓'],
+        [/woods|forest|park|garden|common|maudslay|refuge|sanctuar/, '🌳'], [/trail|rail/, '🚲'],
+        [/reservoir|lake|river/, '🌊'], [/statue|garrison/, '🗽'], [/church|chapel|meeting/, '⛪'],
+        [/school|academy/, '🏫'], [/court/, '⚖️'], [/museum|house|hall|athen/, '🏛'],
+        [/square|downtown|market/, '⛲'], [/street|road|lane/, '🛣'],
+      ];
+      for (const [re, em] of table) if (re.test(s)) return em;
+      return '📍';
+    };
     for (const it of items) {
       const el = document.createElement('div');
       el.className = 'travel-item';
-      el.innerHTML = `<div class="tn">${it.name}</div><div class="ts">${it.sub}</div>`;
+      el.innerHTML = `<span class="ti-em">${placeEmoji(it.name, it.sub)}</span><div class="ti-tx"><div class="tn">${it.name}</div><div class="ts">${it.sub}</div></div>`;
       el.addEventListener('click', () => {
         this.toggleTravel(false);
         onPick(it.id);
@@ -1558,7 +1609,7 @@ export class Hud {
     const sToggle = document.querySelector('#hud .season-toggle') as HTMLElement;
     const sPop = document.querySelector('#hud .season-pop') as HTMLElement;
     const sUnlocked = seasonsUnlocked();
-    sToggle.textContent = seasonEmoji[SEASON] || '🍂';
+    (sToggle.querySelector('.s-em') as HTMLElement).textContent = seasonEmoji[SEASON] || '🍂';   // swap only the emoji — the BLAB label lives next to it
     sPop.classList.toggle('locked', !sUnlocked);
     const sHdr = document.createElement('div');
     sHdr.className = 'sp-hdr';
@@ -2324,11 +2375,29 @@ export class Hud {
   }
 
   showDialogue(lines: { who: string; text: string }[], onDone?: () => void) {
+    this.hushSay();
     this.dlgLines = lines;
     this.dlgIdx = 0;
     this.dlgDone = onDone || null;
     this.dlgEl.classList.add('open');
     this.renderDlg();
+  }
+
+  // 🔊 speak the line on screen (Web Speech API — built into every phone, works
+  // offline). One tap per line; any navigation quiets it — no runaway narration.
+  private sayLine() {
+    try {
+      const l = this.dlgLines[this.dlgIdx];
+      if (!l) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(l.text);
+      u.lang = 'en-US';
+      u.rate = 0.92;                 // a touch slower than default — read-along pace
+      window.speechSynthesis.speak(u);
+    } catch { /* no voice on this browser — the button is hidden at init anyway */ }
+  }
+  private hushSay() {
+    try { window.speechSynthesis?.cancel(); } catch { /* fine */ }
   }
 
   private renderDlg() {
@@ -2341,6 +2410,7 @@ export class Hud {
 
   private advanceDlg() {
     if (!this.dlgEl.classList.contains('open')) return;
+    this.hushSay();
     this.dlgIdx++;
     if (this.dlgIdx < this.dlgLines.length) {
       this.renderDlg();
@@ -2357,6 +2427,7 @@ export class Hud {
   // advancing PAST the last line, so going back has no side effects, it just re-renders.
   private backDlg() {
     if (!this.dlgEl.classList.contains('open') || this.dlgIdx <= 0) return;
+    this.hushSay();
     this.dlgIdx--;
     this.renderDlg();
   }
@@ -2556,6 +2627,7 @@ export class Hud {
   // WITHOUT firing its onDone: no quest step may advance off a line nobody finished
   // reading. Re-talking to the NPC replays it cleanly.
   closeTransient() {
+    this.hushSay();
     if (this.dlgEl?.classList.contains('open')) {
       this.dlgEl.classList.remove('open');
       this.dlgDone = null;
