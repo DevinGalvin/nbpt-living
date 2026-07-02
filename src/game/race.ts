@@ -24,9 +24,26 @@ export type Course = {
 
 export const COURSES: Course[] = [
   {
-    // course 2 (listed first: it's the shorter intro of the pair) — the western
-    // homecoming: from the Maudslay gate down twisty Pine Hill Rd, Ferry Rd and the
-    // Spofford descent, then Merrimac Street flat-out along the river into the square.
+    // course 3 (listed first: the sprint of the set) — a scramble through the South
+    // End's narrow neighborhood grid: down Bromfield, a hard right up Purchase, a
+    // hairpin left down Charles, then the Joppa shore road home. Under half a minute
+    // flat-out, but every leg ends in a real corner — winning it is all brakes and line.
+    id: 'southend',
+    name: 'South End Scramble',
+    sub: 'Bromfield top → Joppa Park',
+    start: { x: 3961, z: 7552 },
+    gates: [
+      [5128, 4673],    // Bromfield × Purchase — hard right onto the diagonal
+      [3818, 3920],    // Purchase × Charles — hairpin left
+      [4675, 2117],    // Charles bottom — left onto the Water St shore
+      [5831, 2938],    // the Joppa shore curve
+      [7287, 4021],    // finish at Joppa Park
+    ],
+  },
+  {
+    // course 2 — the western homecoming: from the Maudslay gate down twisty Pine Hill
+    // Rd, Ferry Rd and the Spofford descent, then Merrimac Street flat-out along the
+    // river into the square. The middle of the ladder: sprint → this → the epic.
     id: 'merrimack',
     name: 'The Merrimack Run',
     sub: 'Maudslay gate → Market Square',
