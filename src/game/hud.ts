@@ -194,6 +194,8 @@ const css = `
 #hud .race-pop .rp-sub { font-size: 11px; color: #9fb1c2; margin-top: 1px; }
 #hud .race-pop .rp-best { font-size: 11px; color: #f0d27a; font-weight: 700; margin-top: 3px; }
 #hud .race-pop .rp-hint { font-size: 10.5px; color: #c8bd96; padding: 7px 5px 2px; line-height: 1.4; border-top: 1px solid rgba(216,185,74,0.25); margin-top: 6px; }
+#hud .race-pop .rp-err { flex-basis: 100%; font-size: 11px; color: #e8a89a; padding-top: 3px; }
+#hud .race-pop .rp-err:empty { display: none; }
 #hud .race-pop .rp-cup { float: right; font-size: 15px; padding: 2px 6px; border-radius: 7px; cursor: pointer; }
 #hud .race-pop .rp-cup:hover { background: rgba(216,185,74,0.25); }
 /* ---------- 🏆 the town leaderboard modal (post-race results + standings) ---------- */
@@ -237,6 +239,14 @@ const css = `
   font: 800 11px system-ui, sans-serif; letter-spacing: 0.5px;
 }
 #hud .bd-empty { font-size: 12.5px; color: #9fb1c2; padding: 10px 4px 6px; }
+#hud .bd-err { font-size: 12px; color: #e8a89a; padding: 4px 10px 0; min-height: 0; }
+#hud .bd-err:empty { display: none; }
+#hud .bd-again {
+  display: block; width: 100%; margin-top: 14px; padding: 13px 10px; border: none; border-radius: 14px;
+  background: linear-gradient(180deg, #f6dd8a, #e8c44f); color: #2a1c0a; font-weight: 800; font-size: 16px;
+  letter-spacing: 0.5px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+#hud .bd-again:active { transform: translateY(1px); }
 #hud .race-pop .rp-rider { font-size: 11px; color: #f0d27a; font-weight: 700; padding: 8px 5px 3px; cursor: pointer; border-top: 1px solid rgba(216,185,74,0.25); margin-top: 6px; }
 #hud .race-pop .rp-rider span { color: #9fb1c2; font-weight: 600; }
 #hud .race-pop .rp-rider:hover span { color: #c8bd96; }
@@ -1307,6 +1317,7 @@ export class Hud {
     line?: string;             // flavor: placement call / claim prompt
     pendingTime?: number;      // unnamed run to claim
     onName?: (raw: string) => { name: string; rows: { n: string; t: number }[] } | null;
+    onAgain?: () => void;      // results mode: RACE AGAIN — the most-wanted button after any finish
   }) {
     const panel = this.root.querySelector('.board-panel') as HTMLElement;
     const card = this.root.querySelector('.board-card') as HTMLElement;
@@ -1345,23 +1356,36 @@ export class Hud {
         rank++;
         const row = mk('bd-row claim');
         row.appendChild(mk('bd-rank', String(rank)));
-        const inp = Object.assign(document.createElement('input'), { maxLength: 12, placeholder: 'YOUR NAME' });
+        const inp = Object.assign(document.createElement('input'), { maxLength: 12, placeholder: 'TYPE YOUR NAME' });
         row.appendChild(inp);
         const btn = Object.assign(document.createElement('button'), { textContent: 'SAVE' });
         row.appendChild(btn);
         row.appendChild(mk('bd-t', this.fmtRace(o.pendingTime!)));
+        // rejection needs WORDS: the silent shake read as "the game is broken", and a
+        // kid whose name got filtered deserves to know it's the name, not them
+        const err = mk('bd-err');
         const commit = () => {
           const res = o.onName ? o.onName(inp.value) : null;
           if (res) render({ ...o, you: res.name, rows: res.rows, pendingTime: undefined, onName: undefined, line: '★ saved — you’re on the board!' });
-          else { inp.classList.remove('bad'); void inp.offsetWidth; inp.classList.add('bad'); inp.select(); }
+          else {
+            err.textContent = inp.value.trim() ? 'that name isn’t allowed — try another!' : 'type a name first!';
+            inp.classList.remove('bad'); void inp.offsetWidth; inp.classList.add('bad'); inp.select();
+          }
         };
+        inp.addEventListener('input', () => { err.textContent = ''; });
         btn.addEventListener('click', (e) => { e.stopPropagation(); commit(); });
         inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') hide(); });
         list.appendChild(row);
+        list.appendChild(err);
         setTimeout(() => inp.focus(), 300);
       };
       rows.forEach((r, i) => { if (i === claimAt && o.onName) addClaim(); addRow(r); });
       if (claimAt >= rows.length && o.onName && o.pendingTime !== undefined) addClaim();
+      if (o.onAgain) {
+        const again = Object.assign(document.createElement('button'), { className: 'bd-again', textContent: '🏁 RACE AGAIN' });
+        again.addEventListener('click', (e) => { e.stopPropagation(); hide(); o.onAgain!(); });
+        card.appendChild(again);
+      }
       panel.classList.add('show');
     };
     render(opts);
@@ -1401,7 +1425,7 @@ export class Hud {
    *  `rows` is re-read on every open so best times stay fresh; picking a course
    *  hands its id to the game, which fades you to the start line and begins. */
   initRaces(
-    rows: () => { id: string; name: string; sub: string; miles: number; best: number | null; leader: { n: string; t: number } | null }[],
+    rows: () => { id: string; name: string; sub: string; miles: number; est: number; best: number | null; leader: { n: string; t: number } | null }[],
     onPick: (id: string) => void,
     rider: { get: () => string; set: (raw: string) => { ok: boolean; name: string }; has: () => boolean },
     onQuit: () => void,
@@ -1439,7 +1463,9 @@ export class Hud {
         cup.addEventListener('click', (e) => { e.stopPropagation(); pop.classList.remove('open'); onBoard(r.id); });
         nameLine.appendChild(cup);
         it.appendChild(nameLine);
-        it.appendChild(Object.assign(document.createElement('div'), { className: 'rp-sub', textContent: r.sub + ' · ' + r.miles.toFixed(1) + ' mi' }));
+        // miles for the grown-ups, ride time for the kids — "3.8 mi" means nothing at 7
+        const estTxt = r.est < 75 ? '~' + Math.max(10, Math.round(r.est / 5) * 5) + ' sec ride' : '~' + Math.round(r.est / 60) + ' min ride';
+        it.appendChild(Object.assign(document.createElement('div'), { className: 'rp-sub', textContent: r.sub + ' · ' + r.miles.toFixed(1) + ' mi · ' + estTxt }));
         // the town board leads the line — the leaderboard is the point
         let bestLine: string;
         if (r.leader && r.leader.n === rider.get() && r.best !== null) bestLine = '👑 you lead the town — ' + this.fmtRace(r.leader.t);
@@ -1463,16 +1489,23 @@ export class Hud {
       row.addEventListener('click', () => {
         if (row.querySelector('input')) return;
         row.innerHTML = '🚴 ';
-        const inp = Object.assign(document.createElement('input'), { maxLength: 12, value: rider.get(), placeholder: 'YOUR NAME' });
+        const inp = Object.assign(document.createElement('input'), { maxLength: 12, value: rider.get(), placeholder: 'TYPE YOUR NAME' });
+        // same words-not-just-shake rule as the results board's claim row
+        const err = Object.assign(document.createElement('div'), { className: 'rp-err' });
         const commit = () => {
           const res = rider.set(inp.value);
           if (res.ok) showName();
-          else { inp.classList.remove('bad'); void inp.offsetWidth; inp.classList.add('bad'); inp.select(); }
+          else {
+            err.textContent = inp.value.trim() ? 'that name isn’t allowed — try another!' : '';
+            inp.classList.remove('bad'); void inp.offsetWidth; inp.classList.add('bad'); inp.select();
+          }
         };
+        inp.addEventListener('input', () => { err.textContent = ''; });
         inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') showName(); });
         inp.addEventListener('blur', () => commit());
         inp.addEventListener('click', (e) => e.stopPropagation());
         row.appendChild(inp);
+        row.appendChild(err);
         inp.focus(); inp.select();
       });
       showName();

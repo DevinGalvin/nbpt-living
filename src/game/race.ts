@@ -101,11 +101,19 @@ export function fmtTime(s: number): string {
 }
 
 const PX_PER_METER = 8;                // world.json meta.pxPerMeter — the map is honest, so the sign can be too
-/** real-world length of a course's suggested route, in miles */
-export function courseMiles(c: Course): number {
+function routeLenPx(c: Course): number {
   let L = 0;
   for (let i = 2; i < c.route.length; i += 2) L += Math.hypot(c.route[i] - c.route[i - 2], c.route[i + 1] - c.route[i - 1]);
-  return L / PX_PER_METER / 1609.34;
+  return L;
+}
+/** real-world length of a course's suggested route, in miles */
+export function courseMiles(c: Course): number {
+  return routeLenPx(c) / PX_PER_METER / 1609.34;
+}
+const EST_BIKE_SPEED = 530;            // Game's bike px/s — the picker's "about how long" line
+/** rough ride time at bike speed, in seconds — "3.8 mi" means nothing to a kid; "~4 min" does */
+export function courseEstSeconds(c: Course): number {
+  return routeLenPx(c) / EST_BIKE_SPEED;
 }
 
 // ---------- rider name (kid-safe) ----------
@@ -240,6 +248,7 @@ export class RaceRunner {
     private audio: GameAudio,
     private ride: (on: boolean) => void,   // Game auto-mounts the bike at the line
     private orient: (dx: number, dz: number) => void,   // Game turns the camera down-course at the start
+    private restart: (id: string) => void, // Game fades back to the start line — the results card's RACE AGAIN
   ) {
     for (const c of COURSES) this.buildFlag(c);
     // The "next gate" guide — OBVIOUS but diegetic (Devin: chevrons-only was too subtle,
@@ -610,6 +619,13 @@ export class RaceRunner {
       const gy = Math.max(this.index.heightAtPx(s[1], s[2]), this.index.deckHeightAt(s[1], s[2]));
       this.ghostRider.position.set(s[1], gy, s[2]);
       this.ghostRider.visible = true;
+      // say who the pale blue rider IS — it just appears otherwise, and a kid can't
+      // tell a ghost-to-beat from a glitch. Banner rides over the countdown, then fades.
+      const yours = hasRaceName() && lead!.n === getRaceName();
+      this.hud.announce(
+        yours ? '👻 Your ghost rides too' : '👻 ' + lead!.n + '’s ghost rides too',
+        yours ? 'the blue rider is your best run — beat it!' : 'the blue rider is the town’s best run — chase it!'
+      );
     } else this.ghostRider.visible = false;
     // project every gate onto the route polyline (segment + param, kept monotonic) —
     // the guidance legs and chevron arcs are cut from the REAL road at these marks
@@ -665,6 +681,7 @@ export class RaceRunner {
           this.flushPending();
           return { name: r.name, rows: getBoard(c.id) };
         },
+        onAgain: () => this.restart(c.id),
       });
     } else {
       // the run goes on the town board; the results modal shows exactly where it landed
@@ -672,11 +689,18 @@ export class RaceRunner {
       syncBoard(c.id);
       const board = getBoard(c.id);
       let line: string;
-      if (!newBest) line = 'your best stands at ' + fmtTime(prev!);
+      if (!newBest) {
+        // never just state the miss — a kid reads "your best stands at 1:34" as "you
+        // lost". Show the gap and make another go the obvious next move.
+        const gap = this.clock - prev!;
+        line = gap <= 3
+          ? 'SO close — just ' + gap.toFixed(1) + 's off your best!'
+          : 'your best is ' + fmtTime(prev!) + ' — the ghost knows the way!';
+      }
       else if (board.length > 1 && place === 1) line = '👑 #1 in town — NEW BEST!';
       else if (board.length > 1) line = 'NEW BEST — #' + place + ' in town!';
       else line = 'NEW BEST! The town will hear about this.';
-      this.hud.raceBoard({ course: c.name, sub: c.sub, time: fmtTime(this.clock), line, rows: board, you: getRaceName() });
+      this.hud.raceBoard({ course: c.name, sub: c.sub, time: fmtTime(this.clock), line, rows: board, you: getRaceName(), onAgain: () => this.restart(c.id) });
     }
     this.reset();
   }

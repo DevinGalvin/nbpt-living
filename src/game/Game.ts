@@ -14,7 +14,7 @@ import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
 import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
-import { RaceRunner, COURSES, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles } from './race';
+import { RaceRunner, COURSES, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles, courseEstSeconds } from './race';
 import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
 import { STYLE, SEASON } from '../world/style';
@@ -372,19 +372,23 @@ export class Game {
     // switch mirrors whatever it actually applies.
     this.hud.initSettings(this.quest.story, (next) => { this.quest!.setStory(next); return this.quest!.story; });
     this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
+    // fade to a course's start line and begin — the picker path AND the results
+    // card's RACE AGAIN both ride this
+    const startRace = (id: string) => {
+      const c = COURSES.find((k) => k.id === id);
+      if (!c || !this.race) return;
+      this.hud.fadeThrough(() => { this.travelToXY(c.start.x, c.start.z); this.race!.startById(id); });
+    };
     this.race = new RaceRunner(this.scene, this.index, this.hud, this.audio, (on) => this.lendBike(on),
       // at the start line, spin the chase cam to face down-course — the first thing a
       // dropped-in racer sees is the way to go
-      (dx, dz) => { this.camAz = Math.atan2(-dx, dz); this.updateCamera(0, true); });
+      (dx, dz) => { this.camAz = Math.atan2(-dx, dz); this.updateCamera(0, true); },
+      startRace);
     // 🏁 front door: pick a course anywhere in town → fade to its start line → countdown.
     // (The in-world start flag still works for players who ride up to it.)
     this.hud.initRaces(
-      () => COURSES.map((c) => ({ id: c.id, name: c.name, sub: c.sub, miles: courseMiles(c), best: this.race!.bestFor(c.id), leader: getBoard(c.id)[0] || null })),
-      (id) => {
-        const c = COURSES.find((k) => k.id === id);
-        if (!c || !this.race) return;
-        this.hud.fadeThrough(() => { this.travelToXY(c.start.x, c.start.z); this.race!.startById(id); });
-      },
+      () => COURSES.map((c) => ({ id: c.id, name: c.name, sub: c.sub, miles: courseMiles(c), est: courseEstSeconds(c), best: this.race!.bestFor(c.id), leader: getBoard(c.id)[0] || null })),
+      startRace,
       // naming yourself from the picker also banks any held unnamed runs
       { get: getRaceName, set: (raw) => { const r = setRaceName(raw); if (r.ok) this.race?.flushPending(); return r; }, has: hasRaceName },
       () => this.race?.quit(),
