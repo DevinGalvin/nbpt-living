@@ -586,6 +586,24 @@ function car(bk: Bucket, x: number, z: number, ang: number, hex: string, g = 0) 
 
 // harbor boat on the water plane: runabouts, lobster boats, furled-sail sloops.
 // Scaled up to read like real working boats beside the (tall, stylized) kid.
+// A moored boat must float CLEAR (Devin: "boats cant be stacked on top of docks or
+// be going through eachother"): bow, stern and center on open water, off every pier
+// deck — the ring walk turns corners, where a naive perpendicular offset lays the
+// hull diagonally across the dock — and at least a hull apart from its neighbours.
+function mooringClear(index: WorldIndex, moored: [number, number][], bx: number, bz: number, ang: number, seed: number): boolean {
+  const sc = 0.68 + (hash32(seed, 9, 2) % 100) / 100 * 0.8;   // same size boat() will build
+  const r = 16 * sc + 4;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  for (const [px, pz] of [[bx, bz], [bx + ca * r, bz + sa * r], [bx - ca * r, bz - sa * r]] as [number, number][]) {
+    if (!index.isWaterAt(px, pz)) return false;
+    if (index.heightAtPx(px, pz) > WATER_Y - 0.5) return false;   // exposed flat — would beach
+    if (index.pierAt(px, pz)) return false;                       // lying across a dock
+  }
+  for (const [mx, mz] of moored) {
+    if ((bx - mx) * (bx - mx) + (bz - mz) * (bz - mz) < 44 * 44) return false;
+  }
+  return true;
+}
 function boat(bk: Bucket, x: number, z: number, ang: number, seed: number) {
   const ca = Math.cos(ang), sa = Math.sin(ang);
   // a real harbor moors every size — dinghies to near-yachts. One seed-driven
@@ -3119,6 +3137,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   }
 
   // boats tied up along the real mooring docks
+  const moored: [number, number][] = [];
   for (const pi of bucket.paths) {
     const p = world.paths[pi];
     if (!p.m || !MOOR_FILL) continue;
@@ -3130,9 +3149,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const off = Math.max(p.w, 18) / 2 + 22;
       const bx = x - tz * flip * off, bz = z + tx * flip * off;
       if (bx < ox || bx >= ox + CHUNK || bz < oy || bz >= oy + CHUNK) return;
-      if (!index.isWaterAt(bx, bz)) return;
-      if (index.heightAtPx(bx, bz) > WATER_Y - 0.5) return; // exposed flat — would beach
-      boat(buckets[PLAIN], bx, bz, Math.atan2(tz, tx), h2);
+      const ang = Math.atan2(tz, tx);
+      if (!mooringClear(index, moored, bx, bz, ang, h2)) return;
+      boat(buckets[PLAIN], bx, bz, ang, h2);
+      moored.push([bx, bz]);
     });
   }
   for (const pi of bucket.polys) {
@@ -3148,10 +3168,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (h2 % 100 >= MOOR_FILL) return;
       for (const s of [1, -1]) {
         const bx = x - tz * s * 24, bz = z + tx * s * 24;
-        if (!index.isWaterAt(bx, bz)) continue;
-        if (index.heightAtPx(bx, bz) > WATER_Y - 0.5) continue; // exposed flat — would beach
         if (bx < ox || bx >= ox + CHUNK || bz < oy || bz >= oy + CHUNK) break;
-        boat(buckets[PLAIN], bx, bz, Math.atan2(tz, tx), h2);
+        const ang = Math.atan2(tz, tx);
+        if (!mooringClear(index, moored, bx, bz, ang, h2)) continue;
+        boat(buckets[PLAIN], bx, bz, ang, h2);
+        moored.push([bx, bz]);
         placed++;
         break;
       }
