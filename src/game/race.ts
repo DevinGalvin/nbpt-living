@@ -120,10 +120,10 @@ export class RaceRunner {
   private airGrace = 0;                // …then give a grace window to ride back toward the course
 
   private flags = new Map<string, THREE.Group>();
-  private gateMark: THREE.Group;           // origin-anchored holder: ring + pennants + chevrons (world-positioned children)
+  private gateMark: THREE.Group;           // origin-anchored holder: ring + arch + chevrons (world-positioned children)
   private gateRing: THREE.Mesh;
-  private gateFlags: THREE.Group[] = [];   // two little pennant posts flanking the road at the next gate
-  private chevrons: THREE.Mesh[] = [];     // faint arrows on the pavement leading into it
+  private gateArch: THREE.Group;           // a race arch spanning the road at the next gate — visible from blocks away
+  private chevrons: THREE.Mesh[] = [];     // bold arrows on the pavement leading into it
 
   constructor(
     private scene: THREE.Scene,
@@ -133,37 +133,46 @@ export class RaceRunner {
     private ride: (on: boolean) => void,   // Game lends/returns the bike
   ) {
     for (const c of COURSES) this.buildFlag(c);
-    // The "next gate" guide, kept SUBTLE and diegetic (no sky-pillar): a pair of small
-    // pennant flags flanking the road like a real race gate — pennants streaming toward
-    // the next gate — plus a faint ring and a trail of chevrons on the pavement whose
-    // shimmer flows in the ride direction. The screen-edge waypoint arrow is the compass.
+    // The "next gate" guide — OBVIOUS but diegetic (Devin: chevrons-only was too subtle,
+    // the sky-pillar too much): a full RACE ARCH spans the road at the gate — two tall
+    // posts + a gold/maroon banner you can spot from blocks away, yawed square to the
+    // approach — plus a trail of bold pavement chevrons whose shimmer runs toward it.
     // The holder group stays at the origin; children are world-positioned per gate.
     this.gateMark = new THREE.Group();
     this.gateRing = new THREE.Mesh(
       new THREE.RingGeometry(GATE_R * 0.5, GATE_R * 0.62, 28),
-      new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
     );
     this.gateRing.rotation.x = -Math.PI / 2;
     this.gateMark.add(this.gateRing);
-    const pole = new THREE.CylinderGeometry(0.45, 0.45, 15, 6);
-    const poleMat = new THREE.MeshLambertMaterial({ color: '#e8e4d8' });
-    const pennant = new THREE.BufferGeometry();
-    pennant.setAttribute('position', new THREE.Float32BufferAttribute([0, 14.6, 0, 0, 11.8, 0, 6.4, 13.2, 0], 3));
-    pennant.computeVertexNormals();
-    const pennantMats = [new THREE.MeshBasicMaterial({ color: '#ffd24a', side: THREE.DoubleSide }), new THREE.MeshBasicMaterial({ color: '#8e2f3c', side: THREE.DoubleSide })];
-    for (let i = 0; i < 2; i++) {
-      const fl = new THREE.Group();
-      const p = new THREE.Mesh(pole, poleMat);
-      p.position.y = 7.5;
-      fl.add(p, new THREE.Mesh(pennant, pennantMats[i]));
-      this.gateMark.add(fl);
-      this.gateFlags.push(fl);
+    // the arch: posts at local ±26 (flanking the road), banner spanning them up top.
+    // MeshBasic = full-bright, so it reads at night without any beam.
+    this.gateArch = new THREE.Group();
+    const postGeo = new THREE.CylinderGeometry(0.9, 0.9, 26, 8);
+    const postMat = new THREE.MeshBasicMaterial({ color: '#f3f1e8' });
+    const gold = new THREE.MeshBasicMaterial({ color: '#ffd24a', side: THREE.DoubleSide });
+    const maroon = new THREE.MeshBasicMaterial({ color: '#8e2f3c', side: THREE.DoubleSide });
+    for (const s of [-1, 1]) {
+      const post = new THREE.Mesh(postGeo, postMat);
+      post.position.set(0, 13, s * 26);
+      this.gateArch.add(post);
+      const pen = new THREE.BufferGeometry();   // little pennant on each post top, streaming forward
+      pen.setAttribute('position', new THREE.Float32BufferAttribute([0, 26, s * 26, 0, 23.4, s * 26, 6.2, 24.7, s * 26], 3));
+      pen.computeVertexNormals();
+      this.gateArch.add(new THREE.Mesh(pen, s < 0 ? gold : maroon));
     }
-    const chevron = new THREE.BufferGeometry();   // flat arrowhead on the road, tip = local +x
-    chevron.setAttribute('position', new THREE.Float32BufferAttribute([7, 0, 0, -5, 0, 6, -5, 0, -6], 3));
+    const segGeo = new THREE.BoxGeometry(0.8, 4.6, 52 / 6);   // banner = 6 alternating segments across the road
+    for (let i = 0; i < 6; i++) {
+      const seg = new THREE.Mesh(segGeo, i % 2 ? maroon : gold);
+      seg.position.set(0, 22.6, -26 + 52 / 12 + i * (52 / 6));
+      this.gateArch.add(seg);
+    }
+    this.gateMark.add(this.gateArch);
+    const chevron = new THREE.BufferGeometry();   // bold arrowhead on the road, tip = local +x
+    chevron.setAttribute('position', new THREE.Float32BufferAttribute([16, 0, 0, -11, 0, 13, -11, 0, -13], 3));
     chevron.computeVertexNormals();
-    for (let i = 0; i < 5; i++) {
-      const ch = new THREE.Mesh(chevron, new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }));
+    for (let i = 0; i < 8; i++) {
+      const ch = new THREE.Mesh(chevron, new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }));
       this.gateMark.add(ch);
       this.chevrons.push(ch);
     }
@@ -270,8 +279,8 @@ export class RaceRunner {
     const d = Math.hypot(px - gx, pz - gz);
     const pulse = 1 + 0.05 * Math.sin(this.t * 3);      // gentle breath, not a beacon
     this.gateRing.scale.set(pulse, pulse, 1);
-    for (let i = 0; i < this.chevrons.length; i++) {    // shimmer flows toward the gate
-      (this.chevrons[i].material as THREE.MeshBasicMaterial).opacity = 0.2 + 0.16 * (Math.sin(this.t * 3.2 - i * 0.9) + 1) / 2;
+    for (let i = 0; i < this.chevrons.length; i++) {    // bold shimmer racing toward the gate
+      (this.chevrons[i].material as THREE.MeshBasicMaterial).opacity = 0.4 + 0.4 * (Math.sin(this.t * 5.5 - i * 1.1) + 1) / 2;
     }
     if (d < GATE_R) {
       this.gate++;
@@ -293,19 +302,14 @@ export class RaceRunner {
     const c = this.course!;
     const [gx, gz] = c.gates[this.gate];
     const [ax, az] = this.gate > 0 ? c.gates[this.gate - 1] : [c.start.x, c.start.z];
-    const dx = gx - ax, dz = gz - az, len = Math.hypot(dx, dz) || 1;
-    const ux = dx / len, uz = dz / len;                 // ride direction into the gate
+    const dx = gx - ax, dz = gz - az;
     const yaw = Math.atan2(-dz, dx);                    // local +x → world ride direction
     const ground = (x: number, z: number) => Math.max(this.index.heightAtPx(x, z), this.index.deckHeightAt(x, z));
     this.gateRing.position.set(gx, ground(gx, gz) + 1.2, gz);
-    for (let i = 0; i < 2; i++) {                       // pennants flank the road, streaming forward
-      const s = i === 0 ? 1 : -1;
-      const fx = gx - uz * s * 26, fz = gz + ux * s * 26;
-      this.gateFlags[i].position.set(fx, ground(fx, fz), fz);
-      this.gateFlags[i].rotation.y = yaw;
-    }
-    for (let i = 0; i < this.chevrons.length; i++) {    // faint arrows lead in along the leg
-      const f = 0.2 + i * 0.16;
+    this.gateArch.position.set(gx, ground(gx, gz), gz); // the arch spans the road, square to the approach
+    this.gateArch.rotation.y = yaw;
+    for (let i = 0; i < this.chevrons.length; i++) {    // bold arrows lead in along the whole leg
+      const f = 0.12 + i * 0.11;
       const cx = ax + dx * f, cz = az + dz * f;
       this.chevrons[i].position.set(cx, ground(cx, cz) + 0.9, cz);
       this.chevrons[i].rotation.y = yaw;
