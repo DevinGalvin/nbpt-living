@@ -145,6 +145,16 @@ function nameIsClean(raw: string): boolean {
 export function getRaceName(): string {
   try { return localStorage.getItem(NAME_KEY) || NAME_DEFAULT; } catch { return NAME_DEFAULT; }
 }
+// 👻 ghost on/off (⚙️ settings): racing a visible rival thrills most kids and stresses
+// some — the stressed ones need a real out, not "ignore it". Default ON.
+const GHOST_PREF_KEY = 'nbpt-ghost';
+export function ghostEnabled(): boolean {
+  try { return localStorage.getItem(GHOST_PREF_KEY) !== '0'; } catch { return true; }
+}
+export function setGhostEnabled(on: boolean): boolean {
+  try { localStorage.setItem(GHOST_PREF_KEY, on ? '1' : '0'); } catch { /* private mode */ }
+  return on;
+}
 /** has the player actually entered a name? (scores only persist once they have —
  *  a time on the board with nobody's name on it means nothing) */
 export function hasRaceName(): boolean {
@@ -602,10 +612,11 @@ export class RaceRunner {
     const rdx = c.route[2] - c.route[0], rdz = c.route[3] - c.route[1];
     const rdl = Math.hypot(rdx, rdz) || 1;
     this.orient(rdx / rdl, rdz / rdl);
-    // load the town leader's ghost (if you lead, that's your own best — beat yourself)
+    // load the town leader's ghost (if you lead, that's your own best — beat yourself);
+    // skipped entirely when the ⚙️ ghost toggle is off — just you and the clock
     this.ghostRun = null;
     this.ghostCur = 0;
-    const lead = getBoard(c.id)[0];
+    const lead = ghostEnabled() ? getBoard(c.id)[0] : undefined;
     if (lead) {
       try {
         const gj = JSON.parse(localStorage.getItem(ghostKey(c.id, lead.n)) || 'null');

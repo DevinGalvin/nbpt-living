@@ -14,7 +14,7 @@ import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
 import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
-import { RaceRunner, COURSES, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles, courseEstSeconds } from './race';
+import { RaceRunner, COURSES, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles, courseEstSeconds, ghostEnabled, setGhostEnabled } from './race';
 import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
 import { STYLE, SEASON } from '../world/style';
@@ -371,6 +371,7 @@ export class Game {
     // ⚙️ Story-mode toggle: explore vs play. The quest is the source of truth, so the
     // switch mirrors whatever it actually applies.
     this.hud.initSettings(this.quest.story, (next) => { this.quest!.setStory(next); return this.quest!.story; });
+    this.hud.initGhost(ghostEnabled(), () => setGhostEnabled(!ghostEnabled()));
     this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
     // fade to a course's start line and begin — the picker path AND the results
     // card's RACE AGAIN both ride this
@@ -1121,8 +1122,12 @@ export class Game {
       }
       this.updateCamera(0, true);
       this.quest?.refresh();
-      // landing mid-race puts you back in the saddle — the run never stopped
-      if (this.race?.active) this.lendBike(true);
+      // landing mid-race puts you back in the saddle — the run never stopped. SAY so:
+      // a kid who flew off to sightsee has long forgotten the clock is running
+      if (this.race?.active) {
+        this.lendBike(true);
+        this.hud.announce('🏁 Still racing!', 'the clock never stopped — ride for the finish');
+      }
     });
   }
 

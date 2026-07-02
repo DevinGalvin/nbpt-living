@@ -1083,6 +1083,10 @@ export class Hud {
           <div class="sp-label"><div class="sp-name">🔊 Sound</div><div class="sp-sub">Music &amp; effects</div></div>
           <div class="sp-sw"></div>
         </div>
+        <div class="sp-row" data-set="ghost">
+          <div class="sp-label"><div class="sp-name">👻 Ghost rider</div><div class="sp-sub">Race the town's best line. Off = just you and the clock.</div></div>
+          <div class="sp-sw"></div>
+        </div>
       </div>
       <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span><span class="blab">RUN</span></div>
       <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span><span class="blab">BIKE</span></div>
@@ -2086,6 +2090,17 @@ export class Hud {
     row.addEventListener('click', (e) => {
       e.stopPropagation();   // toggling sound keeps the popover open
       paint(onToggle());
+    });
+  }
+
+  // ---------- ghost-rider toggle (lives inside the ⚙️ settings popover) ----------
+
+  initGhost(on: boolean, onToggle: () => boolean) {
+    const row = document.querySelector('#hud .settings-pop .sp-row[data-set="ghost"]') as HTMLElement;
+    row.classList.toggle('on', on);
+    row.addEventListener('click', (e) => {
+      e.stopPropagation();   // keep the popover open, same as the sound row
+      row.classList.toggle('on', onToggle());
     });
   }
 
