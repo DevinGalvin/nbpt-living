@@ -686,7 +686,8 @@ export class Game {
     this.bike.root.visible = this.riding;
     this.hud.setBikeState(this.riding);
     this.audio.bell();
-    if (!this.riding) this.race?.cancel();   // hopping off mid-race abandons the run
+    // hopping off mid-race abandons the run — but boarding the ✈️ doesn't (cheat mode)
+    if (!this.riding && !this.flying) this.race?.cancel();
   }
 
   /** Take the bike off, unconditionally. The tunnel/interior entries flip their
@@ -697,7 +698,9 @@ export class Game {
     this.riding = false;
     this.bike.root.visible = false;
     this.hud.setBikeState(false);
-    this.race?.cancel();                     // tunnels/interiors/boats end any run
+    // tunnels/interiors/boats end any run; stowing the bike for the ✈️ doesn't —
+    // flying mid-race is a sanctioned easter-egg cheat (flying is set before this runs)
+    if (!this.flying) this.race?.cancel();
   }
 
   /** Races lend a bike regardless of the earned flag (explore-mode kids race too);
@@ -1040,7 +1043,7 @@ export class Game {
   private startFlight() {
     this.flying = true;
     this.hud.flying = true;
-    if (this.riding) this.toggleBike();
+    if (this.riding) this.dismount();   // unconditional stow — lent race bikes too (toggleBike would skip them)
     if (!this.ridePlane) this.ridePlane = this.buildRidePlane();
     this.ridePlane.visible = true;
     if (!this.skirt) this.skirt = this.buildSkirt();
@@ -1086,6 +1089,8 @@ export class Game {
       }
       this.updateCamera(0, true);
       this.quest?.refresh();
+      // landing mid-race puts you back in the saddle — the run never stopped
+      if (this.race?.active) this.lendBike(true);
     });
   }
 
@@ -1756,7 +1761,7 @@ export class Game {
       this.quest.update(dt, this.px, this.pz);
       // the race runs after quest (its per-frame hud.guide write wins while racing)
       // but before history/eggs, which both yield to an armed start line or a live run
-      if (this.race) this.race.update(dt, this.px, this.pz, this.quest.nearActive || this.flying);
+      if (this.race) this.race.update(dt, this.px, this.pz, this.quest.nearActive || this.flying, this.flying);
       const raceBusy = this.race ? (this.race.active || this.race.nearActive) : false;
       if (this.history) this.history.update(dt, this.px, this.pz, this.quest.nearActive || this.flying || raceBusy);
       // eggs speak last: quest beats, then race flags, then history markers, then secrets

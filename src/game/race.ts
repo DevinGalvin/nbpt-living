@@ -116,6 +116,8 @@ export class RaceRunner {
   private rec: number[] = [];          // ghost samples, flat [t(ds), x, z, ...]
   private recAcc = 0;
   private t = 0;                       // ambient anim clock
+  private wasAir = false;              // ✈️ cheat bookkeeping: detect the landing frame…
+  private airGrace = 0;                // …then give a grace window to ride back toward the course
 
   private flags = new Map<string, THREE.Group>();
   private gateMark: THREE.Group;           // origin-anchored holder: ring + pennants + chevrons (world-positioned children)
@@ -206,7 +208,10 @@ export class RaceRunner {
     return isFinite(v) && v > 0 ? v : null;
   }
 
-  update(dt: number, px: number, pz: number, suppressed: boolean) {
+  // `airborne`: the ✈️ cheat is sanctioned — flying keeps the clock running and gates
+  // still score on 2D distance (dive-bomb them if you can), but the stray-cancel is
+  // waived so banking wide over town doesn't quietly end the run.
+  update(dt: number, px: number, pz: number, suppressed: boolean, airborne = false) {
     this.t += dt;
     // start flags breathe while idle
     for (const g of this.flags.values()) {
@@ -274,7 +279,13 @@ export class RaceRunner {
       this.audio.pop();
       this.pointGate();
     } else if (d > STRAY) {
-      this.cancel();   // wandered clean off the course — quiet reset, no scolding
+      // quiet reset when someone clearly wanders off — but never mid-flight, and a
+      // touched-down flyer gets a long grace window (landing + getting your bearings
+      // + remounting takes a while, and the reset has no urgency) to head back on course
+      if (airborne) this.wasAir = true;
+      else if (this.wasAir) { this.wasAir = false; this.airGrace = 30; }
+      else if (this.airGrace > 0) this.airGrace -= dt;
+      else this.cancel();
     }
   }
 
@@ -343,6 +354,8 @@ export class RaceRunner {
   private reset() {
     this.state = 'idle';
     this.course = null;
+    this.wasAir = false;
+    this.airGrace = 0;
     this.gateMark.visible = false;
     this.hud.raceCountdown(null);
     this.hud.setRaceTimer(null, null);
