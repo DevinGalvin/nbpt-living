@@ -508,16 +508,33 @@ export class Game {
     }
     // one-time "what's new" promo for a freshly-shipped feature (flight just went public).
     // Stagger after the street nudge for newcomers so the two don't stack.
-    setTimeout(() => this.tryFlightPromo(), fresh ? 11000 : 3500);
+    setTimeout(() => this.tryRacePromo(), fresh ? 11000 : 3500);
   }
 
-  // pop the flight "what's new" card once, when nothing else is on screen — otherwise
-  // wait and retry, so it never lands on top of a dialogue, modal, or cutaway
+  // "what's new" cards, one per visit so nobody gets promo-stacked: racing headlines
+  // (the gameplay-first era), flight takes the next visit. Each waits until nothing
+  // else is on screen — never lands on top of a dialogue, modal, or cutaway.
+  private promoBusy(): boolean {
+    return this.inside || this.flying || this.onWater || this.hud.dialogueOpen || (this.race?.active ?? false)
+      || !!document.querySelector('#hud .chapter.show, #hud .levelpromo.show, #hud .streettip.show, #hud .modepick.show, #hud .travel-panel.open, #hud .journey-panel.show, #hud .bag-panel.show, #hud .hcard.open, #hud .board-panel.show');
+  }
+  private tryRacePromo() {
+    if (localStorage.getItem('nbpt-promo-race') === '1') { this.tryFlightPromo(); return; }
+    if (this.promoBusy()) { setTimeout(() => this.tryRacePromo(), 2500); return; }
+    const scramble = COURSES.find((c) => c.id === 'southend');
+    this.hud.featurePromo({
+      key: 'nbpt-promo-race', badge: 'NEW', icon: '🏁', title: 'Race the Town',
+      body: 'Real races on real streets! Three courses run through Clipper Town — sprint the South End, ride the river road home, or fly in from the lighthouse. Beat the clock, top the town leaderboard, and race the leader’s ghost. Any route counts — shortcuts welcome.',
+      cta: 'Take me to the start line',
+      onCta: () => {
+        if (!scramble || !this.race) return;
+        this.hud.fadeThrough(() => { this.travelToXY(scramble.start.x, scramble.start.z); this.race!.startById('southend'); });
+      },
+    });
+  }
   private tryFlightPromo() {
     if (localStorage.getItem('nbpt-promo-flight') === '1') return;
-    const busy = this.inside || this.flying || this.onWater || this.hud.dialogueOpen
-      || !!document.querySelector('#hud .chapter.show, #hud .levelpromo.show, #hud .streettip.show, #hud .modepick.show, #hud .travel-panel.open, #hud .journey-panel.show, #hud .bag-panel.show, #hud .hcard.open');
-    if (busy) { setTimeout(() => this.tryFlightPromo(), 2500); return; }
+    if (this.promoBusy()) { setTimeout(() => this.tryFlightPromo(), 2500); return; }
     this.hud.featurePromo({
       key: 'nbpt-promo-flight', badge: 'NEW', icon: '✈️', title: 'Take Flight',
       body: 'Scenic flights are open to everyone now. Head to Plum Island Airport, step onto the grass airfield, and tap ✈️ FLY to take off over Clipper Town.',
