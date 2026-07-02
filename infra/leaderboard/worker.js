@@ -1,8 +1,12 @@
 // Clipper Town — town leaderboard worker (Cloudflare Workers + KV)
 //
-// One tiny endpoint pair per town+course board:
-//   GET  /board?town=nbpt&course=southend        -> { rows: [{ n, t }, ...] }   (top 50, fastest first)
-//   POST /board  { town, course, n, t }          -> { rows, place }             (merge, keep each name's best)
+// One tiny endpoint pair per town+course board (PATH-LESS — routed on method, so
+// the same client protocol also fits Google Apps Script exec URLs; the legacy
+// /board path still works):
+//   GET  ?town=nbpt&course=southend              -> { rows: [{ n, t }, ...] }   (top 50, fastest first)
+//   POST { town, course, n, t }  as text/plain   -> { rows, place }             (merge, keep each name's best)
+//   (the client sends text/plain to dodge CORS preflights for Apps Script;
+//    req.json() here parses the body regardless of the header)
 //
 // Names are re-validated SERVER-side with the same kid-safe filter as the client
 // (never trust the client), times sanity-checked, boards capped. No accounts, no
@@ -52,7 +56,7 @@ export default {
     const headers = cors(origin);
     if (req.method === 'OPTIONS') return new Response(null, { headers });
     const url = new URL(req.url);
-    if (url.pathname !== '/board') return new Response('{"error":"not found"}', { status: 404, headers });
+    if (url.pathname !== '/' && url.pathname !== '/board') return new Response('{"error":"not found"}', { status: 404, headers });
 
     if (req.method === 'GET') {
       const town = url.searchParams.get('town') || '';

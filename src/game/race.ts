@@ -169,25 +169,38 @@ const boardKey = (id: string) => `nbpt-race-${id}-board`;
 export function getBoard(id: string): BoardRow[] {
   try { const b = JSON.parse(localStorage.getItem(boardKey(id)) || '[]'); return Array.isArray(b) ? b : []; } catch { return []; }
 }
-// ---------- cloud sync (ships DARK until a worker URL is configured) ----------
-// Deploy infra/leaderboard/ (5-minute README in that folder) and paste the worker URL
-// here: every town board goes live worldwide. Empty string = local-only boards.
+// ---------- cloud sync (ships DARK until a backend URL is configured) ----------
+// Two interchangeable free backends, same protocol (see infra/leaderboard/README.md):
+//   · Google Apps Script (apps-script.gs) — NO new account, uses the Google login
+//     you already have; the board lives in a Sheet you can open and moderate
+//   · Cloudflare Worker (worker.js) — if you ever want lower latency
+// Paste the deployed URL here and every town board goes live worldwide. Empty
+// string = local-only boards. To TEST-DRIVE a URL without a rebuild, set
+// localStorage 'nbpt-board-url' in the console — it overrides this constant.
 const LEADERBOARD_URL: string = '';
 const TOWN = 'nbpt';
+function boardUrl(): string {
+  let u = LEADERBOARD_URL;
+  try { u = localStorage.getItem('nbpt-board-url') || u; } catch { /* private mode */ }
+  return u.replace(/\/+$/, '');
+}
 function syncBoard(id: string) {
-  if (!LEADERBOARD_URL) return;
-  const base = LEADERBOARD_URL.replace(/\/+$/, '');
+  const base = boardUrl();
+  if (!base) return;
   const me = hasRaceName() ? getRaceName() : null;
   const mine = me ? getBoard(id).find((r) => r.n === me) : null;
   // pull the town's board and adopt it locally (the cloud is the wider truth); any
   // failure leaves the local board standing — offline play never notices
-  const pull = () => fetch(`${base}/board?town=${TOWN}&course=${id}`)
+  const pull = () => fetch(`${base}?town=${TOWN}&course=${id}`)
     .then((r) => r.json())
     .then((j) => { if (Array.isArray(j.rows) && j.rows.length) { try { localStorage.setItem(boardKey(id), JSON.stringify(j.rows)); } catch { /* private mode */ } } })
     .catch(() => { /* offline: the local board stands */ });
   if (mine) {
-    fetch(`${base}/board`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    fetch(base, {
+      method: 'POST',
+      // text/plain = a CORS "simple request" — no preflight, which Apps Script web
+      // apps can't answer. The body is still JSON; both backends parse it the same.
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ town: TOWN, course: id, n: mine.n, t: mine.t }),
     }).then(pull, pull);
   } else pull();
