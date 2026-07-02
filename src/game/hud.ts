@@ -55,10 +55,14 @@ const css = `
 #hud .banner.show { opacity: 1; transform: translate(-50%, 0); }
 #hud .banner .name { font-family: Georgia, serif; font-size: 23px; color: #f6f3e8; letter-spacing: 0.5px; }
 #hud .banner .sub { font-size: 12px; color: #d8cfa8; margin-top: 3px; letter-spacing: 1px; }
-#hud .corner { position: absolute; font-size: 11px; color: rgba(30, 34, 30, 0.85); bottom: 6px;
-  text-shadow: 0 1px 2px rgba(255,255,255,0.5); }
+#hud .corner { position: absolute; font-size: 11px; color: rgba(243, 241, 232, 0.9); bottom: 6px;
+  text-shadow: 0 1px 3px rgba(20, 10, 14, 0.9), 0 0 6px rgba(20, 10, 14, 0.55); }
 #hud .help { left: 8px; }
 #hud .attr { right: 8px; font-size: 10px; }
+/* phones: no instruction line at all (Devin: "too distracting" — the controls ARE
+   on screen); the OSM attribution must stay (ODbL license) but goes whisper-quiet */
+#hud.touch .help { display: none; }
+#hud.touch .attr { font-size: 8.5px; opacity: 0.55; }
 #hud .stick-base, #hud .stick-knob { position: absolute; border-radius: 50%; display: none; }
 #hud .stick-base { width: 128px; height: 128px; background: rgba(var(--maroon), 0.22); border: 2px solid rgba(243,241,232,0.5); }
 #hud .stick-knob { width: 44px; height: 44px; background: rgba(243,241,232,0.55); }
@@ -268,6 +272,10 @@ const css = `
   background: rgba(243, 241, 232, 0.07); border: 1px solid rgba(243, 241, 232, 0.14);
   border-radius: 9px; padding: 9px 12px; cursor: pointer; transition: background 0.15s;
 }
+/* grid cards lead with a place-emoji (search results stay text-only) */
+#hud .travel-grid .travel-item { display: flex; align-items: center; gap: 10px; }
+#hud .travel-item .ti-em { font-size: 21px; line-height: 1; flex: none; }
+#hud .travel-item .ti-tx { flex: 1; min-width: 0; }
 #hud .travel-item:hover { background: rgba(216, 185, 74, 0.18); }
 #hud .travel-item .tn { color: #f3f1e8; font-size: 14px; font-weight: 600; }
 #hud .travel-item .ts { color: #c8bd96; font-size: 11px; margin-top: 2px; }
@@ -1178,10 +1186,33 @@ export class Hud {
       }
     }
     const grid = document.querySelector('#hud .travel-grid')!;
+    // a picture on every destination card: pre-readers navigate by icon, and even
+    // fluent kids scan a grid of emoji faster than a wall of names. Keyword-matched
+    // from name+sub so it stays data-driven — new towns get icons for free.
+    // KEEP THIS TABLE IN SYNC with nbpt-living src/game/hud.ts (one engine, two builds).
+    const placeEmoji = (name: string, sub: string): string => {
+      const s = (name + ' ' + sub).toLowerCase();
+      const table: [RegExp, string][] = [
+        [/witch|bewitched/, '🧙'],   // Salem's whole brand — must beat house/museum
+        [/mansion|manor/, '🏛'],     // before /garden/: "Ropes Mansion — house & garden"
+        [/frog|pond/, '🐸'], [/light(house)?\b|light /, '🗼'], [/airport|airfield|runway/, '✈️'],
+        [/sled|march's hill/, '🛷'], [/skat/, '⛸'], [/playground|fountain/, '🛝'],
+        [/burying|cemetery|graveyard/, '🪦'], [/bridge/, '🌉'], [/station|depot/, '🚂'],
+        [/tall ship|friendship|schooner|\bship\b/, '⛵'], [/hotel|inn\b/, '🏨'], [/fort\b|castle/, '🏰'],
+        [/farm|pasture|orchard|\bfields\b/, '🚜'], [/flats|marsh|bird/, '🦆'],
+        [/beach|island|dune|sand/, '🏖'], [/boardwalk|waterfront|wharf|dock|harbor|landing/, '⚓'],
+        [/woods|forest|park|garden|common|maudslay|willow|gallows|refuge|sanctuar/, '🌳'], [/trail|rail/, '🚲'],
+        [/reservoir|lake|river/, '🌊'], [/statue|garrison/, '🗽'], [/church|chapel|meeting/, '⛪'],
+        [/school|academy/, '🏫'], [/court/, '⚖️'], [/museum|house|hall|athen/, '🏛'],
+        [/square|downtown|market/, '⛲'], [/street|road|lane/, '🛣'],
+      ];
+      for (const [re, em] of table) if (re.test(s)) return em;
+      return '📍';
+    };
     for (const it of items) {
       const el = document.createElement('div');
       el.className = 'travel-item';
-      el.innerHTML = `<div class="tn">${it.name}</div><div class="ts">${it.sub}</div>`;
+      el.innerHTML = `<span class="ti-em">${placeEmoji(it.name, it.sub)}</span><div class="ti-tx"><div class="tn">${it.name}</div><div class="ts">${it.sub}</div></div>`;
       el.addEventListener('click', () => {
         this.toggleTravel(false);
         onPick(it.id);
