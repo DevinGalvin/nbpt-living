@@ -357,7 +357,7 @@ export class Game {
       this.toggleBike();
       return this.riding;
     });
-    this.hud.showBike(localStorage.getItem('nbpt-bike') === '1');
+    this.hud.showBike(true);   // bikes are baseline gameplay now — no story gate (the Ch3 beat still hands one over narratively)
     this.bike.root.visible = false;
     this.scene.add(this.bike.root);
     this.hud.initMinimap(world);
@@ -681,7 +681,7 @@ export class Game {
   // ---------- movement ----------
 
   toggleBike() {
-    if (localStorage.getItem('nbpt-bike') !== '1' || this.inside || this.onWater) return;
+    if (this.inside || this.onWater) return;   // bikes are everyone's — only indoors/water say no
     this.riding = !this.riding;
     this.bike.root.visible = this.riding;
     this.hud.setBikeState(this.riding);
@@ -703,18 +703,15 @@ export class Game {
     if (!this.flying) this.race?.cancel();
   }
 
-  /** Races lend a bike regardless of the earned flag (explore-mode kids race too);
-   *  returning it dismounts only riders who hadn't earned their own. */
+  /** Races auto-mount you at the start line; the finish leaves you in the saddle
+   *  (bikes are baseline now, so there's nothing to hand back). */
   private lendBike(on: boolean) {
-    if (on) {
-      if (this.riding || this.inside || this.onWater) return;
-      this.riding = true;
-      this.bike.root.visible = true;
-      this.hud.setBikeState(true);
-      this.audio.bell();
-    } else if (localStorage.getItem('nbpt-bike') !== '1') {
-      this.dismount();
-    }
+    if (!on) return;
+    if (this.riding || this.inside || this.onWater) return;
+    this.riding = true;
+    this.bike.root.visible = true;
+    this.hud.setBikeState(true);
+    this.audio.bell();
   }
 
   /** Tap-to-pet: a tap/click near Clipper on screen pets him (hearts + the secret).
@@ -883,7 +880,7 @@ export class Game {
   // on the water in either mode (the Ch4 ride or the free-roam kayak) — shared
   // rendering: water height, the seated rowing pose, Clipper in the bow, no fence-hop
   private get onWater(): boolean { return this.boating || this.kayaking; }
-  private get kayakEarned(): boolean { return localStorage.getItem('nbpt-kayak') === '1'; }
+  private get kayakEarned(): boolean { return true; }   // kayaks are baseline gameplay now (L2 still gifts one narratively)
 
   // ---------- the tunnels (Chapter 1) ----------
 
