@@ -14,7 +14,7 @@ import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
 import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
-import { RaceRunner, COURSES, getRaceName, setRaceName, hasRaceName, getBoard } from './race';
+import { RaceRunner, COURSES, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles } from './race';
 import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
 import { STYLE, SEASON } from '../world/style';
@@ -372,11 +372,14 @@ export class Game {
     // switch mirrors whatever it actually applies.
     this.hud.initSettings(this.quest.story, (next) => { this.quest!.setStory(next); return this.quest!.story; });
     this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
-    this.race = new RaceRunner(this.scene, this.index, this.hud, this.audio, (on) => this.lendBike(on));
+    this.race = new RaceRunner(this.scene, this.index, this.hud, this.audio, (on) => this.lendBike(on),
+      // at the start line, spin the chase cam to face down-course — the first thing a
+      // dropped-in racer sees is the way to go
+      (dx, dz) => { this.camAz = Math.atan2(-dx, dz); this.updateCamera(0, true); });
     // 🏁 front door: pick a course anywhere in town → fade to its start line → countdown.
     // (The in-world start flag still works for players who ride up to it.)
     this.hud.initRaces(
-      () => COURSES.map((c) => ({ id: c.id, name: c.name, sub: c.sub, best: this.race!.bestFor(c.id), leader: getBoard(c.id)[0] || null })),
+      () => COURSES.map((c) => ({ id: c.id, name: c.name, sub: c.sub, miles: courseMiles(c), best: this.race!.bestFor(c.id), leader: getBoard(c.id)[0] || null })),
       (id) => {
         const c = COURSES.find((k) => k.id === id);
         if (!c || !this.race) return;
@@ -385,6 +388,7 @@ export class Game {
       // naming yourself from the picker also banks any held unnamed runs
       { get: getRaceName, set: (raw) => { const r = setRaceName(raw); if (r.ok) this.race?.flushPending(); return r; }, has: hasRaceName },
       () => this.race?.quit(),
+      (id) => this.race?.showBoard(id),
     );
     this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,

@@ -194,6 +194,49 @@ const css = `
 #hud .race-pop .rp-sub { font-size: 11px; color: #9fb1c2; margin-top: 1px; }
 #hud .race-pop .rp-best { font-size: 11px; color: #f0d27a; font-weight: 700; margin-top: 3px; }
 #hud .race-pop .rp-hint { font-size: 10.5px; color: #c8bd96; padding: 7px 5px 2px; line-height: 1.4; border-top: 1px solid rgba(216,185,74,0.25); margin-top: 6px; }
+#hud .race-pop .rp-cup { float: right; font-size: 15px; padding: 2px 6px; border-radius: 7px; cursor: pointer; }
+#hud .race-pop .rp-cup:hover { background: rgba(216,185,74,0.25); }
+/* ---------- 🏆 the town leaderboard modal (post-race results + standings) ---------- */
+#hud .board-panel {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(12, 17, 24, 0.72); z-index: 70; pointer-events: none; opacity: 0;
+  transition: opacity 0.2s ease;
+}
+#hud .board-panel.show { pointer-events: auto; opacity: 1; }
+#hud .board-card {
+  width: min(400px, calc(100vw - 44px)); max-height: 76vh; overflow-y: auto;
+  background: var(--panel); border: 1px solid rgba(216,185,74,0.6); border-radius: 16px;
+  padding: 16px 18px 14px; box-shadow: 0 12px 44px rgba(0,0,0,0.55);
+  transform: translateY(18px) scale(0.95); transition: transform 0.26s cubic-bezier(0.2, 0.85, 0.3, 1.12);
+}
+#hud .board-panel.show .board-card { transform: translateY(0) scale(1); }
+#hud .board-card .bd-x { float: right; cursor: pointer; color: #9fb1c2; font-size: 17px; padding: 2px 8px; border-radius: 8px; }
+#hud .board-card .bd-x:hover { color: #f3f1e8; background: rgba(216,185,74,0.18); }
+#hud .bd-kick { font-size: 11px; letter-spacing: 3px; color: #e8c44f; font-weight: 700; }
+#hud .bd-title { font-family: Georgia, serif; font-size: 22px; color: #f6f3e8; margin-top: 3px; }
+#hud .bd-sub { font-size: 11px; color: #9fb1c2; margin-top: 2px; }
+#hud .bd-time { font: 800 34px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f0d27a; margin: 10px 0 1px; }
+#hud .bd-line { font-size: 12px; color: #c8bd96; margin: 2px 0 6px; }
+#hud .bd-rows { margin-top: 8px; }
+#hud .bd-row { display: flex; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 9px; font-size: 14px; color: #e8e4d8; border: 1px solid transparent; }
+#hud .bd-row .bd-rank { width: 24px; color: #9fb1c2; font-weight: 800; font-size: 12px; }
+#hud .bd-row .bd-name { flex: 1; font-weight: 700; letter-spacing: 0.5px; }
+#hud .bd-row .bd-t { font: 700 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f0d27a; }
+#hud .bd-row.me { background: rgba(216,185,74,0.16); border-color: rgba(216,185,74,0.4); }
+#hud .bd-row.claim { background: rgba(207,234,255,0.07); border: 1px dashed rgba(207,234,255,0.35); }
+#hud .bd-row.claim input {
+  flex: 1; min-width: 90px; padding: 5px 9px; border-radius: 7px;
+  border: 1px solid rgba(216,185,74,0.55); background: rgba(10,14,20,0.6);
+  color: #f3f1e8; font: 700 12px system-ui, sans-serif; letter-spacing: 0.5px;
+  outline: none; text-transform: uppercase;
+}
+#hud .bd-row.claim input.bad { border-color: #d85a4a; animation: nbpt-name-shake 0.3s ease; }
+#hud .bd-row.claim button {
+  padding: 5px 11px; border-radius: 7px; border: none; cursor: pointer;
+  color: #2a1c0a; background: linear-gradient(180deg, #ffe9a6, #e8c44f);
+  font: 800 11px system-ui, sans-serif; letter-spacing: 0.5px;
+}
+#hud .bd-empty { font-size: 12.5px; color: #9fb1c2; padding: 10px 4px 6px; }
 #hud .race-pop .rp-rider { font-size: 11px; color: #f0d27a; font-weight: 700; padding: 8px 5px 3px; cursor: pointer; border-top: 1px solid rgba(216,185,74,0.25); margin-top: 6px; }
 #hud .race-pop .rp-rider span { color: #9fb1c2; font-weight: 600; }
 #hud .race-pop .rp-rider:hover span { color: #c8bd96; }
@@ -1016,6 +1059,7 @@ export class Hud {
       <div class="season-pop"></div>
       <div class="race-btn" title="Races">🏁</div>
       <div class="race-pop"></div>
+      <div class="board-panel"><div class="board-card"></div></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><div class="travel-towns"><div class="tt-hdr">EXPLORE ANOTHER TOWN</div><div class="tt-row"></div></div><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q wp-q">➤</span><span class="otxt"></span></div>
@@ -1251,6 +1295,78 @@ export class Hud {
     return `${m}:${sec < 10 ? '0' : ''}${sec.toFixed(1)}`;
   }
 
+  /** 🏆 the town leaderboard modal — post-race results AND the picker's standings view.
+   *  With `pendingTime` + `onName`, a dashed "claim" row sits at the run's would-be rank
+   *  carrying an inline name box; a valid name re-renders the board with the rider on it. */
+  private boardWired = false;
+  raceBoard(opts: {
+    course: string; sub: string;
+    rows: { n: string; t: number }[];
+    you: string | null;
+    time?: string;             // this run, formatted (results mode)
+    line?: string;             // flavor: placement call / claim prompt
+    pendingTime?: number;      // unnamed run to claim
+    onName?: (raw: string) => { name: string; rows: { n: string; t: number }[] } | null;
+  }) {
+    const panel = this.root.querySelector('.board-panel') as HTMLElement;
+    const card = this.root.querySelector('.board-card') as HTMLElement;
+    const hide = () => panel.classList.remove('show');
+    if (!this.boardWired) {
+      this.boardWired = true;
+      panel.addEventListener('pointerdown', (e) => { if (e.target === panel) hide(); });
+    }
+    const render = (o: typeof opts) => {
+      card.innerHTML = '';
+      const mk = (cls: string, text?: string) => { const d = document.createElement('div'); d.className = cls; if (text !== undefined) d.textContent = text; return d; };
+      const x = mk('bd-x', '✕');
+      x.addEventListener('click', hide);
+      card.appendChild(x);
+      card.appendChild(mk('bd-kick', '🏆 TOWN LEADERBOARD'));
+      card.appendChild(mk('bd-title', o.course));
+      card.appendChild(mk('bd-sub', o.sub));
+      if (o.time) card.appendChild(mk('bd-time', o.time));
+      if (o.line) card.appendChild(mk('bd-line', o.line));
+      const list = mk('bd-rows');
+      card.appendChild(list);
+      const rows = o.rows.slice(0, 8);
+      if (!rows.length && o.pendingTime === undefined) list.appendChild(mk('bd-empty', 'No times yet — this board is waiting for a first rider.'));
+      // where would the pending run slot in?
+      const claimAt = o.pendingTime !== undefined ? rows.filter((r) => r.t <= o.pendingTime!).length : -1;
+      let rank = 0;
+      const addRow = (r: { n: string; t: number }) => {
+        rank++;
+        const row = mk('bd-row' + (o.you && r.n === o.you ? ' me' : ''));
+        row.appendChild(mk('bd-rank', String(rank)));
+        row.appendChild(mk('bd-name', (rank === 1 ? '👑 ' : '') + r.n));
+        row.appendChild(mk('bd-t', this.fmtRace(r.t)));
+        list.appendChild(row);
+      };
+      const addClaim = () => {
+        rank++;
+        const row = mk('bd-row claim');
+        row.appendChild(mk('bd-rank', String(rank)));
+        const inp = Object.assign(document.createElement('input'), { maxLength: 12, placeholder: 'YOUR NAME' });
+        row.appendChild(inp);
+        const btn = Object.assign(document.createElement('button'), { textContent: 'SAVE' });
+        row.appendChild(btn);
+        row.appendChild(mk('bd-t', this.fmtRace(o.pendingTime!)));
+        const commit = () => {
+          const res = o.onName ? o.onName(inp.value) : null;
+          if (res) render({ ...o, you: res.name, rows: res.rows, pendingTime: undefined, onName: undefined, line: '★ saved — you’re on the board!' });
+          else { inp.classList.remove('bad'); void inp.offsetWidth; inp.classList.add('bad'); inp.select(); }
+        };
+        btn.addEventListener('click', (e) => { e.stopPropagation(); commit(); });
+        inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') hide(); });
+        list.appendChild(row);
+        setTimeout(() => inp.focus(), 300);
+      };
+      rows.forEach((r, i) => { if (i === claimAt && o.onName) addClaim(); addRow(r); });
+      if (claimAt >= rows.length && o.onName && o.pendingTime !== undefined) addClaim();
+      panel.classList.add('show');
+    };
+    render(opts);
+  }
+
   /** big center countdown; each call re-pops the number. null clears; 'GO!' self-clears. */
   raceCountdown(text: string | null) {
     const el = this.root.querySelector('.race-count') as HTMLElement;
@@ -1285,10 +1401,11 @@ export class Hud {
    *  `rows` is re-read on every open so best times stay fresh; picking a course
    *  hands its id to the game, which fades you to the start line and begins. */
   initRaces(
-    rows: () => { id: string; name: string; sub: string; best: number | null; leader: { n: string; t: number } | null }[],
+    rows: () => { id: string; name: string; sub: string; miles: number; best: number | null; leader: { n: string; t: number } | null }[],
     onPick: (id: string) => void,
     rider: { get: () => string; set: (raw: string) => { ok: boolean; name: string }; has: () => boolean },
     onQuit: () => void,
+    onBoard: (id: string) => void,
   ) {
     if (!rows().length) return;                       // townless build: keep the button hidden
     const btn = this.root.querySelector('.race-btn') as HTMLElement;
@@ -1315,8 +1432,12 @@ export class Hud {
       for (const r of rows()) {
         const it = document.createElement('div');
         it.className = 'rp-item';
-        it.appendChild(Object.assign(document.createElement('div'), { className: 'rp-name', textContent: r.name }));
-        it.appendChild(Object.assign(document.createElement('div'), { className: 'rp-sub', textContent: r.sub }));
+        const nameLine = Object.assign(document.createElement('div'), { className: 'rp-name', textContent: r.name });
+        const cup = Object.assign(document.createElement('span'), { className: 'rp-cup', textContent: '🏆', title: 'Leaderboard' });
+        cup.addEventListener('click', (e) => { e.stopPropagation(); pop.classList.remove('open'); onBoard(r.id); });
+        nameLine.appendChild(cup);
+        it.appendChild(nameLine);
+        it.appendChild(Object.assign(document.createElement('div'), { className: 'rp-sub', textContent: r.sub + ' · ' + r.miles.toFixed(1) + ' mi' }));
         // the town board leads the line — the leaderboard is the point
         let bestLine: string;
         if (r.leader && r.leader.n === rider.get() && r.best !== null) bestLine = '👑 you lead the town — ' + this.fmtRace(r.leader.t);

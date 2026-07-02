@@ -100,6 +100,14 @@ export function fmtTime(s: number): string {
   return `${m}:${sec < 10 ? '0' : ''}${sec.toFixed(1)}`;
 }
 
+const PX_PER_METER = 8;                // world.json meta.pxPerMeter — the map is honest, so the sign can be too
+/** real-world length of a course's suggested route, in miles */
+export function courseMiles(c: Course): number {
+  let L = 0;
+  for (let i = 2; i < c.route.length; i += 2) L += Math.hypot(c.route[i] - c.route[i - 2], c.route[i + 1] - c.route[i - 1]);
+  return L / PX_PER_METER / 1609.34;
+}
+
 // ---------- rider name (kid-safe) ----------
 // A display name for best times (and the leaderboard later). All-ages town, so the
 // filter is strict and favors false positives: leet-speak is normalized before
@@ -113,6 +121,8 @@ const BAD_SUB = [
   'dick', 'penis', 'vagin', 'pussy', 'pusy', 'boob', 'tits', 'titty', 'porn', 'whore', 'slut',
   'anus', 'jizz', 'milf', 'dildo', 'rape', 'blowjob', 'handjob', 'boner',
   'nigg', 'nigr', 'fag', 'kike', 'wetback', 'retard', 'rtard', 'nazi', 'hitler', 'kkk', 'xxx',
+  // compounds that dodge the whole-word tier (which exists so CASSIE/PASSED stay legal)
+  'asshat', 'asshole', 'arsehole', 'arse', 'dumbass', 'jackass', 'butthole', 'buttcrack',
 ];
 const BAD_WORD = ['ass', 'sex', 'cum', 'tit', 'hoe', 'anal', 'spic', 'meth'];
 function nameIsClean(raw: string): boolean {
@@ -211,6 +221,12 @@ export class RaceRunner {
   private chevrons: THREE.Group[] = [];    // floating arrows tracing the line into and THROUGH the corner —
                                            // each is two passes: solid + a faint through-walls trace (corner houses
                                            // used to swallow the trail exactly at the decision point)
+  private archSegs: THREE.Mesh[] = [];     // banner segments + pennants swap to CHECKERED at the finish line
+  private archPennants: THREE.Mesh[] = [];
+  private matGold!: THREE.MeshBasicMaterial;
+  private matMaroon!: THREE.MeshBasicMaterial;
+  private matWhite!: THREE.MeshBasicMaterial;
+  private matBlack!: THREE.MeshBasicMaterial;
   // 👻 the ghost rider: replays the town leader's best line in real time — beat the
   // rider you can SEE. Loaded at begin() from the leader's recorded polyline.
   private ghostRider: THREE.Group;
@@ -222,7 +238,8 @@ export class RaceRunner {
     private index: WorldIndex,
     private hud: Hud,
     private audio: GameAudio,
-    private ride: (on: boolean) => void,   // Game lends/returns the bike
+    private ride: (on: boolean) => void,   // Game auto-mounts the bike at the line
+    private orient: (dx: number, dz: number) => void,   // Game turns the camera down-course at the start
   ) {
     for (const c of COURSES) this.buildFlag(c);
     // The "next gate" guide — OBVIOUS but diegetic (Devin: chevrons-only was too subtle,
@@ -242,8 +259,10 @@ export class RaceRunner {
     this.gateArch = new THREE.Group();
     const postGeo = new THREE.CylinderGeometry(0.9, 0.9, 26, 8);
     const postMat = new THREE.MeshBasicMaterial({ color: '#f3f1e8' });
-    const gold = new THREE.MeshBasicMaterial({ color: '#ffd24a', side: THREE.DoubleSide });
-    const maroon = new THREE.MeshBasicMaterial({ color: '#8e2f3c', side: THREE.DoubleSide });
+    const gold = (this.matGold = new THREE.MeshBasicMaterial({ color: '#ffd24a', side: THREE.DoubleSide }));
+    const maroon = (this.matMaroon = new THREE.MeshBasicMaterial({ color: '#8e2f3c', side: THREE.DoubleSide }));
+    this.matWhite = new THREE.MeshBasicMaterial({ color: '#f4f4f4', side: THREE.DoubleSide });
+    this.matBlack = new THREE.MeshBasicMaterial({ color: '#26262b', side: THREE.DoubleSide });
     for (const s of [-1, 1]) {
       const post = new THREE.Mesh(postGeo, postMat);
       post.position.set(0, 13, s * 26);
@@ -251,12 +270,15 @@ export class RaceRunner {
       const pen = new THREE.BufferGeometry();   // little pennant on each post top, streaming forward
       pen.setAttribute('position', new THREE.Float32BufferAttribute([0, 26, s * 26, 0, 23.4, s * 26, 6.2, 24.7, s * 26], 3));
       pen.computeVertexNormals();
-      this.gateArch.add(new THREE.Mesh(pen, s < 0 ? gold : maroon));
+      const pm = new THREE.Mesh(pen, s < 0 ? gold : maroon);
+      this.archPennants.push(pm);
+      this.gateArch.add(pm);
     }
     const segGeo = new THREE.BoxGeometry(0.8, 4.6, 52 / 6);   // banner = 6 alternating segments across the road
     for (let i = 0; i < 6; i++) {
       const seg = new THREE.Mesh(segGeo, i % 2 ? maroon : gold);
       seg.position.set(0, 22.6, -26 + 52 / 12 + i * (52 / 6));
+      this.archSegs.push(seg);
       this.gateArch.add(seg);
     }
     // the TURN ARROW rides on top of the banner, pointing down the EXIT street —
@@ -525,6 +547,12 @@ export class RaceRunner {
     this.gateRing.position.set(gx, ground(gx, gz) + 1.2, gz);
     this.gateArch.position.set(gx, ground(gx, gz), gz);
     this.gateArch.rotation.y = inYaw;
+    // the LAST arch is a real FINISH LINE: checkered banner + pennants, bigger, white ring
+    const isFinish = g === c.gates.length - 1;
+    this.archSegs.forEach((seg, i) => { seg.material = isFinish ? (i % 2 ? this.matBlack : this.matWhite) : (i % 2 ? this.matMaroon : this.matGold); });
+    this.archPennants.forEach((p, i) => { p.material = isFinish ? (i ? this.matBlack : this.matWhite) : (i ? this.matMaroon : this.matGold); });
+    this.gateArch.scale.setScalar(isFinish ? 1.2 : 1);
+    (this.gateRing.material as THREE.MeshBasicMaterial).color.set(isFinish ? '#ffffff' : '#ffd24a');
     if (LEnd > LGate + 20) {
       const [obx, obz] = atLen(LGate + 70);
       const outYaw = Math.atan2(-(obz - arc[gateIdx][1]), obx - arc[gateIdx][0]);
@@ -561,6 +589,10 @@ export class RaceRunner {
     this.gate = 0;
     this.popped = -1;
     syncBoard(c.id);                         // freshen the town board for next time (dark when local-only)
+    // face the rider down-course — dropped in cold, the first thing you see is the way to go
+    const rdx = c.route[2] - c.route[0], rdz = c.route[3] - c.route[1];
+    const rdl = Math.hypot(rdx, rdz) || 1;
+    this.orient(rdx / rdl, rdz / rdl);
     // load the town leader's ghost (if you lead, that's your own best — beat yourself)
     this.ghostRun = null;
     this.ghostCur = 0;
@@ -619,29 +651,56 @@ export class RaceRunner {
     }
     this.audio.jingle();
     if (!named) {
-      // hold the session's best unnamed run; the finish card carries the name box —
+      // hold the session's best unnamed run; the results board carries a claim row —
       // the moment they just earned a time is the moment they'll want to keep it
       const held = this.pending.get(c.id);
       if (!held || this.clock < held.t) this.pending.set(c.id, { t: this.clock, ghost });
-      this.hud.chapterCard(
-        '🏁 ' + c.name.toUpperCase(),
-        fmtTime(this.clock),
-        'type your name to save this time!',
-        { save: (raw) => { const r = setRaceName(raw); if (!r.ok) return null; this.flushPending(); return r.name; } },
-      );
+      this.hud.raceBoard({
+        course: c.name, sub: c.sub,
+        time: fmtTime(this.clock), line: 'type your name to claim your spot on the board!',
+        rows: getBoard(c.id), you: null, pendingTime: this.clock,
+        onName: (raw) => {
+          const r = setRaceName(raw);
+          if (!r.ok) return null;
+          this.flushPending();
+          return { name: r.name, rows: getBoard(c.id) };
+        },
+      });
     } else {
-      // the run goes on the town board; the card calls your placement
+      // the run goes on the town board; the results modal shows exactly where it landed
       const place = postToBoard(c.id, getRaceName(), this.clock);
       syncBoard(c.id);
       const board = getBoard(c.id);
       let line: string;
-      if (!newBest) line = 'best ' + fmtTime(prev!) + ' — the clock will be here all day';
-      else if (board.length > 1 && place === 1) line = '👑 #1 in town — NEW BEST for ' + getRaceName() + '!';
-      else if (board.length > 1) line = 'NEW BEST for ' + getRaceName() + ' — #' + place + ' in town!';
-      else line = 'NEW BEST for ' + getRaceName() + '! The town will hear about this.';
-      this.hud.chapterCard('🏁 ' + c.name.toUpperCase(), fmtTime(this.clock), line);
+      if (!newBest) line = 'your best stands at ' + fmtTime(prev!);
+      else if (board.length > 1 && place === 1) line = '👑 #1 in town — NEW BEST!';
+      else if (board.length > 1) line = 'NEW BEST — #' + place + ' in town!';
+      else line = 'NEW BEST! The town will hear about this.';
+      this.hud.raceBoard({ course: c.name, sub: c.sub, time: fmtTime(this.clock), line, rows: board, you: getRaceName() });
     }
     this.reset();
+  }
+
+  /** open the town board for a course (the picker's 🏆) — claim row included if a
+   *  nameless run is still held from earlier in the session */
+  showBoard(id: string) {
+    const c = COURSES.find((k) => k.id === id);
+    if (!c) return;
+    syncBoard(id);
+    const held = !hasRaceName() ? this.pending.get(id) : undefined;
+    this.hud.raceBoard({
+      course: c.name, sub: c.sub,
+      rows: getBoard(id),
+      you: hasRaceName() ? getRaceName() : null,
+      pendingTime: held ? held.t : undefined,
+      line: held ? 'type your name to claim your held run!' : undefined,
+      onName: !hasRaceName() ? (raw) => {
+        const r = setRaceName(raw);
+        if (!r.ok) return null;
+        this.flushPending();
+        return { name: r.name, rows: getBoard(id) };
+      } : undefined,
+    });
   }
 
   /** once a name exists, bank any held unnamed runs (better-than-their-row only) */

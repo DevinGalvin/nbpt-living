@@ -22,6 +22,8 @@ const BAD_SUB = [
   'dick', 'penis', 'vagin', 'pussy', 'pusy', 'boob', 'tits', 'titty', 'porn', 'whore', 'slut',
   'anus', 'jizz', 'milf', 'dildo', 'rape', 'blowjob', 'handjob', 'boner',
   'nigg', 'nigr', 'fag', 'kike', 'wetback', 'retard', 'rtard', 'nazi', 'hitler', 'kkk', 'xxx',
+  // compounds that dodge the whole-word tier (which exists so CASSIE/PASSED stay legal)
+  'asshat', 'asshole', 'arsehole', 'arse', 'dumbass', 'jackass', 'butthole', 'buttcrack',
 ];
 const BAD_WORD = ['ass', 'sex', 'cum', 'tit', 'hoe', 'anal', 'spic', 'meth'];
 function nameIsClean(raw) {
