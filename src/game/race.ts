@@ -208,7 +208,9 @@ export class RaceRunner {
   private gateRing: THREE.Mesh;
   private gateArch: THREE.Group;           // a race arch spanning the road at the next gate — visible from blocks away
   private turnArrow: THREE.Group;          // big arrow atop the arch pointing down the EXIT street (the turn, telegraphed)
-  private chevrons: THREE.Mesh[] = [];     // bold arrows on the pavement leading into and THROUGH the corner
+  private chevrons: THREE.Group[] = [];    // floating arrows tracing the line into and THROUGH the corner —
+                                           // each is two passes: solid + a faint through-walls trace (corner houses
+                                           // used to swallow the trail exactly at the decision point)
   // 👻 the ghost rider: replays the town leader's best line in real time — beat the
   // rider you can SEE. Loaded at begin() from the leader's recorded polyline.
   private ghostRider: THREE.Group;
@@ -269,13 +271,19 @@ export class RaceRunner {
     this.turnArrow.position.y = 27.5;
     this.gateArch.add(this.turnArrow);
     this.gateMark.add(this.gateArch);
-    const chevron = new THREE.BufferGeometry();   // bold arrowhead on the road, tip = local +x
-    chevron.setAttribute('position', new THREE.Float32BufferAttribute([16, 0, 0, -11, 0, 13, -11, 0, -13], 3));
+    const chevron = new THREE.BufferGeometry();   // bold arrowhead, tip = local +x
+    chevron.setAttribute('position', new THREE.Float32BufferAttribute([18, 0, 0, -12, 0, 15, -12, 0, -15], 3));
     chevron.computeVertexNormals();
     for (let i = 0; i < 10; i++) {                // 7 pace the approach, 3 carry the line through the turn
-      const ch = new THREE.Mesh(chevron, new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }));
-      this.gateMark.add(ch);
-      this.chevrons.push(ch);
+      const grp = new THREE.Group();
+      const solid = new THREE.Mesh(chevron, new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide }));
+      // the through-walls trace: whisper-faint, drawn over everything — the corner
+      // house can't swallow the line right when the rider needs it most
+      const xray = new THREE.Mesh(chevron, new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.13, depthWrite: false, depthTest: false, side: THREE.DoubleSide }));
+      xray.renderOrder = 7;
+      grp.add(solid, xray);
+      this.gateMark.add(grp);
+      this.chevrons.push(grp);
     }
     this.gateMark.visible = false;
     this.gateMark.renderOrder = 5;
@@ -461,7 +469,12 @@ export class RaceRunner {
     const pulse = 1 + 0.05 * Math.sin(this.t * 3);      // gentle breath, not a beacon
     this.gateRing.scale.set(pulse, pulse, 1);
     for (let i = 0; i < this.chevrons.length; i++) {    // bold shimmer racing toward the gate
-      (this.chevrons[i].material as THREE.MeshBasicMaterial).opacity = 0.4 + 0.4 * (Math.sin(this.t * 5.5 - i * 1.1) + 1) / 2;
+      const wave = (Math.sin(this.t * 5.5 - i * 1.1) + 1) / 2;
+      const [solid, xray] = this.chevrons[i].children as THREE.Mesh[];
+      (solid.material as THREE.MeshBasicMaterial).opacity = 0.4 + 0.4 * wave;
+      // through-walls trace: a whisper on the approach, but LOUD in the corner zone —
+      // the turn is exactly where a corner house used to swallow the line
+      (xray.material as THREE.MeshBasicMaterial).opacity = i >= 5 ? 0.22 + 0.16 * wave : 0.08 + 0.08 * wave;
     }
   }
 
@@ -533,8 +546,12 @@ export class RaceRunner {
       const f = (wantL - lens[k - 1]) / ((lens[k] - lens[k - 1]) || 1);
       const cx = arc[k - 1][0] + (arc[k][0] - arc[k - 1][0]) * f;
       const cz = arc[k - 1][1] + (arc[k][1] - arc[k - 1][1]) * f;
-      this.chevrons[i].position.set(cx, ground(cx, cz) + 0.9, cz);
+      // FLOATING, not painted: up at handlebar height they clear cars/hedges and
+      // don't foreshorten to slivers under the high chase cam
+      this.chevrons[i].position.set(cx, ground(cx, cz) + 10, cz);
       this.chevrons[i].rotation.y = Math.atan2(-(arc[k][1] - arc[k - 1][1]), arc[k][0] - arc[k - 1][0]);
+      const emph = i >= 5 ? 1.45 : 1;           // the corner zone shouts louder
+      this.chevrons[i].scale.set(emph, emph, emph);
     }
     this.gateMark.visible = true;
   }
