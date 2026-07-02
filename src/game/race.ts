@@ -19,7 +19,9 @@ export type Course = {
   name: string;
   sub: string;
   start: { x: number; z: number };     // start flag + arming spot
-  gates: [number, number][];           // ride-through order; the last gate is the finish
+  gates: [number, number][];           // guidance waypoints; the last one is the finish line
+  route: number[];                     // the REAL road polyline start→finish (simplified), flat [x,z,...] —
+                                       // chevrons follow this around bends instead of cutting chords through blocks
 };
 
 export const COURSES: Course[] = [
@@ -39,6 +41,7 @@ export const COURSES: Course[] = [
       [5831, 2938],    // the Joppa shore curve
       [7287, 4021],    // finish at Joppa Park
     ],
+    route: [3961, 7552, 4800, 5140, 5035, 4627, 5108, 4629, 3818, 3918, 4675, 2117, 5123, 2499, 6320, 3275, 7287, 4021],
   },
   {
     // course 2 — the western homecoming: from the Maudslay gate down twisty Pine Hill
@@ -55,6 +58,7 @@ export const COURSES: Course[] = [
       [-5429, -3205], [-4420, -1953], [-3271, -1020], [-1808, -549], [-481, -197],
       [-140, -130],
     ],
+    route: [-34137, -9817, -31031, -15295, -30724, -15668, -30421, -15878, -29660, -16026, -28993, -15979, -26731, -15157, -25529, -14338, -25198, -13929, -24940, -13487, -24947, -15510, -24874, -16396, -24233, -17898, -23827, -17769, -20721, -16135, -15722, -13112, -12495, -10967, -10041, -8538, -8759, -6848, -7115, -4516, -6419, -3904, -5605, -3420, -4924, -2452, -4039, -1590, -3381, -1080, -2607, -741, -1808, -549, -1019, -489, -421, -171, -123, -120],
   },
   {
     id: 'homecoming',
@@ -70,6 +74,7 @@ export const COURSES: Course[] = [
       [13109, 9922], [11152, 8172], [9577, 6017], [7582, 4286], [6320, 3275],
       [5145, 2513], [3994, 1571], [2877, 739], [1707, -171], [200, -180],
     ],
+    route: [33026, -4051, 33318, -3799, 33445, -3541, 35596, -2679, 35995, -2391, 36971, -828, 37557, 236, 38973, 3235, 39130, 3689, 39568, 5478, 39659, 7678, 39569, 8868, 39788, 11053, 39748, 11172, 39623, 11276, 37006, 11184, 34589, 11707, 32542, 11865, 28526, 12720, 19337, 13638, 18672, 13635, 17573, 12997, 13800, 10528, 12095, 9054, 11096, 8115, 10720, 7630, 10552, 7015, 10205, 6515, 8449, 5137, 6927, 3717, 5123, 2499, 3961, 1547, 3289, 1134, 2166, -7, 1007, -342, 641, -369, 343, -285],
   },
 ];
 
@@ -139,7 +144,8 @@ export class RaceRunner {
   private state: 'idle' | 'count' | 'run' = 'idle';
   private course: Course | null = null;
   private gate = 0;                    // GUIDANCE index: which suggested waypoint the arch sits at
-  private routePts: [number, number][] = [];   // start + gates, cached at begin() for route-snapping
+  private gateSeg: number[] = [];      // each gate projected onto the course route: segment index…
+  private gateT: number[] = [];        // …+ param along it (monotonic) — computed once at begin()
   private popped = -1;                 // last arch the rider actually threaded (feedback pop dedupe)
   private clock = 0;                   // race timer (s)
   private countT = 0;                  // countdown remaining (s)
@@ -311,19 +317,31 @@ export class RaceRunner {
     // just want general direction").
     const [fx, fz] = c.gates[c.gates.length - 1];
     if (Math.hypot(px - fx, pz - fz) < FINISH_R) { this.finish(px, pz); return; }
-    // Guidance: snap to the suggested-route segment nearest the RIDER and aim the arch
-    // at its far end — deep in a shortcut the arch sits wherever the route runs closest
-    // to you, never stranded at a waypoint you skipped. Backtracking only re-aims with a
-    // clear margin (1.5x closer) so the arch doesn't flap between adjacent legs.
-    let bi = 0, bd = Infinity;
-    for (let i = 0; i < this.routePts.length - 1; i++) {
-      const d2 = segD2(px, pz, this.routePts[i][0], this.routePts[i][1], this.routePts[i + 1][0], this.routePts[i + 1][1]);
-      if (d2 < bd) { bd = d2; bi = i; }
+    // Guidance: snap to the REAL road polyline nearest the RIDER, then aim the arch at
+    // the end of whichever leg that spot falls in — deep in a shortcut the arch sits
+    // wherever the route runs closest to you, never stranded at a skipped waypoint.
+    // Backtracking only re-aims with a clear margin (1.5x) so legs don't flap.
+    const R = c.route, nseg = R.length / 2 - 1;
+    let bSeg = 0, bd = Infinity;
+    for (let i = 0; i < nseg; i++) {
+      const d2 = segD2(px, pz, R[i * 2], R[i * 2 + 1], R[i * 2 + 2], R[i * 2 + 3]);
+      if (d2 < bd) { bd = d2; bSeg = i; }
     }
-    if (bi !== this.gate
-        && (bi > this.gate || bd * 1.5 < segD2(px, pz, this.routePts[this.gate][0], this.routePts[this.gate][1], this.routePts[this.gate + 1][0], this.routePts[this.gate + 1][1]))) {
-      this.gate = bi;
-      this.pointGate();
+    const bax = R[bSeg * 2], baz = R[bSeg * 2 + 1], bdx = R[bSeg * 2 + 2] - bax, bdz = R[bSeg * 2 + 3] - baz;
+    const bL2 = bdx * bdx + bdz * bdz || 1;
+    const bT = Math.max(0, Math.min(1, ((px - bax) * bdx + (pz - baz) * bdz) / bL2));
+    let want = c.gates.length - 1;
+    for (let g2 = 0; g2 < c.gates.length; g2++) {
+      if (this.gateSeg[g2] > bSeg || (this.gateSeg[g2] === bSeg && this.gateT[g2] >= bT)) { want = g2; break; }
+    }
+    if (want !== this.gate) {
+      if (want > this.gate) { this.gate = want; this.pointGate(); }
+      else {
+        let cur = Infinity;
+        const s0 = this.gate > 0 ? this.gateSeg[this.gate - 1] : 0, s1 = this.gateSeg[this.gate];
+        for (let i = s0; i <= s1 && i < nseg; i++) cur = Math.min(cur, segD2(px, pz, R[i * 2], R[i * 2 + 1], R[i * 2 + 2], R[i * 2 + 3]));
+        if (bd * 1.5 < cur) { this.gate = want; this.pointGate(); }
+      }
     }
     const [gx, gz] = c.gates[this.gate];
     // the existing waypoint arrow + journey hint follow hud.guide; race runs after
@@ -340,19 +358,38 @@ export class RaceRunner {
 
   private pointGate() {
     const c = this.course!;
-    const [gx, gz] = c.gates[this.gate];
-    const [ax, az] = this.gate > 0 ? c.gates[this.gate - 1] : [c.start.x, c.start.z];
-    const dx = gx - ax, dz = gz - az;
-    const yaw = Math.atan2(-dz, dx);                    // local +x → world ride direction
+    const R = c.route;
+    const g = this.gate;
+    const [gx, gz] = c.gates[g];
     const ground = (x: number, z: number) => Math.max(this.index.heightAtPx(x, z), this.index.deckHeightAt(x, z));
+    // this leg's arc, cut from the REAL road polyline between the two gate projections —
+    // chevrons ride the bends with it instead of cutting a chord through the blocks
+    const s0 = g > 0 ? this.gateSeg[g - 1] : 0, t0 = g > 0 ? this.gateT[g - 1] : 0;
+    const s1 = this.gateSeg[g], t1 = this.gateT[g];
+    const at = (s: number, t: number): [number, number] =>
+      [R[s * 2] + (R[s * 2 + 2] - R[s * 2]) * t, R[s * 2 + 1] + (R[s * 2 + 3] - R[s * 2 + 1]) * t];
+    const arc: [number, number][] = [at(s0, t0)];
+    for (let i = s0 + 1; i <= s1; i++) arc.push([R[i * 2], R[i * 2 + 1]]);
+    arc.push(at(s1, t1));
+    const lens = [0];
+    for (let i = 1; i < arc.length; i++) lens.push(lens[i - 1] + Math.hypot(arc[i][0] - arc[i - 1][0], arc[i][1] - arc[i - 1][1]));
+    const L = lens[lens.length - 1] || 1;
+    // ring + arch at the gate, squared to the road's ACTUAL incoming direction
+    const last = arc.length - 1;
+    const [iax, iaz] = arc[Math.max(0, last - 1)];
+    const yaw = Math.atan2(-(arc[last][1] - iaz), arc[last][0] - iax);
     this.gateRing.position.set(gx, ground(gx, gz) + 1.2, gz);
-    this.gateArch.position.set(gx, ground(gx, gz), gz); // the arch spans the road, square to the approach
+    this.gateArch.position.set(gx, ground(gx, gz), gz);
     this.gateArch.rotation.y = yaw;
-    for (let i = 0; i < this.chevrons.length; i++) {    // bold arrows lead in along the whole leg
-      const f = 0.12 + i * 0.11;
-      const cx = ax + dx * f, cz = az + dz * f;
+    for (let i = 0; i < this.chevrons.length; i++) {
+      const wantL = L * (0.12 + i * 0.11);
+      let k = 1;
+      while (k < lens.length - 1 && lens[k] < wantL) k++;
+      const f = (wantL - lens[k - 1]) / ((lens[k] - lens[k - 1]) || 1);
+      const cx = arc[k - 1][0] + (arc[k][0] - arc[k - 1][0]) * f;
+      const cz = arc[k - 1][1] + (arc[k][1] - arc[k - 1][1]) * f;
       this.chevrons[i].position.set(cx, ground(cx, cz) + 0.9, cz);
-      this.chevrons[i].rotation.y = yaw;
+      this.chevrons[i].rotation.y = Math.atan2(-(arc[k][1] - arc[k - 1][1]), arc[k][0] - arc[k - 1][0]);
     }
     this.gateMark.visible = true;
   }
@@ -361,7 +398,25 @@ export class RaceRunner {
     this.course = c;
     this.gate = 0;
     this.popped = -1;
-    this.routePts = [[c.start.x, c.start.z], ...c.gates];   // for route-snapping the guidance arch
+    // project every gate onto the route polyline (segment + param, kept monotonic) —
+    // the guidance legs and chevron arcs are cut from the REAL road at these marks
+    this.gateSeg = []; this.gateT = [];
+    const R = c.route, nseg = R.length / 2 - 1;
+    let mSeg = 0, mT = 0;
+    for (const [gx, gz] of c.gates) {
+      let bs = mSeg, bt = 0, bd = Infinity;
+      for (let i = mSeg; i < nseg; i++) {
+        const ax = R[i * 2], az = R[i * 2 + 1], dx = R[i * 2 + 2] - ax, dz = R[i * 2 + 3] - az;
+        const L2 = dx * dx + dz * dz || 1;
+        const t = Math.max(0, Math.min(1, ((gx - ax) * dx + (gz - az) * dz) / L2));
+        const qx = ax + dx * t, qz = az + dz * t;
+        const d2 = (gx - qx) * (gx - qx) + (gz - qz) * (gz - qz);
+        if (d2 < bd) { bd = d2; bs = i; bt = t; }
+      }
+      if (bs === mSeg && bt < mT) bt = mT;
+      this.gateSeg.push(bs); this.gateT.push(bt);
+      mSeg = bs; mT = bt;
+    }
     this.state = 'count';
     this.countT = 5.0;   // a real breath at the line — the picker teleports you in cold
     this.lastCount = -1;
