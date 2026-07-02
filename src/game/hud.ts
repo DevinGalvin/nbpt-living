@@ -194,6 +194,17 @@ const css = `
 #hud .race-pop .rp-sub { font-size: 11px; color: #9fb1c2; margin-top: 1px; }
 #hud .race-pop .rp-best { font-size: 11px; color: #f0d27a; font-weight: 700; margin-top: 3px; }
 #hud .race-pop .rp-hint { font-size: 10.5px; color: #c8bd96; padding: 7px 5px 2px; line-height: 1.4; border-top: 1px solid rgba(216,185,74,0.25); margin-top: 6px; }
+#hud .race-pop .rp-rider { font-size: 11px; color: #f0d27a; font-weight: 700; padding: 8px 5px 3px; cursor: pointer; border-top: 1px solid rgba(216,185,74,0.25); margin-top: 6px; }
+#hud .race-pop .rp-rider span { color: #9fb1c2; font-weight: 600; }
+#hud .race-pop .rp-rider:hover span { color: #c8bd96; }
+#hud .race-pop .rp-rider input {
+  width: 130px; margin-left: 6px; padding: 3px 7px; border-radius: 7px;
+  border: 1px solid rgba(216,185,74,0.55); background: rgba(10,14,20,0.6);
+  color: #f3f1e8; font: 700 12px system-ui, sans-serif; letter-spacing: 0.5px;
+  outline: none; text-transform: uppercase;
+}
+#hud .race-pop .rp-rider input.bad { border-color: #d85a4a; animation: nbpt-name-shake 0.3s ease; }
+@keyframes nbpt-name-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 #hud .run-btn {
   position: absolute; right: 18px; bottom: 52px; width: 58px; height: 58px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
@@ -1243,7 +1254,11 @@ export class Hud {
   /** the front-door 🏁 button + course picker: always visible, no discovery needed.
    *  `rows` is re-read on every open so best times stay fresh; picking a course
    *  hands its id to the game, which fades you to the start line and begins. */
-  initRaces(rows: () => { id: string; name: string; sub: string; best: number | null }[], onPick: (id: string) => void) {
+  initRaces(
+    rows: () => { id: string; name: string; sub: string; best: number | null }[],
+    onPick: (id: string) => void,
+    rider: { get: () => string; set: (raw: string) => { ok: boolean; name: string } },
+  ) {
     if (!rows().length) return;                       // townless build: keep the button hidden
     const btn = this.root.querySelector('.race-btn') as HTMLElement;
     const pop = this.root.querySelector('.race-pop') as HTMLElement;
@@ -1263,7 +1278,28 @@ export class Hud {
         it.addEventListener('click', () => { pop.classList.remove('open'); onPick(r.id); });
         pop.appendChild(it);
       }
-      pop.appendChild(Object.assign(document.createElement('div'), { className: 'rp-hint', textContent: 'You’ll ride to the start line — follow the gold gates home.' }));
+      pop.appendChild(Object.assign(document.createElement('div'), { className: 'rp-hint', textContent: 'You’ll ride to the start line — follow the flags home.' }));
+      // rider name row: tap to edit inline; blocked names shake and stay put
+      const row = document.createElement('div');
+      row.className = 'rp-rider';
+      const showName = () => { row.innerHTML = ''; row.append('🚴 ' + rider.get() + ' '); row.appendChild(Object.assign(document.createElement('span'), { textContent: '— change name' })); };
+      row.addEventListener('click', () => {
+        if (row.querySelector('input')) return;
+        row.innerHTML = '🚴 ';
+        const inp = Object.assign(document.createElement('input'), { maxLength: 12, value: rider.get(), placeholder: 'YOUR NAME' });
+        const commit = () => {
+          const res = rider.set(inp.value);
+          if (res.ok) showName();
+          else { inp.classList.remove('bad'); void inp.offsetWidth; inp.classList.add('bad'); inp.select(); }
+        };
+        inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') showName(); });
+        inp.addEventListener('blur', () => commit());
+        inp.addEventListener('click', (e) => e.stopPropagation());
+        row.appendChild(inp);
+        inp.focus(); inp.select();
+      });
+      showName();
+      pop.appendChild(row);
     };
     btn.addEventListener('click', (e) => {
       e.stopPropagation();

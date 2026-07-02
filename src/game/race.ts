@@ -69,6 +69,42 @@ export function fmtTime(s: number): string {
   return `${m}:${sec < 10 ? '0' : ''}${sec.toFixed(1)}`;
 }
 
+// ---------- rider name (kid-safe) ----------
+// A display name for best times (and the leaderboard later). All-ages town, so the
+// filter is strict and favors false positives: leet-speak is normalized before
+// checking; unambiguous filth blocks on substring; short ambiguous words (ass, sex…)
+// block only as whole words so ESSEX, CASSIE and PASSED stay legal.
+const NAME_KEY = 'nbpt-race-name';
+const NAME_DEFAULT = 'RIDER';
+const LEET: Record<string, string> = { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '@': 'a', '$': 's', '!': 'i', '+': 't' };
+const BAD_SUB = [
+  'fuck', 'fuk', 'fck', 'fuq', 'phuck', 'shit', 'shyt', 'bitch', 'btch', 'cunt', 'cock', 'kock',
+  'dick', 'penis', 'vagin', 'pussy', 'pusy', 'boob', 'tits', 'titty', 'porn', 'whore', 'slut',
+  'anus', 'jizz', 'milf', 'dildo', 'rape', 'blowjob', 'handjob', 'boner',
+  'nigg', 'nigr', 'fag', 'kike', 'wetback', 'retard', 'rtard', 'nazi', 'hitler', 'kkk', 'xxx',
+];
+const BAD_WORD = ['ass', 'sex', 'cum', 'tit', 'hoe', 'anal', 'spic', 'meth'];
+function nameIsClean(raw: string): boolean {
+  let s = raw.toLowerCase().replace(/[0134578@$!+]/g, (c) => LEET[c] || c);
+  s = s.replace(/[^a-z ]/g, '');
+  const stripped = s.replace(/ /g, '');
+  const collapsed = stripped.replace(/(.)\1+/g, '$1');            // fuuuck → fuck
+  for (const w of BAD_SUB) if (stripped.includes(w) || collapsed.includes(w)) return false;
+  for (const w of BAD_WORD) if (new RegExp(`\\b${w}\\b`).test(s)) return false;
+  return true;
+}
+export function getRaceName(): string {
+  try { return localStorage.getItem(NAME_KEY) || NAME_DEFAULT; } catch { return NAME_DEFAULT; }
+}
+/** sanitize + persist; returns what was saved, or ok:false (name unchanged) if blocked */
+export function setRaceName(raw: string): { ok: boolean; name: string } {
+  const clean = raw.toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim().slice(0, 12);
+  if (!clean) return { ok: false, name: getRaceName() };
+  if (!nameIsClean(clean)) return { ok: false, name: getRaceName() };
+  try { localStorage.setItem(NAME_KEY, clean); } catch { /* private mode */ }
+  return { ok: true, name: clean };
+}
+
 export class RaceRunner {
   private state: 'idle' | 'count' | 'run' = 'idle';
   private course: Course | null = null;
@@ -82,9 +118,10 @@ export class RaceRunner {
   private t = 0;                       // ambient anim clock
 
   private flags = new Map<string, THREE.Group>();
-  private gateMark: THREE.Group;
+  private gateMark: THREE.Group;           // origin-anchored holder: ring + pennants + chevrons (world-positioned children)
   private gateRing: THREE.Mesh;
-  private gatePillar: THREE.Mesh;
+  private gateFlags: THREE.Group[] = [];   // two little pennant posts flanking the road at the next gate
+  private chevrons: THREE.Mesh[] = [];     // faint arrows on the pavement leading into it
 
   constructor(
     private scene: THREE.Scene,
@@ -94,21 +131,40 @@ export class RaceRunner {
     private ride: (on: boolean) => void,   // Game lends/returns the bike
   ) {
     for (const c of COURSES) this.buildFlag(c);
-    // the "next gate" marker: a slim gold beacon pillar + a ground ring that pings.
-    // depthTest off so it reads through buildings — it's a guide, not scenery.
+    // The "next gate" guide, kept SUBTLE and diegetic (no sky-pillar): a pair of small
+    // pennant flags flanking the road like a real race gate — pennants streaming toward
+    // the next gate — plus a faint ring and a trail of chevrons on the pavement whose
+    // shimmer flows in the ride direction. The screen-edge waypoint arrow is the compass.
+    // The holder group stays at the origin; children are world-positioned per gate.
     this.gateMark = new THREE.Group();
-    this.gatePillar = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.6, 2.6, 130, 10, 1, true),
-      new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, side: THREE.DoubleSide })
-    );
-    this.gatePillar.position.y = 65;
     this.gateRing = new THREE.Mesh(
-      new THREE.RingGeometry(GATE_R * 0.55, GATE_R * 0.72, 28),
-      new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+      new THREE.RingGeometry(GATE_R * 0.5, GATE_R * 0.62, 28),
+      new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
     );
     this.gateRing.rotation.x = -Math.PI / 2;
-    this.gateRing.position.y = 1.2;
-    this.gateMark.add(this.gatePillar, this.gateRing);
+    this.gateMark.add(this.gateRing);
+    const pole = new THREE.CylinderGeometry(0.45, 0.45, 15, 6);
+    const poleMat = new THREE.MeshLambertMaterial({ color: '#e8e4d8' });
+    const pennant = new THREE.BufferGeometry();
+    pennant.setAttribute('position', new THREE.Float32BufferAttribute([0, 14.6, 0, 0, 11.8, 0, 6.4, 13.2, 0], 3));
+    pennant.computeVertexNormals();
+    const pennantMats = [new THREE.MeshBasicMaterial({ color: '#ffd24a', side: THREE.DoubleSide }), new THREE.MeshBasicMaterial({ color: '#8e2f3c', side: THREE.DoubleSide })];
+    for (let i = 0; i < 2; i++) {
+      const fl = new THREE.Group();
+      const p = new THREE.Mesh(pole, poleMat);
+      p.position.y = 7.5;
+      fl.add(p, new THREE.Mesh(pennant, pennantMats[i]));
+      this.gateMark.add(fl);
+      this.gateFlags.push(fl);
+    }
+    const chevron = new THREE.BufferGeometry();   // flat arrowhead on the road, tip = local +x
+    chevron.setAttribute('position', new THREE.Float32BufferAttribute([7, 0, 0, -5, 0, 6, -5, 0, -6], 3));
+    chevron.computeVertexNormals();
+    for (let i = 0; i < 5; i++) {
+      const ch = new THREE.Mesh(chevron, new THREE.MeshBasicMaterial({ color: '#ffd24a', transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }));
+      this.gateMark.add(ch);
+      this.chevrons.push(ch);
+    }
     this.gateMark.visible = false;
     this.gateMark.renderOrder = 5;
     scene.add(this.gateMark);
@@ -207,8 +263,11 @@ export class RaceRunner {
     // quest in the frame, so this per-frame write wins while a race is on
     this.hud.guide = { x: gx, z: gz };
     const d = Math.hypot(px - gx, pz - gz);
-    const pulse = 1 + 0.12 * Math.sin(this.t * 4);
+    const pulse = 1 + 0.05 * Math.sin(this.t * 3);      // gentle breath, not a beacon
     this.gateRing.scale.set(pulse, pulse, 1);
+    for (let i = 0; i < this.chevrons.length; i++) {    // shimmer flows toward the gate
+      (this.chevrons[i].material as THREE.MeshBasicMaterial).opacity = 0.2 + 0.16 * (Math.sin(this.t * 3.2 - i * 0.9) + 1) / 2;
+    }
     if (d < GATE_R) {
       this.gate++;
       if (this.gate >= c.gates.length) { this.finish(px, pz); return; }
@@ -222,7 +281,24 @@ export class RaceRunner {
   private pointGate() {
     const c = this.course!;
     const [gx, gz] = c.gates[this.gate];
-    this.gateMark.position.set(gx, this.index.heightAtPx(gx, gz), gz);
+    const [ax, az] = this.gate > 0 ? c.gates[this.gate - 1] : [c.start.x, c.start.z];
+    const dx = gx - ax, dz = gz - az, len = Math.hypot(dx, dz) || 1;
+    const ux = dx / len, uz = dz / len;                 // ride direction into the gate
+    const yaw = Math.atan2(-dz, dx);                    // local +x → world ride direction
+    const ground = (x: number, z: number) => Math.max(this.index.heightAtPx(x, z), this.index.deckHeightAt(x, z));
+    this.gateRing.position.set(gx, ground(gx, gz) + 1.2, gz);
+    for (let i = 0; i < 2; i++) {                       // pennants flank the road, streaming forward
+      const s = i === 0 ? 1 : -1;
+      const fx = gx - uz * s * 26, fz = gz + ux * s * 26;
+      this.gateFlags[i].position.set(fx, ground(fx, fz), fz);
+      this.gateFlags[i].rotation.y = yaw;
+    }
+    for (let i = 0; i < this.chevrons.length; i++) {    // faint arrows lead in along the leg
+      const f = 0.2 + i * 0.16;
+      const cx = ax + dx * f, cz = az + dz * f;
+      this.chevrons[i].position.set(cx, ground(cx, cz) + 0.9, cz);
+      this.chevrons[i].rotation.y = yaw;
+    }
     this.gateMark.visible = true;
   }
 
@@ -253,7 +329,7 @@ export class RaceRunner {
     this.hud.chapterCard(
       '🏁 ' + c.name.toUpperCase(),
       fmtTime(this.clock),
-      newBest ? 'NEW BEST! The town will hear about this.' : 'best ' + fmtTime(prev!) + ' — the clock will be here all day',
+      newBest ? 'NEW BEST for ' + getRaceName() + '! The town will hear about this.' : 'best ' + fmtTime(prev!) + ' — the clock will be here all day',
     );
     this.reset();
   }
