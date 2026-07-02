@@ -185,6 +185,11 @@ export class RaceRunner {
   private gateArch: THREE.Group;           // a race arch spanning the road at the next gate — visible from blocks away
   private turnArrow: THREE.Group;          // big arrow atop the arch pointing down the EXIT street (the turn, telegraphed)
   private chevrons: THREE.Mesh[] = [];     // bold arrows on the pavement leading into and THROUGH the corner
+  // 👻 the ghost rider: replays the town leader's best line in real time — beat the
+  // rider you can SEE. Loaded at begin() from the leader's recorded polyline.
+  private ghostRider: THREE.Group;
+  private ghostRun: { pts: number[]; tEnd: number } | null = null;   // flat [t(ds),x,z,...]
+  private ghostCur = 0;                    // sample cursor (amortized O(1) playback)
 
   constructor(
     private scene: THREE.Scene,
@@ -251,6 +256,30 @@ export class RaceRunner {
     this.gateMark.visible = false;
     this.gateMark.renderOrder = 5;
     scene.add(this.gateMark);
+
+    // 👻 the ghost rider — an actual ghost on a bike: pale, translucent, unmissable.
+    // Faces local +x (same convention as the chevrons); playback yaws it per frame.
+    this.ghostRider = new THREE.Group();
+    const gm = new THREE.MeshBasicMaterial({ color: '#cfeaff', transparent: true, opacity: 0.42, depthWrite: false });
+    const wheel = new THREE.CylinderGeometry(3, 3, 0.8, 12);
+    for (const wx of [-4.4, 4.4]) {
+      const w = new THREE.Mesh(wheel, gm);
+      w.rotation.x = Math.PI / 2;               // stand the disc up, rolling along +x
+      w.rotation.z = Math.PI / 2;
+      w.position.set(wx, 3, 0);
+      this.ghostRider.add(w);
+    }
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(9, 1, 1), gm);
+    frame.position.y = 5.5;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(3.4, 7, 3), gm);
+    body.position.set(-0.5, 10, 0);
+    body.rotation.z = -0.25;                    // leaning into the ride
+    const head = new THREE.Mesh(new THREE.SphereGeometry(2.2, 10, 8), gm);
+    head.position.set(0.6, 14.6, 0);
+    this.ghostRider.add(frame, body, head);
+    this.ghostRider.visible = false;
+    this.ghostRider.renderOrder = 6;
+    scene.add(this.ghostRider);
   }
 
   // a little start line: checkered flag on a pole + a soft gold ground ring
@@ -378,6 +407,27 @@ export class RaceRunner {
         if (bd * 1.5 < cur) { this.gate = want; this.pointGate(); }
       }
     }
+    // 👻 ghost playback: the leader rides their recorded line against your clock
+    if (this.ghostRun) {
+      const s = this.ghostRun.pts;
+      if (this.clock >= this.ghostRun.tEnd + 1.2) {
+        this.ghostRider.visible = false;             // it crossed — gone like a ghost
+      } else {
+        const tds = this.clock * 10;
+        let i = this.ghostCur;
+        while (i + 5 < s.length && s[i + 3] <= tds) i += 3;
+        this.ghostCur = i;
+        const t0 = s[i], x0 = s[i + 1], z0 = s[i + 2];
+        const j = Math.min(i + 3, s.length - 3);
+        const t1 = s[j], x1 = s[j + 1], z1 = s[j + 2];
+        const f = t1 > t0 ? Math.min(1, Math.max(0, (tds - t0) / (t1 - t0))) : 1;
+        const ggx = x0 + (x1 - x0) * f, ggz = z0 + (z1 - z0) * f;
+        const ggy = Math.max(this.index.heightAtPx(ggx, ggz), this.index.deckHeightAt(ggx, ggz));
+        this.ghostRider.position.set(ggx, ggy, ggz);
+        if (Math.hypot(x1 - x0, z1 - z0) > 1) this.ghostRider.rotation.y = Math.atan2(-(z1 - z0), x1 - x0);
+        this.ghostRider.visible = true;
+      }
+    }
     const [gx, gz] = c.gates[this.gate];
     // the existing waypoint arrow + journey hint follow hud.guide; race runs after
     // quest in the frame, so this per-frame write wins while a race is on
@@ -469,6 +519,24 @@ export class RaceRunner {
     this.course = c;
     this.gate = 0;
     this.popped = -1;
+    // load the town leader's ghost (if you lead, that's your own best — beat yourself)
+    this.ghostRun = null;
+    this.ghostCur = 0;
+    const lead = getBoard(c.id)[0];
+    if (lead) {
+      try {
+        const gj = JSON.parse(localStorage.getItem(ghostKey(c.id, lead.n)) || 'null');
+        if (gj && gj.v === 1 && Array.isArray(gj.s) && gj.s.length >= 6) {
+          this.ghostRun = { pts: gj.s, tEnd: gj.s[gj.s.length - 3] / 10 };
+        }
+      } catch { /* corrupt recording = no ghost today */ }
+    }
+    if (this.ghostRun) {                     // the ghost waits with you at the line
+      const s = this.ghostRun.pts;
+      const gy = Math.max(this.index.heightAtPx(s[1], s[2]), this.index.deckHeightAt(s[1], s[2]));
+      this.ghostRider.position.set(s[1], gy, s[2]);
+      this.ghostRider.visible = true;
+    } else this.ghostRider.visible = false;
     // project every gate onto the route polyline (segment + param, kept monotonic) —
     // the guidance legs and chevron arcs are cut from the REAL road at these marks
     this.gateSeg = []; this.gateT = [];
@@ -567,6 +635,8 @@ export class RaceRunner {
     this.state = 'idle';
     this.course = null;
     this.gateMark.visible = false;
+    this.ghostRider.visible = false;
+    this.ghostRun = null;
     this.hud.raceCountdown(null);
     this.hud.setRaceTimer(null, null);
     this.hud.guide = null;
