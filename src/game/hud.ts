@@ -1587,13 +1587,14 @@ export class Hud {
       // gravestone on City Hall.
       const table: [RegExp, string][] = [
         [/witch|bewitched/, '🧙'],   // Salem's whole brand — must beat house/museum
+        [/mansion|manor/, '🏛'],     // before /garden/: "Ropes Mansion — house & garden"
         [/frog|pond/, '🐸'], [/light(house)?\b|light /, '🗼'], [/airport|airfield|runway/, '✈️'],
         [/sled|march's hill/, '🛷'], [/skat/, '⛸'], [/playground|fountain/, '🛝'],
         [/burying|cemetery|graveyard/, '🪦'], [/bridge/, '🌉'], [/station|depot/, '🚂'],
         [/tall ship|friendship|schooner|\bship\b/, '⛵'], [/hotel|inn\b/, '🏨'], [/fort\b|castle/, '🏰'],
         [/farm|pasture|orchard|\bfields\b/, '🚜'], [/flats|marsh|bird/, '🦆'],   // \b: "ballfields" is a park, not a farm
         [/beach|island|dune|sand/, '🏖'], [/boardwalk|waterfront|wharf|dock|harbor|landing/, '⚓'],
-        [/woods|forest|park|garden|common|maudslay|willow|refuge|sanctuar/, '🌳'], [/trail|rail/, '🚲'],
+        [/woods|forest|park|garden|common|maudslay|willow|gallows|refuge|sanctuar/, '🌳'], [/trail|rail/, '🚲'],
         [/reservoir|lake|river/, '🌊'], [/statue|garrison/, '🗽'], [/church|chapel|meeting/, '⛪'],
         [/school|academy/, '🏫'], [/court/, '⚖️'], [/museum|house|hall|athen/, '🏛'],
         [/square|downtown|market/, '⛲'], [/street|road|lane/, '🛣'],
