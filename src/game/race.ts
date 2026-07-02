@@ -96,6 +96,11 @@ function nameIsClean(raw: string): boolean {
 export function getRaceName(): string {
   try { return localStorage.getItem(NAME_KEY) || NAME_DEFAULT; } catch { return NAME_DEFAULT; }
 }
+/** has the player actually entered a name? (scores only persist once they have —
+ *  a time on the board with nobody's name on it means nothing) */
+export function hasRaceName(): boolean {
+  try { return !!(localStorage.getItem(NAME_KEY) || '').trim(); } catch { return false; }
+}
 /** sanitize + persist; returns what was saved, or ok:false (name unchanged) if blocked */
 export function setRaceName(raw: string): { ok: boolean; name: string } {
   const clean = raw.toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim().slice(0, 12);
@@ -332,8 +337,9 @@ export class RaceRunner {
   private finish(px: number, pz: number) {
     const c = this.course!;
     this.rec.push(Math.round(this.clock * 10), Math.round(px), Math.round(pz));
+    const named = hasRaceName();                          // no name, no board — the run still counts for fun
     const prev = this.bestFor(c.id);
-    const newBest = prev === null || this.clock < prev;
+    const newBest = named && (prev === null || this.clock < prev);
     if (newBest) {
       try {
         localStorage.setItem(bestKey(c.id), this.clock.toFixed(2));
@@ -344,7 +350,9 @@ export class RaceRunner {
     this.hud.chapterCard(
       '🏁 ' + c.name.toUpperCase(),
       fmtTime(this.clock),
-      newBest ? 'NEW BEST for ' + getRaceName() + '! The town will hear about this.' : 'best ' + fmtTime(prev!) + ' — the clock will be here all day',
+      !named ? 'add your name at the 🏁 button to save your times!'
+        : newBest ? 'NEW BEST for ' + getRaceName() + '! The town will hear about this.'
+        : 'best ' + fmtTime(prev!) + ' — the clock will be here all day',
     );
     this.reset();
   }

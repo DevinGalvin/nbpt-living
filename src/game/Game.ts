@@ -14,7 +14,7 @@ import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
 import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
-import { RaceRunner, COURSES, getRaceName, setRaceName } from './race';
+import { RaceRunner, COURSES, getRaceName, setRaceName, hasRaceName } from './race';
 import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
 import { STYLE, SEASON } from '../world/style';
@@ -382,7 +382,7 @@ export class Game {
         if (!c || !this.race) return;
         this.hud.fadeThrough(() => { this.travelToXY(c.start.x, c.start.z); this.race!.startById(id); });
       },
-      { get: getRaceName, set: setRaceName },
+      { get: getRaceName, set: setRaceName, has: hasRaceName },
     );
     this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,

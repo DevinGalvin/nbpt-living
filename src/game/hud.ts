@@ -1257,7 +1257,7 @@ export class Hud {
   initRaces(
     rows: () => { id: string; name: string; sub: string; best: number | null }[],
     onPick: (id: string) => void,
-    rider: { get: () => string; set: (raw: string) => { ok: boolean; name: string } },
+    rider: { get: () => string; set: (raw: string) => { ok: boolean; name: string }; has: () => boolean },
   ) {
     if (!rows().length) return;                       // townless build: keep the button hidden
     const btn = this.root.querySelector('.race-btn') as HTMLElement;
@@ -1282,7 +1282,13 @@ export class Hud {
       // rider name row: tap to edit inline; blocked names shake and stay put
       const row = document.createElement('div');
       row.className = 'rp-rider';
-      const showName = () => { row.innerHTML = ''; row.append('🚴 ' + rider.get() + ' '); row.appendChild(Object.assign(document.createElement('span'), { textContent: '— change name' })); };
+      const showName = () => {
+        row.innerHTML = '';
+        // unnamed riders get the pitch (times only save with a name on them)
+        if (!rider.has()) { row.append('🚴 '); row.appendChild(Object.assign(document.createElement('span'), { textContent: 'add your name — save your times!' })); return; }
+        row.append('🚴 ' + rider.get() + ' ');
+        row.appendChild(Object.assign(document.createElement('span'), { textContent: '— change name' }));
+      };
       row.addEventListener('click', () => {
         if (row.querySelector('input')) return;
         row.innerHTML = '🚴 ';
