@@ -29,6 +29,10 @@ const px = (lat, lon) => [
 // the game showed a phantom lake amid the neighborhood. (Player-reported, June 2026.)
 const DROP_OSM = new Set([279021841, 920420732, 12474826]);
 
+// Buildings whose lv came from an explicit OSM building:levels tag — the height
+// overlay (Overture) must not override mapped truth.
+const LV_EXPLICIT = new Set();
+
 // ---------- geometry helpers (in px space) ----------
 
 function ringArea(pts) {
@@ -333,8 +337,10 @@ for (const el of raw.elements) {
     // ground floor becomes a storefront, wall material stays whatever it is
     let sf = 0;
     if ((k === 'house' || k === 'commercial' || k === 'civic') && areaM2 >= 60 && hasStorefrontEvidence(ring)) sf = 1;
-    const lv = Math.min(6, parseFloat(t['building:levels']) || (k === 'house' ? 1.5 : k === 'shed' ? 1 : 2));
+    const lvTag = parseFloat(t['building:levels']);
+    const lv = Math.min(6, lvTag || (k === 'house' ? 1.5 : k === 'shed' ? 1 : 2));
     const b = { p: ring, k, lv };
+    if (lvTag) LV_EXPLICIT.add(b);
     if (sf) b.sf = 1;
     if (t.name) b.n = t.name;
     // a mapped architecture style → render the home in that style (the rest stay generic)
@@ -483,7 +489,9 @@ for (const el of raw.elements) {
     if (areaM2 < 12) continue;
     if (pk === '_building') {
       const k = buildingKind(t);
-      const b = { p: r, k, lv: Math.min(6, parseFloat(t['building:levels']) || 2) };
+      const lvTag = parseFloat(t['building:levels']);
+      const b = { p: r, k, lv: Math.min(6, lvTag || 2) };
+      if (lvTag) LV_EXPLICIT.add(b);
       if (t.name) b.n = t.name;
       world.buildings.push(b);
       bump('building-rel');
@@ -904,6 +912,80 @@ const addrMap = new Map();
   world.pois = kept;
 }
 
+// ---------- height overlay: real building heights (Overture Maps) ----------
+// OSM building:levels coverage is thin (a few hundred tags per town), so untagged
+// buildings default to guesses (house 1.5 / other 2). tools/fetch_heights.mjs saves
+// the Overture buildings theme for the bbox — ML-measured height (m, to the ROOF
+// TOP: a pitched house carries ~2.5-3 m of roof in the number) + sparse num_floors —
+// to data/raw/heights.json. Each untagged building takes the feature whose centroid
+// falls inside its footprint (nearest to the building centroid when several do):
+// num_floors verbatim when present, else height through New England-stock ridge
+// thresholds (ranch ~4.5, cape ~6, colonial ~9, three-decker ~12, then ~3.1 m/storey
+// + parapet for flat downtown blocks). Guards, calibrated on knowns (Market Basket,
+// Graf Rink, Witch City Mall, State St blocks — see the 7/2 session):
+//   • big single-volume boxes (area>2000 m², h<11 m): supermarkets/rinks/warehouses
+//     have tall ceilings, not floors → lv 1 (1.5 under 4000 m²)
+//   • area>5000 m² caps at 2 — no accidental mega-towers on mall-scale footprints
+//   • church caps 2.5 (a tall nave is one volume; steeples render separately),
+//     shed caps 1.5; only ordinary kinds — specials (light, tower…) keep their lv
+// Explicit OSM levels (LV_EXPLICIT), MANUAL_BUILDINGS and LEVEL_FIXES all beat the
+// overlay. Missing heights.json = warn and keep the guesses (build still works).
+const HEIGHT_KINDS = new Set(['house', 'commercial', 'civic', 'industrial', 'church', 'shed']);
+try {
+  const hj = JSON.parse(await readFile(new URL('../data/raw/heights.json', import.meta.url), 'utf8'));
+  const CELL = 512; // px grid over the height points; building bboxes stay well under a few cells
+  const hgrid = new Map();
+  for (const [lon, lat, h, nf] of hj.features) {
+    const [x, y] = px(lat, lon);
+    const key = `${Math.floor(x / CELL)},${Math.floor(y / CELL)}`;
+    let cell = hgrid.get(key);
+    if (!cell) hgrid.set(key, (cell = []));
+    cell.push([x, y, h, nf]);
+  }
+  let raised = 0, lowered = 0;
+  for (const b of world.buildings) {
+    if (LV_EXPLICIT.has(b) || !HEIGHT_KINDS.has(b.k)) continue;
+    const p = b.p;
+    let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    for (let i = 0; i < p.length; i += 2) {
+      if (p[i] < minX) minX = p[i];
+      if (p[i] > maxX) maxX = p[i];
+      if (p[i + 1] < minY) minY = p[i + 1];
+      if (p[i + 1] > maxY) maxY = p[i + 1];
+    }
+    const [bx, by] = centroid(p);
+    let best = null, bestD = Infinity;
+    for (let cx = Math.floor(minX / CELL); cx <= Math.floor(maxX / CELL); cx++) {
+      for (let cy = Math.floor(minY / CELL); cy <= Math.floor(maxY / CELL); cy++) {
+        for (const f of hgrid.get(`${cx},${cy}`) || []) {
+          if (f[0] < minX || f[0] > maxX || f[1] < minY || f[1] > maxY) continue;
+          const d = (f[0] - bx) ** 2 + (f[1] - by) ** 2;
+          if (d < bestD && pointInRing(f[0], f[1], p)) { best = f; bestD = d; }
+        }
+      }
+    }
+    if (!best) continue;
+    const [, , h, nf] = best;
+    const areaM2 = Math.abs(ringArea(p)) / (PX_PER_M * PX_PER_M);
+    let lv;
+    if (nf) lv = nf;
+    else if (h == null) continue;
+    else if (areaM2 > 2000 && h < 11) lv = areaM2 > 4000 ? 1 : 1.5;
+    else lv = h < 5.2 ? 1 : h < 7.2 ? 1.5 : h < 9.8 ? 2 : h < 12.8 ? 3 : h < 16 ? 4 : h < 19.5 ? 5 : 6;
+    if (areaM2 > 5000) lv = Math.min(lv, 2);
+    if (b.k === 'church') lv = Math.min(lv, 2.5);
+    if (b.k === 'shed') lv = Math.min(lv, 1.5);
+    lv = Math.min(6, Math.max(1, Math.round(lv * 2) / 2));
+    if (lv > b.lv) raised++;
+    else if (lv < b.lv) lowered++;
+    b.lv = lv;
+  }
+  stats['height-overlay'] = raised + lowered;
+  console.log(`Height overlay (Overture ${hj.release}): ${raised} raised, ${lowered} lowered of ${world.buildings.length} buildings`);
+} catch (e) {
+  console.warn('Height overlay SKIPPED (run `node tools/fetch_heights.mjs` first):', e.message);
+}
+
 // ---------- manual infill: real buildings newer than the OSM snapshot ----------
 // Hand-placed structures that exist on the ground but aren't yet in the OSM
 // extract (data/raw/overpass.json). Footprints are in world px, street-aligned
@@ -920,15 +1002,15 @@ const MANUAL_BUILDINGS = [
 ];
 if (!BARE) for (const b of MANUAL_BUILDINGS) world.buildings.push(b);
 
-// ---------- manual level fixes: real heights OSM doesn't carry ----------
-// OSM building:levels coverage is thin (untagged big footprints default to 1.5-storey
-// "houses"), so known offenders get fixed by hand: each entry raises the building
-// CONTAINING the point. Devin: "Sofi at Salem Station is 4 floors high, you have it
-// as 2." For town-wide accuracy the real fix is joining a bulk height source
-// (Overture Maps / Microsoft ML building footprints) — future build-world overlay.
+// ---------- manual level fixes: real heights the data doesn't carry ----------
+// Spot overrides on top of the Overture height overlay above: each entry sets the
+// building CONTAINING the point. Use for buildings NEWER than Overture's ML imagery
+// (which reads the old ground) or where the ML height is just wrong. Runs after the
+// overlay, so a fix always wins.
 const LEVEL_FIXES = [
   // Sofi at Salem Station — the 4-storey apartment complex on the North River beside
-  // the MBTA station (the huge ~430 m² footprint that defaulted to a 1.5-storey house).
+  // the MBTA station. Devin: "4 floors, you have it as 2." STAYS despite the height
+  // overlay: Overture's ML height here is 5.2 m — imagery predates the building.
   // NOTE the trap that bit the first attempt: addrs merge same-named streets across
   // towns — "Grove Street" matched PEABODY's Grove St 14k px away. Anchor level fixes
   // to geometry you've verified (here: the rail terminus = the station), never to a
