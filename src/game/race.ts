@@ -177,7 +177,7 @@ export function getBoard(id: string): BoardRow[] {
 // Paste the deployed URL here and every town board goes live worldwide. Empty
 // string = local-only boards. To TEST-DRIVE a URL without a rebuild, set
 // localStorage 'nbpt-board-url' in the console — it overrides this constant.
-const LEADERBOARD_URL: string = '';
+const LEADERBOARD_URL: string = 'https://script.google.com/macros/s/AKfycby0vmiIznBVXEE9sRsN6GaaVNhYWGcVvSSOMZn4QiWPZZpM-I-k2Dua-Tvc2AiO1Pxg/exec';
 const TOWN = 'nbpt';
 function boardUrl(): string {
   let u = LEADERBOARD_URL;
