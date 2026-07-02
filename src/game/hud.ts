@@ -570,6 +570,22 @@ const css = `
 #hud .chapter .kick { font-size: 13px; letter-spacing: 4px; color: #e8c44f; font-weight: 700; margin-bottom: 10px; }
 #hud .chapter .big { font-family: Georgia, serif; font-size: clamp(30px, 6vw, 46px); color: #f6f3e8; }
 #hud .chapter .small { font-size: 13px; color: #c8bd96; margin-top: 12px; letter-spacing: 1px; }
+/* the finish card's name box (unnamed riders): the save-your-time moment IS the finish */
+#hud .chapter .namer { display: none; margin-top: 18px; gap: 8px; pointer-events: auto; }
+#hud .chapter .namer.show { display: flex; }
+#hud .chapter .namer input {
+  width: 168px; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid rgba(216,185,74,0.55); background: rgba(10,14,20,0.6);
+  color: #f3f1e8; font: 700 14px system-ui, sans-serif; letter-spacing: 0.5px;
+  outline: none; text-transform: uppercase; text-align: center;
+}
+#hud .chapter .namer input.bad { border-color: #d85a4a; animation: nbpt-name-shake 0.3s ease; }
+#hud .chapter .namer button {
+  padding: 9px 16px; border-radius: 10px; border: none; cursor: pointer;
+  color: #2a1c0a; background: linear-gradient(180deg, #ffe9a6, #e8c44f);
+  font: 800 13px system-ui, sans-serif; letter-spacing: 0.6px;
+}
+#hud .chapter .namer button:hover { transform: scale(1.04); }
 /* ---------- Races 🏁: countdown overlay + live timer chip ----------
    NOT gated by .no-story — racing is the play tier, explore mode races too. */
 #hud .race-count {
@@ -1010,7 +1026,7 @@ export class Hud {
       <div class="streettip"></div>
       <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
       <div class="talk-btn">💬 TALK</div>
-      <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div></div>
+      <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div><div class="namer"><input maxlength="12" placeholder="YOUR NAME"><button>SAVE</button></div></div>
       <div class="promo"><div class="promo-card"><div class="promo-x">✕</div><div class="promo-badge"></div><div class="promo-icon"></div><div class="promo-title"></div><div class="promo-body"></div><div class="promo-acts"><button class="promo-cta"></button><span class="promo-skip">Maybe later</span></div></div></div>
       <div class="levelpromo"><div class="lp-beam"></div><div class="lp-lamp"></div><div class="lp-snow"></div><div class="lp-inner"><div class="lp-kick">✦ LEVEL 1 COMPLETE ✦</div><div class="lp-lvl">LEVEL 2</div><div class="lp-title">The Light That Walks</div><div class="lp-tag">A lamp walks the shore at night, and the winter harbor needs its keeper. Your story sails on.</div><button class="lp-go">BEGIN ❄️</button><div class="lp-hint">❄️ Winter has come · change the season any time from the 🎄 button</div></div></div>
       <div class="hcard"><div class="ht"></div><div class="hy"></div><div class="hb"></div><div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="close">tap to close</div></div></div>
@@ -2228,13 +2244,46 @@ export class Hud {
   }
 
   // big serif chapter card: fades in, holds, fades out
-  chapterCard(kick: string, big: string, small: string) {
+  private chapterT: ReturnType<typeof setTimeout> | null = null;
+  /** cinematic card. With `namer` (unnamed race finishes), a name box rides along:
+   *  save returns the saved display name (or null if the filter rejected it) — on
+   *  success the card celebrates and then bows out. */
+  chapterCard(kick: string, big: string, small: string, namer?: { save: (raw: string) => string | null }) {
     const el = document.querySelector('#hud .chapter') as HTMLElement;
     (el.querySelector('.kick') as HTMLElement).textContent = kick;
     (el.querySelector('.big') as HTMLElement).textContent = big;
-    (el.querySelector('.small') as HTMLElement).textContent = small;
+    const smallEl = el.querySelector('.small') as HTMLElement;
+    smallEl.textContent = small;
+    const box = el.querySelector('.namer') as HTMLElement;
+    const inp = box.querySelector('input') as HTMLInputElement;
+    if (this.chapterT) clearTimeout(this.chapterT);
+    const hide = (ms: number) => { if (this.chapterT) clearTimeout(this.chapterT); this.chapterT = setTimeout(() => el.classList.remove('show'), ms); };
+    if (!namer) {
+      box.classList.remove('show');
+      el.classList.add('show');
+      hide(2700);
+      return;
+    }
+    box.classList.add('show');
+    inp.value = '';
+    inp.classList.remove('bad');
+    const commit = () => {
+      const saved = namer.save(inp.value);
+      if (saved) {
+        box.classList.remove('show');
+        smallEl.textContent = '★ saved — the town knows ' + saved + ' now!';
+        hide(2000);
+      } else {
+        inp.classList.remove('bad'); void inp.offsetWidth; inp.classList.add('bad');
+        inp.select();
+      }
+    };
+    (box.querySelector('button') as HTMLElement).onclick = (e) => { e.stopPropagation(); commit(); };
+    inp.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); };
+    inp.onfocus = () => { if (this.chapterT) clearTimeout(this.chapterT); };   // don't yank the card mid-typing
     el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 2700);
+    hide(12000);   // generous fallback if they ignore the box
+    setTimeout(() => inp.focus(), 350);
   }
 
   // a seasonal-transition beat (reuses the chapter-card overlay) shown as the story

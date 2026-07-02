@@ -382,7 +382,8 @@ export class Game {
         if (!c || !this.race) return;
         this.hud.fadeThrough(() => { this.travelToXY(c.start.x, c.start.z); this.race!.startById(id); });
       },
-      { get: getRaceName, set: setRaceName, has: hasRaceName },
+      // naming yourself from the picker also banks any held unnamed runs
+      { get: getRaceName, set: (raw) => { const r = setRaceName(raw); if (r.ok) this.race?.flushPending(); return r; }, has: hasRaceName },
       () => this.race?.quit(),
     );
     this.eggs = new EggRunner(

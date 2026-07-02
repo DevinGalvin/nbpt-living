@@ -131,6 +131,9 @@ export class RaceRunner {
   private rec: number[] = [];          // ghost samples, flat [t(ds), x, z, ...]
   private recAcc = 0;
   private t = 0;                       // ambient anim clock
+  // unnamed finishes aren't lost — the session's best run per course is HELD here,
+  // and setting a name (finish-card box or the 🏁 picker) saves it retroactively
+  private pending = new Map<string, { t: number; ghost: string }>();
 
   private flags = new Map<string, THREE.Group>();
   private gateMark: THREE.Group;           // origin-anchored holder: ring + arch + chevrons (world-positioned children)
@@ -354,24 +357,52 @@ export class RaceRunner {
   private finish(px: number, pz: number) {
     const c = this.course!;
     this.rec.push(Math.round(this.clock * 10), Math.round(px), Math.round(pz));
-    const named = hasRaceName();                          // no name, no board — the run still counts for fun
+    const named = hasRaceName();                          // no name, no board — but the run is held, not lost
     const prev = this.bestFor(c.id);
     const newBest = named && (prev === null || this.clock < prev);
+    const ghost = JSON.stringify({ v: 1, t: Math.round(this.clock * 1000), s: this.rec });
     if (newBest) {
       try {
         localStorage.setItem(bestKey(c.id), this.clock.toFixed(2));
-        localStorage.setItem(ghostKey(c.id), JSON.stringify({ v: 1, t: Math.round(this.clock * 1000), s: this.rec }));
+        localStorage.setItem(ghostKey(c.id), ghost);
       } catch { /* private mode */ }
     }
     this.audio.jingle();
-    this.hud.chapterCard(
-      '🏁 ' + c.name.toUpperCase(),
-      fmtTime(this.clock),
-      !named ? 'add your name at the 🏁 button to save your times!'
-        : newBest ? 'NEW BEST for ' + getRaceName() + '! The town will hear about this.'
-        : 'best ' + fmtTime(prev!) + ' — the clock will be here all day',
-    );
+    if (!named) {
+      // hold the session's best unnamed run; the finish card carries the name box —
+      // the moment they just earned a time is the moment they'll want to keep it
+      const held = this.pending.get(c.id);
+      if (!held || this.clock < held.t) this.pending.set(c.id, { t: this.clock, ghost });
+      this.hud.chapterCard(
+        '🏁 ' + c.name.toUpperCase(),
+        fmtTime(this.clock),
+        'type your name to save this time!',
+        { save: (raw) => { const r = setRaceName(raw); if (!r.ok) return null; this.flushPending(); return r.name; } },
+      );
+    } else {
+      this.hud.chapterCard(
+        '🏁 ' + c.name.toUpperCase(),
+        fmtTime(this.clock),
+        newBest ? 'NEW BEST for ' + getRaceName() + '! The town will hear about this.'
+          : 'best ' + fmtTime(prev!) + ' — the clock will be here all day',
+      );
+    }
     this.reset();
+  }
+
+  /** once a name exists, bank any held unnamed runs (better-than-stored only) */
+  flushPending() {
+    if (!hasRaceName() || !this.pending.size) return;
+    for (const [id, run] of this.pending) {
+      const prev = this.bestFor(id);
+      if (prev === null || run.t < prev) {
+        try {
+          localStorage.setItem(bestKey(id), run.t.toFixed(2));
+          localStorage.setItem(ghostKey(id), run.ghost);
+        } catch { /* private mode */ }
+      }
+    }
+    this.pending.clear();
   }
 
   /** end the run without finishing. NEVER silent: pass `why` so the rider learns the
