@@ -261,6 +261,22 @@ const css = `
   letter-spacing: 0.5px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
 }
 #hud .bd-again:active { transform: translateY(1px); }
+/* 🎉 finish-line celebration: confetti rains and balloons rise OVER the results board
+   (z 80 > the board panel's 70) — pure decoration, so pointer-events stay off */
+#hud .fete { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 80; }
+#hud .fete i { position: absolute; top: -16px; border-radius: 2px; opacity: 0; animation: nbpt-confetti linear both; }
+@keyframes nbpt-confetti {
+  0% { transform: translate(0, -10px) rotate(0); opacity: 0; }
+  6% { opacity: 1; }
+  100% { transform: translate(var(--drift), 105vh) rotate(var(--spin)); opacity: 0.9; }
+}
+#hud .fete b { position: absolute; bottom: -48px; opacity: 0; animation: nbpt-balloon 3.8s ease-in both; }
+@keyframes nbpt-balloon {
+  0% { transform: translateY(0) rotate(-5deg); opacity: 0; }
+  12% { opacity: 0.95; }
+  50% { transform: translateY(-58vh) rotate(6deg); }
+  100% { transform: translateY(-118vh) rotate(-4deg); opacity: 0.85; }
+}
 /* who's riding — the banner at the TOP of the picker (shared-device rider switching) */
 #hud .race-pop .rp-rider {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -338,10 +354,11 @@ const css = `
 #hud:has(.bag-panel.show) .objective,
 #hud:has(.hcard.open) .objective,
 #hud:has(.banner.show) .objective { display: none !important; }
-/* racing mutes the story: the quest pill yields the top of the screen to the countdown
-   and the race clock (quest beats + TALK are suppressed game-side while a run is on) */
+/* racing mutes the story: the quest pill yields the top of the screen to the countdown,
+   the race clock, and the results board (quest beats + TALK are suppressed game-side) */
 #hud:has(.race-count.show) .objective,
-#hud:has(.race-timer.show) .objective { display: none !important; }
+#hud:has(.race-timer.show) .objective,
+#hud:has(.board-panel.show) .objective { display: none !important; }
 /* the off-screen waypoint arrow steps aside whenever a panel/dialogue is up */
 #hud:has(.travel-panel.open) .waypoint,
 #hud:has(.journey-panel.show) .waypoint,
@@ -711,7 +728,8 @@ const css = `
   position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
   border-radius: 6px; background: linear-gradient(90deg, rgba(232,196,79,0.45), #e8c44f);
 }
-#hud .race-timer .rt-bike { position: absolute; left: 0%; top: 50%; transform: translate(-55%, -56%); font-size: 16px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
+/* the 🚴 emoji faces LEFT in every emoji font — mirror it so it rides toward the 🏁 */
+#hud .race-timer .rt-bike { position: absolute; left: 0%; top: 50%; transform: translate(-55%, -56%) scaleX(-1); font-size: 16px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
 #hud .race-timer .rt-ghost { position: absolute; left: 0%; top: 50%; transform: translate(-50%, -56%); font-size: 12px; line-height: 1; opacity: 0.8; display: none; }
 #hud .race-timer .rt-flag { position: absolute; right: -3px; top: 50%; transform: translateY(-58%); font-size: 12px; line-height: 1; }
 #hud .race-timer .rt-cur { font: 800 20px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f6f3e8; letter-spacing: 0.5px; }
@@ -1463,6 +1481,38 @@ export class Hud {
       panel.classList.add('show');
     };
     render(opts);
+  }
+
+  /** 🎉 crossing the finish line earns a party: confetti down, balloons up. Fire-and-
+   *  forget; a re-fire (RACE AGAIN loops) replaces the last one so pieces never stack. */
+  celebrate() {
+    this.root.querySelector('.fete')?.remove();
+    const wrap = document.createElement('div');
+    wrap.className = 'fete';
+    const colors = ['#e8c44f', '#8e2f3c', '#4f9de8', '#58c470', '#f3f1e8', '#e8884f'];
+    for (let i = 0; i < 70; i++) {
+      const p = document.createElement('i');
+      p.style.left = Math.random() * 100 + '%';
+      p.style.background = colors[i % colors.length];
+      const w = 6 + Math.random() * 6;
+      p.style.width = w + 'px';
+      p.style.height = w * 0.45 + 'px';
+      p.style.animationDelay = Math.random() * 0.7 + 's';
+      p.style.animationDuration = 1.9 + Math.random() * 1.6 + 's';
+      p.style.setProperty('--drift', (Math.random() * 160 - 80).toFixed(0) + 'px');
+      p.style.setProperty('--spin', (360 + Math.random() * 900).toFixed(0) + 'deg');
+      wrap.appendChild(p);
+    }
+    for (let i = 0; i < 6; i++) {
+      const b = document.createElement('b');
+      b.textContent = '🎈';
+      b.style.left = 5 + i * 17 + Math.random() * 8 + '%';
+      b.style.fontSize = 22 + Math.random() * 16 + 'px';
+      b.style.animationDelay = 0.15 + Math.random() * 0.9 + 's';
+      wrap.appendChild(b);
+    }
+    this.root.appendChild(wrap);
+    setTimeout(() => wrap.remove(), 5200);   // past the longest delay+duration — no mid-air cutoffs
   }
 
   /** big center countdown; each call re-pops the number. null clears; 'GO!' self-clears. */

@@ -714,6 +714,7 @@ export class RaceRunner {
     this.rec.push(Math.round(this.clock * 10), Math.round(px), Math.round(pz));
     const ghost = JSON.stringify({ v: 1, t: Math.round(this.clock * 1000), s: this.rec });
     this.audio.jingle();
+    this.hud.celebrate();                                 // 🎉 crossing the line IS the win — every finish gets the party
     // EVERY finish asks "who was riding?" — arcade high-score style. On a shared family
     // device the device can't know who just rode; the name row comes PREFILLED with the
     // last rider (one tap keeps it, typing over it hands the board to the next kid).
