@@ -38,6 +38,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The kid-safe name filter is duplicated across race.ts and both leaderboard
+      # backends — a drift means a bad name passes exactly one of them. Fail the
+      # deploy rather than ship a leaky filter. (The Salem worktree copy is checked
+      # in local runs; its source lives on salem-experiment, outside this checkout.)
+      - name: Check kid-safe filter lists are in sync
+        run: node tools/check_filters.mjs
+
       # Same build as `npm run deploy`: tsc + vite build, then inline the
       # single-file ClipperTown.html. Emits dist/ (incl. CNAME from public/).
       - name: Build game

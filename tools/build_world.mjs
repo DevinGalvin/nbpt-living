@@ -182,6 +182,9 @@ function buildingKind(t) {
   if (b === 'church' || b === 'chapel' || b === 'cathedral' || t.amenity === 'place_of_worship') return 'church';
   const lighty = ((t.name || '') + (t.alt_name || '')).toLowerCase().includes('light');
   if (t.man_made === 'lighthouse' || b === 'lighthouse' || (b === 'tower' && lighty)) return 'light';
+  // tanks aren't houses: a 20 m water tower was rendering as a 6-storey clapboard home
+  if (t.man_made === 'water_tower' || b === 'water_tower') return 'wtower';
+  if (t.man_made === 'storage_tank' || t.man_made === 'silo' || b === 'storage_tank' || b === 'silo') return 'tank';
   if (['school', 'civic', 'public', 'government', 'hospital', 'university', 'fire_station', 'train_station'].includes(b)
     || ['townhall', 'courthouse', 'library', 'fire_station', 'police', 'school', 'hospital', 'theatre', 'community_centre'].includes(t.amenity)) return 'civic';
   if (['commercial', 'retail', 'office', 'supermarket', 'hotel'].includes(b) || t.shop || t.tourism === 'hotel') return 'commercial';

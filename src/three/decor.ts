@@ -1440,6 +1440,33 @@ function lighthouse(plain: Bucket, cx: number, cz: number, g: number) {
   flatRoof(plain, oct(5), g + 104, '#c0392b');
 }
 
+// Water towers / storage tanks / silos — octagonal drums, not clapboard houses (the
+// OSM tags are reliable: building=water_tower / man_made=storage_tank|silo, and a
+// 20 m tank was rendering as a 6-storey home). Same walls+octRing idiom as the heroes.
+function buildTank(buckets: Bucket[], b: Building, g: number) {
+  const [cx, cz] = centroidOf(b.p);
+  const obb = obbOf(b.p);
+  const r = Math.max(8, Math.min(obb.hl, obb.hw) * 0.92);
+  const plain = buckets[PLAIN];
+  if (b.k === 'wtower') {
+    // municipal elevated tank: four legs + riser up to the pale drum
+    const legTop = g + 100;
+    for (const [sx, sz] of [[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]] as [number, number][]) {
+      plain.box(cx + sx * r, cz + sz * r, 2, 2, g, legTop + 6, '#87909a');
+    }
+    plain.box(cx, cz, 3, 3, g, legTop, '#87909a');
+    walls(plain, octRing(cx, cz, r), legTop, legTop + 52, '#b9c2c8');
+    flatRoof(plain, octRing(cx, cz, r * 0.99), legTop + 52, '#a9b2b8');
+    flatRoof(plain, octRing(cx, cz, r * 0.5), legTop + 58, '#9aa4ac');
+  } else {
+    // ground tank / silo: a squat industrial drum with a stepped cap
+    const h = Math.max(40, Math.min(90, r * 2.2));
+    walls(plain, octRing(cx, cz, r), g, g + h, '#aab2b6');
+    flatRoof(plain, octRing(cx, cz, r * 0.99), g + h, '#8f9599');
+    flatRoof(plain, octRing(cx, cz, r * 0.55), g + h + 6, '#848a8e');
+  }
+}
+
 function buildingDims(b: Building, areaM2: number): { eave: number; lvEff: number } {
   // lv is AUTHORITATIVE: build_world overlays real Overture ML heights onto every
   // untagged building and applies the size-based inference itself for the few with
@@ -2920,6 +2947,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     if (b.k === 'light') {
       const [cx, cz] = centroidOf(b.p);
       lighthouse(buckets[PLAIN], cx, cz, g);
+      continue;
+    }
+    if (b.k === 'wtower' || b.k === 'tank') {
+      buildTank(buckets, b, g);
       continue;
     }
     // a home the map names an architecture style for — render it in that style

@@ -15,6 +15,21 @@ console.info(`Clipper Town — build ${__BUILD__}`);
 // Relative path: under /salem/ this registers /salem/sw.js scoped to /salem/.
 if ('serviceWorker' in navigator && !(import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV) {
   navigator.serviceWorker.register(`sw.js?v=${__BUILD__}`).catch(() => {});
+  // a deploy landing mid-session: offer the refresh instead of leaving the player
+  // one build behind until their next visit (the SW activates immediately)
+  let hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) { hadController = true; return; }   // first install, not an update
+    const t = document.createElement('div');
+    t.textContent = '✨ Updated — tap to reload the town';
+    t.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:90;'
+      + 'background:rgba(30,22,40,0.95);color:#f3f1e8;border:1px solid rgba(232,196,79,0.6);'
+      + 'border-radius:12px;padding:11px 17px;font:600 13px system-ui,sans-serif;cursor:pointer;'
+      + 'box-shadow:0 6px 20px rgba(0,0,0,0.4)';
+    t.addEventListener('click', () => location.reload());
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 15000);
+  });
 }
 
 
