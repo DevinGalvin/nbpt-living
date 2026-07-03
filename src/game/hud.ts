@@ -338,6 +338,10 @@ const css = `
 #hud:has(.bag-panel.show) .objective,
 #hud:has(.hcard.open) .objective,
 #hud:has(.banner.show) .objective { display: none !important; }
+/* racing mutes the story: the quest pill yields the top of the screen to the countdown
+   and the race clock (quest beats + TALK are suppressed game-side while a run is on) */
+#hud:has(.race-count.show) .objective,
+#hud:has(.race-timer.show) .objective { display: none !important; }
 /* the off-screen waypoint arrow steps aside whenever a panel/dialogue is up */
 #hud:has(.travel-panel.open) .waypoint,
 #hud:has(.journey-panel.show) .waypoint,
@@ -691,11 +695,25 @@ const css = `
 @keyframes nbpt-race-pop { 0% { transform: scale(1.7); opacity: 0; } 25% { opacity: 1; } 100% { transform: scale(0.92); opacity: 0.95; } }
 #hud .race-timer {
   position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
-  display: none; align-items: baseline; gap: 9px;
+  display: none; align-items: baseline; gap: 9px; flex-wrap: wrap;
+  max-width: min(400px, calc(100vw - 24px));
   background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-radius: 12px;
-  padding: 7px 14px; pointer-events: none; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  padding: 7px 14px 9px; pointer-events: none; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
 }
 #hud .race-timer.show { display: flex; }
+/* course progress: a little 🚴 rides the gold bar toward the 🏁 — and the 👻 marker
+   shows the ghost's spot on the same bar, so "am I ahead?" is readable at a glance */
+#hud .race-timer .rt-track {
+  flex-basis: 100%; min-width: 190px; position: relative; height: 12px; margin-top: 2px;
+  border-radius: 6px; background: rgba(159,177,194,0.25);
+}
+#hud .race-timer .rt-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+  border-radius: 6px; background: linear-gradient(90deg, rgba(232,196,79,0.45), #e8c44f);
+}
+#hud .race-timer .rt-bike { position: absolute; left: 0%; top: 50%; transform: translate(-55%, -56%); font-size: 16px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
+#hud .race-timer .rt-ghost { position: absolute; left: 0%; top: 50%; transform: translate(-50%, -56%); font-size: 12px; line-height: 1; opacity: 0.8; display: none; }
+#hud .race-timer .rt-flag { position: absolute; right: -3px; top: 50%; transform: translateY(-58%); font-size: 12px; line-height: 1; }
 #hud .race-timer .rt-cur { font: 800 20px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f6f3e8; letter-spacing: 0.5px; }
 #hud .race-timer .rt-best { font: 600 11px system-ui, sans-serif; color: #c8bd96; letter-spacing: 0.4px; }
 /* the tap-out ✕: the one interactive part of the chip; arms red, second tap quits */
@@ -1116,7 +1134,7 @@ export class Hud {
       <div class="objective"><span class="q wp-q">➤</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
       <div class="race-count"></div>
-      <div class="race-timer"><span class="rt-cur"></span><span class="rt-best"></span><span class="rt-quit">✕</span></div>
+      <div class="race-timer"><span class="rt-cur"></span><span class="rt-best"></span><span class="rt-quit">✕</span><div class="rt-track"><div class="rt-fill"></div><span class="rt-ghost">👻</span><span class="rt-bike">🚴</span><span class="rt-flag">🏁</span></div></div>
       <div class="runtip"></div>
       <div class="streettip"></div>
       <div class="dlg"><span class="dlg-say" title="Read it to me">🔊</span><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
@@ -1348,6 +1366,9 @@ export class Hud {
   private rtCur: HTMLElement | null = null;
   private rtBest: HTMLElement | null = null;
   private rtQuit: HTMLElement | null = null;
+  private rtFill: HTMLElement | null = null;
+  private rtBike: HTMLElement | null = null;
+  private rtGhost: HTMLElement | null = null;
   private fmtRace(s: number): string {
     const m = Math.floor(s / 60), sec = s - m * 60;
     return `${m}:${sec < 10 ? '0' : ''}${sec.toFixed(1)}`;
@@ -1455,13 +1476,17 @@ export class Hud {
     if (text === 'GO!') this.raceGoT = setTimeout(() => { el.classList.remove('show'); el.innerHTML = ''; }, 850);
   }
 
-  /** live race clock under the objective pill; cur=null hides it */
-  setRaceTimer(cur: number | null, best: number | null) {
+  /** live race clock (top of screen while story yields); cur=null hides it.
+   *  `prog`/`ghost` are 0..1 course fractions for the progress bar's 🚴 and 👻. */
+  setRaceTimer(cur: number | null, best: number | null, prog = 0, ghost: number | null = null) {
     if (!this.rtEl) {
       this.rtEl = this.root.querySelector('.race-timer');
       this.rtCur = this.root.querySelector('.race-timer .rt-cur');
       this.rtBest = this.root.querySelector('.race-timer .rt-best');
       this.rtQuit = this.root.querySelector('.race-timer .rt-quit');
+      this.rtFill = this.root.querySelector('.race-timer .rt-fill');
+      this.rtBike = this.root.querySelector('.race-timer .rt-bike');
+      this.rtGhost = this.root.querySelector('.race-timer .rt-ghost');
     }
     if (!this.rtEl || !this.rtCur || !this.rtBest) return;
     if (cur === null) {
@@ -1472,6 +1497,13 @@ export class Hud {
     this.rtEl.classList.add('show');
     this.rtCur.textContent = this.fmtRace(cur);
     this.rtBest.textContent = best !== null ? '★ ' + this.fmtRace(best) : 'first ride';
+    const pc = Math.max(0, Math.min(1, prog)) * 100 + '%';
+    if (this.rtFill) this.rtFill.style.width = pc;
+    if (this.rtBike) this.rtBike.style.left = pc;
+    if (this.rtGhost) {
+      if (ghost === null) this.rtGhost.style.display = 'none';
+      else { this.rtGhost.style.display = 'block'; this.rtGhost.style.left = Math.max(0, Math.min(1, ghost)) * 100 + '%'; }
+    }
   }
 
   /** the front-door 🏁 button + course picker: always visible, no discovery needed.

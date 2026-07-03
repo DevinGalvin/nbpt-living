@@ -1466,7 +1466,9 @@ export class QuestRunner {
     return this.nearTag !== null;
   }
 
-  update(dt: number, px: number, pz: number) {
+  // `suppressed` = a race is on: the story steps fully aside — no TALK offers, no
+  // proximity beats — because a mid-run dialogue freezes movement and kills the race
+  update(dt: number, px: number, pz: number, suppressed = false) {
     this.t += dt;
     // beacon: a strong, dramatic pulse — the whole pillar throbs bright→dim and
     // breathes wider, while the base ring pings outward like sonar
@@ -1514,7 +1516,7 @@ export class QuestRunner {
     // nothing fires from proximity, but the cast still offers TALK so a curious explorer
     // can opt into a beat by hand.
     // step 4: following Clipper, you close on the grate he's found
-    if (this.storyOn && this.step === 4 && Math.hypot(px - GRATE.x, pz - GRATE.z) < 290) {
+    if (this.storyOn && !suppressed && this.step === 4 && Math.hypot(px - GRATE.x, pz - GRATE.z) < 290) {
       this.audio.bark();
       this.dogTarget = { x: GRATE.x, z: GRATE.z };
       this.setStep(5);
@@ -1621,7 +1623,7 @@ export class QuestRunner {
       if (this.nearTag) { this.nearTag = null; this.hud.showTalk(null); }
       return;
     }
-    if (this.hud.flying || this.hud.kayaking || this.hud.sweeping) {   // ✈️/🛶/🔦 Game owns the action button in the air / on the water / at the light
+    if (this.hud.flying || this.hud.kayaking || this.hud.sweeping || suppressed) {   // ✈️/🛶/🔦/🏁 Game owns the action button in the air / on the water / at the light / mid-race
       if (this.nearTag) { this.nearTag = null; this.hud.showTalk(null); }
       return;
     }

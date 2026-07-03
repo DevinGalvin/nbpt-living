@@ -232,6 +232,8 @@ export class RaceRunner {
   private gate = 0;                    // GUIDANCE index: which suggested waypoint the arch sits at
   private gateSeg: number[] = [];      // each gate projected onto the course route: segment index…
   private gateT: number[] = [];        // …+ param along it (monotonic) — computed once at begin()
+  private routeCum: number[] = [];     // cumulative route length per vertex — the progress bar's ruler
+  private routeLen = 1;
   private popped = -1;                 // last arch the rider actually threaded (feedback pop dedupe)
   private clock = 0;                   // race timer (s)
   private countT = 0;                  // countdown remaining (s)
@@ -462,7 +464,6 @@ export class RaceRunner {
       this.rec.push(Math.round(this.clock * 10), Math.round(px), Math.round(pz));
     }
     const c = this.course!;
-    this.hud.setRaceTimer(this.clock, this.bestFor(c.id));
     // THE ONLY RULE: cross the finish line. Everything else is route freedom — users
     // find the fastest way; the arches are suggestions, not requirements (Devin: "we
     // just want general direction").
@@ -494,11 +495,16 @@ export class RaceRunner {
         if (bd * 1.5 < cur) { this.gate = want; this.pointGate(); }
       }
     }
+    // how far along the ride is: your snapped spot on the route, over its whole length —
+    // shortcuts and backtracks read honestly because the snap follows YOU, not the gates
+    const prog = (this.routeCum[bSeg] + (this.routeCum[bSeg + 1] - this.routeCum[bSeg]) * bT) / this.routeLen;
+    let ghostProg: number | null = null;
     // 👻 ghost playback: the leader rides their recorded line against your clock
     if (this.ghostRun) {
       const s = this.ghostRun.pts;
       if (this.clock >= this.ghostRun.tEnd + 1.2) {
         this.ghostRider.visible = false;             // it crossed — gone like a ghost
+        ghostProg = 1;                               // …but its flag on the bar stays planted
       } else {
         const tds = this.clock * 10;
         let i = this.ghostCur;
@@ -513,8 +519,10 @@ export class RaceRunner {
         this.ghostRider.position.set(ggx, ggy, ggz);
         if (Math.hypot(x1 - x0, z1 - z0) > 1) this.ghostRider.rotation.y = Math.atan2(-(z1 - z0), x1 - x0);
         this.ghostRider.visible = true;
+        ghostProg = this.clock >= this.ghostRun.tEnd ? 1 : this.routeFrac(ggx, ggz);
       }
     }
+    this.hud.setRaceTimer(this.clock, this.bestFor(c.id), prog, ghostProg);
     const [gx, gz] = c.gates[this.gate];
     // the existing waypoint arrow + journey hint follow hud.guide; race runs after
     // quest in the frame, so this per-frame write wins while a race is on
@@ -531,6 +539,21 @@ export class RaceRunner {
       // the turn is exactly where a corner house used to swallow the line
       (xray.material as THREE.MeshBasicMaterial).opacity = i >= 5 ? 0.22 + 0.16 * wave : 0.08 + 0.08 * wave;
     }
+  }
+
+  /** fraction 0..1 along the course route nearest a world point (the ghost's bar spot) */
+  private routeFrac(px: number, pz: number): number {
+    const R = this.course!.route, nseg = R.length / 2 - 1;
+    let bs = 0, bt = 0, bd = Infinity;
+    for (let i = 0; i < nseg; i++) {
+      const ax = R[i * 2], az = R[i * 2 + 1], dx = R[i * 2 + 2] - ax, dz = R[i * 2 + 3] - az;
+      const L2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / L2));
+      const qx = ax + dx * t, qz = az + dz * t;
+      const d2 = (px - qx) * (px - qx) + (pz - qz) * (pz - qz);
+      if (d2 < bd) { bd = d2; bs = i; bt = t; }
+    }
+    return (this.routeCum[bs] + (this.routeCum[bs + 1] - this.routeCum[bs]) * bt) / this.routeLen;
   }
 
   private pointGate() {
@@ -652,6 +675,12 @@ export class RaceRunner {
         yours ? 'the blue rider is your best run — beat it!' : 'the blue rider is the town’s best run — chase it!'
       );
     } else this.ghostRider.visible = false;
+    // the progress bar's ruler: cumulative arc length at every route vertex
+    this.routeCum = [0];
+    for (let i = 2; i < c.route.length; i += 2) {
+      this.routeCum.push(this.routeCum[i / 2 - 1] + Math.hypot(c.route[i] - c.route[i - 2], c.route[i + 1] - c.route[i - 1]));
+    }
+    this.routeLen = this.routeCum[this.routeCum.length - 1] || 1;
     // project every gate onto the route polyline (segment + param, kept monotonic) —
     // the guidance legs and chevron arcs are cut from the REAL road at these marks
     this.gateSeg = []; this.gateT = [];

@@ -420,7 +420,7 @@ export class Game {
       if (e.code === 'KeyE' && !this.hud.dialogueOpen) {
         if (this.inTunnel) this.tunnel?.tryInteract(this.px, this.pz);
         else if (this.interior) this.interior.tryInteract(this.px, this.pz);
-        else {
+        else if (!this.race?.active) {   // mid-race E must never open a movement-freezing dialogue
           this.quest?.tryInteract(this.px, this.pz);
           this.history?.tryInteract(this.px, this.pz);
           this.eggs?.tryInteract(this.px, this.pz);
@@ -1795,7 +1795,8 @@ export class Game {
     if (this.inTunnel) this.tunnel!.update(dt, this.px, this.pz);
     else if (this.interior) this.interior.update(dt, this.px, this.pz);
     else if (this.quest) {
-      this.quest.update(dt, this.px, this.pz);
+      // a live run (or countdown) mutes the story entirely — no TALK, no auto-beats
+      this.quest.update(dt, this.px, this.pz, this.race?.active ?? false);
       // the race runs after quest (its per-frame hud.guide write wins while racing)
       // but before history/eggs, which both yield to an armed start line or a live run
       if (this.race) this.race.update(dt, this.px, this.pz, this.quest.nearActive || this.flying);
