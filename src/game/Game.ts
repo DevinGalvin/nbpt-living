@@ -9,6 +9,7 @@ import { Sky } from '../three/sky';
 import { Kid, Dog, Bike, buildKayak } from '../three/actors';
 import { Life } from './life';
 import { GillisBridge } from '../three/gillis';
+import { RaceRunner, COURSES, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles, courseEstSeconds, ghostEnabled, setGhostEnabled } from './race';
 import { Hud } from './hud';
 import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
@@ -121,6 +122,7 @@ export class Game {
   private tunnel: TunnelScene | null = null;
   private history: HistoryRunner | null = null;
   private eggs: EggRunner | null = null;
+  private race: RaceRunner | null = null;
   private golden = false;
   private inTunnel = false;
   private preTunnel = { x: 0, z: 0 };
@@ -359,7 +361,9 @@ export class Game {
       this.toggleBike();
       return this.riding;
     });
-    this.hud.showBike(localStorage.getItem('nbpt-bike') === '1');
+    // vehicles are BASELINE (the gameplay pivot): the bike button always shows;
+    // races lend a bike at the line, story gifts stay narrative-only
+    this.hud.showBike(true);
     this.bike.root.visible = false;
     this.scene.add(this.bike.root);
     this.hud.initMinimap(world);
@@ -386,6 +390,29 @@ export class Game {
         () => this.goldenHoodie()
       );
     }
+
+    this.hud.initGhost(ghostEnabled(), () => setGhostEnabled(!ghostEnabled()));
+    // fade to a course's start line and begin — the picker path AND the results
+    // card's RACE AGAIN both ride this
+    const startRace = (id: string) => {
+      const c = COURSES.find((k) => k.id === id);
+      if (!c || !this.race) return;
+      this.hud.fadeThrough(() => { this.travelToXY(c.start.x, c.start.z); this.race!.startById(id); });
+    };
+    this.race = new RaceRunner(this.scene, this.index, this.hud, this.audio, (on) => this.lendBike(on),
+      // at the start line, spin the chase cam to face down-course — the first thing a
+      // dropped-in racer sees is the way to go
+      (dx, dz) => { this.camAz = Math.atan2(-dx, dz); this.updateCamera(0, true); },
+      startRace);
+    // 🏁 front door: pick a course anywhere in town → fade to its start line → countdown.
+    this.hud.initRaces(
+      () => COURSES.map((c) => ({ id: c.id, name: c.name, sub: c.sub, miles: courseMiles(c), est: courseEstSeconds(c), best: this.race!.bestFor(c.id), leader: getBoard(c.id)[0] || null })),
+      startRace,
+      // naming yourself from the picker also banks any held unnamed runs
+      { get: getRaceName, set: (raw) => { const r = setRaceName(raw); if (r.ok) this.race?.flushPending(); return r; }, has: hasRaceName },
+      () => this.race?.quit(),
+      (id) => this.race?.showBoard(id),
+    );
 
     // tap (or click) Clipper to pet him — replaces the old always-on PET button
     this.hud.onTap = (sx, sy) => this.tryPetTap(sx, sy);
@@ -464,6 +491,13 @@ export class Game {
       weather: (w: number | null) => this.sky.forceWeather(w), // 1=shower 0=clear null=auto
       fly: () => this.enterPlane(),                       // ✈️ board the plane at Plum Island Airport
       land: () => this.land(),
+      // dev: teleport to a course start + begin it (nbpt.race() = the Marblehead epic)
+      race: (id = 'marblehead') => {
+        const c = COURSES.find((k) => k.id === id);
+        if (!c || !this.race) return 'unknown course: ' + id;
+        this.travelToXY(c.start.x, c.start.z);
+        return this.race.startById(id) ? 'racing ' + c.name : 'could not start';
+      },
       // quick health probe — mobile flag, live chunk count, flight state, JS heap if exposed
       diag: () => ({
         mobile: this.mobile, flying: this.flying, chunks: this.chunks.size,
@@ -498,17 +532,33 @@ export class Game {
       }
       // one-time "what's new" promo for a freshly-shipped feature (flight just went public).
       // Stagger after the street nudge for newcomers so the two don't stack.
-      setTimeout(() => this.tryFlightPromo(), fresh ? 11000 : 3500);
+      setTimeout(() => this.tryRacePromo(), fresh ? 11000 : 3500);
     }
   }
 
   // pop the flight "what's new" card once, when nothing else is on screen — otherwise
   // wait and retry, so it never lands on top of a dialogue, modal, or cutaway
+  private promoBusy(): boolean {
+    return this.inside || this.flying || this.onWater || this.hud.dialogueOpen || (this.race?.active ?? false)
+      || !!document.querySelector('#hud .chapter.show, #hud .levelpromo.show, #hud .streettip.show, #hud .modepick.show, #hud .travel-panel.open, #hud .journey-panel.show, #hud .bag-panel.show, #hud .hcard.open, #hud .board-panel.show');
+  }
+  private tryRacePromo() {
+    if (localStorage.getItem('salem-promo-race') === '1') { this.tryFlightPromo(); return; }
+    if (this.promoBusy()) { setTimeout(() => this.tryRacePromo(), 2500); return; }
+    const sprint = COURSES.find((c) => c.id === 'witchhunt');
+    this.hud.featurePromo({
+      key: 'salem-promo-race', badge: 'NEW', icon: '🏁', title: 'Race the Town',
+      body: 'Real races on real streets! Three courses run through Salem — dash the downtown grid to the Witch House, run the harbor out to the Willows, or ride home from Marblehead. Beat the clock, top the town leaderboard, and race the leader’s ghost. Any route counts — shortcuts welcome.',
+      cta: 'Take me to the start line',
+      onCta: () => {
+        if (!sprint || !this.race) return;
+        this.hud.fadeThrough(() => { this.travelToXY(sprint.start.x, sprint.start.z); this.race!.startById('witchhunt'); });
+      },
+    });
+  }
   private tryFlightPromo() {
     if (localStorage.getItem('nbpt-promo-flight') === '1') return;
-    const busy = this.inside || this.flying || this.onWater || this.hud.dialogueOpen
-      || !!document.querySelector('#hud .chapter.show, #hud .levelpromo.show, #hud .streettip.show, #hud .modepick.show, #hud .travel-panel.open, #hud .journey-panel.show, #hud .bag-panel.show, #hud .hcard.open');
-    if (busy) { setTimeout(() => this.tryFlightPromo(), 2500); return; }
+    if (this.promoBusy()) { setTimeout(() => this.tryFlightPromo(), 2500); return; }
     this.hud.featurePromo({
       key: 'nbpt-promo-flight', badge: 'NEW', icon: '✈️', title: 'Take Flight',
       body: 'Scenic flights are open to everyone now. Head to Plum Island Airport, step onto the grass airfield, and tap ✈️ FLY to take off over Clipper Town.',
@@ -676,6 +726,17 @@ export class Game {
   }
 
   // ---------- movement ----------
+
+  /** Races auto-mount you at the start line; the finish leaves you in the saddle
+   *  (bikes are baseline now, so there's nothing to hand back). */
+  private lendBike(on: boolean) {
+    if (!on) return;
+    if (this.riding || this.inside || this.onWater) return;
+    this.riding = true;
+    this.bike.root.visible = true;
+    this.hud.setBikeState(true);
+    this.audio.bell();
+  }
 
   toggleBike() {
     if (localStorage.getItem('nbpt-bike') !== '1' || this.inside || this.onWater) return;
@@ -1053,6 +1114,12 @@ export class Game {
       this.kid.root.visible = true; this.dog.root.visible = true;
       this.kidY = this.terrain.heightAt(this.px, this.pz);   // set down where you are
       this.flySpeed = 0;
+      // landing mid-race puts you back in the saddle — the run never stopped. SAY so:
+      // a kid who flew off to sightsee has long forgotten the clock is running
+      if (this.race?.active) {
+        this.lendBike(true);
+        this.hud.announce('🏁 Still racing!', 'the clock never stopped — ride for the finish');
+      }
       // phones: drop the decor-only flight chunks so full-detail ground streams back in (async,
       // so landing never freezes; the impostor shows the map until the chunks arrive)
       if (this.mobile) {
@@ -1525,6 +1592,7 @@ export class Game {
     if (this.inside) this.sprinting = false;
     let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
+    if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
     // streets are controllable. Kids kept overshooting into houses in the neighborhoods,
     // so this is dialed back further (was 0.72). The joystick still gives proportional
@@ -1765,11 +1833,14 @@ export class Game {
     if (this.gillis && !this.inside) this.gillis.update(dt);
     if (this.inTunnel) this.tunnel!.update(dt, this.px, this.pz);
     else if (this.interior) this.interior.update(dt, this.px, this.pz);
-    else if (this.quest) {
-      this.quest.update(dt, this.px, this.pz);
-      if (this.history) this.history.update(dt, this.px, this.pz, this.quest.nearActive || this.flying);
-      // eggs speak last: quest beats, then history markers, then secrets
-      if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.flying || this.quest.nearActive || (this.history ? this.history.nearActive : false));
+    else {
+      if (this.quest) this.quest.update(dt, this.px, this.pz);
+      // the race runs after quest (its per-frame hud.guide write wins while racing)
+      if (this.race) this.race.update(dt, this.px, this.pz, (this.quest?.nearActive ?? false) || this.flying);
+      const raceBusy = this.race ? (this.race.active || this.race.nearActive) : false;
+      if (this.history) this.history.update(dt, this.px, this.pz, (this.quest?.nearActive ?? false) || this.flying || raceBusy);
+      // eggs speak last: quest beats, then race flags, then history markers, then secrets
+      if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.flying || (this.quest?.nearActive ?? false) || raceBusy || (this.history ? this.history.nearActive : false));
     }
     this.audio.update(dt, movingNow && !this.riding, this.sprinting, () =>
       this.inside ? 'hard'
@@ -1995,6 +2066,7 @@ export class Game {
   }
 
   travelToXY(x: number, y: number) {
+    this.race?.cancel('fast travel skips the ride — tap 🏁 to race again');
     const spot = this.findFree(x, y);
     this.px = spot.x;
     this.pz = spot.y;

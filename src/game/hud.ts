@@ -182,6 +182,133 @@ const css = `
 #hud .season-pop.locked .sp-item { opacity: 0.45; cursor: default; }
 #hud .season-pop.locked .sp-item:hover { background: none; }
 #hud .season-pop .sp-lock { font-size: 11px; color: #c9a23e; padding: 7px 5px 2px; line-height: 1.45; max-width: 158px; }
+/* ---------- Races 🏁: always-visible button + course picker ----------
+   Racing is front-door, not a secret: the 🏁 sits in the left column everywhere
+   (story AND explore), and picking a course fades you straight to its start line.
+   Column cascade mirrors the season toggle: slide up into whatever slots are empty. */
+#hud .race-btn {
+  position: absolute; top: 334px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  display: none; align-items: center; justify-content: center; font-size: 20px;
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: top 0.3s ease;
+}
+#hud .race-btn.show { display: flex; }
+#hud .bag-btn:not(.show) ~ .race-btn { top: 270px; }
+#hud.no-story .race-btn { top: 206px !important; }
+#hud .race-pop {
+  position: absolute; top: 334px; left: 66px; min-width: 210px; max-width: 260px;
+  background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-radius: 12px;
+  padding: 8px; display: none; pointer-events: auto; z-index: 40;
+  transition: top 0.3s ease;
+}
+#hud .bag-btn:not(.show) ~ .race-pop { top: 270px; }
+#hud.no-story .race-pop { top: 206px !important; }
+#hud .race-pop.open { display: block; }
+#hud .race-pop .rp-hdr { font-size: 11px; color: #e8c44f; font-weight: 700; padding: 2px 5px 7px; letter-spacing: 0.3px; }
+#hud .race-pop .rp-item { padding: 8px 9px; border-radius: 8px; cursor: pointer; }
+#hud .race-pop .rp-item:hover { background: rgba(216,185,74,0.18); }
+#hud .race-pop .rp-name { font-size: 13px; font-weight: 700; color: #f3f1e8; }
+#hud .race-pop .rp-sub { font-size: 11px; color: #9fb1c2; margin-top: 1px; }
+#hud .race-pop .rp-best { font-size: 11px; color: #f0d27a; font-weight: 700; margin-top: 3px; }
+#hud .race-pop .rp-hint { font-size: 10.5px; color: #c8bd96; padding: 7px 5px 2px; line-height: 1.4; border-top: 1px solid rgba(216,185,74,0.25); margin-top: 6px; }
+#hud .race-pop .rp-err { flex-basis: 100%; font-size: 11px; color: #e8a89a; padding-top: 3px; }
+#hud .race-pop .rp-err:empty { display: none; }
+#hud .race-pop .rp-cup { float: right; font-size: 15px; padding: 2px 6px; border-radius: 7px; cursor: pointer; }
+#hud .race-pop .rp-cup:hover { background: rgba(216,185,74,0.25); }
+/* ---------- 🏆 the town leaderboard modal (post-race results + standings) ---------- */
+#hud .board-panel {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(12, 17, 24, 0.72); z-index: 70; pointer-events: none; opacity: 0;
+  transition: opacity 0.2s ease;
+}
+#hud .board-panel.show { pointer-events: auto; opacity: 1; }
+#hud .board-card {
+  width: min(400px, calc(100vw - 44px)); max-height: 76vh; overflow-y: auto;
+  background: var(--panel); border: 1px solid rgba(216,185,74,0.6); border-radius: 16px;
+  padding: 16px 18px 14px; box-shadow: 0 12px 44px rgba(0,0,0,0.55);
+  transform: translateY(18px) scale(0.95); transition: transform 0.26s cubic-bezier(0.2, 0.85, 0.3, 1.12);
+}
+#hud .board-panel.show .board-card { transform: translateY(0) scale(1); }
+#hud .board-card .bd-x { float: right; cursor: pointer; color: #9fb1c2; font-size: 19px; padding: 12px 15px; margin: -8px -10px 0 0; border-radius: 12px; }
+#hud .board-card .bd-x:hover { color: #f3f1e8; background: rgba(216,185,74,0.18); }
+#hud .bd-kick { font-size: 11px; letter-spacing: 3px; color: #e8c44f; font-weight: 700; }
+#hud .bd-title { font-family: Georgia, serif; font-size: 22px; color: #f6f3e8; margin-top: 3px; }
+#hud .bd-sub { font-size: 11px; color: #9fb1c2; margin-top: 2px; }
+#hud .bd-time { font: 800 34px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f0d27a; margin: 10px 0 1px; }
+#hud .bd-line { font-size: 12px; color: #c8bd96; margin: 2px 0 6px; }
+#hud .bd-rows { margin-top: 8px; }
+#hud .bd-row { display: flex; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 9px; font-size: 14px; color: #e8e4d8; border: 1px solid transparent; }
+#hud .bd-row .bd-rank { width: 24px; color: #9fb1c2; font-weight: 800; font-size: 12px; }
+#hud .bd-row .bd-name { flex: 1; font-weight: 700; letter-spacing: 0.5px; }
+#hud .bd-row .bd-t { font: 700 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f0d27a; }
+#hud .bd-row.me { background: rgba(216,185,74,0.16); border-color: rgba(216,185,74,0.4); }
+#hud .bd-row.claim { background: rgba(207,234,255,0.07); border: 1px dashed rgba(207,234,255,0.35); }
+#hud .bd-row.claim input {
+  flex: 1; min-width: 90px; padding: 5px 9px; border-radius: 7px;
+  border: 1px solid rgba(216,185,74,0.55); background: rgba(10,14,20,0.6);
+  color: #f3f1e8; font: 700 12px system-ui, sans-serif; letter-spacing: 0.5px;
+  outline: none; text-transform: uppercase;
+}
+#hud .bd-row.claim input.bad { border-color: #d85a4a; animation: nbpt-name-shake 0.3s ease; }
+#hud .bd-row.claim button {
+  padding: 5px 11px; border-radius: 7px; border: none; cursor: pointer;
+  color: #2a1c0a; background: linear-gradient(180deg, #ffe9a6, #e8c44f);
+  font: 800 11px system-ui, sans-serif; letter-spacing: 0.5px;
+}
+#hud .bd-empty { font-size: 12.5px; color: #9fb1c2; padding: 10px 4px 6px; }
+#hud .bd-err { font-size: 12px; color: #e8a89a; padding: 4px 10px 0; min-height: 0; }
+#hud .bd-err:empty { display: none; }
+#hud .bd-again {
+  display: block; width: 100%; margin-top: 14px; padding: 13px 10px; border: none; border-radius: 14px;
+  background: linear-gradient(180deg, #f6dd8a, #e8c44f); color: #2a1c0a; font-weight: 800; font-size: 16px;
+  letter-spacing: 0.5px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+#hud .bd-again:active { transform: translateY(1px); }
+#hud .race-pop .rp-rider { font-size: 11px; color: #f0d27a; font-weight: 700; padding: 8px 5px 3px; cursor: pointer; border-top: 1px solid rgba(216,185,74,0.25); margin-top: 6px; }
+#hud .race-pop .rp-rider span { color: #9fb1c2; font-weight: 600; }
+#hud .race-pop .rp-rider:hover span { color: #c8bd96; }
+#hud .race-pop .rp-rider input {
+  width: 130px; margin-left: 6px; padding: 3px 7px; border-radius: 7px;
+  border: 1px solid rgba(216,185,74,0.55); background: rgba(10,14,20,0.6);
+  color: #f3f1e8; font: 700 12px system-ui, sans-serif; letter-spacing: 0.5px;
+  outline: none; text-transform: uppercase;
+}
+#hud .race-pop .rp-rider input.bad { border-color: #d85a4a; animation: nbpt-name-shake 0.3s ease; }
+@keyframes nbpt-name-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+/* Salem (bare): no compass/missions/bag, so the 🏁 slides up under the season toggle */
+#hud.bare .race-btn { top: 170px !important; }
+#hud.bare .race-pop { top: 170px !important; }
+/* ---------- Races 🏁: countdown overlay + live timer chip ----------
+   NOT gated by .no-story — racing is the play tier, explore mode races too. */
+#hud .race-count {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  pointer-events: none; opacity: 0;
+}
+#hud .race-count.show { opacity: 1; }
+#hud .race-count .rc-num {
+  font-family: Georgia, serif; font-size: clamp(72px, 18vw, 150px); font-weight: 700;
+  color: #f0d27a; text-shadow: 0 4px 30px rgba(0,0,0,0.65), 0 0 60px rgba(232,196,79,0.35);
+  animation: nbpt-race-pop 0.9s cubic-bezier(0.2, 0.85, 0.3, 1.15) both;
+}
+@keyframes nbpt-race-pop { 0% { transform: scale(1.7); opacity: 0; } 25% { opacity: 1; } 100% { transform: scale(0.92); opacity: 0.95; } }
+#hud .race-timer {
+  position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+  display: none; align-items: baseline; gap: 9px;
+  background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-radius: 12px;
+  padding: 7px 14px; pointer-events: none; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+#hud .race-timer.show { display: flex; }
+#hud .race-timer .rt-cur { font: 800 20px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f6f3e8; letter-spacing: 0.5px; }
+#hud .race-timer .rt-best { font: 600 11px system-ui, sans-serif; color: #c8bd96; letter-spacing: 0.4px; }
+/* the tap-out ✕: the one interactive part of the chip; arms red, second tap quits */
+#hud .race-timer .rt-quit {
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+  font: 700 12px system-ui, sans-serif; color: #9fb1c2; padding: 3px 7px; margin: -2px -6px -2px 0;
+  border-radius: 8px; border: 1px solid transparent; transition: color 0.15s ease, background 0.15s ease;
+}
+#hud .race-timer .rt-quit:hover { color: #e8a89a; }
+#hud .race-timer .rt-quit.arm { color: #fff; background: rgba(216,90,74,0.55); border-color: rgba(216,90,74,0.8); }
 #hud .run-btn {
   position: absolute; right: 18px; bottom: 52px; width: 58px; height: 58px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
@@ -906,6 +1033,8 @@ export class Hud {
   // steering thumb isn't a dead zone). Anchored at the original down point.
   private joyPend: { id: number; x: number; y: number } | null = null;
   private bannerTimer = 0;
+  // the ported race chrome addresses elements NBPT-style, through a root handle
+  private get root(): HTMLElement { return document.querySelector('#hud') as HTMLElement; }
   private pointers = new Set<number>();
   onTap?: (x: number, y: number) => void;   // a quick tap/click on the world (drives tap-to-pet)
   private tapDown: { x: number; y: number; id: number; t: number; moved: boolean } | null = null;
@@ -940,6 +1069,10 @@ export class Hud {
           <div class="sp-label"><div class="sp-name">🔊 Sound</div><div class="sp-sub">Music &amp; effects</div></div>
           <div class="sp-sw"></div>
         </div>
+        <div class="sp-row" data-set="ghost">
+          <div class="sp-label"><div class="sp-name">👻 Ghost rider</div><div class="sp-sub">Race the town's best line. Off = just you and the clock.</div></div>
+          <div class="sp-sw"></div>
+        </div>
         <div class="sp-season">
           <div class="sp-season-hdr">🗓 SEASON</div>
           <div class="sp-season-row">
@@ -954,10 +1087,15 @@ export class Hud {
       <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span></div>
       <div class="season-toggle" title="Season">🍂</div>
       <div class="season-pop"></div>
+      <div class="race-btn" title="Races">🏁</div>
+      <div class="race-pop"></div>
+      <div class="board-panel"><div class="board-card"></div></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><div class="travel-towns"><div class="tt-hdr">EXPLORE ANOTHER TOWN</div><div class="tt-row"></div></div><input class="travel-search" type="text" placeholder="Go anywhere… try “Essex Street” or “The Witch House”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q wp-q">➤</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
+      <div class="race-count"></div>
+      <div class="race-timer"><span class="rt-cur"></span><span class="rt-best"></span><span class="rt-quit">✕</span></div>
       <div class="runtip"></div>
       <div class="streettip"></div>
       <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
@@ -1052,7 +1190,7 @@ export class Hud {
 
   private onDown(e: PointerEvent) {
     const tgt = e.target as HTMLElement;
-    const onUI = !!tgt?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .talk-btn, .dlg, .objective, .hcard');
+    const onUI = !!tgt?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .talk-btn, .dlg, .objective, .hcard, .race-btn, .race-pop');
     // run/bike sit right under the steering thumb: don't dead-zone them. A tap toggles (their own
     // click handler); a drag promotes to the joystick (handled in onMove). Defer either way.
     const onSoftBtn = !onUI && !!tgt?.closest?.('.run-btn, .bike-btn');
@@ -1164,6 +1302,232 @@ export class Hud {
   setCompass(rot: number) {
     if (!this.needle) this.needle = document.querySelector('#hud .compass .needle');
     if (this.needle) this.needle.style.transform = `rotate(${rot}rad)`;
+  }
+
+  private raceGoT: ReturnType<typeof setTimeout> | null = null;
+  private rtEl: HTMLElement | null = null;
+  private rtCur: HTMLElement | null = null;
+  private rtBest: HTMLElement | null = null;
+  private rtQuit: HTMLElement | null = null;
+  private fmtRace(s: number): string {
+    const m = Math.floor(s / 60), sec = s - m * 60;
+    return `${m}:${sec < 10 ? '0' : ''}${sec.toFixed(1)}`;
+  }
+
+  /** 🏆 the town leaderboard modal — post-race results AND the picker's standings view.
+   *  With `pendingTime` + `onName`, a dashed "claim" row sits at the run's would-be rank
+   *  carrying an inline name box; a valid name re-renders the board with the rider on it. */
+  private boardWired = false;
+
+  raceBoard(opts: {
+    course: string; sub: string;
+    rows: { n: string; t: number }[];
+    you: string | null;
+    time?: string;             // this run, formatted (results mode)
+    line?: string;             // flavor: placement call / claim prompt
+    pendingTime?: number;      // unnamed run to claim
+    onName?: (raw: string) => { name: string; rows: { n: string; t: number }[] } | null;
+    onAgain?: () => void;      // results mode: RACE AGAIN — the most-wanted button after any finish
+  }) {
+    const panel = this.root.querySelector('.board-panel') as HTMLElement;
+    const card = this.root.querySelector('.board-card') as HTMLElement;
+    const hide = () => panel.classList.remove('show');
+    if (!this.boardWired) {
+      this.boardWired = true;
+      panel.addEventListener('pointerdown', (e) => { if (e.target === panel) hide(); });
+    }
+    const render = (o: typeof opts) => {
+      card.innerHTML = '';
+      const mk = (cls: string, text?: string) => { const d = document.createElement('div'); d.className = cls; if (text !== undefined) d.textContent = text; return d; };
+      const x = mk('bd-x', '✕');
+      x.addEventListener('click', hide);
+      card.appendChild(x);
+      card.appendChild(mk('bd-kick', '🏆 TOWN LEADERBOARD'));
+      card.appendChild(mk('bd-title', o.course));
+      card.appendChild(mk('bd-sub', o.sub));
+      if (o.time) card.appendChild(mk('bd-time', o.time));
+      if (o.line) card.appendChild(mk('bd-line', o.line));
+      const list = mk('bd-rows');
+      card.appendChild(list);
+      const rows = o.rows.slice(0, 8);
+      if (!rows.length && o.pendingTime === undefined) list.appendChild(mk('bd-empty', 'No times yet — this board is waiting for a first rider.'));
+      // where would the pending run slot in?
+      const claimAt = o.pendingTime !== undefined ? rows.filter((r) => r.t <= o.pendingTime!).length : -1;
+      let rank = 0;
+      const addRow = (r: { n: string; t: number }) => {
+        rank++;
+        const row = mk('bd-row' + (o.you && r.n === o.you ? ' me' : ''));
+        row.appendChild(mk('bd-rank', String(rank)));
+        row.appendChild(mk('bd-name', (rank === 1 ? '👑 ' : '') + r.n));
+        row.appendChild(mk('bd-t', this.fmtRace(r.t)));
+        list.appendChild(row);
+      };
+      const addClaim = () => {
+        rank++;
+        const row = mk('bd-row claim');
+        row.appendChild(mk('bd-rank', String(rank)));
+        const inp = Object.assign(document.createElement('input'), { maxLength: 12, placeholder: 'TYPE YOUR NAME' });
+        row.appendChild(inp);
+        const btn = Object.assign(document.createElement('button'), { textContent: 'SAVE' });
+        row.appendChild(btn);
+        row.appendChild(mk('bd-t', this.fmtRace(o.pendingTime!)));
+        // rejection needs WORDS: the silent shake read as "the game is broken", and a
+        // kid whose name got filtered deserves to know it's the name, not them
+        const err = mk('bd-err');
+        const commit = () => {
+          const res = o.onName ? o.onName(inp.value) : null;
+          if (res) render({ ...o, you: res.name, rows: res.rows, pendingTime: undefined, onName: undefined, line: '★ saved — you’re on the board!' });
+          else {
+            err.textContent = inp.value.trim() ? 'that name isn’t allowed — try another!' : 'type a name first!';
+            inp.classList.remove('bad'); void inp.offsetWidth; inp.classList.add('bad'); inp.select();
+          }
+        };
+        inp.addEventListener('input', () => { err.textContent = ''; });
+        btn.addEventListener('click', (e) => { e.stopPropagation(); commit(); });
+        inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') hide(); });
+        list.appendChild(row);
+        list.appendChild(err);
+        setTimeout(() => inp.focus(), 300);
+      };
+      rows.forEach((r, i) => { if (i === claimAt && o.onName) addClaim(); addRow(r); });
+      if (claimAt >= rows.length && o.onName && o.pendingTime !== undefined) addClaim();
+      if (o.onAgain) {
+        const again = Object.assign(document.createElement('button'), { className: 'bd-again', textContent: '🏁 RACE AGAIN' });
+        again.addEventListener('click', (e) => { e.stopPropagation(); hide(); o.onAgain!(); });
+        card.appendChild(again);
+      }
+      panel.classList.add('show');
+    };
+    render(opts);
+  }
+
+  /** big center countdown; each call re-pops the number. null clears; 'GO!' self-clears. */
+  raceCountdown(text: string | null) {
+    const el = this.root.querySelector('.race-count') as HTMLElement;
+    if (this.raceGoT) { clearTimeout(this.raceGoT); this.raceGoT = null; }
+    if (text === null) { el.classList.remove('show'); el.innerHTML = ''; return; }
+    el.innerHTML = '<div class="rc-num"></div>';        // fresh node re-runs the pop animation
+    (el.firstChild as HTMLElement).textContent = text;
+    el.classList.add('show');
+    if (text === 'GO!') this.raceGoT = setTimeout(() => { el.classList.remove('show'); el.innerHTML = ''; }, 850);
+  }
+
+  /** live race clock under the objective pill; cur=null hides it */
+  setRaceTimer(cur: number | null, best: number | null) {
+    if (!this.rtEl) {
+      this.rtEl = this.root.querySelector('.race-timer');
+      this.rtCur = this.root.querySelector('.race-timer .rt-cur');
+      this.rtBest = this.root.querySelector('.race-timer .rt-best');
+      this.rtQuit = this.root.querySelector('.race-timer .rt-quit');
+    }
+    if (!this.rtEl || !this.rtCur || !this.rtBest) return;
+    if (cur === null) {
+      this.rtEl.classList.remove('show');
+      if (this.rtQuit) { this.rtQuit.classList.remove('arm'); this.rtQuit.textContent = '✕'; }   // disarm for the next run
+      return;
+    }
+    this.rtEl.classList.add('show');
+    this.rtCur.textContent = this.fmtRace(cur);
+    this.rtBest.textContent = best !== null ? '★ ' + this.fmtRace(best) : 'first ride';
+  }
+
+  /** the front-door 🏁 button + course picker: always visible, no discovery needed.
+   *  `rows` is re-read on every open so best times stay fresh; picking a course
+   *  hands its id to the game, which fades you to the start line and begins. */
+  initRaces(
+    rows: () => { id: string; name: string; sub: string; miles: number; est: number; best: number | null; leader: { n: string; t: number } | null }[],
+    onPick: (id: string) => void,
+    rider: { get: () => string; set: (raw: string) => { ok: boolean; name: string }; has: () => boolean },
+    onQuit: () => void,
+    onBoard: (id: string) => void,
+  ) {
+    if (!rows().length) return;                       // townless build: keep the button hidden
+    const btn = this.root.querySelector('.race-btn') as HTMLElement;
+    const pop = this.root.querySelector('.race-pop') as HTMLElement;
+    btn.classList.add('show');
+    // the race clock's ✕: arm on the first tap (so a stray tap can't kill a 2-minute
+    // run), quit on the second; auto-disarms after a beat
+    const quit = this.root.querySelector('.race-timer .rt-quit') as HTMLElement;
+    let quitT: ReturnType<typeof setTimeout> | null = null;
+    quit.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (quitT) clearTimeout(quitT);
+      if (quit.classList.contains('arm')) {
+        quit.classList.remove('arm'); quit.textContent = '✕';
+        onQuit();
+      } else {
+        quit.classList.add('arm'); quit.textContent = 'QUIT?';
+        // generous window: a kid taps, reads "QUIT?", thinks it over, taps again —
+        // 2.6s silently un-armed under them and the second tap re-armed instead of quitting
+        quitT = setTimeout(() => { quit.classList.remove('arm'); quit.textContent = '✕'; }, 6000);
+      }
+    });
+    const rebuild = () => {
+      pop.innerHTML = '';
+      pop.appendChild(Object.assign(document.createElement('div'), { className: 'rp-hdr', textContent: '🏁 RACES — beat the clock' }));
+      for (const r of rows()) {
+        const it = document.createElement('div');
+        it.className = 'rp-item';
+        const nameLine = Object.assign(document.createElement('div'), { className: 'rp-name', textContent: r.name });
+        const cup = Object.assign(document.createElement('span'), { className: 'rp-cup', textContent: '🏆', title: 'Leaderboard' });
+        cup.addEventListener('click', (e) => { e.stopPropagation(); pop.classList.remove('open'); onBoard(r.id); });
+        nameLine.appendChild(cup);
+        it.appendChild(nameLine);
+        // miles for the grown-ups, ride time for the kids — "3.8 mi" means nothing at 7
+        const estTxt = r.est < 75 ? '~' + Math.max(10, Math.round(r.est / 5) * 5) + ' sec ride' : '~' + Math.round(r.est / 60) + ' min ride';
+        it.appendChild(Object.assign(document.createElement('div'), { className: 'rp-sub', textContent: r.sub + ' · ' + r.miles.toFixed(1) + ' mi · ' + estTxt }));
+        // the town board leads the line — the leaderboard is the point
+        let bestLine: string;
+        if (r.leader && r.leader.n === rider.get() && r.best !== null) bestLine = '👑 you lead the town — ' + this.fmtRace(r.leader.t);
+        else if (r.leader) bestLine = '👑 ' + r.leader.n + ' ' + this.fmtRace(r.leader.t) + (r.best !== null ? ' · you ' + this.fmtRace(r.best) : ' · no time yet');
+        else bestLine = r.best !== null ? '★ best ' + this.fmtRace(r.best) : 'no time yet — set one!';
+        it.appendChild(Object.assign(document.createElement('div'), { className: 'rp-best', textContent: bestLine }));
+        it.addEventListener('click', () => { pop.classList.remove('open'); onPick(r.id); });
+        pop.appendChild(it);
+      }
+      pop.appendChild(Object.assign(document.createElement('div'), { className: 'rp-hint', textContent: 'The flags show the way, but any route counts — first to the finish line. Shortcuts welcome.' }));
+      // rider name row: tap to edit inline; blocked names shake and stay put
+      const row = document.createElement('div');
+      row.className = 'rp-rider';
+      const showName = () => {
+        row.innerHTML = '';
+        // unnamed riders get the pitch (times only save with a name on them)
+        if (!rider.has()) { row.append('🚴 '); row.appendChild(Object.assign(document.createElement('span'), { textContent: 'add your name — save your times!' })); return; }
+        row.append('🚴 ' + rider.get() + ' ');
+        row.appendChild(Object.assign(document.createElement('span'), { textContent: '— change name' }));
+      };
+      row.addEventListener('click', () => {
+        if (row.querySelector('input')) return;
+        row.innerHTML = '🚴 ';
+        const inp = Object.assign(document.createElement('input'), { maxLength: 12, value: rider.get(), placeholder: 'TYPE YOUR NAME' });
+        // same words-not-just-shake rule as the results board's claim row
+        const err = Object.assign(document.createElement('div'), { className: 'rp-err' });
+        const commit = () => {
+          const res = rider.set(inp.value);
+          if (res.ok) showName();
+          else {
+            err.textContent = inp.value.trim() ? 'that name isn’t allowed — try another!' : '';
+            inp.classList.remove('bad'); void inp.offsetWidth; inp.classList.add('bad'); inp.select();
+          }
+        };
+        inp.addEventListener('input', () => { err.textContent = ''; });
+        inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') showName(); });
+        inp.addEventListener('blur', () => commit());
+        inp.addEventListener('click', (e) => e.stopPropagation());
+        row.appendChild(inp);
+        row.appendChild(err);
+        inp.focus(); inp.select();
+      });
+      showName();
+      pop.appendChild(row);
+    };
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!pop.classList.contains('open')) rebuild();
+      pop.classList.toggle('open');
+    });
+    pop.addEventListener('click', (e) => e.stopPropagation());
+    window.addEventListener('click', () => pop.classList.remove('open'));
   }
 
   // ---------- fast travel ----------
@@ -2202,6 +2566,24 @@ export class Hud {
     const label = name.toUpperCase();
     if (txt.textContent !== label) txt.textContent = label;
     this.pill.style.display = 'flex';
+  }
+
+  initGhost(on: boolean, onToggle: () => boolean) {
+    const row = document.querySelector('#hud .settings-pop .sp-row[data-set="ghost"]') as HTMLElement;
+    row.classList.toggle('on', on);
+    row.addEventListener('click', (e) => {
+      e.stopPropagation();   // keep the popover open, same as the sound row
+      row.classList.toggle('on', onToggle());
+    });
+  }
+
+  /** un-throttled landmark-style banner for system announcements (race endings etc.) */
+  announce(name: string, sub: string) {
+    this.bannerName.textContent = name;
+    this.bannerSub.textContent = sub;
+    this.banner.classList.add('show');
+    clearTimeout(this.bannerTimer);
+    this.bannerTimer = window.setTimeout(() => this.banner.classList.remove('show'), 3400);
   }
 
   maybeShowLandmark(lm: Landmark): boolean {
