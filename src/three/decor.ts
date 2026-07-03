@@ -334,6 +334,144 @@ function complexGable(shin: Bucket, clap: Bucket, ring: number[], eaveAbs: numbe
   complexGable(shin, clap, B, eaveAbs, roofHex, wallHex, depth + 1);
 }
 
+function hipRoof(shin: Bucket, obb: OBB, eaveH: number, ridgeH: number, ov: number, roofHex: string, pyramid: boolean) {
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl + ov, W = obb.hw + ov;
+  const rL = pyramid ? 0 : Math.max(0, L - W);   // half ridge length; hips inset ~W from each end
+  const ridge = eaveH + ridgeH;
+  tmp.set(roofHex);
+  const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  const pt = (l: number, w: number, y: number): [number, number, number] =>
+    [obb.cx + l * ca - w * sa, y, obb.cz + l * sa + w * ca];
+  const U = (l: number, w: number): [number, number] => [l / TEX_SCALE, w / TEX_SCALE];
+  const A = pt(-L, W, eaveH), B = pt(L, W, eaveH), C = pt(L, -W, eaveH), D = pt(-L, -W, eaveH);
+  const RE = pt(rL, 0, ridge), RW = pt(-rL, 0, ridge);
+  const norm = (p: number[], q: number[], s: number[]): [number, number, number, number] => {
+    let nx = (q[1] - p[1]) * (s[2] - p[2]) - (q[2] - p[2]) * (s[1] - p[1]);
+    let ny = (q[2] - p[2]) * (s[0] - p[0]) - (q[0] - p[0]) * (s[2] - p[2]);
+    let nz = (q[0] - p[0]) * (s[1] - p[1]) - (q[1] - p[1]) * (s[0] - p[0]);
+    const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+    if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    return [nx, ny, nz, 0.8 + 0.2 * Math.max(0, nx * 0.35 + nz * 0.85)];
+  };
+  const quad = (p: number[], q: number[], s: number[], t: number[], up: number[], uq: number[], us: number[], ut: number[]) => {
+    const [nx, ny, nz, sh] = norm(p, q, s);
+    shin.quadUV(p[0], p[1], p[2], q[0], q[1], q[2], s[0], s[1], s[2], t[0], t[1], t[2], nx, ny, nz, rr * sh, rg * sh, rb * sh, up[0], up[1], uq[0], uq[1], us[0], us[1], ut[0], ut[1]);
+  };
+  const tri = (p: number[], q: number[], s: number[], up: number[], uq: number[], us: number[]) => {
+    const [nx, ny, nz, sh] = norm(p, q, s);
+    shin.triUV(p[0], p[1], p[2], q[0], q[1], q[2], s[0], s[1], s[2], nx, ny, nz, rr * sh, rg * sh, rb * sh, up[0], up[1], uq[0], uq[1], us[0], us[1]);
+  };
+  if (rL > 0.5) {
+    quad(A, B, RE, RW, U(-L, W), U(L, W), U(rL, 0), U(-rL, 0));   // long slope
+    quad(C, D, RW, RE, U(L, -W), U(-L, -W), U(-rL, 0), U(rL, 0)); // long slope
+    tri(B, C, RE, U(L, W), U(L, -W), U(rL, 0));                   // hip end
+    tri(D, A, RW, U(-L, -W), U(-L, W), U(-rL, 0));                // hip end
+  } else {
+    const AP = pt(0, 0, ridge);
+    tri(A, B, AP, U(-L, W), U(L, W), U(0, 0));
+    tri(B, C, AP, U(L, W), U(L, -W), U(0, 0));
+    tri(C, D, AP, U(L, -W), U(-L, -W), U(0, 0));
+    tri(D, A, AP, U(-L, -W), U(-L, W), U(0, 0));
+  }
+}
+
+// A mansard (Second Empire) roof from the OBB: four steep lower slopes rising to a
+// setback, capped near-flat, with dormers punched into the two long faces. Very New
+// England — Salem/Newburyport are full of them. Walls already rise to the eave.
+function mansardRoof(shin: Bucket, plain: Bucket, obb: OBB, eaveH: number, ov: number, roofHex: string) {
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl + ov, W = obb.hw + ov;
+  const lowerH = Math.max(13, Math.min(26, Math.min(L, W) * 0.85));   // steep lower-slope rise
+  const inset = Math.min(L, W) * 0.32;                                // horizontal setback
+  const topY = eaveH + lowerH;
+  const sL = Math.max(2, L - inset), sW = Math.max(2, W - inset);
+  tmp.set(roofHex); const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  const pt = (l: number, w: number, y: number): [number, number, number] =>
+    [obb.cx + l * ca - w * sa, y, obb.cz + l * sa + w * ca];
+  const uv = (along: number, y: number): [number, number] => [along / TEX_SCALE, y / TEX_SCALE];
+  const norm = (p: number[], q: number[], s: number[]): [number, number, number, number] => {
+    let nx = (q[1]-p[1])*(s[2]-p[2]) - (q[2]-p[2])*(s[1]-p[1]);
+    let ny = (q[2]-p[2])*(s[0]-p[0]) - (q[0]-p[0])*(s[2]-p[2]);
+    let nz = (q[0]-p[0])*(s[1]-p[1]) - (q[1]-p[1])*(s[0]-p[0]);
+    const nl = Math.hypot(nx, ny, nz) || 1; nx/=nl; ny/=nl; nz/=nl;
+    if (ny < 0) { nx=-nx; ny=-ny; nz=-nz; }
+    return [nx, ny, nz, 0.8 + 0.2 * Math.max(0, nx*0.35 + nz*0.85)];
+  };
+  const face = (p: number[], q: number[], s: number[], t: number[], ua: number[], ub: number[], uc: number[], ud: number[]) => {
+    const [nx, ny, nz, sh] = norm(p, q, s);
+    shin.quadUV(p[0],p[1],p[2], q[0],q[1],q[2], s[0],s[1],s[2], t[0],t[1],t[2], nx,ny,nz, rr*sh,rg*sh,rb*sh, ua[0],ua[1], ub[0],ub[1], uc[0],uc[1], ud[0],ud[1]);
+  };
+  const A=pt(-L,W,eaveH), B=pt(L,W,eaveH), C=pt(L,-W,eaveH), D=pt(-L,-W,eaveH);
+  const a=pt(-sL,sW,topY), b2=pt(sL,sW,topY), c2=pt(sL,-sW,topY), d2=pt(-sL,-sW,topY);
+  face(A,B,b2,a,  uv(-L,eaveH),uv(L,eaveH),uv(sL,topY),uv(-sL,topY));   // south steep
+  face(C,D,d2,c2, uv(L,eaveH),uv(-L,eaveH),uv(-sL,topY),uv(sL,topY));   // north steep
+  face(B,C,c2,b2, uv(W,eaveH),uv(-W,eaveH),uv(-sW,topY),uv(sW,topY));   // east steep
+  face(D,A,a,d2,  uv(-W,eaveH),uv(W,eaveH),uv(sW,topY),uv(-sW,topY));   // west steep
+  shin.quadUV(a[0],a[1],a[2], b2[0],b2[1],b2[2], c2[0],c2[1],c2[2], d2[0],d2[1],d2[2], 0,1,0, rr*0.88,rg*0.88,rb*0.88,
+    -sL/TEX_SCALE,sW/TEX_SCALE, sL/TEX_SCALE,sW/TEX_SCALE, sL/TEX_SCALE,-sW/TEX_SCALE, -sL/TEX_SCALE,-sW/TEX_SCALE);   // near-flat cap
+  // dormers in the two long faces
+  const nd = Math.max(1, Math.min(3, Math.floor(sL / 18)));
+  for (const side of [1, -1]) {
+    for (let i = 0; i < nd; i++) {
+      const l0 = nd === 1 ? 0 : -sL * 0.58 + (i / (nd - 1)) * sL * 1.16;
+      mansardDormer(plain, obb, l0, side, W, eaveH, lowerH);
+    }
+  }
+}
+
+// A bold gabled dormer projecting from a mansard's steep face: cream body + dark window
+// + a peaked roof whose triangular gable end reads toward the street. Placed in the OBB
+// frame at l0 along the wall, on the side*W face.
+function mansardDormer(plain: Bucket, obb: OBB, l0: number, side: number, W: number, eaveH: number, lowerH: number) {
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const dw = 6.5;                          // half width along the wall (~1.6 m)
+  const wF = side * (W + 2.5);             // front, proud of the eave
+  const wB = side * (W - 6.5);             // back, set into the roof
+  const yBase = eaveH + Math.max(4, lowerH * 0.16);            // lifted into the dark roof field for contrast
+  const yTop = eaveH + Math.min(lowerH * 0.74, lowerH - 4);
+  const ridgeY = Math.min(yTop + 5, eaveH + lowerH - 1);
+  const pt = (l: number, w: number, y: number): [number, number, number] =>
+    [obb.cx + l * ca - w * sa, y, obb.cz + l * sa + w * ca];
+  const bmid = (wB + wF) / 2;
+  rotBox(plain, obb.cx + l0 * ca - bmid * sa, obb.cz + l0 * sa + bmid * ca, dw, Math.abs(wF - wB) / 2, yBase, yTop, obb.ang, '#f6f1e7');  // bright body — pops on the dark mansard
+  const wWin = wF - side * 0.4;
+  rotBox(plain, obb.cx + l0 * ca - wWin * sa, obb.cz + l0 * sa + wWin * ca, dw - 2.2, 0.5, yBase + 2, yTop - 1.5, obb.ang, '#33373c');     // window
+  tmp.set('#d7d0c0'); const rr = tmp.r, rg = tmp.g, rb = tmp.b;   // light dormer roof
+  const sh = (p: number[], q: number[], s: number[]): [number, number, number, number] => {
+    let nx = (q[1]-p[1])*(s[2]-p[2]) - (q[2]-p[2])*(s[1]-p[1]);
+    let ny = (q[2]-p[2])*(s[0]-p[0]) - (q[0]-p[0])*(s[2]-p[2]);
+    let nz = (q[0]-p[0])*(s[1]-p[1]) - (q[1]-p[1])*(s[0]-p[0]);
+    const nl = Math.hypot(nx, ny, nz) || 1; nx/=nl; ny/=nl; nz/=nl;
+    return [nx, ny, nz, 0.76 + 0.24 * Math.max(0, Math.abs(nx)*0.35 + ny*0.5 + Math.abs(nz)*0.6)];
+  };
+  const Lt = pt(l0 - dw, wB, yTop), Lf = pt(l0 - dw, wF, yTop);
+  const Rt = pt(l0 + dw, wB, yTop), Rf = pt(l0 + dw, wF, yTop);
+  const Kb = pt(l0, wB, ridgeY), Kf = pt(l0, wF, ridgeY);
+  const q4 = (a: number[], b: number[], c: number[], d: number[]) => {
+    const [nx, ny, nz, s2] = sh(a, b, c);
+    plain.quad(a[0],a[1],a[2], b[0],b[1],b[2], c[0],c[1],c[2], d[0],d[1],d[2], nx,ny,nz, rr*s2, rg*s2, rb*s2);
+  };
+  const t3 = (a: number[], b: number[], c: number[]) => {
+    const [nx, ny, nz, s2] = sh(a, b, c);
+    plain.triUV(a[0],a[1],a[2], b[0],b[1],b[2], c[0],c[1],c[2], nx,ny,nz, rr*s2, rg*s2, rb*s2, 0,0,0,0,0,0);
+  };
+  q4(Lt, Lf, Kf, Kb);   // left roof slope
+  q4(Rf, Rt, Kb, Kf);   // right roof slope
+  t3(Lf, Rf, Kf);       // street-facing gable triangle
+}
+
+// roof shape for a simple rectangular house: square-ish → pyramid/hip, medium → hip/gable
+// mix, long → gable, with a Second Empire mansard on a minority of sizeable squarish ones.
+function pickHouseRoof(obb: OBB, seed: number): 'gable' | 'hip' | 'pyramid' | 'mansard' {
+  const ar = obb.hl / Math.max(1, obb.hw);
+  const h = hash32(seed, 17, 3) % 100;
+  if (ar < 1.7 && obb.hw > 18 && obb.hl > 18 && h < 24) return 'mansard';
+  if (ar < 1.3) return h < 62 ? 'pyramid' : 'hip';
+  if (ar < 2.1) return h < 48 ? 'hip' : 'gable';
+  return 'gable';
+}
+
 // windows (+shutters), door, along the exact footprint walls.
 // Commercial buildings get a storefront ground floor: display glass, awnings, sign band.
 // `g` = ground height at the building, `eaveH` = ABSOLUTE eave height.
@@ -869,6 +1007,60 @@ function pointInRingD(x: number, y: number, pts: number[]): boolean {
     if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
+}
+
+// Rooftop mechanicals — at the game's high chase-cam the roof IS the facade, so flat
+// roofs get what real ones have: HVAC units, vents, a stair bulkhead on the big blocks,
+// and brick chimney stacks on the old brick buildings. All seeded; every box's footprint
+// is tested against the ring (candidates that would hang off the roof are skipped).
+// Ring coords: render x = ring x, render z = ring y (the loop's convention throughout).
+function roofClutter(buckets: Bucket[], ring: number[], topY: number, seed: number, areaM2: number, brick: boolean) {
+  if (areaM2 < 70) return;
+  const rng = mulberry32(hash32(seed, 23, 13));
+  const obb = obbOf(ring);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  // a candidate spot in OBB space, kept only if a `margin` square around it fits the footprint
+  const spot = (margin: number): [number, number] | null => {
+    for (let t = 0; t < 6; t++) {
+      const l = (rng() * 2 - 1) * Math.max(1, obb.hl - margin);
+      const w = (rng() * 2 - 1) * Math.max(1, obb.hw - margin);
+      const x = obb.cx + l * ca - w * sa, z = obb.cz + l * sa + w * ca;
+      if (pointInRingD(x - margin, z - margin, ring) && pointInRingD(x + margin, z - margin, ring) &&
+          pointInRingD(x - margin, z + margin, ring) && pointInRingD(x + margin, z + margin, ring)) return [x, z];
+    }
+    return null;
+  };
+  // stair bulkhead on the big blocks
+  if (areaM2 > 450) {
+    const s = spot(11);
+    if (s) buckets[PLAIN].box(s[0], s[1], 9, 6.5, topY, topY + 12, '#9d998f');
+  }
+  // rooftop HVAC units — more on bigger roofs
+  const nH = Math.min(4, 1 + Math.floor(areaM2 / 320));
+  for (let i = 0; i < nH; i++) {
+    const s = spot(8);
+    if (!s) continue;
+    const hw2 = 2.6 + rng() * 2.2;
+    buckets[PLAIN].box(s[0], s[1], hw2, hw2 * (0.75 + rng() * 0.5), topY, topY + 6 + rng() * 3, rng() < 0.5 ? '#a7abae' : '#8e9296');
+  }
+  // little vent stacks
+  const nV = Math.min(5, Math.floor(areaM2 / 220));
+  for (let i = 0; i < nV; i++) {
+    const s = spot(4);
+    if (s) buckets[PLAIN].box(s[0], s[1], 1.2, 1.2, topY, topY + 4 + rng() * 2, '#6f7275');
+  }
+  // brick chimney stacks near the party-wall ends of the old brick blocks
+  if (brick) {
+    const nC = obb.hl > 40 ? 2 : 1;
+    for (let i = 0; i < nC; i++) {
+      const l = (nC === 1 ? 0 : (i === 0 ? -1 : 1)) * obb.hl * 0.62;
+      const w = (rng() * 2 - 1) * obb.hw * 0.4;
+      const x = obb.cx + l * ca - w * sa, z = obb.cz + l * sa + w * ca;
+      if (pointInRingD(x - 3, z - 3, ring) && pointInRingD(x + 3, z + 3, ring) &&
+          pointInRingD(x - 3, z + 3, ring) && pointInRingD(x + 3, z - 3, ring))
+        buckets[BRICK].box(x, z, 2.6, 2.6, topY, topY + 8 + rng() * 3, '#7a4b3a', 1);
+    }
+  }
 }
 
 function pointInPolyD(x: number, y: number, poly: Poly): boolean {
@@ -2759,12 +2951,27 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       : buckets[CLAP];                       // painted clapboard — most of the island, like town
     walls(wallBucket, b.p, base, eaveAbs, wallHex);
 
-    const gabled = b.k === 'house' || b.k === 'shed' || b.k === 'church';
+    const obb = obbOf(b.p);
+    const fill = ringAreaPx2(b.p) / Math.max(1, 4 * obb.hl * obb.hw);   // 1 = a clean rectangle
+    // Real houses don't span a city block. A handful of footprints are big structures (a
+    // supermarket, rink, mill) left as untagged building=yes → 'house'; a single pitched
+    // roof over their bounding box becomes an enormous slab jutting past the walls. Above
+    // a house-plausible size, fall through to the flat branch (which clips to the exact
+    // footprint). Churches are exempt — they need this branch for their steeple.
+    const pitchable = b.k === 'church' || (areaM2 < 2000 && obb.hw < 200);
+    const gabled = (b.k === 'house' || b.k === 'shed' || b.k === 'church') && pitchable;
     if (gabled) {
-      const obb = obbOf(b.p);
       const ridgeH = Math.max(7, Math.min(22, obb.hw * 0.55));
       const roofHex = pick(STYLE.building.roofs, seed);
-      complexGable(buckets[SHINGLE], beachShake ? buckets[SHINGLE] : buckets[CLAP], b.p, eaveAbs, roofHex, wallHex, 0, b.k !== 'shed');
+      // simple rectangular houses get hip/pyramid/mansard variety to break the all-gabled
+      // monotony; L/T-shaped (and any not-near-rectangular) houses keep the footprint-clipped
+      // gable. The OBB hip/mansard cover the bounding box, so on a footprint that doesn't fill
+      // it they'd jut past the walls — only use them when the footprint IS the rectangle
+      // (fill ≥ 0.9), and with a tight eave (ov 2 ≈ 0.25 m).
+      const roofShape = b.k === 'house' && fill >= 0.9 ? pickHouseRoof(obb, seed) : 'gable';
+      if (roofShape === 'mansard') mansardRoof(buckets[SHINGLE], buckets[PLAIN], obb, eaveAbs, 2, roofHex);
+      else if (roofShape !== 'gable') hipRoof(buckets[SHINGLE], obb, eaveAbs, ridgeH, 2, roofHex, roofShape === 'pyramid');
+      else complexGable(buckets[SHINGLE], beachShake ? buckets[SHINGLE] : buckets[CLAP], b.p, eaveAbs, roofHex, wallHex, 0, b.k !== 'shed');
       if (b.k === 'house') {
         houseTrim(buckets[PLAIN], b.p, eaveAbs, base);
         if (rng() < 0.7 && obb.hl > 18) {
@@ -2776,6 +2983,16 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (b.k === 'church') {
         // every church gets a real square-tower steeple at its street end
         steeple(buckets, b, g, index, false);
+      }
+    } else if ((b.k === 'civic' || (b.k === 'commercial' && areaM2 < 240)) && fill >= 0.74 && areaM2 < 1100) {
+      // town halls / libraries / small civic + small standalone shops read better pitched
+      // than as flat boxes; big civic (schools) + downtown commercial blocks stay flat below.
+      const roofHex2 = pick(STYLE.building.roofs, seed);
+      if (b.k === 'civic' && hash32(seed, 31, 7) % 100 < 38) {
+        mansardRoof(buckets[SHINGLE], buckets[PLAIN], obb, eaveAbs, 4, roofHex2);
+      } else {
+        const ridgeC = Math.max(8, Math.min(20, obb.hw * 0.4));
+        hipRoof(buckets[SHINGLE], obb, eaveAbs, ridgeC, 4, roofHex2, obb.hl / Math.max(1, obb.hw) < 1.3);
       }
     } else {
       flatRoof(buckets[PLAIN], b.p, eaveAbs, pick(STYLE.building.roofsCommercial, seed));
@@ -2797,10 +3014,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
           );
         }
       }
-      if (b.k !== 'shed' && rng() < 0.4) {
-        const [cx, cz] = centroidOf(b.p);
-        buckets[PLAIN].box(cx + (rng() - 0.5) * 8, cz + (rng() - 0.5) * 8, 3, 4, eaveAbs, eaveAbs + 5, '#8e9296');
-      }
+      if (b.k !== 'shed') roofClutter(buckets, b.p, eaveAbs, seed, areaM2, isBrick);
     }
 
     if (b.k !== 'shed') {
