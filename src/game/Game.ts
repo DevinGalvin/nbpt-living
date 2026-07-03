@@ -1836,12 +1836,20 @@ export class Game {
       else if (this.kayaking) { if (this.landNear()) act = { label: '🛶 HOP OUT', cb: () => this.exitKayak() }; }
       else if (!this.inside && !this.boating && !this.sweeping) {
         if (this.flightEnabled && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
-        else if (this.kayakEarned && this.nearWater && !this.quest?.nearActive && !this.hud.dialogueOpen) act = { label: '🛶 KAYAK', cb: () => this.enterKayak() };
+        else if (this.kayakEarned && this.nearWater && !this.quest?.nearActive && !this.race?.nearActive && !this.hud.dialogueOpen) act = { label: '🛶 KAYAK', cb: () => this.enterKayak() };
       }
       const actKey = act ? act.label : null;
       if (actKey !== this.flyAct) {
         this.flyAct = actKey;
-        this.hud.showTalk(act ? act.label : null, act ? act.cb : undefined);
+        // Handing the button back (act → null) must NOT wipe a button the story or a
+        // race flag armed this same frame. The "kayak ate the rowboat" bug: walking to
+        // Ch4's rowboat crosses the near-water band, 🛶 KAYAK arms, and the moment the
+        // quest arms 🛶 ROW the kayak's exit transition cleared it — the quest only
+        // re-offers on change, so the button stayed invisible. (kayakEarned is always
+        // true since vehicles went baseline, so every shore quest point hits this.)
+        if (act || !(this.quest?.nearActive || this.race?.nearActive)) {
+          this.hud.showTalk(act ? act.label : null, act ? act.cb : undefined);
+        }
       }
       this.hud.setStreet(this.inTunnel ? 'the tunnels' : this.interior ? this.interior.name : this.index.nearestRoadName(this.px, this.pz, 170));
       if (!this.inside) {
