@@ -240,8 +240,9 @@ export class RaceRunner {
   private rec: number[] = [];          // ghost samples, flat [t(ds), x, z, ...]
   private recAcc = 0;
   private t = 0;                       // ambient anim clock
-  // unnamed finishes aren't lost — the session's best run per course is HELD here,
-  // and setting a name (finish-card box or the 🏁 picker) saves it retroactively
+  // unconfirmed finishes aren't lost — the session's best run per course is HELD here
+  // until somebody puts their name on it (the finish card, the 🏆 board's claim row,
+  // or naming yourself in the 🏁 picker all bank it retroactively)
   private pending = new Map<string, { t: number; ghost: string }>();
 
   private flags = new Map<string, THREE.Group>();
@@ -682,72 +683,75 @@ export class RaceRunner {
   private finish(px: number, pz: number) {
     const c = this.course!;
     this.rec.push(Math.round(this.clock * 10), Math.round(px), Math.round(pz));
-    const named = hasRaceName();                          // no name, no board — but the run is held, not lost
-    const prev = this.bestFor(c.id);                      // this rider's row on the town board
-    const newBest = named && (prev === null || this.clock < prev);
     const ghost = JSON.stringify({ v: 1, t: Math.round(this.clock * 1000), s: this.rec });
-    if (newBest) {
-      try { localStorage.setItem(ghostKey(c.id, getRaceName()), ghost); } catch { /* private mode */ }
-    }
     this.audio.jingle();
-    if (!named) {
-      // hold the session's best unnamed run; the results board carries a claim row —
-      // the moment they just earned a time is the moment they'll want to keep it
-      const held = this.pending.get(c.id);
-      if (!held || this.clock < held.t) this.pending.set(c.id, { t: this.clock, ghost });
-      this.hud.raceBoard({
-        course: c.name, sub: c.sub,
-        time: fmtTime(this.clock), line: 'type your name to claim your spot on the board!',
-        rows: getBoard(c.id), you: null, pendingTime: this.clock,
-        onName: (raw) => {
-          const r = setRaceName(raw);
-          if (!r.ok) return null;
-          this.flushPending();
-          return { name: r.name, rows: getBoard(c.id) };
-        },
-        onAgain: () => this.restart(c.id),
-      });
-    } else {
-      // the run goes on the town board; the results modal shows exactly where it landed
-      const place = postToBoard(c.id, getRaceName(), this.clock);
-      syncBoard(c.id);
-      const board = getBoard(c.id);
-      let line: string;
-      if (!newBest) {
-        // never just state the miss — a kid reads "your best stands at 1:34" as "you
-        // lost". Show the gap and make another go the obvious next move.
-        const gap = this.clock - prev!;
-        line = gap <= 3
-          ? 'SO close — just ' + gap.toFixed(1) + 's off your best!'
-          : 'your best is ' + fmtTime(prev!) + ' — the ghost knows the way!';
-      }
-      else if (board.length > 1 && place === 1) line = '👑 #1 in town — NEW BEST!';
-      else if (board.length > 1) line = 'NEW BEST — #' + place + ' in town!';
-      else line = 'NEW BEST! The town will hear about this.';
-      this.hud.raceBoard({ course: c.name, sub: c.sub, time: fmtTime(this.clock), line, rows: board, you: getRaceName(), onAgain: () => this.restart(c.id) });
-    }
+    // EVERY finish asks "who was riding?" — arcade high-score style. On a shared family
+    // device the device can't know who just rode; the name row comes PREFILLED with the
+    // last rider (one tap keeps it, typing over it hands the board to the next kid).
+    // Nothing posts until the name is confirmed; a dismissed run is HELD for the
+    // session (claimable from the 🏆 board), never silently filed under the wrong kid.
+    const held = this.pending.get(c.id);
+    if (!held || this.clock < held.t) this.pending.set(c.id, { t: this.clock, ghost });
+    const t = this.clock;
+    this.hud.raceBoard({
+      course: c.name, sub: c.sub,
+      time: fmtTime(this.clock),
+      line: hasRaceName() ? 'who was riding? SAVE keeps the name — or type a new one' : 'type your name to claim your spot on the board!',
+      rows: getBoard(c.id), you: null, pendingTime: this.clock,
+      prefill: hasRaceName() ? getRaceName() : '',
+      onName: (raw) => this.claimRun(c.id, raw, t, ghost),
+      onAgain: () => this.restart(c.id),
+    });
     this.reset();
   }
 
-  /** open the town board for a course (the picker's 🏆) — claim row included if a
-   *  nameless run is still held from earlier in the session */
+  /** confirm a run's rider: persist the name, bank the run (ghost included when it's
+   *  that rider's new best) and hand back the fresh board + a placement call */
+  private claimRun(id: string, raw: string, t: number, ghost: string): { name: string; rows: BoardRow[]; line: string } | null {
+    const r = setRaceName(raw);
+    if (!r.ok) return null;
+    const prevRow = getBoard(id).find((row) => row.n === r.name);
+    const prev = prevRow ? prevRow.t : null;
+    const newBest = prev === null || t < prev;
+    if (newBest) {
+      try { localStorage.setItem(ghostKey(id, r.name), ghost); } catch { /* private mode */ }
+    }
+    const place = postToBoard(id, r.name, t);
+    // this run is claimed — only an OLDER better run stays held for someone else
+    const held = this.pending.get(id);
+    if (held && held.t >= t) this.pending.delete(id);
+    syncBoard(id);
+    const board = getBoard(id);
+    let line: string;
+    if (!newBest) {
+      // never just state the miss — a kid reads "your best stands at 1:34" as "you
+      // lost". Show the gap and make another go the obvious next move.
+      const gap = t - prev!;
+      line = gap <= 3
+        ? 'SO close — just ' + gap.toFixed(1) + 's off your best!'
+        : 'your best is ' + fmtTime(prev!) + ' — the ghost knows the way!';
+    }
+    else if (board.length > 1 && place === 1) line = '👑 #1 in town — NEW BEST!';
+    else if (board.length > 1) line = 'NEW BEST — #' + place + ' in town!';
+    else line = 'NEW BEST! The town will hear about this.';
+    return { name: r.name, rows: board, line };
+  }
+
+  /** open the town board for a course (the picker's 🏆) — claim row included if an
+   *  unconfirmed run is still held from earlier in the session */
   showBoard(id: string) {
     const c = COURSES.find((k) => k.id === id);
     if (!c) return;
     syncBoard(id);
-    const held = !hasRaceName() ? this.pending.get(id) : undefined;
+    const held = this.pending.get(id);
     this.hud.raceBoard({
       course: c.name, sub: c.sub,
       rows: getBoard(id),
       you: hasRaceName() ? getRaceName() : null,
       pendingTime: held ? held.t : undefined,
-      line: held ? 'type your name to claim your held run!' : undefined,
-      onName: !hasRaceName() ? (raw) => {
-        const r = setRaceName(raw);
-        if (!r.ok) return null;
-        this.flushPending();
-        return { name: r.name, rows: getBoard(id) };
-      } : undefined,
+      prefill: hasRaceName() ? getRaceName() : '',
+      line: held ? (hasRaceName() ? 'a run from earlier is unclaimed — whose was it?' : 'type your name to claim your held run!') : undefined,
+      onName: held ? (raw) => this.claimRun(id, raw, held.t, held.ghost) : undefined,
     });
   }
 

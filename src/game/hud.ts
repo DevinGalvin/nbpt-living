@@ -238,18 +238,19 @@ const css = `
 #hud .bd-row .bd-name { flex: 1; font-weight: 700; letter-spacing: 0.5px; }
 #hud .bd-row .bd-t { font: 700 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f0d27a; }
 #hud .bd-row.me { background: rgba(216,185,74,0.16); border-color: rgba(216,185,74,0.4); }
-#hud .bd-row.claim { background: rgba(207,234,255,0.07); border: 1px dashed rgba(207,234,255,0.35); }
+#hud .bd-row.claim { background: rgba(207,234,255,0.07); border: 1px dashed rgba(207,234,255,0.35); padding: 9px 10px; }
 #hud .bd-row.claim input {
-  flex: 1; min-width: 90px; padding: 5px 9px; border-radius: 7px;
+  flex: 1; min-width: 90px; width: 90px; padding: 7px 10px; border-radius: 8px;
   border: 1px solid rgba(216,185,74,0.55); background: rgba(10,14,20,0.6);
-  color: #f3f1e8; font: 700 12px system-ui, sans-serif; letter-spacing: 0.5px;
+  color: #ffe9a6; font: 800 17px system-ui, sans-serif; letter-spacing: 1.5px;
   outline: none; text-transform: uppercase;
 }
+#hud .bd-row.claim input::placeholder { font-size: 12px; letter-spacing: 0.5px; color: #9fb1c2; }
 #hud .bd-row.claim input.bad { border-color: #d85a4a; animation: nbpt-name-shake 0.3s ease; }
 #hud .bd-row.claim button {
-  padding: 5px 11px; border-radius: 7px; border: none; cursor: pointer;
+  padding: 8px 13px; border-radius: 8px; border: none; cursor: pointer;
   color: #2a1c0a; background: linear-gradient(180deg, #ffe9a6, #e8c44f);
-  font: 800 11px system-ui, sans-serif; letter-spacing: 0.5px;
+  font: 800 13px system-ui, sans-serif; letter-spacing: 0.5px;
 }
 #hud .bd-empty { font-size: 12.5px; color: #9fb1c2; padding: 10px 4px 6px; }
 #hud .bd-err { font-size: 12px; color: #e8a89a; padding: 4px 10px 0; min-height: 0; }
@@ -260,15 +261,26 @@ const css = `
   letter-spacing: 0.5px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
 }
 #hud .bd-again:active { transform: translateY(1px); }
-#hud .race-pop .rp-rider { font-size: 11px; color: #f0d27a; font-weight: 700; padding: 8px 5px 3px; cursor: pointer; border-top: 1px solid rgba(216,185,74,0.25); margin-top: 6px; }
-#hud .race-pop .rp-rider span { color: #9fb1c2; font-weight: 600; }
-#hud .race-pop .rp-rider:hover span { color: #c8bd96; }
+/* who's riding — the banner at the TOP of the picker (shared-device rider switching) */
+#hud .race-pop .rp-rider {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px; margin: 0 0 7px; cursor: pointer; border-radius: 9px;
+  background: rgba(216,185,74,0.13); border: 1px solid rgba(216,185,74,0.45);
+  font-size: 12px; color: #f0d27a; font-weight: 700;
+}
+#hud .race-pop .rp-rider b { font-size: 16px; font-weight: 800; color: #ffe9a6; letter-spacing: 1px; }
+#hud .race-pop .rp-rider span { color: #9fb1c2; font-weight: 600; font-size: 11px; }
+/* the "switch rider" affix reads as a link, pushed to the banner's far edge — but the
+   unnamed pitch ("add your name…") flows inline after the 🚴 */
+#hud .race-pop .rp-rider b ~ span { margin-left: auto; text-decoration: underline; text-underline-offset: 2px; }
+#hud .race-pop .rp-rider:hover span { color: #e8e4d8; }
 #hud .race-pop .rp-rider input {
-  width: 130px; margin-left: 6px; padding: 3px 7px; border-radius: 7px;
+  flex: 1; width: 110px; min-width: 90px; padding: 5px 9px; border-radius: 7px;
   border: 1px solid rgba(216,185,74,0.55); background: rgba(10,14,20,0.6);
-  color: #f3f1e8; font: 700 12px system-ui, sans-serif; letter-spacing: 0.5px;
+  color: #ffe9a6; font: 800 15px system-ui, sans-serif; letter-spacing: 1px;
   outline: none; text-transform: uppercase;
 }
+#hud .race-pop .rp-rider input::placeholder { font-size: 11px; letter-spacing: 0.5px; color: #9fb1c2; }
 #hud .race-pop .rp-rider input.bad { border-color: #d85a4a; animation: nbpt-name-shake 0.3s ease; }
 @keyframes nbpt-name-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 #hud .run-btn {
@@ -1351,8 +1363,10 @@ export class Hud {
     you: string | null;
     time?: string;             // this run, formatted (results mode)
     line?: string;             // flavor: placement call / claim prompt
-    pendingTime?: number;      // unnamed run to claim
-    onName?: (raw: string) => { name: string; rows: { n: string; t: number }[] } | null;
+    pendingTime?: number;      // unconfirmed run to claim
+    prefill?: string;          // last rider's name, pre-typed in the claim box — one tap
+                               // keeps it, typing over it switches riders (shared iPad)
+    onName?: (raw: string) => { name: string; rows: { n: string; t: number }[]; line?: string } | null;
     onAgain?: () => void;      // results mode: RACE AGAIN — the most-wanted button after any finish
   }) {
     const panel = this.root.querySelector('.board-panel') as HTMLElement;
@@ -1392,7 +1406,7 @@ export class Hud {
         rank++;
         const row = mk('bd-row claim');
         row.appendChild(mk('bd-rank', String(rank)));
-        const inp = Object.assign(document.createElement('input'), { maxLength: 12, placeholder: 'TYPE YOUR NAME' });
+        const inp = Object.assign(document.createElement('input'), { maxLength: 12, placeholder: 'TYPE YOUR NAME', value: o.prefill || '' });
         row.appendChild(inp);
         const btn = Object.assign(document.createElement('button'), { textContent: 'SAVE' });
         row.appendChild(btn);
@@ -1402,18 +1416,21 @@ export class Hud {
         const err = mk('bd-err');
         const commit = () => {
           const res = o.onName ? o.onName(inp.value) : null;
-          if (res) render({ ...o, you: res.name, rows: res.rows, pendingTime: undefined, onName: undefined, line: '★ saved — you’re on the board!' });
+          if (res) render({ ...o, you: res.name, rows: res.rows, pendingTime: undefined, onName: undefined, line: res.line || '★ saved — you’re on the board!' });
           else {
             err.textContent = inp.value.trim() ? 'that name isn’t allowed — try another!' : 'type a name first!';
             inp.classList.remove('bad'); void inp.offsetWidth; inp.classList.add('bad'); inp.select();
           }
         };
         inp.addEventListener('input', () => { err.textContent = ''; });
+        // tapping a prefilled box means "not me" — select it all so typing replaces
+        inp.addEventListener('focus', () => { if (inp.value) inp.select(); });
         btn.addEventListener('click', (e) => { e.stopPropagation(); commit(); });
         inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') hide(); });
         list.appendChild(row);
         list.appendChild(err);
-        setTimeout(() => inp.focus(), 300);
+        // prefilled = the common case is one tap on SAVE — don't pop the keyboard over it
+        if (!o.prefill) setTimeout(() => inp.focus(), 300);
       };
       rows.forEach((r, i) => { if (i === claimAt && o.onName) addClaim(); addRow(r); });
       if (claimAt >= rows.length && o.onName && o.pendingTime !== undefined) addClaim();
@@ -1491,6 +1508,42 @@ export class Hud {
     const rebuild = () => {
       pop.innerHTML = '';
       pop.appendChild(Object.assign(document.createElement('div'), { className: 'rp-hdr', textContent: '🏁 RACES — beat the clock' }));
+      // WHO'S RIDING leads the popup — on a shared family device the first question
+      // before any race is "is that MY name up there?". Tap to switch; the box comes
+      // prefilled with the last rider so a returning kid just types over it.
+      const row = document.createElement('div');
+      row.className = 'rp-rider';
+      const showName = () => {
+        row.innerHTML = '';
+        // unnamed riders get the pitch (times only save with a name on them)
+        if (!rider.has()) { row.appendChild(Object.assign(document.createElement('span'), { textContent: '🚴 add your name — save your times!' })); return; }
+        row.appendChild(Object.assign(document.createElement('b'), { textContent: '🚴 ' + rider.get() }));
+        row.appendChild(Object.assign(document.createElement('span'), { textContent: 'switch rider' }));
+      };
+      row.addEventListener('click', () => {
+        if (row.querySelector('input')) return;
+        row.innerHTML = '🚴 ';
+        const inp = Object.assign(document.createElement('input'), { maxLength: 12, value: rider.has() ? rider.get() : '', placeholder: 'TYPE YOUR NAME' });
+        // same words-not-just-shake rule as the results board's claim row
+        const err = Object.assign(document.createElement('div'), { className: 'rp-err' });
+        const commit = () => {
+          const res = rider.set(inp.value);
+          if (res.ok) showName();
+          else {
+            err.textContent = inp.value.trim() ? 'that name isn’t allowed — try another!' : '';
+            inp.classList.remove('bad'); void inp.offsetWidth; inp.classList.add('bad'); inp.select();
+          }
+        };
+        inp.addEventListener('input', () => { err.textContent = ''; });
+        inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') showName(); });
+        inp.addEventListener('blur', () => commit());
+        inp.addEventListener('click', (e) => e.stopPropagation());
+        row.appendChild(inp);
+        row.appendChild(err);
+        inp.focus(); inp.select();
+      });
+      showName();
+      pop.appendChild(row);
       for (const r of rows()) {
         const it = document.createElement('div');
         it.className = 'rp-item';
@@ -1512,40 +1565,6 @@ export class Hud {
         pop.appendChild(it);
       }
       pop.appendChild(Object.assign(document.createElement('div'), { className: 'rp-hint', textContent: 'The flags show the way, but any route counts — first to the finish line. Shortcuts welcome.' }));
-      // rider name row: tap to edit inline; blocked names shake and stay put
-      const row = document.createElement('div');
-      row.className = 'rp-rider';
-      const showName = () => {
-        row.innerHTML = '';
-        // unnamed riders get the pitch (times only save with a name on them)
-        if (!rider.has()) { row.append('🚴 '); row.appendChild(Object.assign(document.createElement('span'), { textContent: 'add your name — save your times!' })); return; }
-        row.append('🚴 ' + rider.get() + ' ');
-        row.appendChild(Object.assign(document.createElement('span'), { textContent: '— change name' }));
-      };
-      row.addEventListener('click', () => {
-        if (row.querySelector('input')) return;
-        row.innerHTML = '🚴 ';
-        const inp = Object.assign(document.createElement('input'), { maxLength: 12, value: rider.get(), placeholder: 'TYPE YOUR NAME' });
-        // same words-not-just-shake rule as the results board's claim row
-        const err = Object.assign(document.createElement('div'), { className: 'rp-err' });
-        const commit = () => {
-          const res = rider.set(inp.value);
-          if (res.ok) showName();
-          else {
-            err.textContent = inp.value.trim() ? 'that name isn’t allowed — try another!' : '';
-            inp.classList.remove('bad'); void inp.offsetWidth; inp.classList.add('bad'); inp.select();
-          }
-        };
-        inp.addEventListener('input', () => { err.textContent = ''; });
-        inp.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') showName(); });
-        inp.addEventListener('blur', () => commit());
-        inp.addEventListener('click', (e) => e.stopPropagation());
-        row.appendChild(inp);
-        row.appendChild(err);
-        inp.focus(); inp.select();
-      });
-      showName();
-      pop.appendChild(row);
     };
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
