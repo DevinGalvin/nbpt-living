@@ -182,6 +182,15 @@ const css = `
 #hud .season-pop.locked .sp-item { opacity: 0.45; cursor: default; }
 #hud .season-pop.locked .sp-item:hover { background: none; }
 #hud .season-pop .sp-lock { font-size: 11px; color: #c9a23e; padding: 7px 5px 2px; line-height: 1.45; max-width: 158px; }
+/* a tiny word under every icon-only button: pre-readers tap shapes, but "which
+   circle is settings?" was a real question — the label answers it at a glance.
+   Absolutely positioned into the 8px gap below each circle: zero layout shift. */
+#hud .blab {
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  font-size: 8.5px; font-weight: 800; letter-spacing: 0.7px; line-height: 1;
+  padding-top: 5px; color: rgba(243, 241, 232, 0.85);
+  text-shadow: 0 1px 2px rgba(20, 10, 14, 0.85); white-space: nowrap; pointer-events: none;
+}
 /* ---------- Races 🏁: always-visible button + course picker ----------
    Racing is front-door, not a secret: the 🏁 sits in the left column everywhere
    (story AND explore), and picking a course fades you straight to its start line.
@@ -1053,11 +1062,11 @@ export class Hud {
       <div class="corner attr">Map data © OpenStreetMap contributors</div>
       <div class="stick-base"></div><div class="stick-knob"></div>
       <div class="compass"><div class="needle">N</div></div>
-      <div class="travel-btn" title="Travel (M)">🗺</div>
+      <div class="travel-btn" title="Travel (M)">🗺<span class="blab">MAP</span></div>
       <div class="journey-btn" title="Missions (J)">🧭</div>
       <div class="bag-btn" title="Backpack (I)">🎒<span class="bag-badge">NEW</span></div>
       <div class="bag-tip"></div>
-      <div class="settings-btn" title="Settings">⚙️</div>
+      <div class="settings-btn" title="Settings">⚙️<span class="blab">SETTINGS</span></div>
       <div class="settings-hint">📖 Story mode lives here — tap ⚙️ anytime</div>
       <div class="settings-pop">
         <div class="sp-hdr">SETTINGS</div>
@@ -1083,11 +1092,11 @@ export class Hud {
           </div>
         </div>
       </div>
-      <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span></div>
-      <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span></div>
-      <div class="season-toggle" title="Season">🍂</div>
+      <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span><span class="blab">RUN</span></div>
+      <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span><span class="blab">BIKE</span></div>
+      <div class="season-toggle" title="Season"><span class="s-em">🍂</span><span class="blab">SEASON</span></div>
       <div class="season-pop"></div>
-      <div class="race-btn" title="Races">🏁</div>
+      <div class="race-btn" title="Races">🏁<span class="blab">RACE</span></div>
       <div class="race-pop"></div>
       <div class="board-panel"><div class="board-card"></div></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><div class="travel-towns"><div class="tt-hdr">EXPLORE ANOTHER TOWN</div><div class="tt-row"></div></div><input class="travel-search" type="text" placeholder="Go anywhere… try “Essex Street” or “The Witch House”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
@@ -1591,7 +1600,8 @@ export class Hud {
     const sToggle = document.querySelector('#hud .season-toggle') as HTMLElement;
     const sPop = document.querySelector('#hud .season-pop') as HTMLElement;
     const sUnlocked = seasonsUnlocked();
-    sToggle.textContent = seasonEmoji[SEASON] || '🍂';
+    const sEm = sToggle.querySelector('.s-em') as HTMLElement;
+    sEm.textContent = seasonEmoji[SEASON] || '🍂';
     sPop.classList.toggle('locked', !sUnlocked);
     const sHdr = document.createElement('div');
     sHdr.className = 'sp-hdr';

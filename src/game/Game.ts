@@ -24,15 +24,15 @@ const SPRINT = 380;
 const BOAT_DOOR = { x: -224, z: -1183 }; // the waterline den door — rowing near it beaches you
 const TOWER_LOOK = { x: 2412, z: 255 };  // 🔦 the Level 2 finale: where you stand at the Rear Range Light to sweep the beam (just south, facing the harbor)
 
-// ✈️ scenic flight from Plum Island Airport (real Runway 10/28). Board at the east
-// threshold, roll + take off west (28) out over downtown + the harbor. Cozy + can't
-// crash — the point is seeing the town from the air.
-const RUNWAY_START = { x: 21560, z: 14114 };  // east threshold (depart 28 / westbound)
-const RUNWAY_HDG = -1.517;                    // runway 10/28 axis, heading ≈ due west
-// the whole-airfield zone the FLY prompt covers — centered on the runway, big enough to
-// reach both ends (±~2200) AND the airport landmark you arrive at (~1250 N of center), so
-// walking anywhere on the field offers the flight (boarding teleports you to the threshold).
-const AIRPORT = { x: 19468, z: 14228, r: 2300 };
+// ✈️ scenic flight from WINTER ISLAND — the real former US Coast Guard Air Station
+// Salem (seaplanes flew from here 1935-1970; the great hangar still stands by the
+// harbor). Board on the old apron by Fort Pickering and lift off east over the sound.
+// Cozy + can't crash — the point is seeing the town from the air.
+const RUNWAY_START = { x: 19750, z: -10350 };  // the old seaplane apron, mid-island
+const RUNWAY_HDG = 1.571;                      // depart due east, out over Salem Sound
+// the whole-island zone the FLY prompt covers — walk anywhere on Winter Island and
+// the flight offers itself (boarding teleports you to the apron).
+const AIRPORT = { x: 19950, z: -10450, r: 1400 };
 const CRUISE_ALT = 540;                       // hold ~a few hundred ft over the ground
 const CRUISE_SPEED = 860;                     // forward px/s — quicker than the bike, still gentle
 
@@ -561,8 +561,8 @@ export class Game {
     if (this.promoBusy()) { setTimeout(() => this.tryFlightPromo(), 2500); return; }
     this.hud.featurePromo({
       key: 'nbpt-promo-flight', badge: 'NEW', icon: '✈️', title: 'Take Flight',
-      body: 'Scenic flights are open to everyone now. Head to Plum Island Airport, step onto the grass airfield, and tap ✈️ FLY to take off over Clipper Town.',
-      cta: 'Take me to the airfield', onCta: () => this.travelToXY(AIRPORT.x, AIRPORT.z)
+      body: 'Scenic flights are open to everyone. Head to Winter Island — the old Coast Guard seaplane station by Fort Pickering — and tap ✈️ FLY to soar over Salem Sound. You can’t crash, promise.',
+      cta: 'Take me to Winter Island', onCta: () => this.travelToXY(AIRPORT.x, AIRPORT.z)
     });
   }
 
@@ -1098,7 +1098,7 @@ export class Game {
     // phones: shed the ground-textured walking chunks so flight starts clean (decor-only + impostor)
     if (this.mobile) this.clearChunks();
     this.updateCamera(0, true);   // snap behind the plane, down the runway
-    this.hud.setObjective('✈️ Lifting off Runway 28 — steer to bank over town');
+    this.hud.setObjective('✈️ Lifting off from Winter Island — steer to bank over town');
     this.hud.showTalk('🛬 LAND', () => this.land());   // ready from the first second, always
     this.flyAct = 'land';
     this.audio.gull();
