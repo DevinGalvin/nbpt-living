@@ -1031,6 +1031,54 @@ for (const f of LEVEL_FIXES) {
   else console.warn('LEVEL_FIX missed:', f);
 }
 
+// ---------- shrink nature polygons (download size) ----------
+// polys are ~54% of world.json: OSM nature rings (river/marsh/woods/parks) carry
+// sub-meter vertex spacing that's invisible at game scale (the radial `simplify`
+// above only drops points closer than 3 px). Douglas-Peucker at 4 px (~0.5 m)
+// roughly halves them with no visible change. Buildings/roads/paths/barriers are
+// untouched — their geometry is gameplay (collision, curbs) and already small.
+function simplifyDP(pts, eps) {
+  const n = pts.length / 2;
+  if (n <= 8) return pts;
+  const keep = new Uint8Array(n);
+  keep[0] = keep[n - 1] = 1;
+  const stack = [[0, n - 1]];
+  const eps2 = eps * eps;
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    const ax = pts[a * 2], ay = pts[a * 2 + 1];
+    const dx = pts[b * 2] - ax, dy = pts[b * 2 + 1] - ay;
+    const len2 = dx * dx + dy * dy || 1;
+    let worst = -1, worstD = eps2;
+    for (let i = a + 1; i < b; i++) {
+      const px = pts[i * 2] - ax, py = pts[i * 2 + 1] - ay;
+      const t = Math.max(0, Math.min(1, (px * dx + py * dy) / len2));
+      const ex = px - t * dx, ey = py - t * dy;
+      const d = ex * ex + ey * ey;
+      if (d > worstD) { worstD = d; worst = i; }
+    }
+    if (worst >= 0) { keep[worst] = 1; stack.push([a, worst], [worst, b]); }
+  }
+  const out = [];
+  for (let i = 0; i < n; i++) if (keep[i]) out.push(pts[i * 2], pts[i * 2 + 1]);
+  return out.length >= 6 ? out : pts;
+}
+{
+  // tiered tolerance: the huge nature polys (the river, marshes, big woods) carry
+  // most of the vertex mass and read identically at 1 m tolerance; smaller polys
+  // (pools, pitches, plazas) stay at 0.5 m.
+  let before = 0, after = 0;
+  for (const poly of world.polys) {
+    const eps = Math.abs(ringArea(poly.p)) > 2_000_000 ? 8 : 4;
+    before += poly.p.length / 2;
+    poly.p = simplifyDP(poly.p, eps);
+    after += poly.p.length / 2;
+    if (poly.h) poly.h = poly.h.map((hole) => simplifyDP(hole, eps));
+  }
+  stats['poly-verts'] = `${before}>${after}`;
+  console.log(`Poly simplify (DP 4/8px tiered): ${before} -> ${after} vertices`);
+}
+
 // ---------- sort, QA, write ----------
 
 world.polys.sort((a, b) => (a.z - b.z) || (Math.abs(ringArea(b.p)) - Math.abs(ringArea(a.p))));
