@@ -141,7 +141,9 @@ export const STYLE = {
     wallsShed: ['#a59a88', '#b0a28c', '#968b7a'],
     // shingle roof colors (charcoal asphalt + weathered cedar)
     roofs: ['#5c5852', '#67625c', '#534f4b', '#6e665d', '#615d59', '#7d7062', '#4a4744', '#776c5c'],
-    roofsCommercial: ['#7e7a73', '#716d67', '#888078'],
+    // flat-roof membranes: real downtown roofs from above are a mix — dark EPDM,
+    // greys, gravel tans, a silver coating, pale TPO — not one beige
+    roofsCommercial: ['#3f3d3b', '#4c4a47', '#5d5a56', '#6e6a65', '#7e7a73', '#8d8577', '#9fa1a0', '#b3b0a8'],
     doors: ['#8e2f2a', '#1f4f5e', '#22231f', '#39511f', '#6e4520', '#27395c'],
     shutters: ['#2c4326', '#22231f', '#2c4326', '#1f3346'], // Essex green, black, navy
     glass: '#36434d',

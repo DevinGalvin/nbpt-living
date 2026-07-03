@@ -1001,6 +1001,60 @@ function pointInRingD(x: number, y: number, pts: number[]): boolean {
   return inside;
 }
 
+// Rooftop mechanicals — at the game's high chase-cam the roof IS the facade, so flat
+// roofs get what real ones have: HVAC units, vents, a stair bulkhead on the big blocks,
+// and brick chimney stacks on the old brick buildings. All seeded; every box's footprint
+// is tested against the ring (candidates that would hang off the roof are skipped).
+// Ring coords: render x = ring x, render z = ring y (the loop's convention throughout).
+function roofClutter(buckets: Bucket[], ring: number[], topY: number, seed: number, areaM2: number, brick: boolean) {
+  if (areaM2 < 70) return;
+  const rng = mulberry32(hash32(seed, 23, 13));
+  const obb = obbOf(ring);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  // a candidate spot in OBB space, kept only if a `margin` square around it fits the footprint
+  const spot = (margin: number): [number, number] | null => {
+    for (let t = 0; t < 6; t++) {
+      const l = (rng() * 2 - 1) * Math.max(1, obb.hl - margin);
+      const w = (rng() * 2 - 1) * Math.max(1, obb.hw - margin);
+      const x = obb.cx + l * ca - w * sa, z = obb.cz + l * sa + w * ca;
+      if (pointInRingD(x - margin, z - margin, ring) && pointInRingD(x + margin, z - margin, ring) &&
+          pointInRingD(x - margin, z + margin, ring) && pointInRingD(x + margin, z + margin, ring)) return [x, z];
+    }
+    return null;
+  };
+  // stair bulkhead on the big blocks
+  if (areaM2 > 450) {
+    const s = spot(11);
+    if (s) buckets[PLAIN].box(s[0], s[1], 9, 6.5, topY, topY + 12, '#9d998f');
+  }
+  // rooftop HVAC units — more on bigger roofs
+  const nH = Math.min(4, 1 + Math.floor(areaM2 / 320));
+  for (let i = 0; i < nH; i++) {
+    const s = spot(8);
+    if (!s) continue;
+    const hw2 = 2.6 + rng() * 2.2;
+    buckets[PLAIN].box(s[0], s[1], hw2, hw2 * (0.75 + rng() * 0.5), topY, topY + 6 + rng() * 3, rng() < 0.5 ? '#a7abae' : '#8e9296');
+  }
+  // little vent stacks
+  const nV = Math.min(5, Math.floor(areaM2 / 220));
+  for (let i = 0; i < nV; i++) {
+    const s = spot(4);
+    if (s) buckets[PLAIN].box(s[0], s[1], 1.2, 1.2, topY, topY + 4 + rng() * 2, '#6f7275');
+  }
+  // brick chimney stacks near the party-wall ends of the old brick blocks
+  if (brick) {
+    const nC = obb.hl > 40 ? 2 : 1;
+    for (let i = 0; i < nC; i++) {
+      const l = (nC === 1 ? 0 : (i === 0 ? -1 : 1)) * obb.hl * 0.62;
+      const w = (rng() * 2 - 1) * obb.hw * 0.4;
+      const x = obb.cx + l * ca - w * sa, z = obb.cz + l * sa + w * ca;
+      if (pointInRingD(x - 3, z - 3, ring) && pointInRingD(x + 3, z + 3, ring) &&
+          pointInRingD(x - 3, z + 3, ring) && pointInRingD(x + 3, z - 3, ring))
+        buckets[BRICK].box(x, z, 2.6, 2.6, topY, topY + 8 + rng() * 3, '#7a4b3a', 1);
+    }
+  }
+}
+
 function pointInPolyD(x: number, y: number, poly: Poly): boolean {
   if (!pointInRingD(x, y, poly.p)) return false;
   if (poly.h) for (const h of poly.h) if (pointInRingD(x, y, h)) return false;
@@ -3796,10 +3850,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
           );
         }
       }
-      if (b.k !== 'shed' && rng() < 0.4) {
-        const [cx, cz] = centroidOf(b.p);
-        buckets[PLAIN].box(cx + (rng() - 0.5) * 8, cz + (rng() - 0.5) * 8, 3, 4, eaveAbs, eaveAbs + 5, '#8e9296');
-      }
+      if (b.k !== 'shed') roofClutter(buckets, b.p, eaveAbs, seed, areaM2, isBrick);
     }
 
     if (b.k !== 'shed') {
