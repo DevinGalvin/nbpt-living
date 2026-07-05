@@ -64,12 +64,15 @@ const css = `
 #hud.touch .attr { font-size: 8.5px; opacity: 0.55; }
 /* tiny always-on word under every icon-only button — 🧭 vs 🗺 vs 🎒 is a coin-flip
    for a 6-year-old (and TALK, our one labeled button, was always the clearest).
-   Absolutely positioned into the 8px gap below each circle: zero layout shift. */
+   Worn as a pill on the circle's own bottom rim: the column pitch leaves only an
+   8px gap, so a label hung *below* a circle gets painted over by the next button. */
 #hud .blab {
-  position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-  font-size: 8.5px; font-weight: 800; letter-spacing: 0.7px; line-height: 1;
-  padding-top: 5px; color: rgba(243, 241, 232, 0.85);
-  text-shadow: 0 1px 2px rgba(20, 10, 14, 0.85); white-space: nowrap; pointer-events: none;
+  position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
+  font-size: 8px; font-weight: 800; letter-spacing: 0.6px; line-height: 1;
+  padding: 2.5px 5.5px; border-radius: 7px;
+  background: rgba(26, 10, 16, 0.78); border: 1px solid rgba(243, 241, 232, 0.18);
+  color: rgba(243, 241, 232, 0.95);
+  white-space: nowrap; pointer-events: none;
 }
 #hud .stick-base, #hud .stick-knob { position: absolute; border-radius: 50%; display: none; }
 #hud .stick-base { width: 128px; height: 128px; background: rgba(var(--maroon), 0.22); border: 2px solid rgba(243,241,232,0.5); }
