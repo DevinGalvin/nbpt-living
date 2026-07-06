@@ -47,9 +47,12 @@ Say the next town is Portsmouth (`id: pmth`).
 5. **Register** — one line in `src/towns/registry.ts` (adds it to every town's
    Fast-Travel switcher) and a `build:pmth`-style step in `build:all`
    (package.json) so CI ships it under `/pmth/`.
-6. **Assets** — `towns/pmth/public/`: og-image + manifest (copy Salem's and
-   re-word). Favicons/icons are shared from `public/` unless the town wants
-   its own.
+6. **Assets** — `towns/pmth/public/`: manifest (copy Salem's and re-word,
+   incl. theme colors) + a UNIQUE og-image (1200×630) — capture a real
+   in-game screenshot of THIS town (Beverly once launched with Salem's photo
+   on its share cards; `tools/check_town_assets.mjs` fails the build if two
+   towns share an og-image). Favicons/icons are shared from `public/` unless
+   the town wants its own.
 6b. **Borders** — run the **fetch-data** workflow (Actions tab; cloud sessions
    can't reach Overpass) to get `data/pmth/raw/boundaries.json` from the
    `map-data` branch, then `TOWN=pmth node tools/patch_borders.mjs`. That's the

@@ -16,7 +16,7 @@
     "map": "npm run fetch-osm && npm run build-world && npm run fetch-terrain",
     "dev:salem": "TOWN=salem vite",
     "build:salem": "tsc --noEmit && TOWN=salem vite build",
-    "build:all": "npm run share && TOWN=salem vite build && rm -rf dist/salem && mv dist-salem dist/salem && TOWN=beverly vite build && rm -rf dist/beverly && mv dist-beverly dist/beverly",
+    "build:all": "node tools/check_town_assets.mjs && npm run share && TOWN=salem vite build && rm -rf dist/salem && mv dist-salem dist/salem && TOWN=beverly vite build && rm -rf dist/beverly && mv dist-beverly dist/beverly",
     "dev:beverly": "TOWN=beverly vite",
     "build:beverly": "tsc --noEmit && TOWN=beverly vite build"
   },
