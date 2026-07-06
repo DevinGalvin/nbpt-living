@@ -1887,21 +1887,39 @@ function buildCustomHouse(buckets: Bucket[], b: Building, g: number, index: Worl
   }
 }
 
-// Firehouse Center (1823) — brick market house with the white bell cupola
+// Firehouse Center (1823) — brick market house; clock pediment on the front,
+// square BRICK hose tower over the rear of the ridge (photo-audited 7/6: the
+// white bell cupola never existed — the real rooftop is the fire-station tower)
 function buildFirehouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   walls(buckets[BRICK], b.p, g - 6, g + 40, '#fdfcf8');
+  walls(buckets[PLAIN], b.p, g + 37, g + 40, '#f4f1e6', 0);          // entablature
   const obb = obbOf(b.p);
   gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, g + 40, 9, 3, '#544f4a', '#f4f1e6');
   facades(buckets[PLAIN], b.p, g + 40, 2, 1448, true, false, true, g, 40);
-  const cx = obb.cx, cz = obb.cz;
-  const top = g + 40 + 9;
-  walls(buckets[CLAP], [cx - 6, cz - 6, cx + 6, cz - 6, cx + 6, cz + 6, cx - 6, cz + 6], top - 4, top + 14, '#f6f3ea');
+  const f = frontSegment(b, index);
+  const fa = Math.atan2(f.tz, f.tx);
+  // central front pediment with the white clock disc in the tympanum
+  tmp.set('#f4f1e6');
+  buckets[PLAIN].triUV(
+    f.x - f.tx * 10 + f.nx * 1.2, g + 40, f.z - f.tz * 10 + f.nz * 1.2,
+    f.x + f.tx * 10 + f.nx * 1.2, g + 40, f.z + f.tz * 10 + f.nz * 1.2,
+    f.x + f.nx * 1.2, g + 48, f.z + f.nz * 1.2,
+    f.nx, 0.3, f.nz, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0
+  );
+  rotBox(buckets[PLAIN], f.x + f.nx * 1.4, f.z + f.nz * 1.4, 2.3, 0.4, g + 41, g + 45.6, fa, '#33352f');
+  rotBox(buckets[PLAIN], f.x + f.nx * 1.6, f.z + f.nz * 1.6, 1.8, 0.4, g + 41.5, g + 45.1, fa, '#f6f3ea');
+  // square brick hose tower toward the rear of the roof: same brick as the
+  // walls, a white-trimmed window each face, flat cap with a slight cornice
+  const back = Math.max(0, Math.min(obb.hl, obb.hw) * 0.5 - 3);
+  const tx2 = obb.cx - f.nx * back, tz2 = obb.cz - f.nz * back;
+  const ring = [tx2 - 5, tz2 - 5, tx2 + 5, tz2 - 5, tx2 + 5, tz2 + 5, tx2 - 5, tz2 + 5];
+  walls(buckets[BRICK], ring, g + 34, g + 71, '#fdfcf8');
   for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-    buckets[PLAIN].box(cx + dx * 5.7, cz + dz * 5.7, dx ? 0.4 : 2.2, dz ? 0.4 : 2.2, top + 3, top + 11, '#33352f');
+    buckets[PLAIN].box(tx2 + dx * 5, tz2 + dz * 5, dx ? 0.45 : 2.4, dz ? 0.45 : 2.4, g + 57, g + 66, '#f1eee4');
+    buckets[PLAIN].box(tx2 + dx * 5.2, tz2 + dz * 5.2, dx ? 0.4 : 1.6, dz ? 0.4 : 1.6, g + 58, g + 65, '#2c3a42');
   }
-  tmp.set('#3e4140');
-  cone(buckets[PLAIN], cx, top + 14, cz, 7.4, 9, tmp.clone());
-  buckets[PLAIN].box(cx, cz, 0.35, 0.35, top + 21, top + 29, '#d8d4c8');
+  walls(buckets[PLAIN], expandRing(ring, 0.8), g + 71, g + 73, '#544f4a', 0);
+  flatRoof(buckets[PLAIN], expandRing(ring, 0.8), g + 73, '#544f4a');
 }
 
 // City Hall (1851) — brick block, white cornice, central cupola
@@ -2110,46 +2128,60 @@ function buildLibrary(buckets: Bucket[], b: Building, g: number, index: WorldInd
   rotBox(buckets[PLAIN], f.x + f.nx * 9, f.z + f.nz * 9, 7, 4, g, g + 1.8, Math.atan2(f.tz, f.tx), '#9a9b95');
 }
 
-// Essex County Superior Court (1805, Bulfinch) — brick block over Bartlet Mall
-// with a white four-pilaster pediment front and arched courtroom windows
+// Essex County Superior Court (1805, Bulfinch) — photo-audited 7/6: the facade
+// is a FLAT brick wall with rectangular sashes + a brownstone SUPERIOR COURT
+// arch (the white temple front never existed); pediments = brick gable ends
 function buildCourthouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   walls(buckets[BRICK], b.p, g - 6, g + 46, '#fdfcf8');
-  walls(buckets[PLAIN], b.p, g + 43, g + 46, '#faf8f0', 0);
+  walls(buckets[PLAIN], b.p, g + 43, g + 46, '#faf8f0', 0);          // bracketed cornice
   const obb = obbOf(b.p);
-  gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, g + 46, 7, 3, '#4a4641', '#faf8f0');
-  archWindows(buckets[PLAIN], b.p, g + 24, 12, 26);
-  archWindows(buckets[PLAIN], b.p, g + 8, 9, 26, 0);
-  const f = heroFront(b, index);
-  // white temple front tucked under the eave: pilasters, entablature, pediment
-  for (const off of [-12, -4, 4, 12]) {
-    buckets[PLAIN].box(f.x + f.tx * off + f.nx * 1.4, f.z + f.tz * off + f.nz * 1.4, 1.3, 1.3, g, g + 32, '#f4f1e6');
-  }
-  rotBox(buckets[PLAIN], f.x + f.nx * 1.6, f.z + f.nz * 1.6, 15, 1.8, g + 32, g + 35.5, Math.atan2(f.tz, f.tx), '#f4f1e6');
-  tmp.set('#f4f1e6');
+  gableRoof(buckets[SHINGLE], buckets[BRICK], b.p, obb, g + 46, 7, 3, '#4a4641', '#fdfcf8');
+  facades(buckets[PLAIN], b.p, g + 46, 3, 1805, false, false, false, g, 60); // 6/6 sashes
+  // round clock set in one brick gable-end pediment
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  rotBox(buckets[PLAIN], obb.cx + ca * (obb.hl - 0.4), obb.cz + sa * (obb.hl - 0.4), 1.6, 2.3, g + 46.8, g + 51.2, obb.ang, '#f4f1e6');
+  rotBox(buckets[PLAIN], obb.cx + ca * (obb.hl - 0.2), obb.cz + sa * (obb.hl - 0.2), 1.6, 0.8, g + 48.2, g + 49.8, obb.ang, '#2c3034');
+  const f = heroFront(b, index, { road: 'High Street' });
+  const fang = Math.atan2(f.tz, f.tx);
+  // brownstone round-arched entrance: surround, arch head over the door
+  tmp.set('#6e5344');
+  buckets[PLAIN].quad(
+    f.x - f.tx * 5.4 + f.nx * 0.95, g, f.z - f.tz * 5.4 + f.nz * 0.95,
+    f.x + f.tx * 5.4 + f.nx * 0.95, g, f.z + f.tz * 5.4 + f.nz * 0.95,
+    f.x + f.tx * 5.4 + f.nx * 0.95, g + 14, f.z + f.tz * 5.4 + f.nz * 0.95,
+    f.x - f.tx * 5.4 + f.nx * 0.95, g + 14, f.z - f.tz * 5.4 + f.nz * 0.95,
+    f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b
+  );
   buckets[PLAIN].triUV(
-    f.x - f.tx * 15.5 + f.nx * 2.4, g + 35.5, f.z - f.tz * 15.5 + f.nz * 2.4,
-    f.x + f.tx * 15.5 + f.nx * 2.4, g + 35.5, f.z + f.tz * 15.5 + f.nz * 2.4,
-    f.x + f.nx * 2.4, g + 44, f.z + f.nz * 2.4,
+    f.x - f.tx * 5.4 + f.nx * 0.95, g + 14, f.z - f.tz * 5.4 + f.nz * 0.95,
+    f.x + f.tx * 5.4 + f.nx * 0.95, g + 14, f.z + f.tz * 5.4 + f.nz * 0.95,
+    f.x + f.nx * 0.95, g + 18.5, f.z + f.nz * 0.95,
     f.nx, 0.3, f.nz, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0
   );
-  // arched white entry + dark door + granite stair
-  tmp.set('#f1eee4');
+  // engaged columns + the curved hood lettered SUPERIOR COURT
+  for (const s of [-1, 1]) {
+    buckets[PLAIN].box(f.x + f.tx * 4.2 * s + f.nx * 1.4, f.z + f.tz * 4.2 * s + f.nz * 1.4, 1.1, 1.1, g, g + 12, '#7a5d4b');
+  }
+  rotBox(buckets[PLAIN], f.x + f.nx * 2.1, f.z + f.nz * 2.1, 6.2, 1.5, g + 12, g + 14.6, fang, '#7a5d4b');
+  // dark green double door under a fanlight
+  tmp.set('#2e4a3a');
   buckets[PLAIN].quad(
-    f.x - f.tx * 4.6 + f.nx * 0.7, g, f.z - f.tz * 4.6 + f.nz * 0.7,
-    f.x + f.tx * 4.6 + f.nx * 0.7, g, f.z + f.tz * 4.6 + f.nz * 0.7,
-    f.x + f.tx * 4.6 + f.nx * 0.7, g + 15, f.z + f.tz * 4.6 + f.nz * 0.7,
-    f.x - f.tx * 4.6 + f.nx * 0.7, g + 15, f.z - f.tz * 4.6 + f.nz * 0.7,
+    f.x - f.tx * 3 + f.nx * 1.3, g, f.z - f.tz * 3 + f.nz * 1.3,
+    f.x + f.tx * 3 + f.nx * 1.3, g, f.z + f.tz * 3 + f.nz * 1.3,
+    f.x + f.tx * 3 + f.nx * 1.3, g + 10, f.z + f.tz * 3 + f.nz * 1.3,
+    f.x - f.tx * 3 + f.nx * 1.3, g + 10, f.z - f.tz * 3 + f.nz * 1.3,
     f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b
   );
-  tmp.set('#2e3338');
+  tmp.set('#2c3a42');
   buckets[PLAIN].quad(
-    f.x - f.tx * 3.2 + f.nx * 1, g, f.z - f.tz * 3.2 + f.nz * 1,
-    f.x + f.tx * 3.2 + f.nx * 1, g, f.z + f.tz * 3.2 + f.nz * 1,
-    f.x + f.tx * 3.2 + f.nx * 1, g + 13, f.z + f.tz * 3.2 + f.nz * 1,
-    f.x - f.tx * 3.2 + f.nx * 1, g + 13, f.z - f.tz * 3.2 + f.nz * 1,
+    f.x - f.tx * 2.6 + f.nx * 1.3, g + 10.2, f.z - f.tz * 2.6 + f.nz * 1.3,
+    f.x + f.tx * 2.6 + f.nx * 1.3, g + 10.2, f.z + f.tz * 2.6 + f.nz * 1.3,
+    f.x + f.tx * 2.6 + f.nx * 1.3, g + 12, f.z + f.tz * 2.6 + f.nz * 1.3,
+    f.x - f.tx * 2.6 + f.nx * 1.3, g + 12, f.z - f.tz * 2.6 + f.nz * 1.3,
     f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b
   );
-  rotBox(buckets[PLAIN], f.x + f.nx * 5, f.z + f.nz * 5, 9, 4.5, g, g + 2, Math.atan2(f.tz, f.tx), '#94958f');
+  // granite stair
+  rotBox(buckets[PLAIN], f.x + f.nx * 5, f.z + f.nz * 5, 8, 4.5, g, g + 1.8, fang, '#94958f');
 }
 
 // the Powder House (1822) — little round brick magazine hidden off Low Street
@@ -2244,13 +2276,40 @@ function buildBank(buckets: Bucket[], b: Building, g: number, index: WorldIndex)
   );
 }
 
-// Rear Range Light (1873) — red-brick conical tower tucked off Water Street
+// Rear Range Light (1873) — square brick tower off Water Street, "pyramidal in
+// form": a tapering chimney-like shaft (53 ft with the 1901 extension), its
+// river-facing side painted white as a daymark, black iron lantern + gallery
 function buildRearRange(buckets: Bucket[], b: Building, g: number) {
   const [cx, cz] = centroidOf(b.p);
-  walls(buckets[BRICK], octRing(cx, cz, 6.2), g - 4, g + 40, '#fdfcf8');
-  walls(buckets[BRICK], octRing(cx, cz, 5.4), g + 40, g + 74, '#fdfcf8');
-  walls(buckets[BRICK], octRing(cx, cz, 4.6), g + 74, g + 102, '#fdfcf8');
-  lanternTop(buckets[PLAIN], cx, cz, g + 102, 3.4);
+  // white daymark on the north (river) face of a tier — ships line up on it
+  const daymark = (ring: number[], y0: number, y1: number) => {
+    const v = ringToVec2(ring);
+    let bi = 0, bn = -Infinity;
+    for (let i = 0; i < v.length; i++) {
+      const a = v[i], b2 = v[(i + 1) % v.length];
+      const nz = (b2.x - a.x) / (Math.hypot(b2.x - a.x, b2.y - a.y) || 1);
+      if (nz > bn) { bn = nz; bi = i; }   // max nz = most river-facing
+    }
+    const a = v[bi], b2 = v[(bi + 1) % v.length];
+    const ex = b2.x - a.x, ey = b2.y - a.y, len = Math.hypot(ex, ey) || 1;
+    const nx = ey / len, nz = ex / len;
+    tmp.set('#f2efe6');
+    buckets[PLAIN].quad(a.x + nx * 0.4, y0, -a.y, b2.x + nx * 0.4, y0, -b2.y,
+      b2.x + nx * 0.4, y1, -b2.y, a.x + nx * 0.4, y1, -a.y,
+      nx, 0, nz, tmp.r, tmp.g, tmp.b);
+  };
+  // square shaft steps inward twice — the taper; other three sides bare brick
+  const tiers: [number, number, number][] = [[0, g - 4, g + 42], [-4, g + 42, g + 78], [-8, g + 78, g + 108]];
+  for (let t = 0; t < tiers.length; t++) {
+    const [inset, y0, y1] = tiers[t];
+    const ring = inset ? expandRing(b.p, inset) : b.p;
+    walls(buckets[BRICK], ring, y0, y1, '#fdfcf8');
+    daymark(ring, y0, y1);
+    if (t < tiers.length - 1) flatRoof(buckets[PLAIN], ring, y1, '#8a5a45'); // step ledge
+  }
+  walls(buckets[BRICK], expandRing(b.p, -7), g + 108, g + 111, '#fdfcf8');   // corbelled cap
+  flatRoof(buckets[PLAIN], expandRing(b.p, -7), g + 111, '#8a5a45');
+  lanternTop(buckets[PLAIN], cx, cz, g + 111, 3.6);                          // 8-sided lens room, iron balcony
 }
 
 // Front Range Light (1873) — the little white cast-iron tower by the Coast Guard
@@ -2280,69 +2339,105 @@ function buildHospitalPoint(buckets: Bucket[], b: Building, g: number) {
   lanternTop(buckets[PLAIN], cx, cz, g + 84, 3.2);                           // black lantern — still an active range light
 }
 
-// the Graf Rink — Low Street's big barrel-roofed hockey barn
-function buildGrafRink(buckets: Bucket[], b: Building, g: number) {
-  const eave = g + 26;
-  walls(buckets[PLAIN], b.p, g - 8, eave, '#d3c9b6', 0);
-  const obb = obbOf(b.p);
-  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
-  const W = obb.hw + 2, rise = Math.min(26, obb.hw * 0.42), S = 6;
-  tmp.set('#8e979c');
-  const rr = tmp.r, rg = tmp.g, rb = tmp.b;
-  const lat: number[] = [], hgt: number[] = [];
-  for (let j = 0; j <= S; j++) {
-    const a = Math.PI * (j / S);
-    lat.push(Math.cos(a) * W);
-    hgt.push(eave + Math.sin(a) * rise);
+// the Graf Rink (Henry Graf, Jr. Skating Arena) — Low Street's long, low, FLAT-roofed
+// hockey arena: red-brick lower walls under a pale translucent fiberglass panel band,
+// white metal fascia + white membrane roof, glass curtain-wall entry bay. No barrel roof.
+function buildGrafRink(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const eave = g + 40;
+  walls(buckets[BRICK], b.p, g - 8, g + 20, '#fdfcf8');                        // red-brick lower walls
+  walls(buckets[PLAIN], b.p, g + 20, eave - 3, '#e3e2c9', 0);                  // translucent fiberglass panel band (daylight for the ice sheet)
+  const exr = expandRing(b.p, 0.5);
+  walls(buckets[PLAIN], exr, g + 19.4, g + 21, '#f2f2ee', 0);                  // white girt where panels meet brick (proud, no z-fight)
+  walls(buckets[PLAIN], exr, eave - 3, eave, '#f2f2ee', 0);                    // white metal fascia
+  flatRoof(buckets[PLAIN], b.p, eave, '#e6e6e2');                              // white membrane roof — dead flat, per the aerial
+  roofClutter(buckets, b.p, eave, 2828, ringAreaM2(b.p), false);               // rink chiller + vents up top
+
+  // central glass curtain-wall entry bay facing the Low Street lot
+  const f = heroFront(b, index, { road: 'Low Street' });
+  const EW = Math.min(20, f.len * 0.3), P = 7;                                 // bay half-width; how far it steps forward
+  const bay = [
+    f.x - f.tx * EW - f.nx, f.z - f.tz * EW - f.nz,
+    f.x + f.tx * EW - f.nx, f.z + f.tz * EW - f.nz,
+    f.x + f.tx * EW + f.nx * P, f.z + f.tz * EW + f.nz * P,
+    f.x - f.tx * EW + f.nx * P, f.z - f.tz * EW + f.nz * P
+  ];
+  walls(buckets[PLAIN], bay, g, g + 28, '#f2f2ee', 0);                         // white-framed vestibule
+  flatRoof(buckets[PLAIN], bay, g + 28, '#e6e6e2');
+  const GW = EW - 2.5;
+  tmp.set('#2e4452');                                                          // the curtain-wall glass
+  buckets[PLAIN].quad(
+    f.x - f.tx * GW + f.nx * (P + 0.5), g + 2, f.z - f.tz * GW + f.nz * (P + 0.5),
+    f.x + f.tx * GW + f.nx * (P + 0.5), g + 2, f.z + f.tz * GW + f.nz * (P + 0.5),
+    f.x + f.tx * GW + f.nx * (P + 0.5), g + 25, f.z + f.tz * GW + f.nz * (P + 0.5),
+    f.x - f.tx * GW + f.nx * (P + 0.5), g + 25, f.z - f.tz * GW + f.nz * (P + 0.5),
+    f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b);
+  tmp.set('#f2f2ee');                                                          // white mullions ride proud of the glass
+  for (const t of [-0.68, -0.34, 0.34, 0.68]) {
+    const mx = f.x + f.tx * GW * t + f.nx * (P + 0.6), mz = f.z + f.tz * GW * t + f.nz * (P + 0.6);
+    buckets[PLAIN].quad(mx - f.tx * 0.45, g + 2, mz - f.tz * 0.45, mx + f.tx * 0.45, g + 2, mz + f.tz * 0.45,
+      mx + f.tx * 0.45, g + 25, mz + f.tz * 0.45, mx - f.tx * 0.45, g + 25, mz - f.tz * 0.45,
+      f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b);
   }
-  const pt = (along: number, l: number): [number, number] => [obb.cx + ca * along - sa * l, obb.cz + sa * along + ca * l];
-  for (let j = 0; j < S; j++) {
-    const dL = lat[j + 1] - lat[j], dH = hgt[j + 1] - hgt[j];
-    const ln = Math.hypot(dL, dH) || 1;
-    let nl = dH / ln, ny = -dL / ln;
-    if (ny < 0) { ny = -ny; nl = -nl; }
-    const nx = -sa * nl, nz = ca * nl;
-    const a0 = pt(-obb.hl, lat[j]), a1 = pt(obb.hl, lat[j]);
-    const b0 = pt(-obb.hl, lat[j + 1]), b1 = pt(obb.hl, lat[j + 1]);
-    const shade = 0.82 + 0.18 * Math.max(0, ny);
-    buckets[PLAIN].quad(a0[0], hgt[j], a0[1], a1[0], hgt[j], a1[1], b1[0], hgt[j + 1], b1[1], b0[0], hgt[j + 1], b0[1],
-      nx, ny, nz, rr * shade, rg * shade, rb * shade);
-  }
-  // end caps fill the arch above the eave line
-  tmp.set('#c5bba8');
-  for (const s of [-1, 1]) {
-    const c0 = pt(obb.hl * s, 0);
-    for (let j = 0; j < S; j++) {
-      const p0 = pt(obb.hl * s, lat[j]), p1 = pt(obb.hl * s, lat[j + 1]);
-      if (s > 0) {
-        buckets[PLAIN].triUV(c0[0], eave, c0[1], p0[0], hgt[j], p0[1], p1[0], hgt[j + 1], p1[1],
-          ca, 0, sa, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0);
-      } else {
-        buckets[PLAIN].triUV(c0[0], eave, c0[1], p1[0], hgt[j + 1], p1[1], p0[0], hgt[j], p0[1],
-          -ca, 0, -sa, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0);
-      }
-    }
-  }
+  tmp.set('#1c2a32');                                                          // double glass doors dead center
+  buckets[PLAIN].quad(
+    f.x - f.tx * 4.5 + f.nx * (P + 0.7), g, f.z - f.tz * 4.5 + f.nz * (P + 0.7),
+    f.x + f.tx * 4.5 + f.nx * (P + 0.7), g, f.z + f.tz * 4.5 + f.nz * (P + 0.7),
+    f.x + f.tx * 4.5 + f.nx * (P + 0.7), g + 13, f.z + f.tz * 4.5 + f.nz * (P + 0.7),
+    f.x - f.tx * 4.5 + f.nx * (P + 0.7), g + 13, f.z - f.tz * 4.5 + f.nz * (P + 0.7),
+    f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b);
+  const ang = Math.atan2(f.tz, f.tx);
+  rotBox(buckets[PLAIN], f.x + f.nx * (P + 2.5), f.z + f.nz * (P + 2.5), 8, 3, g + 14.5, g + 15.7, ang, '#f2f2ee');   // flat door canopy
+  // the roofline's one break: a slightly raised bay over the entry (the "slight peak")
+  rotBox(buckets[PLAIN], f.x - f.nx * 3.5, f.z - f.nz * 3.5, EW + 1.5, 10.5, eave, eave + 4, ang, '#f2f2ee');
 }
 
-// U.S. Coast Guard Station Merrimack River — white station, red roofs, watchtower
+// U.S. Coast Guard Station Merrimack River (ded. 1973) — photo-audited: modern
+// 2-story RED BRICK block, flat dark roof, wide off-white fascia band, and a
+// taller square brick tower with a flat cap + antenna masts (no gables, no cone)
 function buildCGStation(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
-  walls(buckets[CLAP], b.p, g - 6, g + 32, '#f7f4ec');
-  complexGable(buckets[SHINGLE], buckets[CLAP], b.p, g + 32, '#a83a2e', '#f7f4ec');
-  houseTrim(buckets[PLAIN], b.p, g + 32, g - 6);
-  facades(buckets[PLAIN], b.p, g + 32, 2, 1790, true, false, false, g, 40);
+  walls(buckets[BRICK], b.p, g - 6, g + 32, '#fdfcf8');
+  walls(buckets[PLAIN], expandRing(b.p, 0.5), g + 27, g + 32, '#eceadf', 0); // wide fascia/soffit band
+  flatRoof(buckets[PLAIN], b.p, g + 32, '#3f4347');
+  // two stacked window rows (columns align: spacing is geometric, rng is lit-only)
+  facades(buckets[PLAIN], b.p, g + 32, 1, 1973, false, false, false, g - 4, 40);
+  facades(buckets[PLAIN], b.p, g + 32, 1, 1974, false, false, false, g + 8, 40);
   const obb = obbOf(b.p);
-  // square watchtower with a red pyramid cap
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  // square red-brick comms tower near one end: flat cap, antennas — no red pyramid
   const tX = obb.cx + ca * (obb.hl * 0.45), tZ = obb.cz + sa * (obb.hl * 0.45);
-  walls(buckets[CLAP], [tX - 5, tZ - 5, tX + 5, tZ - 5, tX + 5, tZ + 5, tX - 5, tZ + 5], g + 30, g + 52, '#f7f4ec');
-  for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
-    buckets[PLAIN].box(tX + dx * 4.8, tZ + dz * 4.8, dx ? 0.4 : 2.6, dz ? 0.4 : 2.6, g + 44, g + 50, '#2c3a42');
+  const ring: number[] = [];
+  for (const [sl, sw] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+    ring.push(tX + ca * 7 * sl - sa * 7 * sw, tZ + sa * 7 * sl + ca * 7 * sw);
   }
-  tmp.set('#a83a2e');
-  cone(buckets[PLAIN], tX, g + 52, tZ, 6.4, 7, tmp.clone());
-  // flagpole on the lawn
+  walls(buckets[BRICK], ring, g - 2, g + 60, '#fdfcf8');
+  walls(buckets[PLAIN], expandRing(ring, 0.4), g + 56, g + 60, '#eceadf', 0);  // concrete cap band
+  flatRoof(buckets[PLAIN], ring, g + 60, '#3f4347');
+  buckets[PLAIN].box(tX + (ca - sa) * 3.5, tZ + (sa + ca) * 3.5, 0.5, 0.5, g + 60, g + 84, '#8a8f94'); // masts
+  buckets[PLAIN].box(tX - (ca - sa) * 3.5, tZ - (sa + ca) * 3.5, 0.4, 0.4, g + 60, g + 76, '#8a8f94');
+  buckets[PLAIN].box(tX + (ca - sa) * 3.5, tZ + (sa + ca) * 3.5, 2.4, 0.3, g + 80, g + 81, '#8a8f94'); // crossarm
   const f = heroFront(b, index);
+  // glass entry under a white canopy, USCG emblem panel above
+  tmp.set('#33424c');
+  buckets[PLAIN].quad(
+    f.x - f.tx * 5 + f.nx * 1.0, g, f.z - f.tz * 5 + f.nz * 1.0,
+    f.x + f.tx * 5 + f.nx * 1.0, g, f.z + f.tz * 5 + f.nz * 1.0,
+    f.x + f.tx * 5 + f.nx * 1.0, g + 10, f.z + f.tz * 5 + f.nz * 1.0,
+    f.x - f.tx * 5 + f.nx * 1.0, g + 10, f.z - f.tz * 5 + f.nz * 1.0,
+    f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b
+  );
+  rotBox(buckets[PLAIN], f.x + f.nx * 4.4, f.z + f.nz * 4.4, 8.5, 4.2, g + 12, g + 13.6, Math.atan2(f.tz, f.tx), '#eceadf');
+  for (const s of [-1, 1]) {
+    buckets[PLAIN].box(f.x + f.tx * 7 * s + f.nx * 7.6, f.z + f.tz * 7 * s + f.nz * 7.6, 0.7, 0.7, g, g + 12.4, '#eceadf');
+  }
+  tmp.set('#f4f2ea');
+  buckets[PLAIN].quad(
+    f.x - f.tx * 5 + f.nx * 1.3, g + 17, f.z - f.tz * 5 + f.nz * 1.3,
+    f.x + f.tx * 5 + f.nx * 1.3, g + 17, f.z + f.tz * 5 + f.nz * 1.3,
+    f.x + f.tx * 5 + f.nx * 1.3, g + 26, f.z + f.tz * 5 + f.nz * 1.3,
+    f.x - f.tx * 5 + f.nx * 1.3, g + 26, f.z - f.tz * 5 + f.nz * 1.3,
+    f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b
+  );
+  // flagpole on the lawn
   const fX = f.x + f.nx * 30, fZ = f.z + f.nz * 30;
   const fg = index.heightAtPx(fX, fZ);
   buckets[PLAIN].box(fX, fZ, 0.6, 0.6, fg, fg + 40, '#e8e4da');
