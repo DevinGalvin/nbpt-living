@@ -14,7 +14,7 @@ if [ "$branch" != "source" ]; then
   exit 1
 fi
 
-npm run share
+npm run build:all
 
 D=/tmp/nbpt-pages-live
 rm -rf "$D"

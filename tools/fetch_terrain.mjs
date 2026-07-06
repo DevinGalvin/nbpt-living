@@ -11,15 +11,14 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { PNG } from 'pngjs';
+import { loadTown } from './lib/town.mjs';
 
-const ORIGIN = { lat: 42.81135, lon: -70.86976 };
-const M_PER_DEG_LAT = 111089.0;
-const M_PER_DEG_LON = 81791.7;
-const PX_PER_M = 8;
+const T = await loadTown();
+const { PX_PER_M } = T;
 const Z = 14;
 const SPACING = 64; // px between samples (8 m) ≈ source resolution at z14
 
-const world = JSON.parse(await readFile(new URL('../public/world.json', import.meta.url), 'utf8'));
+const world = JSON.parse(await readFile(new URL('world.json', T.publicDir), 'utf8'));
 const b = world.meta.bounds;
 const MARGIN = 1024;
 const x0 = Math.floor((b.minX - MARGIN) / SPACING) * SPACING;
@@ -30,8 +29,8 @@ const W = (x1 - x0) / SPACING + 1;
 const H = (y1 - y0) / SPACING + 1;
 console.log(`grid ${W} x ${H} (${((W * H * 2) / 1e6).toFixed(1)} MB), spacing ${SPACING}px = ${SPACING / PX_PER_M}m`);
 
-const pxToLat = (y) => ORIGIN.lat - y / (M_PER_DEG_LAT * PX_PER_M);
-const pxToLon = (x) => ORIGIN.lon + x / (M_PER_DEG_LON * PX_PER_M);
+const pxToLat = T.pxToLat;
+const pxToLon = T.pxToLon;
 
 const lonToTileX = (lon) => ((lon + 180) / 360) * 2 ** Z;
 const latToTileY = (lat) => {
@@ -155,15 +154,8 @@ for (let i = 0; i < W * H; i++) {
 }
 console.log(`elevation range: ${min.toFixed(1)}m .. ${max.toFixed(1)}m`);
 
-// QA: known spots
-const spots = [
-  ['Market Square', 42.81135, -70.86976],
-  ['High St ridge (Cushing House)', 42.80667, -70.87111],
-  ["March's Hill top", 42.80133, -70.86646],
-  ['Plum Island beach', 42.805, -70.805],
-  ['Joppa shore', 42.807, -70.858]
-];
-for (const [name, lat, lon] of spots) console.log(`  ${name}: ${elevAt(lat, lon).toFixed(1)}m`);
+// QA: known spots (per-town, towns/<id>/map.mjs)
+for (const q of T.map.qaElevationSpots ?? []) console.log(`  ${q.name}: ${elevAt(q.lat, q.lon).toFixed(1)}m`);
 
-await writeFile(new URL('../public/heights.bin', import.meta.url), out);
-console.log(`Wrote public/heights.bin — ${(out.length / 1e6).toFixed(2)} MB`);
+await writeFile(new URL('heights.bin', T.publicDir), out);
+console.log(`Wrote towns/${T.id}/public/heights.bin — ${(out.length / 1e6).toFixed(2)} MB`);

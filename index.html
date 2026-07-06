@@ -6,25 +6,25 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Clipper Town" />
-  <meta name="theme-color" content="#2a1419" />
-  <title>Clipper Town — explore Newburyport, MA</title>
-  <meta name="description" content="A cozy, all-ages adventure on the exact map of Newburyport, Massachusetts. Walk the real streets, find your own house, and dig up the town’s true history." />
+  <meta name="apple-mobile-web-app-title" content="%B_APPLE_TITLE%" />
+  <meta name="theme-color" content="%B_THEME_COLOR%" />
+  <title>%B_HTML_TITLE%</title>
+  <meta name="description" content="%B_DESCRIPTION%" />
   <!-- Social link previews (Open Graph + Twitter Card). Absolute URLs so the card unfurls. -->
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Clipper Town" />
-  <meta property="og:title" content="Clipper Town — explore Newburyport, MA" />
-  <meta property="og:description" content="A cozy, all-ages adventure on the real map of Newburyport. Walk the streets, find your own house, and dig up the town’s true history." />
-  <meta property="og:url" content="https://clippertown.io/" />
-  <meta property="og:image" content="https://clippertown.io/og-image.png" />
+  <meta property="og:site_name" content="%B_OG_SITE_NAME%" />
+  <meta property="og:title" content="%B_HTML_TITLE%" />
+  <meta property="og:description" content="%B_OG_DESCRIPTION%" />
+  <meta property="og:url" content="%B_OG_URL%" />
+  <meta property="og:image" content="%B_OG_IMAGE%" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:type" content="image/png" />
-  <meta property="og:image:alt" content="A voxel clipper ship sailing past Newburyport’s brick downtown and church steeple" />
+  <meta property="og:image:type" content="%B_OG_IMAGE_TYPE%" />
+  <meta property="og:image:alt" content="%B_OG_IMAGE_ALT%" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Clipper Town — explore Newburyport, MA" />
-  <meta name="twitter:description" content="Walk the real map of Newburyport — find your own street." />
-  <meta name="twitter:image" content="https://clippertown.io/og-image.png" />
+  <meta name="twitter:title" content="%B_HTML_TITLE%" />
+  <meta name="twitter:description" content="%B_TWITTER_DESCRIPTION%" />
+  <meta name="twitter:image" content="%B_OG_IMAGE%" />
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
   <link rel="icon" type="image/png" sizes="48x48" href="./favicon-48.png" />
@@ -37,8 +37,8 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #2a1419;
-      background: linear-gradient(180deg, #361b23, #1b0e13);
+      background: %B_THEME_COLOR%;
+      background: linear-gradient(180deg, %B_BG_TOP%, %B_BG_BOTTOM%);
       touch-action: none;
       -webkit-user-select: none;
       user-select: none;
@@ -66,7 +66,7 @@
     }
     #loading .title { font-size: 34px; letter-spacing: 3px; animation: loadrise 0.8s cubic-bezier(0.22,1,0.36,1) both; }
     #loading .rule { width: 0; height: 2px; border-radius: 2px;
-      background: linear-gradient(90deg, transparent, #d8b94a, transparent);
+      background: linear-gradient(90deg, transparent, %B_RULE_COLOR%, transparent);
       animation: loadrule 0.9s 0.25s cubic-bezier(0.22,1,0.36,1) both; }
     #loading .sub { font-size: 13px; letter-spacing: 2px; opacity: 0.7;
       font-family: -apple-system, system-ui, sans-serif; animation: loadpulse 1.9s 0.6s ease-in-out infinite; }
@@ -78,13 +78,14 @@
       #loading .rule { width: 220px; }
     }
   </style>
+  %TOWN_BOOT%
 </head>
 <body>
   <div id="game"></div>
   <div id="loading">
-    <div class="title">CLIPPER TOWN</div>
+    <div class="title">%B_LOADING_TITLE%</div>
     <div class="rule"></div>
-    <div class="sub">Exploring Newburyport, Massachusetts</div>
+    <div class="sub">%B_LOADING_SUB%</div>
   </div>
   <script type="module" src="/src/main.ts"></script>
   <!-- GoatCounter analytics (privacy-friendly). Kept in source so every build keeps it —

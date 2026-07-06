@@ -1,4 +1,5 @@
 import type { WorldData, Poly, Road, PathSeg, Label, Building } from './types';
+import { TOWN } from '@town';
 import { STYLE, SEASON, hash32, mulberry32 } from './style';
 
 // Floating docks come OUT for a New England winter: the marinas pull their floats,
@@ -52,7 +53,7 @@ function tint(hex: string, amt: number): string {
 
 const GRASSY = new Set(['land', 'grass', 'park', 'cemetery', 'pitch', 'reserve', 'wood', 'scrub', 'island', 'wetland', 'airfield']);
 // east of here is Plum Island + the barrier beaches — the grassy upland reads as sand
-const PLUM_X = 29000;
+const PLUM_X = TOWN.beachX;   // east of this = the town's barrier-beach sand zone (Infinity = none)
 
 // asphalt with aggregate, cracks, and repair patches — per road-class color
 export function roadFill(hex: string): CanvasPattern {

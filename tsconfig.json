@@ -11,7 +11,11 @@
     "isolatedModules": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@town": ["./src/towns/nbpt"]
+    }
   },
-  "include": ["src"]
+  "include": ["src", "towns/*/town.json"]
 }

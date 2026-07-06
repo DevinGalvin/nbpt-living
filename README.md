@@ -4,6 +4,8 @@ A cozy, Zelda-like game set on the **exact map of Newburyport, Massachusetts**. 
 
 **Live at [clippertown.io](https://clippertown.io).** Three.js + TypeScript + Vite.
 
+**Multi-town (July 2026):** one engine, N real places — Newburyport at `/`, Salem at `/salem/`, and adding a town is config + data, not a fork. See **[docs/TOWNS.md](docs/TOWNS.md)**.
+
 **Status (June 2026):** live and playable — the chapter spine, seasons (summer→fall→winter) with a full day–night cycle, a kid and his dog **Clipper**, 24 hidden secrets, and the city's named landmarks, downtown through Plum Island.
 
 ## Working on the game — read this first
@@ -28,9 +30,10 @@ npm run dev                   # http://localhost:5173 (hot reload)
 npm run build                 # typecheck + production build → dist/
 npm run deploy                # build + publish to clippertown.io (~30-60s)
 
-# Refreshing the map data (rare — regenerates public/world.json):
-npm run map                   # fetch OSM + rebuild world.json  ⚠ wipes hand-added data (e.g. the Fox Run pool)
-node tools/fetch_terrain.mjs  # fetch real elevation → public/heights.bin
+# Refreshing the map data (rare — regenerates towns/<id>/public/world.json):
+npm run map                   # fetch OSM + rebuild world.json + terrain (safe to re-run:
+                              # hand-added data lives in towns/<id>/map.mjs and is re-applied)
+TOWN=salem npm run map        # same, for any other town — see docs/TOWNS.md
 ```
 
 **Controls:** WASD/arrows to run (camera-relative), Shift to sprint, **C toggles chase camera ⇄ north-up map view**, **M (or the 🗺 button) opens the fast-travel map** — all 24 landmarks, tap to teleport with a fade — mouse wheel zooms, number keys 1–9 quick-travel favorites. A compass sits top-right. Touch: floating joystick + second finger to sprint. Debug console hooks: `nbpt.travel(id)`, `nbpt.walk(dx,dy,ms)`, `nbpt.zoom(z)`, `nbpt.landmarks`.
@@ -50,7 +53,7 @@ Ground surfaces carry two texture layers: world-space painted patterns (asphalt 
 - **Real-time sun shadows** (PCFSoft, follows the player; `shadowSide=DoubleSide` because walls are open quads — and remember `shadow.camera.updateProjectionMatrix()` after resizing the frustum) + hemisphere/sun light balance (0.5/1.5 — a strong hemisphere drowns shadows).
 - **Street-level details:** concrete sidewalks with curbs and expansion joints (OSM `footway=sidewalk` → class `side`), painted gravel **driveways** to the nearest road with **parked cars** in half of them, **storefront ground floors** on commercial blocks (display glass, canvas awnings, sign bands), tree **species** (pines + layered deciduous, never on pavement), and a **Plum Island beach zone** east of x=29000: weathered cedar-shake cottages, dune grass, beach umbrellas and towels.
 - Gotcha for future mesh work: triangulated horizontal caps must wind counter-clockwise as seen from above, or DoubleSide flips their normals down and they render lit-from-below (dark olive).
-- **Real topography:** `tools/fetch_terrain.mjs` pulls USGS-derived elevation (AWS Terrain Tiles, public) into `public/heights.bin`; `src/world/terrain.ts` samples it bilinearly. The ground is a displaced grid with analytic normals, buildings bury their walls into slopes, bridges span from the higher bank, and the player/camera ride the heightfield — High Street really is a 20m ridge and March's Hill really drops.
+- **Real topography:** `tools/fetch_terrain.mjs` pulls USGS-derived elevation (AWS Terrain Tiles, public) into `towns/<id>/public/heights.bin`; `src/world/terrain.ts` samples it bilinearly. The ground is a displaced grid with analytic normals, buildings bury their walls into slopes, bridges span from the higher bank, and the player/camera ride the heightfield — High Street really is a 20m ridge and March's Hill really drops.
 - **Real stores:** OSM POI nodes (Richdale, Oregano's, The Book Rack, Dunkin', Agave…) become canvas-texture signboards mounted on the correct building edge facing the street (`shopSignsFor`).
 - **Real micro-data:** 47 actual backyard swimming pools (rendered with deck rims, exactly where they are), 475 real property-line barriers (stockade fences / hedges / stone walls — they also block movement), 448 surveyed driveways, and 1,334 real tree positions that take priority over procedural planting. Synthetic fences/driveways only fill in where nothing is mapped.
 - **Real roof massing:** every building extrudes from its exact footprint, and L/T-shaped houses are split at their concavities (`complexGable`) into up to three correctly-oriented gable wings — ells look like ells. When a sparse footprint won't split honestly (zigzag condo rows, big-box stores tagged as houses), the OBB-gable fallback is refused — by ratio (fill < 0.55) or absolute overhang (> 90 m² of phantom roof) — and the building gets a flat roof + parapet on its **exact outline** instead, which by construction can never roof a street. This was the "massive building blocking the road" class of bug: the footprint never covered the road; its bounding-box gable did.

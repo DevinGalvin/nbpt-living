@@ -1,0 +1,41 @@
+{
+  "id": "salem",
+  "name": "Salem",
+  "worldName": "Salem, MA",
+  "title": "Salem",
+  "tag": "Witch City",
+  "emoji": "🎃",
+  "path": "/salem/",
+  "savePrefix": "salem:",
+  "pxPerMeter": 8,
+  "origin": { "lat": 42.515, "lon": -70.9 },
+  "bbox": { "s": 42.485, "w": -70.945, "n": 42.545, "e": -70.855 },
+  "mPerDegLat": 111089.0,
+  "mPerDegLon": 81891.0,
+  "branding": {
+    "htmlTitle": "Salem — walk the real map of Salem, MA in 3D",
+    "appleTitle": "Salem",
+    "themeColor": "#2a1838",
+    "bgTop": "#3a2450",
+    "bgBottom": "#1c1228",
+    "ruleColor": "#e0a23a",
+    "description": "A cozy, all-ages 3D walk through the exact map of Salem, Massachusetts. Wander the real streets, harbor, and Common — and find your own house.",
+    "ogSiteName": "Salem in 3D",
+    "ogDescription": "A cozy, all-ages 3D walk through the real map of Salem. Wander the streets, harbor, and Common — and find your own house.",
+    "ogUrl": "https://clippertown.io/salem/",
+    "ogImage": "https://clippertown.io/salem/og-image.jpg",
+    "ogImageType": "image/jpeg",
+    "ogImageAlt": "A 3D voxel view of historic Salem, Massachusetts",
+    "twitterDescription": "Walk the real map of Salem — find your own street.",
+    "loadingTitle": "SALEM",
+    "loadingSub": "Exploring Salem, Massachusetts"
+  },
+  "storageSeeds": {
+    "nbpt-bike": "1",
+    "nbpt-kayak": "1",
+    "nbpt-seasons-rewarded": "1"
+  },
+  "storageSeedIfUnset": {
+    "nbpt-season": "fall"
+  }
+}

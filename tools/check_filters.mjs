@@ -1,9 +1,8 @@
-// The kid-safe rider-name filter lives in FOUR files: each town's race.ts and both
-// leaderboard backends. A silent drift means a bad name passes exactly one of them —
-// invisible until it's on a kids' board. This diffs the BAD_SUB / BAD_WORD lists
-// against the main race.ts and fails loudly on any mismatch. Runs in CI before every
-// deploy; the Salem worktree copy is checked when present (local runs), skipped in CI
-// (its source lives on the salem-experiment branch, outside this checkout).
+// The kid-safe rider-name filter lives in THREE files: the shared race.ts (one
+// engine, every town) and both leaderboard backends. A silent drift means a bad
+// name passes exactly one of them — invisible until it's on a kids' board. This
+// diffs the BAD_SUB / BAD_WORD lists against race.ts and fails loudly on any
+// mismatch. Runs in CI before every deploy.
 //
 // Run: node tools/check_filters.mjs
 
@@ -14,7 +13,6 @@ const FILES = [
   { path: new URL('../src/game/race.ts', import.meta.url), name: 'nbpt race.ts', ref: true },
   { path: new URL('../infra/leaderboard/worker.js', import.meta.url), name: 'worker.js' },
   { path: new URL('../infra/leaderboard/apps-script.gs', import.meta.url), name: 'apps-script.gs' },
-  { path: new URL('../../nbpt-salem/src/game/race.ts', import.meta.url), name: 'salem race.ts', optional: true },
 ];
 
 function listOf(src, constName, file) {

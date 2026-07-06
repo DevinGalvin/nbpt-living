@@ -1,6 +1,7 @@
 // Package the built game into ONE self-contained HTML file that runs from a
-// double-click (file://) — the JS bundle, the whole Newburyport map, and the
-// terrain heightfield are all inlined. Run AFTER `vite build`:
+// double-click (file://) — the JS bundle, the whole town map, and the terrain
+// heightfield are all inlined. Run AFTER `vite build` (inlines whichever town
+// that build was):
 //   npm run share   →  dist/NBPT-Living.html
 //
 // Map data © OpenStreetMap contributors (ODbL) — attribution stays in the HUD.
@@ -19,9 +20,9 @@ let bundle = await readFile(new URL(bundlePath, dist), 'utf8');
 // inline-script safety: never let the parser see a real </script>
 bundle = bundle.replace(/<\/script/g, '<\\/script');
 
-// the data payloads
-const worldText = await readFile(new URL('../public/world.json', import.meta.url), 'utf8');
-const heights = await readFile(new URL('../public/heights.bin', import.meta.url));
+// the data payloads (the built town's — vite copies towns/<id>/public into dist/)
+const worldText = await readFile(new URL('world.json', dist), 'utf8');
+const heights = await readFile(new URL('heights.bin', dist));
 // JSON → JS string literal, with every '<' escaped so '</script>' can't occur
 const worldLiteral = JSON.stringify(worldText).replace(/</g, '\\u003c');
 const heightsB64 = heights.toString('base64');

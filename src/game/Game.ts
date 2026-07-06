@@ -18,21 +18,24 @@ import { RaceRunner, COURSES, getRaceName, setRaceName, hasRaceName, getBoard, c
 import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
 import { STYLE, SEASON } from '../world/style';
+import { TOWN } from '@town';
+
+// World-only sandbox: towns without an authored story spine run bare — no
+// quest / history / eggs / interiors chrome. `?story` force-enables the spine
+// for development in any town.
+const BARE = !TOWN.story && !new URLSearchParams(location.search).has('story');
 
 const JOG = 200;     // world px/s (8 px = 1 m) — fast, gamey
 const SPRINT = 380;
 const BOAT_DOOR = { x: -224, z: -1183 }; // the waterline den door — rowing near it beaches you
 const TOWER_LOOK = { x: 2412, z: 255 };  // 🔦 the Level 2 finale: where you stand at the Rear Range Light to sweep the beam (just south, facing the harbor)
 
-// ✈️ scenic flight from Plum Island Airport (real Runway 10/28). Board at the east
-// threshold, roll + take off west (28) out over downtown + the harbor. Cozy + can't
+// ✈️ scenic flight — per-town (Plum Island Airport / Winter Island / …); the
+// boarding spot, heading, and FLY-zone live in the town pack. Cozy + can't
 // crash — the point is seeing the town from the air.
-const RUNWAY_START = { x: 21560, z: 14114 };  // east threshold (depart 28 / westbound)
-const RUNWAY_HDG = -1.517;                    // runway 10/28 axis, heading ≈ due west
-// the whole-airfield zone the FLY prompt covers — centered on the runway, big enough to
-// reach both ends (±~2200) AND the airport landmark you arrive at (~1250 N of center), so
-// walking anywhere on the field offers the flight (boarding teleports you to the threshold).
-const AIRPORT = { x: 19468, z: 14228, r: 2300 };
+const RUNWAY_START = TOWN.flight.runwayStart;
+const RUNWAY_HDG = TOWN.flight.runwayHdg;
+const AIRPORT = TOWN.flight.airport;
 const CRUISE_ALT = 540;                       // hold ~a few hundred ft over the ground
 const CRUISE_SPEED = 860;                     // forward px/s — quicker than the bike, still gentle
 
@@ -225,12 +228,12 @@ export class Game {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('game')!.appendChild(this.renderer.domElement);
 
-    const fogRange: [number, number] = SEASON === 'fall' ? [1050, 2500] : SEASON === 'winter' ? [1250, 2900] : [1500, 3200];
+    const fogRange: [number, number] = SEASON === 'fall' ? TOWN.fall.fogRange : SEASON === 'winter' ? [1250, 2900] : [1500, 3200];
     this.scene.fog = new THREE.Fog(STYLE.sky, fogRange[0], fogRange[1]);
     this.camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 10, 6000);
 
     this.hemi = SEASON === 'winter' ? new THREE.HemisphereLight('#dde9f8', '#a8b2bc', 0.55)
-      : SEASON === 'fall' ? new THREE.HemisphereLight('#f2e6cc', '#8a8058', 0.5)
+      : SEASON === 'fall' ? new THREE.HemisphereLight(TOWN.fall.hemiSky, TOWN.fall.hemiGround, TOWN.fall.hemiIntensity)
       : new THREE.HemisphereLight('#e3f2fd', '#90a06c', 0.5);
     this.sun = new THREE.DirectionalLight(SEASON === 'winter' ? '#ffe0b0' : SEASON === 'fall' ? '#ffd9a0' : '#fff2d8', SEASON === 'summer' ? 1.5 : 1.4);
     this.sun.castShadow = true;
@@ -248,7 +251,8 @@ export class Game {
     this.sun.shadow.camera.updateProjectionMatrix();
     this.scene.add(this.hemi, this.sun, this.sun.target, this.kid.root, this.dog.root);
     // day–night cycle + weather; winter precipitation falls as snow
-    this.sky = new Sky(this.scene, { startTod: 0.34, period: 420, snow: SEASON === 'winter' });
+    // Halloween towns open at spooky dusk in fall (per-town knob)
+    this.sky = new Sky(this.scene, { startTod: SEASON === 'fall' && TOWN.fall.duskStart ? 0.78 : 0.34, period: 420, snow: SEASON === 'winter' });
 
     // street-lamp lighting pool: a soft warm glow disc on the ground + a real
     // PointLight, both reassigned to the nearest lamps and lit only at night
@@ -288,11 +292,11 @@ export class Game {
     this.waterUpdate = water.update;
 
     this.life = new Life(this.scene, this.index);
-    this.gillis = new GillisBridge(this.scene, this.index, world);
+    if (!BARE) this.gillis = new GillisBridge(this.scene, this.index, world);
 
-    // spawn at Market Square — or, after a season turned the town, exactly where
+    // spawn downtown (per-town) — or, after a season turned the town, exactly where
     // you stood (a one-shot resume point so the re-skin reload doesn't teleport you)
-    let sx = 0, sz = 40;
+    let sx = TOWN.spawn.x, sz = TOWN.spawn.z;
     try {
       const r = JSON.parse(localStorage.getItem('nbpt-resume-pos') || 'null');
       if (r && typeof r.x === 'number' && typeof r.z === 'number') { sx = r.x; sz = r.z; }   // keep it: the poll keeps it current, so any refresh resumes here; a story reset clears it
@@ -361,18 +365,25 @@ export class Game {
     this.bike.root.visible = false;
     this.scene.add(this.bike.root);
     this.hud.initMinimap(world);
-    this.quest = new QuestRunner(this.scene, this.index, this.hud, this.audio, () => this.enterTunnel(), () => {
-      localStorage.setItem('nbpt-bike', '1');
-      this.bikeEarned();
-    }, () => this.boatRide(), () => this.enterStar(), () => this.enterNews(), () => this.enterDen(),
-      (x: number, z: number) => this.lookOutToSea(x, z), () => this.endLookOut(), () => this.enterKayak(),
-      (x: number, z: number) => this.landAtShore(x, z),
-      () => this.beginStorm(), () => this.enterSweep(), () => this.endSweep());
-    // ⚙️ Story-mode toggle: explore vs play. The quest is the source of truth, so the
-    // switch mirrors whatever it actually applies.
-    this.hud.initSettings(this.quest.story, (next) => { this.quest!.setStory(next); return this.quest!.story; });
+    if (BARE) {
+      // world-only sandbox: no quest / history / eggs. Hide the story-only chrome
+      // (compass, missions, the Story settings row) — racing + vehicles stay live.
+      this.hud.setBare(true);
+      this.hud.initSettings(false, () => false);
+    } else {
+      this.quest = new QuestRunner(this.scene, this.index, this.hud, this.audio, () => this.enterTunnel(), () => {
+        localStorage.setItem('nbpt-bike', '1');
+        this.bikeEarned();
+      }, () => this.boatRide(), () => this.enterStar(), () => this.enterNews(), () => this.enterDen(),
+        (x: number, z: number) => this.lookOutToSea(x, z), () => this.endLookOut(), () => this.enterKayak(),
+        (x: number, z: number) => this.landAtShore(x, z),
+        () => this.beginStorm(), () => this.enterSweep(), () => this.endSweep());
+      // ⚙️ Story-mode toggle: explore vs play. The quest is the source of truth, so the
+      // switch mirrors whatever it actually applies.
+      this.hud.initSettings(this.quest.story, (next) => { this.quest!.setStory(next); return this.quest!.story; });
+      this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
+    }
     this.hud.initGhost(ghostEnabled(), () => setGhostEnabled(!ghostEnabled()));
-    this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
     // fade to a course's start line and begin — the picker path AND the results
     // card's RACE AGAIN both ride this
     const startRace = (id: string) => {
@@ -395,7 +406,7 @@ export class Game {
       () => this.race?.quit(),
       (id) => this.race?.showBoard(id),
     );
-    this.eggs = new EggRunner(
+    if (!BARE) this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,
       () => ({ x: this.dog.root.position.x, z: this.dog.root.position.z }),
       () => this.goldenHoodie()
@@ -405,11 +416,11 @@ export class Game {
     this.hud.onTap = (sx, sy) => this.tryPetTap(sx, sy);
 
     if (SEASON === 'winter') {
-      // the big tree in Market Square (snow now falls from the Sky weather system)
-      this.scene.add(this.buildHolidayTree(-100, -48));
+      // the big town tree (snow now falls from the Sky weather system)
+      if (TOWN.holidayTree) this.scene.add(this.buildHolidayTree(TOWN.holidayTree.x, TOWN.holidayTree.z));
     } else if (SEASON === 'fall') {
-      // a Halloween patch in Market Square — scarecrow, pumpkins, hay bales
-      this.scene.add(this.buildHalloweenDisplay(-100, -48));
+      // a Halloween patch downtown — scarecrow, pumpkins, hay bales
+      this.scene.add(this.buildHalloweenDisplay(TOWN.halloweenDisplay.x, TOWN.halloweenDisplay.z));
     }
 
     window.addEventListener('keydown', (e) => {
@@ -484,7 +495,7 @@ export class Game {
       }),
       _quest: this.quest,
       // dev: teleport to a course start + begin it (nbpt.race() = the homecoming run)
-      race: (id = 'homecoming') => {
+      race: (id = TOWN.devCourse) => {
         const c = COURSES.find((k) => k.id === id);
         if (!c || !this.race) return 'unknown course: ' + id;
         this.travelToXY(c.start.x, c.start.z);
@@ -504,7 +515,10 @@ export class Game {
     // mobile and many just want to wander), and finally a light nudge to find their own
     // street. No gate — dismissing the pick just keeps the clean explore default.
     const fresh = localStorage.getItem('nbpt-welcomed') !== '1';
-    if (fresh) {
+    if (BARE) {
+      // no story to pick a mode for — keep only the street nudge
+      if (fresh) setTimeout(() => this.hud.showStreetNudge(() => localStorage.setItem('nbpt-welcomed', '1')), 1500);
+    } else if (fresh) {
       setTimeout(() => this.hud.showModePick((story) => {
         this.quest?.setStory(story);
         this.hud.refreshSettings(this.quest?.story ?? false);
@@ -532,14 +546,14 @@ export class Game {
   private tryRacePromo() {
     if (localStorage.getItem('nbpt-promo-race') === '1') { this.tryFlightPromo(); return; }
     if (this.promoBusy()) { setTimeout(() => this.tryRacePromo(), 2500); return; }
-    const scramble = COURSES.find((c) => c.id === 'southend');
+    const featured = COURSES.find((c) => c.id === TOWN.racePromo.course);
     this.hud.featurePromo({
       key: 'nbpt-promo-race', badge: 'NEW', icon: '🏁', title: 'Race the Town',
-      body: 'Real races on real streets! Three courses run through Clipper Town — sprint the South End, ride the river road home, or fly in from the lighthouse. Beat the clock, top the town leaderboard, and race the leader’s ghost. Any route counts — shortcuts welcome.',
+      body: TOWN.racePromo.body,
       cta: 'Take me to the start line',
       onCta: () => {
-        if (!scramble || !this.race) return;
-        this.hud.fadeThrough(() => { this.travelToXY(scramble.start.x, scramble.start.z); this.race!.startById('southend'); });
+        if (!featured || !this.race) return;
+        this.hud.fadeThrough(() => { this.travelToXY(featured.start.x, featured.start.z); this.race!.startById(TOWN.racePromo.course); });
       },
     });
   }
@@ -548,8 +562,8 @@ export class Game {
     if (this.promoBusy()) { setTimeout(() => this.tryFlightPromo(), 2500); return; }
     this.hud.featurePromo({
       key: 'nbpt-promo-flight', badge: 'NEW', icon: '✈️', title: 'Take Flight',
-      body: 'Scenic flights are open to everyone. Walk onto the grass at Plum Island Airport and tap ✈️ FLY to soar over Clipper Town — you can’t crash, promise.',
-      cta: 'Take me to the airfield', onCta: () => this.travelToXY(AIRPORT.x, AIRPORT.z)
+      body: TOWN.flight.promoBody,
+      cta: TOWN.flight.promoCta, onCta: () => this.travelToXY(AIRPORT.x, AIRPORT.z)
     });
   }
 
@@ -1092,7 +1106,7 @@ export class Game {
     // phones: shed the ground-textured walking chunks so flight starts clean (decor-only + impostor)
     if (this.mobile) this.clearChunks();
     this.updateCamera(0, true);   // snap behind the plane, down the runway
-    this.hud.setObjective('✈️ Lifting off Runway 28 — steer to bank over town');
+    this.hud.setObjective(TOWN.flight.liftoffMsg);
     this.hud.showTalk('🛬 LAND', () => this.land());   // ready from the first second, always
     this.flyAct = 'land';
     this.audio.gull();
@@ -1423,8 +1437,15 @@ export class Game {
     put(new THREE.ConeGeometry(6.2, 10, 10), '#4a3a26', 0, 52, 0);              // hat crown
     sc.rotation.y = 0.3; g.add(sc);
 
-    // the pumpkin patch (carved jack-o'-lanterns face out toward the square)
-    const patch: [number, number, number, boolean, number][] = [
+    // the pumpkin patch (carved jack-o'-lanterns face out toward the square) —
+    // haunted towns (Salem) go bigger: more, larger pumpkins
+    const patch: [number, number, number, boolean, number][] = TOWN.halloween === 'haunted' ? [
+      [16, 9, 9, true, 0.4], [27, -7, 7, false, 0], [7, -15, 8.5, true, -0.6],
+      [-13, 11, 10, true, 0.1], [-25, -5, 7.5, false, 0], [3, 20, 6.5, true, 0.2],
+      [-7, -21, 8, true, 0.3], [14, 20, 7, true, 1.2], [-19, 17, 6.5, false, -0.4],
+      [21, 8, 6.5, true, -0.9], [-3, -8, 13, true, 0.0], [11, -23, 6.5, false, 0.5],
+      [-28, 7, 7, true, 1.5], [30, 3, 6, true, -0.3], [-15, -16, 7.5, true, 0.8],
+    ] : [
       [16, 9, 5.5, true, 0.4], [24, -7, 4, false, 0], [7, -15, 5, true, -0.6],
       [-13, 11, 6, true, 0.1], [-22, -5, 4.5, false, 0], [3, 18, 3.6, false, 0],
       [-7, -19, 4.6, true, 0.3], [13, 18, 4, true, 1.2],
@@ -1439,6 +1460,39 @@ export class Game {
         stalk.position.set(cx + Math.cos(a) * 2.6, 18, cz + Math.sin(a) * 2.6);
         stalk.rotation.z = Math.cos(a) * 0.12; stalk.rotation.x = Math.sin(a) * 0.1;
         g.add(stalk);
+      }
+    }
+
+    // Frankenstein & Dracula flank the patch — the Halloween Capital's welcoming committee.
+    if (TOWN.halloween === 'haunted') {
+      {
+        const fr = new THREE.Group();
+        const fm = (geo: THREE.BufferGeometry, hex: string, px: number, py: number, pz: number, e = false) => {
+          const m = new THREE.Mesh(geo, e ? glow(hex) : lam(hex)); m.position.set(px, py, pz); m.castShadow = !e; fr.add(m);
+        };
+        fm(new THREE.BoxGeometry(5, 14, 5), '#1b1916', -4, 7, 0); fm(new THREE.BoxGeometry(5, 14, 5), '#1b1916', 4, 7, 0);  // legs
+        fm(new THREE.BoxGeometry(15, 18, 9), '#2b2823', 0, 22, 0);                                                          // coat/torso
+        for (const s of [-1, 1]) { fm(new THREE.BoxGeometry(4.5, 16, 5), '#2b2823', s * 9.5, 22, 0); fm(new THREE.BoxGeometry(4.5, 5, 8), '#6f8f3f', s * 9.5, 16, 7); } // arms reaching out
+        fm(new THREE.BoxGeometry(11, 12, 10), '#6f8f3f', 0, 37, 0);                                                         // flat-top green head
+        fm(new THREE.BoxGeometry(11.4, 2.6, 10.4), '#15120e', 0, 43.2, 0);                                                  // flat black hair
+        for (const s of [-1, 1]) fm(new THREE.BoxGeometry(3, 1.8, 1.8), '#b7b7ad', s * 6.6, 33, 0);                         // neck bolts
+        for (const s of [-1, 1]) fm(new THREE.BoxGeometry(2, 2, 1), '#ffd23c', s * 2.6, 38, 5.1, true);                     // glowing eyes
+        fr.position.set(-46, 0, 2); fr.rotation.y = 0.3; g.add(fr);
+      }
+      {
+        const dr = new THREE.Group();
+        const dm = (geo: THREE.BufferGeometry, hex: string, px: number, py: number, pz: number, e = false) => {
+          const m = new THREE.Mesh(geo, e ? glow(hex) : lam(hex)); m.position.set(px, py, pz); m.castShadow = !e; dr.add(m);
+        };
+        dm(new THREE.BoxGeometry(16, 24, 3), '#100e15', 0, 23, -3.6);                                                       // cape behind
+        dm(new THREE.BoxGeometry(5, 14, 5), '#100e15', -4, 7, 0); dm(new THREE.BoxGeometry(5, 14, 5), '#100e15', 4, 7, 0);  // legs
+        dm(new THREE.BoxGeometry(12, 18, 7), '#100e15', 0, 22, 0);                                                          // suit
+        dm(new THREE.BoxGeometry(2.6, 12, 2), '#7a1420', 0, 22, 3.6);                                                       // red sash
+        for (const s of [-1, 1]) dm(new THREE.BoxGeometry(3, 13, 1.6), '#100e15', s * 5.6, 33, -2.2);                       // high collar
+        dm(new THREE.BoxGeometry(8, 11, 7), '#e7ddc8', 0, 37, 0);                                                          // pale head
+        dm(new THREE.BoxGeometry(8.4, 2.6, 7.4), '#15120f', 0, 42.5, 0);                                                    // slicked hair
+        for (const s of [-1, 1]) dm(new THREE.BoxGeometry(1.8, 1.8, 1), '#ff3b2e', s * 2.2, 38, 3.6, true);                 // red glowing eyes
+        dr.position.set(46, 0, 2); dr.rotation.y = -0.3; g.add(dr);
       }
     }
 
@@ -1794,16 +1848,16 @@ export class Game {
     if (this.gillis && !this.inside) this.gillis.update(dt);
     if (this.inTunnel) this.tunnel!.update(dt, this.px, this.pz);
     else if (this.interior) this.interior.update(dt, this.px, this.pz);
-    else if (this.quest) {
+    else {
       // a live run (or countdown) mutes the story entirely — no TALK, no auto-beats
-      this.quest.update(dt, this.px, this.pz, this.race?.active ?? false);
+      if (this.quest) this.quest.update(dt, this.px, this.pz, this.race?.active ?? false);
       // the race runs after quest (its per-frame hud.guide write wins while racing)
       // but before history/eggs, which both yield to an armed start line or a live run
-      if (this.race) this.race.update(dt, this.px, this.pz, this.quest.nearActive || this.flying);
+      if (this.race) this.race.update(dt, this.px, this.pz, (this.quest?.nearActive ?? false) || this.flying);
       const raceBusy = this.race ? (this.race.active || this.race.nearActive) : false;
-      if (this.history) this.history.update(dt, this.px, this.pz, this.quest.nearActive || this.flying || raceBusy);
+      if (this.history) this.history.update(dt, this.px, this.pz, (this.quest?.nearActive ?? false) || this.flying || raceBusy);
       // eggs speak last: quest beats, then race flags, then history markers, then secrets
-      if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.flying || this.quest.nearActive || raceBusy || (this.history ? this.history.nearActive : false));
+      if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.flying || (this.quest?.nearActive ?? false) || raceBusy || (this.history ? this.history.nearActive : false));
     }
     this.audio.update(dt, movingNow && !this.riding, this.sprinting, () =>
       this.inside ? 'hard'
@@ -2137,7 +2191,7 @@ export class Game {
     // still nothing within reach — the target sits out in open water (e.g. the tidal
     // flats: the "Joppa Flat" POI is ~7000px from any shore). March back toward
     // downtown and land at the first dry, unblocked shore we cross.
-    const tx = 0, ty = 40;                          // Market Square — guaranteed land
+    const tx = TOWN.spawn.x, ty = TOWN.spawn.z;     // downtown spawn — guaranteed land
     const dist = Math.hypot(tx - x, ty - y) || 1;
     const ux = (tx - x) / dist, uy = (ty - y) / dist;
     for (let d = 900; d <= dist; d += 24) {

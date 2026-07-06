@@ -45,10 +45,12 @@ jobs:
       - name: Check kid-safe filter lists are in sync
         run: node tools/check_filters.mjs
 
-      # Same build as `npm run deploy`: tsc + vite build, then inline the
-      # single-file ClipperTown.html. Emits dist/ (incl. CNAME from public/).
-      - name: Build game
-        run: npm run share
+      # Build EVERY town from this one commit: tsc + vite build + the inlined
+      # single-file ClipperTown.html for the root town, then each sibling town's
+      # bundle into dist/<town>/. One push updates the whole set — per-town
+      # bundles can never drift from source. Emits dist/ (incl. CNAME).
+      - name: Build all towns
+        run: npm run build:all
 
       # Bring the live branch into ./live so we can update it in place, exactly
       # like deploy_pages.sh clones the Pages repo to /tmp. persist-credentials

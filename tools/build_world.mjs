@@ -1,29 +1,22 @@
-// NBPT Living — world builder.
-// Converts data/raw/overpass.json (raw OSM) into public/world.json (game world).
+// World builder — converts data/<town>/raw/overpass.json (raw OSM) into
+// towns/<town>/public/world.json (game world). Town-agnostic: all curation
+// (landmarks, spot fixes, hand-added features, QA) comes from the per-town
+// config — towns/<town>/{town.json,map.mjs} via tools/lib/town.mjs.
+// Run: npm run build-world  (or TOWN=salem npm run build-world)
 //
-// Coordinate system: local equirectangular centered on Market Square,
+// Coordinate system: local equirectangular centered on the town's origin,
 // y grows south (screen space), units = world pixels at PX_PER_M px per meter.
 // Map data © OpenStreetMap contributors (ODbL).
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { loadTown } from './lib/town.mjs';
 
-const PX_PER_M = 8;
-const ORIGIN = { lat: 42.81135, lon: -70.86976 }; // Market Square
-const M_PER_DEG_LAT = 111089.0;
-const M_PER_DEG_LON = 81791.7; // at 42.81°N
-const BBOX = { s: 42.763, w: -70.955, n: 42.84, e: -70.795 }; // all of Newburyport
+const T = await loadTown();
+const { PX_PER_M, ORIGIN, M_PER_DEG_LAT, BBOX, px } = T;
 
-const px = (lat, lon) => [
-  Math.round((lon - ORIGIN.lon) * M_PER_DEG_LON * PX_PER_M),
-  Math.round((ORIGIN.lat - lat) * M_PER_DEG_LAT * PX_PER_M)
-];
-
-// Stale OSM features that no longer exist on the ground — dropped so the map matches today.
-// The old golf-course ponds by the Laurel Rd subdivision (off Ferry Rd, east of I-95): the
-// course closed, the water hazards dried up, and housing was built. OSM still carries the
-// ponds (ways 279021841 + 920420732 and relation 12474826) and not yet the new homes, so
-// the game showed a phantom lake amid the neighborhood. (Player-reported, June 2026.)
-const DROP_OSM = new Set([279021841, 920420732, 12474826]);
+// Stale OSM features that no longer exist on the ground — dropped so the map
+// matches today (per-town; see towns/<id>/map.mjs for the why of each id).
+const DROP_OSM = new Set(T.map.dropOsm ?? []);
 
 // Buildings whose lv came from an explicit OSM building:levels tag — the height
 // overlay (Overture) must not override mapped truth.
@@ -143,11 +136,11 @@ function stitchChains(chains, { forceClose = true, joinTol = 60 } = {}) {
 
 // ---------- load ----------
 
-const raw = JSON.parse(await readFile(new URL('../data/raw/overpass.json', import.meta.url), 'utf8'));
+const raw = JSON.parse(await readFile(new URL('overpass.json', T.rawDir), 'utf8'));
 
 const world = {
   meta: {
-    name: 'Newburyport, MA',
+    name: T.cfg.worldName,
     pxPerMeter: PX_PER_M,
     origin: ORIGIN,
     bbox: BBOX,
@@ -272,15 +265,17 @@ function commercialDowntown(ring) {
   return false;
 }
 
-// Curated historic-core fallback (Newburyport): the dense 1811 brick downtown — Market Sq /
-// State to ~Essex / Pleasant / Inn / Water. OR'd with commercialDowntown above, because NBPT's
-// mapped shop POIs are too sparse to carry the whole brick core on data alone. Deliberately
-// tight: the South End's wood colonials begin immediately south of this box (lat 42.8093).
-const CORE_NW = px(42.8146, -70.8748);
-const CORE_SE = px(42.8093, -70.8652);
+// Curated historic-core fallback (per-town, optional): a hand-drawn box OR'd with
+// commercialDowntown above, for downtowns whose mapped shop POIs are too sparse to
+// carry the brick core on data alone (Newburyport's 1811 core). Towns with denser
+// POI coverage set downtownCore = null and rely on the data-driven test.
+const CORE = T.map.downtownCore
+  ? { nw: px(...T.map.downtownCore.nw), se: px(...T.map.downtownCore.se), minAreaM2: T.map.downtownCore.minAreaM2 ?? 150 }
+  : null;
 function inDowntownCore(ring) {
+  if (!CORE) return false;
   const [cx, cy] = centroid(ring);
-  return cx >= CORE_NW[0] && cx <= CORE_SE[0] && cy >= CORE_NW[1] && cy <= CORE_SE[1];
+  return cx >= CORE.nw[0] && cx <= CORE.se[0] && cy >= CORE.nw[1] && cy <= CORE.se[1];
 }
 
 // ---------- ways ----------
@@ -332,10 +327,10 @@ for (const el of raw.elements) {
     if (k === 'house' && areaM2 < 40) k = 'shed';
     // Untagged 'building=yes' blocks in a commercial district render as brick commercial
     // (downtown is almost all brick) unless they're something more specific. Data-driven
-    // (retail landuse zone / dense shop-POI cluster) OR the curated historic-core box:
-    // NBPT's 1811 brick downtown has sparser mapped shop POIs than the box covers, so the
-    // box backstops the dense core while the data method adds districts the box misses.
-    if (k === 'house' && ((areaM2 >= 90 && commercialDowntown(ring)) || (areaM2 >= 150 && inDowntownCore(ring)))) k = 'commercial';
+    // (retail landuse zone / dense shop-POI cluster) OR the town's curated historic-core
+    // box: a downtown with sparser mapped shop POIs than the box covers gets the box as
+    // a backstop while the data method adds districts the box misses.
+    if (k === 'house' && ((areaM2 >= 90 && commercialDowntown(ring)) || (CORE && areaM2 >= CORE.minAreaM2 && inDowntownCore(ring)))) k = 'commercial';
     // real storefront evidence (retail land-use zone or in-building shop POI):
     // ground floor becomes a storefront, wall material stays whatever it is
     let sf = 0;
@@ -677,55 +672,19 @@ for (const el of raw.elements) {
   world.pois.push({ x, y, k, n: t.name });
 }
 
-// ---------- curated landmarks (verified coords from research) ----------
+// ---------- curated landmarks (per-town: towns/<id>/map.mjs) ----------
+// They power the 🗺 Fast-Travel grid, address-bar name search, and the ambient
+// "you've reached X" proximity banners — all data-driven, no engine changes.
 
-const LM = [
-  ['market-square', 'Market Square', 'Heart of the Clipper City', 42.81135, -70.86976, 60],
-  ['custom-house', 'Custom House Maritime Museum', 'Granite landmark, 1835', 42.81197, -70.86824, 50],
-  ['city-hall', 'City Hall', 'Newburyport, a city since 1851', 42.81123, -70.87276, 45],
-  ['inn-street', 'Inn Street', 'Fountain & playground', 42.81072, -70.87051, 50],
-  ['boardwalk', 'Waterfront Boardwalk', 'Market Landing Park', 42.8124, -70.86973, 70],
-  ['cushing-house', 'Cushing House', 'Museum of Old Newbury, 1808', 42.80667, -70.87111, 40],
-  ['courthouse', 'Superior Courthouse', 'Bulfinch design, 1805', 42.80814, -70.87399, 45],
-  ['frog-pond', 'Frog Pond · Bartlet Mall', 'Skating & sledding since forever', 42.80812, -70.87475, 80],
-  ['old-hill', 'Old Hill Burying Ground', 'Lord Dexter rests here', 42.80748, -70.87651, 60],
-  ['browns-square', 'Brown Square', 'Garrison statue', 42.8118, -70.874, 40],
-  ['marchs-hill', "March's Hill", 'Best sledding in town', 42.80133, -70.86646, 80],
-  ['oak-hill', 'Oak Hill Cemetery', 'Garden cemetery, 1842', 42.80151, -70.87119, 70],
-  ['joppa-park', 'Joppa Park', 'Clam country', 42.80697, -70.85872, 60],
-  ['mbta', 'Newburyport Station', 'Trains to Boston', 42.79815, -70.87815, 80],
-  ['cashman', 'Cashman Park', 'Boat ramp & ballfields', 42.81651, -70.8781, 90],
-  ['gillis', 'Gillis Drawbridge', 'Opens on the hour & half hour', 42.8154, -70.87346, 90],
-  ['atkinson', 'Atkinson Common', 'The stone tower', 42.82518, -70.89703, 90],
-  ['airport', 'Plum Island Airport', 'Oldest airfield in New England, 1910', 42.79616, -70.84156, 110],
-  ['pink-house', 'The Pink House Site', '1925–2025 · never forgotten', 42.79631, -70.83019, 80],
-  ['wilkinson', 'Wilkinson Bridge', 'Gateway to Plum Island', 42.79779, -70.82149, 80],
-  ['pi-light', 'Plum Island Light', 'Guiding ships since 1788', 42.81523, -70.81894, 90],
-  ['pi-point', 'Plum Island Point', 'Where the river meets the sea', 42.8165, -70.818, 110],
-  ['joppa-flats', 'Joppa Flats Education Center', 'Mass Audubon', 42.7989, -70.8455, 70],
-  ['tannery', 'The Tannery', 'Marketplace in the old mill', 42.8095, -70.8635, 70],
-  // the west end & river country (coords from the mapped features themselves)
-  ['maudslay', 'Maudslay State Park', 'Gardens of the old Moseley estate', 42.82643, -70.92816, 140],
-  ['moseley-woods', 'Moseley Woods', 'Pines over the Merrimack', 42.83284, -70.9093, 80],
-  ['deer-island', 'Deer Island', 'The Chain Bridge crossing, 1792', 42.83457, -70.90693, 80],
-  ['artichoke', 'Artichoke Reservoir', "The city's drinking water", 42.81049, -70.93092, 120],
-  ['turkey-hill', 'Turkey Hill', 'West-end farm country', 42.80949, -70.92344, 100],
-  ['common-pasture', 'Common Pasture', 'Cows since 1635', 42.7884, -70.91467, 140],
-  ['cherry-hill', 'Cherry Hill Fields', 'Soccer Saturdays', 42.81752, -70.91964, 90],
-  ['spl-farm', 'Spencer-Peirce-Little Farm', 'Stone farmhouse, 1690', 42.79506, -70.85203, 80]
-];
-for (const [id, name, sub, lat, lon, rM] of LM) {
-  const [x, y] = px(lat, lon);
-  world.landmarks.push({ id, name, sub, x, y, r: Math.round(rM * PX_PER_M) });
-}
+for (const lm of T.map.landmarks?.({ px, PX_PER_M }) ?? []) world.landmarks.push(lm);
 
-// ---------- storefront corridors ----------
-// OSM's retail zones miss the State Street spine itself; the commercial stretch
-// (Market Square up to High Street) is documented in docs/research. Buildings
-// fronting the corridor get storefront ground floors.
-{
-  const Y_LIMIT = (42.81135 - 42.8078) * M_PER_DEG_LAT * PX_PER_M; // High St crossing
-  const corridors = world.roads.filter((r) => r.n === 'State Street');
+// ---------- storefront corridors (per-town) ----------
+// Commercial spines OSM's retail zones miss (documented in docs/research):
+// buildings fronting a configured corridor get storefront ground floors.
+for (const cor of T.map.storefrontCorridors ?? []) {
+  const Y_MIN = cor.yMinPx;
+  const Y_LIMIT = (ORIGIN.lat - cor.southLat) * M_PER_DEG_LAT * PX_PER_M;
+  const corridors = world.roads.filter((r) => r.n === cor.street);
   const distSq = (x, y, pts) => {
     let best = Infinity;
     for (let i = 0; i + 3 < pts.length; i += 2) {
@@ -742,7 +701,7 @@ for (const [id, name, sub, lat, lon, rM] of LM) {
   for (const b of world.buildings) {
     if (b.sf || !['house', 'commercial', 'civic'].includes(b.k)) continue;
     const [, cy] = centroid(b.p);
-    if (cy < -300 || cy > Y_LIMIT) continue;
+    if (cy < Y_MIN || cy > Y_LIMIT) continue;
     // facade test: any footprint vertex close to the street centerline
     let fronts = false;
     for (const r of corridors) {
@@ -756,7 +715,7 @@ for (const [id, name, sub, lat, lon, rM] of LM) {
       added++;
     }
   }
-  stats['corridor-storefronts'] = added;
+  stats['corridor-storefronts'] = (stats['corridor-storefronts'] || 0) + added;
 }
 
 // ---------- every mapped address (assessor-imported addr tags) ----------
@@ -793,26 +752,10 @@ const addrMap = new Map();
 }
 
 // ---------- beloved local businesses, placed by their real street addresses ----------
-// (from docs/research/modern-newburyport.md; buildings carry assessor-imported
-// addr tags, so the match puts each name on the right roof)
+// (per-town, from docs/research; buildings carry assessor-imported addr tags,
+// so the match puts each name on the right roof)
 {
-  const CURATED = [
-    ["Fowle's", '17', 'State Street', 'cafe'],
-    ['Anchor Stone Deck Pizza', '44', 'State Street', 'restaurant'],
-    ['The Screening Room', '82', 'State Street', 'cinema'],
-    ['Simply Sweet', '12', 'Inn Street', 'shop'],
-    ['The Angry Donut', '42', 'Inn Street', 'cafe'],
-    ['Harbor Creamery', '39', 'Pleasant Street', 'ice_cream'],
-    ["Abraham's Bagels", '11', 'Liberty Street', 'cafe'],
-    ['The Grog', '13', 'Middle Street', 'pub'],
-    ['Black Cow', '40', 'Merrimac Street', 'restaurant'],
-    ['Plum Island Kayak', '92', 'Merrimac Street', 'shop'],
-    ['Jabberwocky Bookshop', '50', 'Water Street', 'shop'],
-    ['Chococoa Baking Co.', '50', 'Water Street', 'cafe'],
-    ["Henry Bear's Park", '50', 'Water Street', 'shop'],
-    ["Mad Martha's", '51', 'Northern Boulevard', 'cafe'],
-    ['Bob Lobster', '49', 'Plum Island Turnpike', 'restaurant']
-  ];
+  const CURATED = T.map.curatedPois ?? [];
   // anchors per street for address interpolation
   const anchorsByStreet = new Map();
   for (const [k2, v2] of addrMap) {
@@ -844,14 +787,8 @@ const addrMap = new Map();
       }
     }
     if (!spot) {
-      // last resort: positions interpolated offline against calibrated street
-      // anchors (27.9 px per house number on State St, Screening Room @82 as anchor)
-      const HAND = {
-        "Fowle's": [-109, 519],
-        'Anchor Stone Deck Pizza': [-275, 1262],
-        'Simply Sweet': [-308, 429]
-      };
-      spot = HAND[name];
+      // last resort: per-town hand-calibrated positions (towns/<id>/map.mjs)
+      spot = (T.map.curatedPoisHand ?? {})[name];
     }
     if (!spot) continue;
     world.pois.push({ x: Math.round(spot[0]), y: Math.round(spot[1]), k: kind, n: name });
@@ -892,7 +829,7 @@ const addrMap = new Map();
 // overlay. Missing heights.json = warn and keep the guesses (build still works).
 const HEIGHT_KINDS = new Set(['house', 'commercial', 'civic', 'industrial', 'church', 'shed']);
 try {
-  const hj = JSON.parse(await readFile(new URL('../data/raw/heights.json', import.meta.url), 'utf8'));
+  const hj = JSON.parse(await readFile(new URL('heights.json', T.rawDir), 'utf8'));
   const CELL = 512; // px grid over the height points; building bboxes stay well under a few cells
   const hgrid = new Map();
   for (const [lon, lat, h, nf] of hj.features) {
@@ -956,41 +893,28 @@ try {
 
 // ---------- manual infill: real buildings newer than the OSM snapshot ----------
 // Hand-placed structures that exist on the ground but aren't yet in the OSM
-// extract (data/raw/overpass.json). Footprints are in world px, street-aligned
-// and curb-clearance-checked against the State St / High St geometry.
+// extract (per-town, towns/<id>/map.mjs). Footprints are in world px,
+// street-aligned and curb-clearance-checked against the real street geometry.
 // Remove an entry once OSM picks the building up, or it'll render twice.
-const MANUAL_BUILDINGS = [
-  // The Residences on the Ridge — 95 High St, the SE corner of State & High. Built on
-  // the long-vacant former State Street Mobil lot: a cream Second Empire (mansard-roof)
-  // block + a rear carriage house. Footprints set well back south off the sidewalks into
-  // the lot. The look is a hand-modeled hero (HEROES['The Residences on the Ridge']).
-  { p: [-1270, 3880, -1174, 3958, -1229, 4026, -1325, 3948], k: 'house', lv: 3, style: 'queen_anne', n: 'The Residences on the Ridge' },
-  // the rear carriage house (the 4th home)
-  { p: [-1315, 3960, -1259, 4006, -1294, 4049, -1350, 4004], k: 'house', lv: 1.5, n: 'Ridge Carriage House' },
-];
-for (const b of MANUAL_BUILDINGS) world.buildings.push(b);
+for (const b of T.map.manualBuildings ?? []) world.buildings.push(b);
 
 // ---------- manual level fixes: real heights the data doesn't carry ----------
 // Spot overrides on top of the Overture height overlay above: each entry sets the
 // building CONTAINING the point. Use for buildings NEWER than Overture's ML imagery
 // (which reads the old ground) or where the ML height is just wrong. Runs after the
-// overlay and MANUAL_BUILDINGS, so a fix always wins. Anchor to verified geometry,
+// overlay and manualBuildings, so a fix always wins. Anchor to verified geometry,
 // never a street-name lookup (addrs merge same-named streets across towns).
-const LEVEL_FIXES = [];
-for (const f of LEVEL_FIXES) {
+for (const f of T.map.levelFixes ?? []) {
   const hit = world.buildings.find((b) => pointInRing(f.x, f.y, b.p));
   if (hit) hit.lv = f.lv;
   else console.warn('LEVEL_FIX missed:', f);
 }
 
-// ---------- manual yards: real backyard details OSM doesn't carry ----------
-// 13 Fox Run Drive (Devin's house): backyard pool + white picket fence enclosing
-// the yard. The house faces Fox Run Dr to the NORTH (-y), so the yard is the +y
-// side behind it; the fence runs from the west wing's rear corner around to the
-// east wall. k:'picket' renders as the white post-and-rail style (decor.ts) —
-// the stockade-tan k:'fence' stays for mapped OSM barriers.
-world.polys.push({ k: 'pool', z: 6.8, p: [-18759, 2932, -18707, 2932, -18695, 2944, -18695, 2972, -18707, 2984, -18759, 2984, -18771, 2972, -18771, 2944] });
-world.barriers.push({ k: 'picket', p: [-18822, 2795, -18822, 3055, -18645, 3055, -18645, 2813, -18660, 2812] });
+// ---------- manual features: real details OSM doesn't carry ----------
+// A free-form per-town hook (backyard pools, hand-mapped picket fences, …) —
+// it may push onto any world collection. Survives `npm run map` re-runs by
+// construction: curation lives in towns/<id>/map.mjs, not in the output.
+T.map.manualFeatures?.({ world, px, PX_PER_M });
 
 // ---------- shrink nature polygons (download size) ----------
 // polys are ~54% of world.json: OSM nature rings (river/marsh/woods/parks) carry
@@ -1058,17 +982,17 @@ for (const pts of allPts) {
 }
 world.meta.bounds = { minX, minY, maxX, maxY };
 
-// QA: known distances
+// QA: known real-world distances (per-town) guard the projection
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) / PX_PER_M;
-const mkt = px(42.81135, -70.86976), sta = px(42.79815, -70.87815), light = px(42.81523, -70.81894);
 console.log('=== QA ===');
-console.log(`Market Sq -> MBTA station: ${(dist(mkt, sta) / 1000).toFixed(2)} km (expect ~1.62)`);
-console.log(`Market Sq -> Plum Island Light: ${(dist(mkt, light) / 1000).toFixed(2)} km (expect ~4.2)`);
+for (const q of T.map.qaDistances ?? []) {
+  console.log(`${q.label}: ${(dist(px(...q.from), px(...q.to)) / 1000).toFixed(2)} km (expect ~${q.expectKm})`);
+}
 console.log('Bounds px:', world.meta.bounds, `(~${((maxX - minX) / PX_PER_M / 1000).toFixed(1)} x ${((maxY - minY) / PX_PER_M / 1000).toFixed(1)} km)`);
 console.log('Stats:', stats);
 console.log(`polys=${world.polys.length} buildings=${world.buildings.length} roads=${world.roads.length} paths=${world.paths.length} rails=${world.rails.length} labels=${world.labels.length} pois=${world.pois.length}`);
 
-await mkdir(new URL('../public/', import.meta.url), { recursive: true });
+await mkdir(T.publicDir, { recursive: true });
 const json = JSON.stringify(world);
-await writeFile(new URL('../public/world.json', import.meta.url), json);
-console.log(`Wrote public/world.json — ${(json.length / 1e6).toFixed(1)} MB`);
+await writeFile(new URL('world.json', T.publicDir), json);
+console.log(`Wrote towns/${T.id}/public/world.json — ${(json.length / 1e6).toFixed(1)} MB`);

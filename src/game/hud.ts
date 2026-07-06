@@ -4,19 +4,22 @@ import { SEASON, seasonsUnlocked } from '../world/style';
 
 // DOM HUD: street pill, landmark banner, help, attribution, virtual joystick.
 
+import { TOWN } from '@town';
+import { TOWNS } from '../towns/registry';
+
 const css = `
 /* ── Town theme tokens ─────────────────────────────────────────────
-   Newburyport = maroon + gold. Swap the maroon/gold values to re-theme for
-   another town; the radius/shadow/motion scale below is shared chrome. */
+   Per-town (src/towns/<id>/index.ts): Newburyport = maroon + gold, Salem =
+   plum + amber. The radius/shadow/motion scale below is shared chrome. */
 :root {
-  --panel: linear-gradient(177deg, rgba(58,29,37,0.985), rgba(42,20,25,0.985) 58%, rgba(30,14,20,0.985));
-  --maroon: 46, 22, 28;      /* chrome chips / buttons (use as rgba(var(--maroon), a)) */
-  --maroon-lt: 60, 30, 38;   /* lighter chips & cards */
+  --panel: ${TOWN.theme.panel};
+  --maroon: ${TOWN.theme.maroon};      /* chrome chips / buttons (use as rgba(var(--maroon), a)) */
+  --maroon-lt: ${TOWN.theme.maroonLt};   /* lighter chips & cards */
   /* gold scale — one source of truth for every accent (was 3 stray literals) */
-  --gold-rgb: 216, 185, 74;
-  --gold: #d8b94a;           /* base accent (underlines, borders) */
-  --gold-mid: #e8c44f;       /* labels / kickers */
-  --gold-bright: #f6dd8a;    /* brightest highlight / hovers */
+  --gold-rgb: ${TOWN.theme.goldRgb};
+  --gold: ${TOWN.theme.gold};           /* base accent (underlines, borders) */
+  --gold-mid: ${TOWN.theme.goldMid};       /* labels / kickers */
+  --gold-bright: ${TOWN.theme.goldBright};    /* brightest highlight / hovers */
   /* ink (text on the dark panels) */
   --ink: #f3f1e8;
   --ink-dim: #c8bd96;
@@ -162,6 +165,9 @@ const css = `
 #hud.no-story .bag-btn { display: none !important; }
 #hud.no-story .season-toggle,
 #hud.no-story .season-pop { top: 142px !important; }
+/* world-only towns (.bare, set once at boot): no story spine at all → also hide
+   the Story-mode settings row + its hint. Layout slides reuse .no-story above. */
+#hud.bare .settings-pop .sp-row[data-set="story"], #hud.bare .settings-hint { display: none !important; }
 #hud .season-pop {
   position: absolute; top: 270px; left: 66px; min-width: 152px;
   transition: top 0.3s ease;
@@ -1036,13 +1042,8 @@ const css = `
 }
 `;
 
-// The towns in the set, for the Fast-Travel town switcher. To ADD A TOWN: add an entry here
-// (and mirror it in the Salem worktree's hud.ts), then deploy that town's bundle under `path`.
-// `path` is an absolute site path; the current town is detected from location.pathname.
-const TOWNS: { name: string; emoji: string; path: string; tag: string }[] = [
-  { name: 'Newburyport', emoji: '⚓', path: '/', tag: 'Clipper City' },
-  { name: 'Salem', emoji: '🎃', path: '/salem/', tag: 'Witch City' },
-];
+// The Fast-Travel town switcher reads the shared registry (src/towns/registry.ts)
+// — every town's bundle lists its siblings, so adding a town there updates all builds.
 
 export class Hud {
   joyActive = false;
@@ -1150,7 +1151,7 @@ export class Hud {
       <div class="race-btn" title="Races">🏁<span class="blab">RACE</span></div>
       <div class="race-pop"></div>
       <div class="board-panel"><div class="board-card"></div></div>
-      <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><div class="travel-towns"><div class="tt-hdr">EXPLORE ANOTHER TOWN</div><div class="tt-row"></div></div><input class="travel-search" type="text" placeholder="Go anywhere… try “241 High Street” or “The Grog”" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
+      <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><div class="travel-towns"><div class="tt-hdr">EXPLORE ANOTHER TOWN</div><div class="tt-row"></div></div><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q wp-q">➤</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
@@ -1376,6 +1377,14 @@ export class Hud {
   // the 🧭 missions log, and the 🎒 backpack — via the #hud.no-story class (see CSS).
   // Driven from quest.apply()'s HUD sync point, so it tracks the initial state, the
   // first-run mode pick, and the settings-gear toggle alike.
+  // world-only towns: tag #hud once at boot so CSS hides story-only chrome
+  // (compass/missions/bag via the .no-story rules + the Story settings row)
+  setBare(on: boolean) {
+    const el = document.getElementById('hud');
+    el?.classList.toggle('bare', on);
+    el?.classList.toggle('no-story', on);
+  }
+
   setStoryChrome(on: boolean) {
     this.root.classList.toggle('no-story', !on);
   }
@@ -2654,7 +2663,7 @@ export class Hud {
   // turns the town to a new season — it stays up through the fade + reload that follows
   seasonCard(season: string) {
     const meta: Record<string, [string, string, string]> = {
-      fall:   ['\u{1F342} THE SEASON TURNS', 'Autumn', 'the leaves redden over Clipper Town'],
+      fall:   ['\u{1F342} THE SEASON TURNS', 'Autumn', TOWN.fallSeasonLine],
       winter: ['❄️ THE SEASON TURNS', 'Winter', 'first snow settles over the harbor'],
       spring: ['\u{1F338} THE SEASON TURNS', 'Spring', 'the marsh wakes up'],
       summer: ['☀️ THE SEASON TURNS', 'Summer', 'the harbor warms again']
@@ -2735,7 +2744,7 @@ export class Hud {
   showStreetNudge(onSeen?: () => void) {
     onSeen?.();                              // mark it seen now, so it never nags twice
     const el = document.querySelector('#hud .streettip') as HTMLElement;
-    el.innerHTML = '📍 This is the real map of Newburyport.<br><b>Tap to find your street →</b>';
+    el.innerHTML = TOWN.streetNudge;
     el.classList.add('show');
     el.onclick = () => { el.classList.remove('show'); clearTimeout(this.streetTipTimer); this.toggleTravel(true); };
     clearTimeout(this.streetTipTimer);

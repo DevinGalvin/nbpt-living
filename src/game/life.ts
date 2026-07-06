@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { WorldIndex, CHUNK } from '../world/index';
 import { hash32, mulberry32, SEASON } from '../world/style';
 import { WATER_Y } from '../three/water';
+import { TOWN } from '@town';
 
 // Ambient life: pedestrians who follow the sidewalk network exactly, cars
 // that drive road polylines, and boats cruising the real water. Nothing spawns
@@ -24,11 +25,13 @@ const CAR_COLORS = ['#b5443a', '#3e5c84', '#d8d5cc', '#3a3c40', '#7c8b96', '#5e7
 const WALK_CLASSES = ['side', 'foot', 'ped', 'board', 'cycle'];
 const HOP_CLASSES = ['side', 'foot', 'ped', 'board', 'cycle', 'crossing']; // crossings = legal street crossing
 
-// winter attractions (only spawned when SEASON === 'winter')
-const FROG_POND = { x: -3273, z: 2964 };   // skaters loop on the frozen pond (Bartlet Mall)
-const MARCH_TOP = { x: 2534, z: 8380 };     // sledders push off near March's Hill summit…
-const MARCH_DIR = { x: 0, z: 1 };           // …and slide due south down the slope
-const MARCH_RUN = 270;                       // run length (px) to the flat base
+// seasonal attractions — per-town (src/towns/<id>/index.ts); a town without a
+// famous skating pond / sledding hill just skips those traditions
+const FROG_POND = TOWN.attractions.frogPond;
+const SLED = TOWN.attractions.sledHill;
+const MARCH_TOP = SLED?.top ?? { x: 0, z: 0 };
+const MARCH_DIR = SLED?.dir ?? { x: 0, z: 1 };
+const MARCH_RUN = SLED?.run ?? 270;
 const SCARVES = ['#b03a32', '#3e5c84', '#54652c', '#c8a142', '#7c4a68', '#a8625a'];
 const SKATERS = 5;
 const SLEDDERS = 4;
@@ -36,7 +39,7 @@ const BATS = 7;          // fall: bats wheeling over the rooftops at dusk
 const COSTUMES = ['witch', 'pumpkin', 'vampire', 'devil'];   // fall trick-or-treaters
 const ROAM_GHOSTS = 5;   // fall: translucent ghosts drifting the streets at dusk
 const CATS = 3;          // fall: black cats slinking the sidewalks
-const GRAVEYARD = { x: -4418, z: 3470 };   // Old Hill Burying Ground — graveyard mist + the witch circles here
+const GRAVEYARD = TOWN.attractions.graveyard;   // graveyard mist + the witch circles here (per-town)
 
 const matCache = new Map<string, THREE.MeshLambertMaterial>();
 function mat(hex: string): THREE.MeshLambertMaterial {
@@ -746,7 +749,7 @@ export class Life {
       scene.add(gl.root);
     }
     // winter brings two town traditions: skating on the Frog Pond + sledding March's Hill
-    if (SEASON === 'winter') {
+    if (SEASON === 'winter' && FROG_POND) {
       const pondGy = index.heightAtPx(FROG_POND.x, FROG_POND.z);
       for (let i = 0; i < SKATERS; i++) {
         // staggered loops (offset centers + radii) so they don't trace one circle
@@ -757,6 +760,8 @@ export class Life {
         this.skaters.push(s);
         scene.add(s.root);
       }
+    }
+    if (SEASON === 'winter' && SLED) {
       const hillGy = index.heightAtPx(MARCH_TOP.x, MARCH_TOP.z);
       for (let i = 0; i < SLEDDERS; i++) {
         const s = new Sledder(i * 743 + 23, index, (i / SLEDDERS) * MARCH_RUN);  // staggered along the run
@@ -764,7 +769,8 @@ export class Life {
         this.sledders.push(s);
         scene.add(s.root);
       }
-    } else if (SEASON === 'fall') {
+    }
+    if (SEASON === 'fall') {
       for (let i = 0; i < BATS; i++) {
         const bt = new Bat(i * 421 + 19);
         bt.root.position.set(0, 0, 1e7);   // parked offscreen until update() places it near the player
@@ -783,12 +789,14 @@ export class Life {
         this.cats.push(ct);
         scene.add(ct.root);
       }
-      this.witch = new Witch(7);
-      this.witch.cx = GRAVEYARD.x; this.witch.cz = GRAVEYARD.z;   // she circles the old burying ground
-      this.witch.root.position.set(0, 0, 1e7);
-      scene.add(this.witch.root);
-      this.mist = new GraveMist(GRAVEYARD.x, GRAVEYARD.z, index.heightAtPx(GRAVEYARD.x, GRAVEYARD.z));
-      scene.add(this.mist.root);
+      if (GRAVEYARD) {
+        this.witch = new Witch(7);
+        this.witch.cx = GRAVEYARD.x; this.witch.cz = GRAVEYARD.z;   // she circles the old burying ground
+        this.witch.root.position.set(0, 0, 1e7);
+        scene.add(this.witch.root);
+        this.mist = new GraveMist(GRAVEYARD.x, GRAVEYARD.z, index.heightAtPx(GRAVEYARD.x, GRAVEYARD.z));
+        scene.add(this.mist.root);
+      }
     }
   }
 
@@ -1083,7 +1091,7 @@ export class Life {
 
     // winter traditions: skaters loop the Frog Pond, kids sled March's Hill (kept
     // animating at their fixed spots — only 9 actors, so no spawn/despawn churn)
-    if (this.skaters.length) {
+    if (this.skaters.length && FROG_POND) {
       const gy = this.index.heightAtPx(FROG_POND.x, FROG_POND.z);
       for (const s of this.skaters) s.glide(dt, gy);
     }

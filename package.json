@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "NBPT Living — an all-ages adventure on the exact map of Newburyport, MA",
+  "description": "Clipper Town — an all-ages adventure on the exact maps of real towns (Newburyport, Salem, …)",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -13,7 +13,10 @@
     "fetch-osm": "node tools/fetch_osm.mjs",
     "build-world": "node tools/build_world.mjs",
     "fetch-terrain": "node tools/fetch_terrain.mjs",
-    "map": "npm run fetch-osm && npm run build-world && npm run fetch-terrain"
+    "map": "npm run fetch-osm && npm run build-world && npm run fetch-terrain",
+    "dev:salem": "TOWN=salem vite",
+    "build:salem": "tsc --noEmit && TOWN=salem vite build",
+    "build:all": "npm run share && TOWN=salem vite build && rm -rf dist/salem && mv dist-salem dist/salem"
   },
   "dependencies": {
     "three": "^0.166.1"

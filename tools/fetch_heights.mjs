@@ -13,10 +13,11 @@
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
+import { loadTown } from './lib/town.mjs';
 
+const T = await loadTown();
 const RELEASE = '2026-06-17.0';
-// S, W, N, E — must match fetch_osm.mjs / build_world.mjs (the per-town seam).
-const BBOX = { s: 42.763, w: -70.955, n: 42.84, e: -70.795 }; // all of Newburyport
+const BBOX = T.BBOX; // per-town, from towns/<id>/town.json
 
 const sql = `
 INSTALL httpfs; LOAD httpfs; INSTALL spatial; LOAD spatial;
@@ -47,12 +48,12 @@ const features = rows.map((r) => [
   r.num_floors ?? null,
 ]);
 
-await mkdir('data/raw', { recursive: true });
+await mkdir(T.rawDir, { recursive: true });
 await writeFile(
-  'data/raw/heights.json',
+  new URL('heights.json', T.rawDir),
   JSON.stringify({ release: RELEASE, bbox: BBOX, cols: ['lon', 'lat', 'height_m', 'num_floors'], features }),
 );
 
 const withH = features.filter((f) => f[2] != null).length;
 const withF = features.filter((f) => f[3] != null).length;
-console.log(`Saved data/raw/heights.json: ${features.length} features (${withH} with height, ${withF} with num_floors)`);
+console.log(`Saved data/${T.id}/raw/heights.json: ${features.length} features (${withH} with height, ${withF} with num_floors)`);

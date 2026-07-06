@@ -26,6 +26,26 @@ TypeScript + Vite. Live at **https://clippertown.io**.
 
 ---
 
+## ✦ MULTI-TOWN ARCHITECTURE (July 2026) — one engine, N towns
+
+The Salem hard fork (`salem-experiment` branch + `nbpt-salem` worktree + committed
+`public/salem/` bundles) is **retired**. One codebase now builds every town:
+
+- **Per-town config**: `towns/<id>/town.json` (identity/geodesy/branding/storage) +
+  `towns/<id>/map.mjs` (map curation) + `towns/<id>/public/` (world.json, heights.bin).
+- **Per-town content pack**: `src/towns/<id>/index.ts` (TownPack: spawn, flight,
+  atmosphere, courses, theme, copy) selected at build time via the `@town` alias
+  (`TOWN=salem vite build`). Salem runs `story: false` (world-only sandbox).
+- **CI builds every town from the same commit** (`npm run build:all` → `dist/` +
+  `dist/salem/`) — "Both towns:" hand-porting and "Salem bundle" commits are gone.
+- **Saves are namespaced per town** by a boot-time localStorage shim (rider name +
+  ghost pref + board-url stay global — the contract is documented in race.ts).
+- **Adding a town** is a checklist, not a fork: **docs/TOWNS.md**.
+
+Do not develop on `salem-experiment` — its content was folded into the pack.
+
+---
+
 ## 0. ✅ DONE — Level 2 finale "Bring the Light Home" (Ch4) is built & verified
 
 **Level 2 is now COMPLETE (Ch1–4) and DEPLOYED** (2026-06-18, key `nbpt-ch8-step`, var `ch8`; build
@@ -221,8 +241,9 @@ npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see
 - `src/game/audio.ts` — all-procedural WebAudio (music, footsteps, gulls).
 - `src/game/life.ts` — pedestrians, traffic cars, stray dogs, boats (~2× bigger now),
   and **gulls** wheeling over the harbor/beaches.
-- `tools/` — the map pipeline (`build_world.mjs` reads OSM → `world.json`; see Gotchas).
-- `public/world.json` (5.8 MB) — the whole town (buildings, roads, water, addrs, POIs).
+- `tools/` — the map pipeline (`build_world.mjs` reads OSM → `world.json`), parameterized
+  per town via `towns/<id>/{town.json,map.mjs}` — see **docs/TOWNS.md**.
+- `towns/<id>/public/world.json` — the whole town (buildings, roads, water, addrs, POIs).
 - `docs/GAME_CONCEPT.md` — the chapter spine + design (one-year arc → Christmas finale).
 
 ---
@@ -433,9 +454,10 @@ ponds; **13 Fox Run Drive** (navy house, red door, pool).
 - **Deploy uses `rsync --delete`** — anything not in `dist/` is removed from the live
   site. `public/CNAME` + the favicon live in `public/` so they're emitted to `dist/`.
   If `public/CNAME` ever goes missing, **clippertown.io breaks**.
-- **`npm run build-world` regenerates `public/world.json` from OSM** and would **wipe
-  hand-added data** — the **13 Fox Run Drive pool** and the "Heart of Clipper Town" Market
-  Square sub-banner (both hand-edited in world.json, NOT reproduced by build_world). The
+- **(FIXED July 2026)** `npm run build-world` used to wipe hand-added data. All curation
+  (the Fox Run pool, manual buildings, level fixes, landmarks) now lives in
+  `towns/<id>/map.mjs` and is re-applied on every rebuild — regenerating world.json is
+  safe and byte-stable. (Historical context below.) The
   **`b.style` tags survive** (build_world re-extracts `building:architecture`). **Non-OSM
   buildings** (95 High St / The Residences + its carriage house) live in `MANUAL_BUILDINGS`
   in build_world.mjs AND are hand-added to world.json. **So don't `build-world`** for a

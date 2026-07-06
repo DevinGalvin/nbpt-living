@@ -1,13 +1,14 @@
 import { Game } from './game/Game';
 import { Terrain } from './world/terrain';
 import type { WorldData } from './world/types';
+import { TOWN } from '@town';
 
 // Build stamp (injected by Vite — see vite.config.ts). Lets you confirm which
 // source commit is live: open the console, or read `window.__build`.
 declare const __BUILD__: string;
 declare const __PAYLOAD_BYTES__: number;
 (window as unknown as { __build?: string }).__build = __BUILD__;
-console.info(`Clipper Town — build ${__BUILD__}`);
+console.info(`${TOWN.title} — build ${__BUILD__}`);
 
 // Repeat-visit/offline cache: sw.js serves world.json, heights.bin and the hashed
 // bundle cache-first from a per-build cache (see public/sw.js). The registration
