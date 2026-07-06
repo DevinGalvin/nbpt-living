@@ -1908,23 +1908,20 @@ function buildFirehouse(buckets: Bucket[], b: Building, g: number, index: WorldI
 function buildCityHall(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   walls(buckets[BRICK], b.p, g - 6, g + 54, '#fdfcf8');
   const obb = obbOf(b.p);
-  walls(buckets[PLAIN], b.p, g + 50, g + 54, '#faf8f0', 0); // cornice band
-  gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, g + 54, 8, 3, '#504c48', '#f4f1e6');
+  // photo-audited 7/6: Italianate — BROWNSTONE trim (not white) and NO cupola
+  // (the 1873 tower proposal was never built; one was rendering here for weeks)
+  walls(buckets[PLAIN], b.p, g + 50, g + 54, '#6b4a3a', 0); // bracketed brownstone cornice
+  gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, g + 54, 8, 3, '#504c48', '#6b4a3a');
   facades(buckets[PLAIN], b.p, g + 54, 3, 5334, true, false, false, g, 60);
   const f = frontSegment(b, index);
-  // shallow front pediment over the entrance bay
-  tmp.set('#faf8f0');
+  // shallow front gable trim over the entrance bay (brownstone raking courses)
+  tmp.set('#6b4a3a');
   buckets[PLAIN].triUV(
     f.x - f.tx * 12 + f.nx * 1.2, g + 54, f.z - f.tz * 12 + f.nz * 1.2,
     f.x + f.tx * 12 + f.nx * 1.2, g + 54, f.z + f.tz * 12 + f.nz * 1.2,
     f.x + f.nx * 1.2, g + 63, f.z + f.nz * 1.2,
     f.nx, 0.3, f.nz, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0
   );
-  const top = g + 54 + 8;
-  walls(buckets[CLAP], [obb.cx - 5, obb.cz - 5, obb.cx + 5, obb.cz - 5, obb.cx + 5, obb.cz + 5, obb.cx - 5, obb.cz + 5], top - 3, top + 11, '#f6f3ea');
-  walls(buckets[PLAIN], octRing(obb.cx, obb.cz, 4), top + 11, top + 18, '#f6f3ea', 0);
-  tmp.set('#3e4140');
-  cone(buckets[PLAIN], obb.cx, top + 18, obb.cz, 5.2, 7, tmp.clone());
 }
 
 // Atkinson Common's stone observation tower — round fieldstone, crenellated
@@ -1947,13 +1944,15 @@ function buildStoneTower(buckets: Bucket[], b: Building, g: number) {
   buckets[PLAIN].box(cx, cz + 13.2, 2.6, 1, g, g + 9, '#4a4034');
 }
 
-// March's Hill standpipe — the pale blue water tower on the ridge
+// March's Hill water tower — photo-audited 7/6: the 1997 tank is WHITE (the
+// pale-blue standpipe it replaced was demolished); pedestal-spheroid reshape
+// ("golf ball on a tee") is a follow-up — color fixed now.
 function buildWaterTower(buckets: Bucket[], b: Building, g: number) {
-  walls(buckets[PLAIN], b.p, g - 2, g + 100, '#c2cdd2', 0);
-  walls(buckets[PLAIN], b.p, g + 92, g + 100, '#9aa6ac', 0);
+  walls(buckets[PLAIN], b.p, g - 2, g + 100, '#eef0ee', 0);
+  walls(buckets[PLAIN], b.p, g + 92, g + 100, '#d8dad6', 0);
   const [cx, cz] = centroidOf(b.p);
   const obb = obbOf(b.p);
-  tmp.set('#aab4b9');
+  tmp.set('#e4e6e2');
   cone(buckets[PLAIN], cx, g + 100, cz, obb.hw + 1.5, 9, tmp.clone());
 }
 
@@ -2215,17 +2214,20 @@ function buildGarrisonInn(buckets: Bucket[], b: Building, g: number, index: Worl
 
 // Institution for Savings (1871) — the stately stone bank on State Street
 function buildBank(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
-  walls(buckets[PLAIN], b.p, g - 6, g + 5, '#a8a399', 0);              // base course
-  walls(buckets[PLAIN], b.p, g + 5, g + 44, '#cbc5b6', 0);             // ashlar stone
-  walls(buckets[PLAIN], b.p, g + 40, g + 44, '#dad5c8', 0);            // deep cornice
-  complexGable(buckets[SHINGLE], buckets[PLAIN], b.p, g + 44, '#45423e', '#dad5c8');
+  // photo-audited 7/6: 93 State St (1871, Rufus Sargent) is BROWNSTONE — warm
+  // reddish-brown carved sandstone ("Newburyport's contribution to the
+  // brownstone era") — it was rendering as pale grey ashlar
+  walls(buckets[PLAIN], b.p, g - 6, g + 5, '#6f4636', 0);              // base course
+  walls(buckets[PLAIN], b.p, g + 5, g + 44, '#8a5a45', 0);             // brownstone ashlar
+  walls(buckets[PLAIN], b.p, g + 40, g + 44, '#9c6e58', 0);            // deep carved cornice
+  complexGable(buckets[SHINGLE], buckets[PLAIN], b.p, g + 44, '#45423e', '#9c6e58');
   archWindows(buckets[PLAIN], b.p, g + 20, 13, 28);
   const f = heroFront(b, index, { road: 'State Street' });
   // pedimented stone entry
   for (const s of [-1, 1]) {
-    buckets[PLAIN].box(f.x + f.tx * 4.4 * s + f.nx * 1.6, f.z + f.tz * 4.4 * s + f.nz * 1.6, 1.2, 1.2, g, g + 16, '#e3dfd3');
+    buckets[PLAIN].box(f.x + f.tx * 4.4 * s + f.nx * 1.6, f.z + f.tz * 4.4 * s + f.nz * 1.6, 1.2, 1.2, g, g + 16, '#9c6e58');
   }
-  tmp.set('#e3dfd3');
+  tmp.set('#9c6e58');
   buckets[PLAIN].triUV(
     f.x - f.tx * 6.4 + f.nx * 2, g + 16, f.z - f.tz * 6.4 + f.nz * 2,
     f.x + f.tx * 6.4 + f.nx * 2, g + 16, f.z + f.tz * 6.4 + f.nz * 2,
@@ -2402,12 +2404,11 @@ function buildGazebo(buckets: Bucket[], b: Building, g: number) {
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
     const px = cx + Math.cos(a) * (r - 1), pz = cz + Math.sin(a) * (r - 1);
-    buckets[PLAIN].box(px, pz, 0.8, 0.8, g + 2, g + 14, '#f5f2e8');
+    buckets[PLAIN].box(px, pz, 0.8, 0.8, g + 2, g + 14, '#93836e');   // photo-audited 7/6: weathered UNPAINTED timber, not white
   }
-  walls(buckets[PLAIN], octRing(cx, cz, r - 0.6), g + 5.5, g + 7, '#f5f2e8', 0);  // railing
-  tmp.set('#8a9298');
-  octoCanopy(buckets[PLAIN], cx, g + 16, cz, r + 2, tmp.clone());
-  buckets[PLAIN].box(cx, cz, 0.4, 0.4, g + 18, g + 22, '#f5f2e8');
+  walls(buckets[PLAIN], octRing(cx, cz, r - 0.6), g + 5.5, g + 7, '#93836e', 0);  // railing
+  tmp.set('#8f7f6a');
+  octoCanopy(buckets[PLAIN], cx, g + 16, cz, r + 2, tmp.clone());   // reads as wood slats; open-pergola remodel = follow-up
 }
 
 // fire stations — brick, white bay doors, red trim: instantly "fire station"
@@ -2821,7 +2822,7 @@ function hathawayHouse(buckets: Bucket[], b: Building, g: number, index: WorldIn
   firstPeriod(buckets, b, g, index, { wall: '#3a342b', shingle: '#2a2620', nGables: 2, chimney: 'central', eave: 24 });   // dark weathered brown
 }
 function narbonneHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
-  firstPeriod(buckets, b, g, index, { wall: '#574f43', shingle: '#3f3a32', jetty: '#3a342c', nGables: 1, chimney: 'central', eave: 22 });   // plain weathered grey-brown
+  firstPeriod(buckets, b, g, index, { wall: '#99a08b', shingle: '#a9a294', jetty: '#8f9682', nGables: 1, chimney: 'central', eave: 22 });   // LIGHT sage grey-green + pale weathered shingle (photo-audited 7/6 — it was rendering dark brown; NPS photos show a light house)
 }
 
 // Salem Custom House (1819) — red Federal brick, low slate hip, a central pedimented portico, and
@@ -3958,15 +3959,15 @@ const HEROES: Record<string, HeroBuilder> = {
   'Yin Yu Tang': yinYuTang,
   'Hamilton Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#ece6d8', roof: '#7f848c', storeys: 3, roofKind: 'gable', stringcourses: true, palladian: 'row', entrance: 'portico', chimney: 'interior4' }),
   'Andrew Safford House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#ece6d8', roof: '#7f848c', storeys: 3, roofKind: 'hip', balustrade: 'plain', entrance: 'colossal', palladian: 'single', shutter: '#23262a', chimney: 'interior4' }),
-  'Philips House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#e0ddd2', material: 'clap', trim: '#fbfaf6', roof: '#9aa0a8', storeys: 3, roofKind: 'hip', entrance: 'portico', palladian: 'single', shutter: '#2f3a30', chimney: 'interior4' }),
-  'Hawkes House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#d8c373', material: 'clap', trim: '#fbfaf6', roof: '#9aa0a8', storeys: 3, roofKind: 'hip', balustrade: 'plain', entrance: 'fan', shutter: '#3a5a3a', chimney: 'interior4' }),
-  'Nathaniel Bowditch House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#cfcdc2', material: 'clap', trim: '#fbfaf6', roof: '#9aa0a8', storeys: 3, roofKind: 'hip', balustrade: 'fret', entrance: 'fan', shutter: '#33403a', chimney: 'interior4' }),
+  'Philips House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9a9c96', material: 'clap', trim: '#fbfaf6', roof: '#9aa0a8', storeys: 3, roofKind: 'hip', entrance: 'portico', palladian: 'single', shutter: '#23262a', chimney: 'interior4' }),   // photo-audited 7/6: GREY clapboard (was cream), black shutters — the grey/white contrast is the signature. (Real spelling is "Phillips"; key matches OSM.)
+  'Hawkes House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#c7a98e', material: 'clap', trim: '#fbfaf6', roof: '#9aa0a8', storeys: 3, roofKind: 'hip', balustrade: 'plain', entrance: 'fan', shutter: '#23262a', chimney: 'interior4' }),   // photo-audited 7/6: pale tan/buff (was mustard gold), black shutters
+  'Nathaniel Bowditch House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#96a3b8', material: 'clap', trim: '#fbfaf6', roof: '#9aa0a8', storeys: 3, roofKind: 'hip', balustrade: 'fret', entrance: 'fan', shutter: '#23262a', chimney: 'interior4' }),   // photo-audited 7/6: light slate-blue (was greige), black shutters
   'Salem Athenæum': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#ece6d8', roof: '#7f848c', storeys: 2, roofKind: 'hip', entrance: 'portico', palladian: 'single', stringcourses: true, chimney: 'ends2' }),
   'Lyceum Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9e5340', material: 'brick', trim: '#d8d0c0', roof: '#7f848c', storeys: 2, roofKind: 'gable', entrance: 'fan' }),
   'Hawthorne Hotel': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#97493a', material: 'brick', trim: '#e6e0d2', roof: '#3a3a3d', storeys: 6, roofKind: 'flat', entrance: 'canopy', flag: true, bays: 7 }),
   'First Church in Salem': (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#7e7f83' }),
   "St. Peter's Episcopal Church": (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#9a9b9d', quatrefoil: true }),
-  'Pedrick Store House': (bk, b, g, i) => warehouse(bk, b, g, i, { wall: '#6e6250', roof: '#4a4438' }),
+  'Pedrick Store House': (bk, b, g, i) => warehouse(bk, b, g, i, { wall: '#3d332a', roof: '#8a7e6c' }),   // photo-audited 7/6: near-black boards under LIGHTER weathered-cedar roof (was inverted)
   'Friendship of Salem': tallShip,
   'Scale House': (bk, b, g, i) => brickShed(bk, b, g, i, { wall: '#9c4d3c', roof: '#777c85' }),
   // — Beverly (colors photo-verified, docs/research/beverly.md) —
