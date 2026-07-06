@@ -1,0 +1,15 @@
+{
+  "name": "Beverly in 3D",
+  "short_name": "Beverly",
+  "description": "Walk the real map of Beverly, Massachusetts — a cozy, all-ages 3D town to explore.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#16301f",
+  "theme_color": "#16301f",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
