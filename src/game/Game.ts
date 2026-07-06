@@ -14,7 +14,7 @@ import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
 import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
-import { RaceRunner, COURSES, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles, courseEstSeconds, ghostEnabled, setGhostEnabled } from './race';
+import { RaceRunner, COURSES, refreshBoards, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles, courseEstSeconds, ghostEnabled, setGhostEnabled } from './race';
 import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
 import { STYLE, SEASON } from '../world/style';
@@ -405,6 +405,8 @@ export class Game {
       { get: getRaceName, set: (raw) => { const r = setRaceName(raw); if (r.ok) this.race?.flushPending(); return r; }, has: hasRaceName },
       () => this.race?.quit(),
       (id) => this.race?.showBoard(id),
+      // opening the 🏁 picker freshens every course's town board from the cloud
+      (onFresh) => refreshBoards(COURSES.map((c) => c.id), onFresh),
     );
     if (!BARE) this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,

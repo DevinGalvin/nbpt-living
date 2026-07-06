@@ -1577,6 +1577,7 @@ export class Hud {
     rider: { get: () => string; set: (raw: string) => { ok: boolean; name: string }; has: () => boolean },
     onQuit: () => void,
     onBoard: (id: string) => void,
+    refresh?: (onFresh: () => void) => void,
   ) {
     if (!rows().length) return;                       // townless build: keep the button hidden
     const btn = this.root.querySelector('.race-btn') as HTMLElement;
@@ -1662,7 +1663,12 @@ export class Hud {
     };
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (!pop.classList.contains('open')) rebuild();
+      if (!pop.classList.contains('open')) {
+        rebuild();
+        // freshen the leader lines from the cloud board; re-render when it lands —
+        // unless the rider is mid-typing their name (rebuild would eat the input)
+        refresh?.(() => { if (pop.classList.contains('open') && !pop.querySelector('input')) rebuild(); });
+      }
       pop.classList.toggle('open');
     });
     pop.addEventListener('click', (e) => e.stopPropagation());

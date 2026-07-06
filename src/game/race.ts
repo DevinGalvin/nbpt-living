@@ -136,17 +136,39 @@ function boardUrl(): string {
   try { u = localStorage.getItem('nbpt-board-url') || u; } catch { /* private mode */ }
   return u.replace(/\/+$/, '');
 }
+// pull the town's board and adopt it locally (the cloud is the wider truth); any
+// failure leaves the local board standing — offline play never notices
+function pullBoard(id: string): Promise<void> {
+  const base = boardUrl();
+  if (!base) return Promise.resolve();
+  pulledAt.set(id, Date.now());
+  return fetch(`${base}?town=${BOARD_TOWN}&course=${id}`)
+    .then((r) => r.json())
+    .then((j) => { if (Array.isArray(j.rows) && j.rows.length) { try { localStorage.setItem(boardKey(id), JSON.stringify(j.rows)); } catch { /* private mode */ } } })
+    .catch(() => { /* offline: the local board stands */ });
+}
+
+// GET-only freshen of several boards at once — the 🏁 picker calls this on open so
+// its leader lines reflect the LIVE town board, not whatever this device last cached
+// (a fresh device otherwise says "no time yet" until its first race). Throttled per
+// course so popping the picker open and closed doesn't hammer the free backend;
+// onFresh fires once after every due pull settles.
+const pulledAt = new Map<string, number>();
+const PULL_TTL_MS = 60_000;
+export function refreshBoards(ids: string[], onFresh: () => void) {
+  if (!boardUrl()) return;
+  const now = Date.now();
+  const due = ids.filter((id) => now - (pulledAt.get(id) ?? 0) > PULL_TTL_MS);
+  if (!due.length) return;
+  Promise.all(due.map(pullBoard)).then(onFresh);
+}
+
 function syncBoard(id: string) {
   const base = boardUrl();
   if (!base) return;
   const me = hasRaceName() ? getRaceName() : null;
   const mine = me ? getBoard(id).find((r) => r.n === me) : null;
-  // pull the town's board and adopt it locally (the cloud is the wider truth); any
-  // failure leaves the local board standing — offline play never notices
-  const pull = () => fetch(`${base}?town=${BOARD_TOWN}&course=${id}`)
-    .then((r) => r.json())
-    .then((j) => { if (Array.isArray(j.rows) && j.rows.length) { try { localStorage.setItem(boardKey(id), JSON.stringify(j.rows)); } catch { /* private mode */ } } })
-    .catch(() => { /* offline: the local board stands */ });
+  const pull = () => pullBoard(id);
   if (mine) {
     fetch(base, {
       method: 'POST',
