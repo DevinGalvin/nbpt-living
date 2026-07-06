@@ -1707,12 +1707,17 @@ export class Hud {
       const table: [RegExp, string][] = [
         [/witch|bewitched/, '🧙'],   // Salem's whole brand — must beat house/museum
         [/mansion|manor/, '🏛'],     // before /garden/: "Ropes Mansion — house & garden"
+        [/stadium|football/, '🏈'],  // before /light /: "football under Friday lights" isn't a lighthouse
+        [/ice cream|creamery/, '🍦'], [/roast beef/, '🥪'], [/theatre|theater|cinema/, '🎭'],
+        [/library/, '📚'], [/\bshoe\b/, '👞'],   // "The Shoe" = Beverly's Cummings Center
+        [/little league|\bfield\b/, '⚾'],       // singular only: "Fields" stays farm-country
         [/frog|pond/, '🐸'], [/light(house)?\b|light /, '🗼'], [/airport|airfield|runway/, '✈️'],
         [/sled|march's hill/, '🛷'], [/skat/, '⛸'], [/playground|fountain/, '🛝'],
         [/burying|cemetery|graveyard/, '🪦'], [/bridge/, '🌉'], [/station|depot/, '🚂'],
         [/tall ship|friendship|schooner|\bship\b/, '⛵'], [/hotel|inn\b/, '🏨'], [/fort\b|castle/, '🏰'],
+        [/beach|island|dune|sand/, '🏖'],   // before /farm/: "the Farms' mile-long beach" is a beach
         [/farm|pasture|orchard|\bfields\b/, '🚜'], [/flats|marsh|bird/, '🦆'],   // \b: "ballfields" is a park, not a farm
-        [/beach|island|dune|sand/, '🏖'], [/boardwalk|waterfront|wharf|dock|harbor|landing/, '⚓'],
+        [/boardwalk|waterfront|wharf|dock|harbor|landing/, '⚓'],
         [/woods|forest|park|garden|common|maudslay|willow|gallows|refuge|sanctuar/, '🌳'], [/trail|rail/, '🚲'],
         [/reservoir|lake|river/, '🌊'], [/statue|garrison/, '🗽'], [/church|chapel|meeting/, '⛪'],
         [/school|academy/, '🏫'], [/court/, '⚖️'], [/museum|house|hall|athen/, '🏛'],

@@ -1,0 +1,39 @@
+{
+  "id": "beverly",
+  "name": "Beverly",
+  "worldName": "Beverly, MA",
+  "title": "Beverly",
+  "tag": "Garden City",
+  "emoji": "⛵",
+  "path": "/beverly/",
+  "savePrefix": "beverly:",
+  "pxPerMeter": 8,
+  "origin": { "lat": 42.558, "lon": -70.88 },
+  "bbox": { "s": 42.522, "w": -70.935, "n": 42.6, "e": -70.755 },
+  "branding": {
+    "htmlTitle": "Beverly — walk the real map of Beverly, MA in 3D",
+    "appleTitle": "Beverly",
+    "themeColor": "#16301f",
+    "bgTop": "#1e4029",
+    "bgBottom": "#0e2015",
+    "ruleColor": "#e0b23a",
+    "description": "A cozy, all-ages 3D walk through the exact map of Beverly, Massachusetts. Wander the real streets, the harbor, and Lynch Park — and find your own house.",
+    "ogSiteName": "Beverly in 3D",
+    "ogDescription": "A cozy, all-ages 3D walk through the real map of Beverly. Wander the streets, the harbor, and Lynch Park — and find your own house.",
+    "ogUrl": "https://clippertown.io/beverly/",
+    "ogImage": "https://clippertown.io/beverly/og-image.jpg",
+    "ogImageType": "image/jpeg",
+    "ogImageAlt": "A 3D voxel view of Beverly, Massachusetts",
+    "twitterDescription": "Walk the real map of Beverly — find your own street.",
+    "loadingTitle": "BEVERLY",
+    "loadingSub": "Exploring Beverly, Massachusetts"
+  },
+  "storageSeeds": {
+    "nbpt-bike": "1",
+    "nbpt-kayak": "1",
+    "nbpt-seasons-rewarded": "1"
+  },
+  "storageSeedIfUnset": {
+    "nbpt-season": "summer"
+  }
+}
