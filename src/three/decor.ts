@@ -502,6 +502,13 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
     spacing = (perim * rows) / SAFETY;
   }
   const maxWin = maxWinOverride ?? SAFETY;
+  // Vertical rhythm: stretch the row pitch so the top row lands just under the
+  // eave instead of leaving tall walls blank above a fixed-pitch cluster at the
+  // bottom. Never compress below the classic 19 (short buildings keep their
+  // look), and cap the stretch so an under-declared row count on a very tall
+  // wall doesn't scatter windows absurdly far apart.
+  const winY0 = g + 13;
+  const pitch = rows > 1 ? Math.min(30, Math.max(19, (eaveH - 7 - winY0) / (rows - 1))) : 19;
   let windows = 0;
   let awningEdges = 0;
   tmp.set(STYLE.building.trim);
@@ -544,7 +551,7 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
       // doors for this wall were chosen up front (count scales with wall length)
       const isDoorSlot = doorCols.has(c);
       for (let r = 0; r < rows; r++) {
-        const yC = g + 13 + r * 19;
+        const yC = winY0 + r * pitch;
         if (yC + 6 > eaveH) break;
         if (isDoorSlot && r === 0) continue;
         if (storefront && r === 0) {
@@ -2884,7 +2891,7 @@ function styledHouse(buckets: Bucket[], b: Building, g: number, index: WorldInde
   const { eave, lvEff } = buildingDims(b, ringAreaM2(b.p));
   const eaveAbs = g + eave;
   const seed = Math.round(Math.abs(obb.cx) * 7 + Math.abs(obb.cz)) | 0;
-  const rows = Math.max(2, Math.min(3, Math.round(lvEff)));
+  const rows = Math.max(2, Math.round(lvEff));
   // paired chimneys at the gable ends
   const endChimneys = (frac: number, hex: string, top: number) => {
     for (const e of [-1, 1]) buckets[BRICK].box(obb.cx + e * obb.hl * frac * ca, obb.cz + e * obb.hl * frac * sa, 2.4, 2.4, eaveAbs + 1, top, hex);
@@ -3050,7 +3057,8 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
 
     if (b.k !== 'shed') {
       const storefront = b.k === 'commercial' || !!b.sf;
-      const rows = b.k === 'house' ? (lvEff >= 2 ? 2 : 1) : Math.max(2, Math.min(4, Math.round(lvEff)));
+      // one window row per storey — no cap, so tall blocks get glass all the way up
+      const rows = b.k === 'house' ? (lvEff >= 2 ? Math.round(lvEff) : 1) : Math.max(2, Math.round(lvEff));
       facades(buckets[PLAIN], b.p, eaveAbs, rows, seed,
         b.k === 'house' || b.k === 'commercial' || storefront,
         b.k === 'house' && !beachShake && !storefront && rng() < 0.75,
