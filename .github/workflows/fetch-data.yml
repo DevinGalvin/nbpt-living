@@ -1,0 +1,56 @@
+name: Fetch map data
+
+# Runs the network-dependent parts of the map pipeline in CI (cloud Claude
+# sessions and phones can't reach Overpass; GitHub runners can). Fetched data
+# is pushed to the `map-data` branch — pull it from there, bake it into the
+# town worlds, and push the result to `source` as usual. Trigger by hand from
+# the Actions tab, or via the API.
+
+on:
+  workflow_dispatch:
+    inputs:
+      towns:
+        description: "Space-separated town ids to fetch (default: all)"
+        required: false
+        default: "nbpt salem"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fetch-map-data
+  cancel-in-progress: true
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+        with:
+          ref: source
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Fetch municipal boundaries per town
+        run: |
+          for t in ${{ github.event.inputs.towns || 'nbpt salem' }}; do
+            echo "=== $t ==="
+            TOWN=$t node tools/fetch_boundaries.mjs
+          done
+
+      - name: Push fetched data to the map-data branch
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B map-data
+          git add -f data/*/raw/boundaries.json
+          if git diff --cached --quiet; then
+            echo "No new data."
+            exit 0
+          fi
+          git commit -m "map-data: municipal boundaries ($(echo '${{ github.event.inputs.towns }}' | tr ' ' ','))"
+          git push -f origin map-data
