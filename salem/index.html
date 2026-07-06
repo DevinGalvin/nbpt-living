@@ -19,7 +19,7 @@
   <meta property="og:image" content="https://clippertown.io/salem/og-image.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:type" content="image/jpeg" />
   <meta property="og:image:alt" content="A 3D voxel view of historic Salem, Massachusetts" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Salem — walk the real map of Salem, MA in 3D" />
@@ -79,32 +79,33 @@
     }
   </style>
   <script>
-    // Salem is served at clippertown.io/salem but shares the clippertown.io ORIGIN with
-    // Newburyport, so it would share localStorage too. Namespace all of Salem's saved
-    // state behind a "salem:" prefix (keeps season/save/flags out of the live NBPT game),
-    // and switch on the world-only extras (bike + kayak + free seasons). Runs before the bundle.
+    // Salem shares its origin with the root town, so it would share
+    // localStorage too. Namespace all saved state behind the town prefix
+    // (GLOBAL keys pass through — rider name & co. ride between towns).
     (function () {
       try {
-        window.__townPath = '/salem/';            // this build IS the Salem town (the Fast-Travel switcher reads it)
-        var P = 'salem:', real = window.localStorage;
+        window.__townPath = "/salem/";
+        var P = "salem:", real = window.localStorage;
+        var GLOBAL = ["nbpt-race-name","nbpt-ghost","nbpt-board-url"];
+        var key = function (k) { return GLOBAL.indexOf(k) >= 0 ? k : P + k; };
         var pref = function () { return Object.keys(real).filter(function (k) { return k.indexOf(P) === 0; }); };
         var shim = {
-          getItem: function (k) { return real.getItem(P + k); },
-          setItem: function (k, v) { real.setItem(P + k, String(v)); },
-          removeItem: function (k) { real.removeItem(P + k); },
+          getItem: function (k) { return real.getItem(key(k)); },
+          setItem: function (k, v) { real.setItem(key(k), String(v)); },
+          removeItem: function (k) { real.removeItem(key(k)); },
           clear: function () { pref().forEach(function (k) { real.removeItem(k); }); },
           key: function (i) { var k = pref()[i]; return k ? k.slice(P.length) : null; },
           get length() { return pref().length; }
         };
         Object.defineProperty(window, 'localStorage', { configurable: true, get: function () { return shim; } });
-        shim.setItem('nbpt-bike', '1');           // bike always available in Salem
-        shim.setItem('nbpt-kayak', '1');          // kayak always available near water
-        shim.setItem('nbpt-seasons-rewarded', '1'); // season picker unlocked
-        if (!shim.getItem('nbpt-season')) shim.setItem('nbpt-season', 'fall'); // default = Halloween (Salem); picker choice persists
+        shim.setItem("nbpt-bike", "1");
+        shim.setItem("nbpt-kayak", "1");
+        shim.setItem("nbpt-seasons-rewarded", "1");
+        if (!shim.getItem("nbpt-season")) shim.setItem("nbpt-season", "fall");
       } catch (e) { /* fall back to shared storage if the browser won't let us shadow it */ }
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-R-nSQvBZ.js"></script>
+  <script type="module" crossorigin src="./assets/index-Cjw-x7rI.js"></script>
 </head>
 <body>
   <div id="game"></div>
