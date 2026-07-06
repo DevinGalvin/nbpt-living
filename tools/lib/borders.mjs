@@ -110,6 +110,46 @@ function makeWaterTest(world) {
   };
 }
 
+// clearance test against ALL road pavement (any class): true when (x,y) is at
+// least each nearby road's half-width + margin from its centerline. Signs kept
+// having a toe on the asphalt — painted roads carry curbs/sidewalks past their
+// data width, and dual carriageways put a second centerline where the "shoulder"
+// of the first one is.
+function makeRoadClearTest(world) {
+  const CELL = 512;
+  const grid = new Map();
+  const put = (cx, cy, e) => {
+    const k = cx + ',' + cy;
+    let arr = grid.get(k);
+    if (!arr) grid.set(k, (arr = []));
+    arr.push(e);
+  };
+  for (const r of world.roads) {
+    const P = r.p;
+    for (let i = 0; i + 3 < P.length; i += 2) {
+      const e = [P[i], P[i + 1], P[i + 2], P[i + 3], r.w / 2 + 8];
+      const x0 = Math.min(P[i], P[i + 2]) - 80, x1 = Math.max(P[i], P[i + 2]) + 80;
+      const y0 = Math.min(P[i + 1], P[i + 3]) - 80, y1 = Math.max(P[i + 1], P[i + 3]) + 80;
+      for (let gx = Math.floor(x0 / CELL); gx <= Math.floor(x1 / CELL); gx++) {
+        for (let gy = Math.floor(y0 / CELL); gy <= Math.floor(y1 / CELL); gy++) put(gx, gy, e);
+      }
+    }
+  }
+  return (x, y) => {
+    const arr = grid.get(Math.floor(x / CELL) + ',' + Math.floor(y / CELL));
+    if (!arr) return true;
+    for (const [x1, y1, x2, y2, min] of arr) {
+      const dx = x2 - x1, dy = y2 - y1;
+      const l2 = dx * dx + dy * dy || 1;
+      let t = ((x - x1) * dx + (y - y1) * dy) / l2;
+      t = Math.max(0, Math.min(1, t));
+      const ex = x - (x1 + t * dx), ey = y - (y1 + t * dy);
+      if (ex * ex + ey * ey < min * min) return false;
+    }
+    return true;
+  };
+}
+
 // segment×segment intersection; returns t along (a1→a2) or null
 function segX(a1x, a1y, a2x, a2y, b1x, b1y, b2x, b2y) {
   const dax = a2x - a1x, day = a2y - a1y, dbx = b2x - b1x, dby = b2y - b1y;
@@ -126,7 +166,7 @@ function segX(a1x, a1y, a2x, a2y, b1x, b1y, b2x, b2y) {
 // yaw facing the arriving player. Gives bridge crossings their sign at the
 // abutment instead of over the channel. null = no dry spot within reach.
 const SLIDE_MAX = 2600;   // px (~325 m) — the longest bridge span we'll walk
-function slideToLand(road, segI, segT, s, into, townAt, isWater) {
+function slideToLand(road, segI, segT, s, into, townAt, isWater, roadClear) {
   const P = road.p;
   const step = 30;
   // start exactly at the crossing, then advance vertex by vertex
@@ -138,10 +178,13 @@ function slideToLand(road, segI, segT, s, into, townAt, isWater) {
   let dn = Math.hypot(dx, dy) || 1; dx = dx / dn * s; dy = dy / dn * s;
   cx += dx * 26; cy += dy * 26;
   while (walked < SLIDE_MAX) {
-    // candidate: right-hand shoulder of travel at the current point
-    const px2 = cx - dy * (road.w / 2 + 12), py2 = cy + dx * (road.w / 2 + 12);
-    if (!isWater(px2, py2) && townAt(px2, py2) === into) {
-      return { x: px2, y: py2, a: Math.atan2(-dx, -dy) };
+    // candidate: right-hand shoulder of travel, stepped outward until it's off
+    // EVERY road's pavement (dual carriageways, painted curbs/sidewalks)
+    for (const off of [16, 26, 38, 52]) {
+      const px2 = cx - dy * (road.w / 2 + off), py2 = cy + dx * (road.w / 2 + off);
+      if (!isWater(px2, py2) && townAt(px2, py2) === into && roadClear(px2, py2)) {
+        return { x: px2, y: py2, a: Math.atan2(-dx, -dy) };
+      }
     }
     // advance toward the next vertex (or off the way's end, straight ahead)
     const tx = P[vi], ty = P[vi + 1];
@@ -181,6 +224,7 @@ export function bakeBorders(world, boundariesJson, px) {
   }
 
   const isWater = makeWaterTest(world);
+  const roadClear = makeRoadClearTest(world);
   const townAt = (x, y) => {
     for (const t of towns) for (const ring of t.p) if (pointInRing(x, y, ring)) return t.n;
     return null;
@@ -217,7 +261,7 @@ export function bakeBorders(world, boundariesJson, px) {
             for (const s of [1, -1]) {
               const into = townAt(cx + dx * s * 40, cy + dy * s * 40);
               if (!into) continue;
-              const spot = slideToLand(road, i, hit, s, into, townAt, isWater);
+              const spot = slideToLand(road, i, hit, s, into, townAt, isWater, roadClear);
               if (!spot) continue;
               raw.push({
                 x: Math.round(spot.x), y: Math.round(spot.y), a: +spot.a.toFixed(3),
