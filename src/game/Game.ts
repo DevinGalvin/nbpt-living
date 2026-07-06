@@ -1679,8 +1679,13 @@ export class Game {
     // can hold a straight line, and turns round off instead of snapping. Full input
     // still reaches full speed; mid-turn the shorter vector just eases the pace down.
     // The bike steers lazier than on foot (it was the worst offender).
-    const turnK = this.riding ? 3.6 : 6.5;
-    const ke = Math.min(1, dt * turnK);
+    const turnK = this.riding ? 4.2 : 7.5;
+    // U-turns snap: when the stick OPPOSES current motion (backing out of a
+    // tight spot, turning around), ease ~3x faster — the smoothing above is for
+    // small wobbles on a straight line, not for trapping kids in corners
+    const am = Math.hypot(this.aimX, this.aimZ);
+    const opp = mag > 0.01 && am > 0.01 && (vx * this.aimX + vz * this.aimZ) / (mag * am) < 0.15;
+    const ke = Math.min(1, dt * (opp ? turnK * 3.2 : turnK));
     this.aimX += (vx - this.aimX) * ke;
     this.aimZ += (vz - this.aimZ) * ke;
     if (mag < 0.01) { this.aimX = 0; this.aimZ = 0; }  // crisp stop on release — no floaty glide
@@ -2197,10 +2202,24 @@ export class Game {
 
   travelTo(id: string) {
     const lm = this.world.landmarks.find((l) => l.id === id);
-    if (lm) this.travelToXY(lm.x, lm.y);
+    if (!lm) return;
+    // arrive LOOKING AT the place: drop back from the center and face it —
+    // landing in the middle of the thing you traveled to reads as nowhere
+    const d = Math.min(Math.max(lm.r * 0.55, 130), 320);
+    for (const a of [0.5, 0.75, 0.25, 1, 0, 1.25, 1.75, 1.5]) {
+      const ang = a * Math.PI;
+      const spot = this.findFree(lm.x + Math.sin(ang) * d, lm.y + Math.cos(ang) * d);
+      // findFree may march back toward the center (water, buildings) — only
+      // accept a vantage that still stands off and can see the spot
+      if (Math.hypot(spot.x - lm.x, spot.y - lm.y) >= d * 0.45) {
+        this.travelToXY(spot.x, spot.y, { x: lm.x, y: lm.y });
+        return;
+      }
+    }
+    this.travelToXY(lm.x, lm.y);
   }
 
-  travelToXY(x: number, y: number) {
+  travelToXY(x: number, y: number, lookAt?: { x: number; y: number }) {
     // most callers wrap this in fadeThrough (which also closes transient UI), but some
     // teleport directly (promo CTAs, the nbpt.* debug hooks) — a dialogue must never
     // ride along across town, so close here too (idempotent)
@@ -2214,6 +2233,12 @@ export class Game {
     this.kid.setPos(this.px, this.pz);
     this.kid.root.position.y = this.kidY;
     this.dog.root.position.set(this.px - 22, this.kidY, this.pz + 16);
+    if (lookAt) {
+      // face the destination and put the chase cam behind — you SEE the place
+      const az = Math.atan2(lookAt.x - this.px, lookAt.y - this.pz);
+      this.kid.face(az);
+      this.camAz = az;
+    }
     this.ensureRect(true);
     this.updateCamera(0, true);
   }

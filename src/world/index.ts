@@ -1688,6 +1688,11 @@ export class WorldIndex {
       else wy = flatH;                                                                          // flat across the channel
       deck = Math.max(deck, wy);
     }
+    // bank ends are ALWAYS mountable: whatever clearance humps demand mid-span,
+    // the last stretch ramps to <= +20 over the approach grade (a crossed way
+    // right at a bank may shave the soffit — better than an unclimbable wall)
+    const endD = Math.min(t, prof.total - t);
+    if (endD < 44) deck = Math.min(deck, (t < prof.total / 2 ? prof.g0 : prof.g1) + 18 + endD);
     return deck;
   }
 
@@ -1720,7 +1725,10 @@ export class WorldIndex {
     const d = this.deckHeightAt(x, y);
     if (d <= 0) return t;
     const from = prevY === undefined ? t : prevY;
-    return d <= from + 14 ? Math.max(t, d) : t;
+    // 22: a clearance hump near a bank can leave the deck end ~15px proud of
+    // the approach (a crossed road needs headroom right up to the abutment) —
+    // that step must stay mountable, like stairs
+    return d <= from + 22 ? Math.max(t, d) : t;
   }
 
   // Walking UNDER a span is fine where there's headroom; this blocks the two
@@ -1730,14 +1738,22 @@ export class WorldIndex {
   static readonly KID_CLEAR = 34;   // kid height + hat
   underDeckBlockedAt(x: number, y: number, playerY: number): boolean {
     const d = this.deckHeightAt(x, y);
-    if (d <= 0 || playerY >= d - 2) return false;              // no deck / on the deck
+    // "on the deck" includes a mountable step — surfaceYAt climbs decks up to
+    // +14, so entry at a flush approach (deck top ~2.5 above the road) must
+    // never read as "under". This was blocking walking ONTO bridges at their ends.
+    if (d <= 0 || playerY >= d - 22) return false;             // no deck / on or stepping onto it
     const key = Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK);
     const dc = this.deckCache.get(key);
     if (!dc) return false;
-    for (const r of dc.bridges) {
-      if (distToPolylineSq(x, y, r.p) > (r.w / 2 + 5) ** 2) continue;
+    // TWO passes: dual carriageways overlap at their edges, so a point can sit
+    // on one deck's mountable end AND inside its neighbor's elevated footprint.
+    // Being on/stepping onto ANY deck wins — only then do blockers apply.
+    const near = dc.bridges.filter((r) => distToPolylineSq(x, y, r.p) <= (r.w / 2 + 5) ** 2);
+    for (const r of near) {
+      if (playerY >= this.bridgeDeckYAt(r.p, x, y) - 22) return false;   // on a deck (or stepping onto it)
+    }
+    for (const r of near) {
       const topY = this.bridgeDeckYAt(r.p, x, y);
-      if (playerY >= topY - 2) return false;                   // on THIS deck
       const clear = (topY - WorldIndex.DECK_T) - this.heightAtPx(x, y);
       if (clear < WorldIndex.KID_CLEAR) return true;           // slab too low to duck under
       // solid supports: abutments + pier walls (same dims decor builds them with)
