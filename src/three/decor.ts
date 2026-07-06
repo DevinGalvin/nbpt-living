@@ -1299,17 +1299,8 @@ function inGillisRect(x: number, z: number): boolean {
 // bottom + thin fascia + end caps) held up by discrete piers/abutments emitted by
 // the caller — the underside is open between supports so roads & boats pass beneath.
 // Bare docks / foot-bridges (rails=false) stay wooden planks on a full side skirt.
-//
-// The strip is MITRED: every subdivision node gets ONE shared left/right edge
-// point (averaged segment normals, scaled 1/cos so the edge stays hw off both
-// segments), so bends produce a continuous surface instead of overlapping
-// per-segment rectangles — the overlaps were both the "chunky" look and a
-// coplanar z-fight (the flicker). A small deterministic per-way Y epsilon keeps
-// dual-carriageway / merging decks from fighting where two WAYS overlap.
-// lanes='white' paints highway markings (solid edge lines + dashed white
-// center) instead of the two-way dashed yellow.
 function ribbonDeck(buckets: Bucket[], pts: number[], w: number, topYAt: number | ((x: number, z: number) => number),
-                    rails: boolean, ox: number, oy: number, skipGillis = false, lanes: 'yellow' | 'white' = 'yellow') {
+                    rails: boolean, ox: number, oy: number, skipGillis = false) {
   const isRoad = rails;
   const surf = isRoad ? buckets[PLAIN] : buckets[PLANK];
   const asphalt = new THREE.Color('#3a3d42');
@@ -1318,167 +1309,112 @@ function ribbonDeck(buckets: Bucket[], pts: number[], w: number, topYAt: number 
   const skirt = new THREE.Color(isRoad ? '#62656b' : '#8a8d92'); // bridge structure side
   const rail = new THREE.Color(isRoad ? '#b8b3a6' : '#e3e0d6');  // guardrail
   const topC = isRoad ? asphalt : wood;
-  const white = new THREE.Color('#e8e8e2');
-  const yAtF = typeof topYAt === 'number' ? () => topYAt as number : topYAt;
-  // deterministic per-way lift (0–0.45px): two ways whose decks overlap (dual
-  // carriageways, ramp merges) land on different planes instead of z-fighting
+  // deterministic per-way lift (0–0.45px): decks of overlapping WAYS (dual
+  // carriageways, ramp merges) land on different planes instead of z-fighting.
+  // The only survivor of the 7/6 bridge pass — the rest regressed and was reverted.
   const eps = isRoad ? (Math.abs(Math.round(pts[0] * 7 + pts[1] * 13 + pts.length * 31)) % 10) * 0.05 : 0;
+  const yAtF = typeof topYAt === 'number' ? () => topYAt as number : topYAt;
   const yAt = (x: number, z: number) => yAtF(x, z) + eps;
-  const hw = w / 2;
-
-  // ---- subdivide the WHOLE polyline into nodes (≤48px), then mitre ----
-  const nxA: number[] = [], nzA: number[] = [];
   for (let i = 0; i + 3 < pts.length; i += 2) {
     const sx0 = pts[i], sz0 = pts[i + 1], sx1 = pts[i + 2], sz1 = pts[i + 3];
     const segLen = Math.hypot(sx1 - sx0, sz1 - sz0);
     if (segLen < 0.01) continue;
-    if (nxA.length === 0) { nxA.push(sx0); nzA.push(sz0); }
     const pieces = Math.max(1, Math.ceil(segLen / 48));
-    for (let pc = 1; pc <= pieces; pc++) {
-      nxA.push(sx0 + (sx1 - sx0) * (pc / pieces));
-      nzA.push(sz0 + (sz1 - sz0) * (pc / pieces));
-    }
-  }
-  const N = nxA.length;
-  if (N < 2) return;
-  const Lx = new Float64Array(N), Lz = new Float64Array(N), Rx = new Float64Array(N), Rz = new Float64Array(N);
-  const Yn = new Float64Array(N), cum = new Float64Array(N);
-  for (let i = 0; i < N; i++) {
-    const ip = Math.max(0, i - 1), iq = Math.min(N - 1, i + 1);
-    let aX = nxA[i] - nxA[ip], aZ = nzA[i] - nzA[ip];
-    let bX = nxA[iq] - nxA[i], bZ = nzA[iq] - nzA[i];
-    const al = Math.hypot(aX, aZ) || 1, bl = Math.hypot(bX, bZ) || 1;
-    aX /= al; aZ /= al; bX /= bl; bZ /= bl;
-    let mX = aX + bX, mZ = aZ + bZ;
-    const ml = Math.hypot(mX, mZ);
-    if (ml < 1e-6) { mX = aX; mZ = aZ; } else { mX /= ml; mZ /= ml; }
-    const lX = -mZ, lZ = mX;                                        // mitre lateral
-    const scale = hw / Math.min(2.5, Math.max(0.45, lX * -aZ + lZ * aX));   // stay hw off both segments, clamp spikes
-    Lx[i] = nxA[i] + lX * scale; Lz[i] = nzA[i] + lZ * scale;
-    Rx[i] = nxA[i] - lX * scale; Rz[i] = nzA[i] - lZ * scale;
-    Yn[i] = yAt(nxA[i], nzA[i]);
-    if (i > 0) cum[i] = cum[i - 1] + Math.hypot(nxA[i] - nxA[ip], nzA[i] - nzA[ip]);
-  }
-
-  // a paint stripe across the strip at across-offset o (0=centerline, +→R side)
-  const stripe = (i: number, j: number, o: number, lw: number, c: THREE.Color) => {
-    const lat = (k: number): [number, number] => {
-      const dX = Rx[k] - Lx[k], dZ = Rz[k] - Lz[k], dl = Math.hypot(dX, dZ) || 1;
-      return [dX / dl, dZ / dl];
-    };
-    const [liX, liZ] = lat(i), [ljX, ljZ] = lat(j);
-    const ciX = (Lx[i] + Rx[i]) / 2, ciZ = (Lz[i] + Rz[i]) / 2;
-    const cjX = (Lx[j] + Rx[j]) / 2, cjZ = (Lz[j] + Rz[j]) / 2;
-    surf.quad(
-      ciX + liX * (o + lw), Yn[i] + 0.3, ciZ + liZ * (o + lw), cjX + ljX * (o + lw), Yn[j] + 0.3, cjZ + ljZ * (o + lw),
-      cjX + ljX * (o - lw), Yn[j] + 0.3, cjZ + ljZ * (o - lw), ciX + liX * (o - lw), Yn[i] + 0.3, ciZ + liZ * (o - lw),
-      0, 1, 0, c.r, c.g, c.b
-    );
-  };
-
-  const T = WorldIndex.DECK_T;
-  for (let i = 0; i + 1 < N; i++) {
-    const j = i + 1;
-    const mx = (nxA[i] + nxA[j]) / 2, mz = (nzA[i] + nzA[j]) / 2;
-    if (mx < ox || mx >= ox + CHUNK || mz < oy || mz >= oy + CHUNK) continue;
-    // leave a clean rectangular gap at the Gillis channel — the custom drawbridge fills it
-    if (skipGillis && inGillisRect(mx, mz)) continue;
-    const dx = nxA[j] - nxA[i], dz = nzA[j] - nzA[i];
-    const len = Math.hypot(dx, dz);
-    if (len < 0.01) continue;
-    const ux = dx / len, uz = dz / len;
-    const y0 = Yn[i], y1 = Yn[j];
-    const u = len / TEX_SCALE, vv = w / TEX_SCALE;
-    // deck TOP — one strip quad between the SHARED mitred edges (no overlaps)
-    surf.quadUV(
-      Lx[i], y0, Lz[i], Lx[j], y1, Lz[j],
-      Rx[j], y1, Rz[j], Rx[i], y0, Rz[i],
-      0, 1, 0, topC.r, topC.g, topC.b,
-      0, 0, u, 0, u, vv, 0, vv
-    );
-    if (isRoad && w > 12) {
-      const dashOn = Math.floor(((cum[i] + cum[j]) / 2) / 26) % 2 === 0;
-      if (lanes === 'white') {
-        // highway paint: solid edge lines + dashed white lane line
-        stripe(i, j, hw - 2.4, 0.9, white);
-        stripe(i, j, -(hw - 2.4), 0.9, white);
-        if (dashOn) stripe(i, j, 0, 0.9, white);
-      } else {
-        if (dashOn) stripe(i, j, 0, 1.4, line);   // two-way dashed yellow center
-        if (w >= 90) {
-          // a 4-lane deck (the Essex Bridge): edge lines + a white lane dash per side
-          stripe(i, j, hw - 2.4, 0.9, white);
-          stripe(i, j, -(hw - 2.4), 0.9, white);
-          if (dashOn) { stripe(i, j, hw / 2, 0.9, white); stripe(i, j, -hw / 2, 0.9, white); }
-        }
-      }
-    }
-    if (isRoad) {
-      // CLOSED constant-thickness slab: bottom face at y-T + thin fascia sides + end
-      // caps. Discrete piers/abutments (emitted by the caller) hold it up, so the
-      // space *between* supports is open — this is the structural fix for both the
-      // see-through gaps (open underside) and the buried overpass (full-height wall).
-      const b0 = y0 - T, b1 = y1 - T;
-      // bottom face — normal down, wound opposite the top so it shows from below
-      surf.quad(
-        Rx[i], b0, Rz[i], Rx[j], b1, Rz[j],
-        Lx[j], b1, Lz[j], Lx[i], b0, Lz[i],
-        0, -1, 0, skirt.r * 0.9, skirt.g * 0.9, skirt.b * 0.9
+    for (let pc = 0; pc < pieces; pc++) {
+      const x0 = sx0 + (sx1 - sx0) * (pc / pieces), z0 = sz0 + (sz1 - sz0) * (pc / pieces);
+      const x1 = sx0 + (sx1 - sx0) * ((pc + 1) / pieces), z1 = sz0 + (sz1 - sz0) * ((pc + 1) / pieces);
+      const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      if (mx < ox || mx >= ox + CHUNK || mz < oy || mz >= oy + CHUNK) continue;
+      // leave a clean rectangular gap at the Gillis channel — the custom drawbridge fills it
+      if (skipGillis && inGillisRect(mx, mz)) continue;
+      const dx = x1 - x0, dz = z1 - z0;
+      const len = Math.hypot(dx, dz);
+      if (len < 0.01) continue;
+      const nx = -dz / len, nz = dx / len;
+      const hw = w / 2;
+      const y0 = yAt(x0, z0), y1 = yAt(x1, z1);
+      const u = len / TEX_SCALE, vv = w / TEX_SCALE;
+      // deck TOP surface
+      surf.quadUV(
+        x0 + nx * hw, y0, z0 + nz * hw, x1 + nx * hw, y1, z1 + nz * hw,
+        x1 - nx * hw, y1, z1 - nz * hw, x0 - nx * hw, y0, z0 - nz * hw,
+        0, 1, 0, topC.r, topC.g, topC.b,
+        0, 0, u, 0, u, vv, 0, vv
       );
-      for (const s of [1, -1] as const) {
-        const eX = s > 0 ? Lx : Rx, eZ = s > 0 ? Lz : Rz;
-        const nsx = -uz * s, nsz = ux * s;
-        // fascia — the deck edge (only T tall), not a wall to the ground
+      if (isRoad && pc % 2 === 0 && w > 12) {
+        // dashed yellow center line, laid just over the deck
+        const lw = 1.4;
         surf.quad(
-          eX[i], b0, eZ[i], eX[j], b1, eZ[j],
-          eX[j], y1, eZ[j], eX[i], y0, eZ[i],
-          nsx, 0, nsz, skirt.r, skirt.g, skirt.b
+          x0 + nx * lw, y0 + 0.3, z0 + nz * lw, x1 + nx * lw, y1 + 0.3, z1 + nz * lw,
+          x1 - nx * lw, y1 + 0.3, z1 - nz * lw, x0 - nx * lw, y0 + 0.3, z0 - nz * lw,
+          0, 1, 0, line.r, line.g, line.b
         );
-        // top rail band + posts — reads as a real guardrail
+      }
+      if (isRoad) {
+        // CLOSED constant-thickness slab: bottom face at y-T + thin fascia sides + end
+        // caps. Discrete piers/abutments (emitted by the caller) hold it up, so the
+        // space *between* supports is open — this is the structural fix for both the
+        // see-through gaps (open underside) and the buried overpass (full-height wall).
+        const T = WorldIndex.DECK_T;
+        const b0 = y0 - T, b1 = y1 - T;
+        // bottom face — normal down, wound opposite the top so it shows from below
         surf.quad(
-          eX[i], y0 + 3.4, eZ[i], eX[j], y1 + 3.4, eZ[j],
-          eX[j], y1 + 4.8, eZ[j], eX[i], y0 + 4.8, eZ[i],
-          nsx, 0, nsz, rail.r, rail.g, rail.b
+          x0 - nx * hw, b0, z0 - nz * hw, x1 - nx * hw, b1, z1 - nz * hw,
+          x1 + nx * hw, b1, z1 + nz * hw, x0 + nx * hw, b0, z0 + nz * hw,
+          0, -1, 0, skirt.r * 0.9, skirt.g * 0.9, skirt.b * 0.9
         );
-        const posts = Math.max(1, Math.floor(len / 26));
-        for (let pi2 = 0; pi2 <= posts; pi2++) {
-          const t = pi2 / posts;
-          const py = y0 + (y1 - y0) * t;
-          const px2 = eX[i] + (eX[j] - eX[i]) * t, pz2 = eZ[i] + (eZ[j] - eZ[i]) * t;
+        for (const s of [1, -1]) {
+          // fascia — the deck edge (only T tall), not a wall to the ground
           surf.quad(
-            px2 - ux * 0.6, py, pz2 - uz * 0.6, px2 + ux * 0.6, py, pz2 + uz * 0.6,
-            px2 + ux * 0.6, py + 3.4, pz2 + uz * 0.6, px2 - ux * 0.6, py + 3.4, pz2 - uz * 0.6,
-            nsx, 0, nsz, rail.r * 0.88, rail.g * 0.88, rail.b * 0.88
+            x0 + nx * hw * s, b0, z0 + nz * hw * s, x1 + nx * hw * s, b1, z1 + nz * hw * s,
+            x1 + nx * hw * s, y1, z1 + nz * hw * s, x0 + nx * hw * s, y0, z0 + nz * hw * s,
+            nx * s, 0, nz * s, skirt.r, skirt.g, skirt.b
+          );
+          // top rail band + posts — reads as a real guardrail
+          surf.quad(
+            x0 + nx * hw * s, y0 + 3.4, z0 + nz * hw * s, x1 + nx * hw * s, y1 + 3.4, z1 + nz * hw * s,
+            x1 + nx * hw * s, y1 + 4.8, z1 + nz * hw * s, x0 + nx * hw * s, y0 + 4.8, z0 + nz * hw * s,
+            nx * s, 0, nz * s, rail.r, rail.g, rail.b
+          );
+          const posts = Math.max(1, Math.floor(len / 26));
+          for (let pi2 = 0; pi2 <= posts; pi2++) {
+            const t = pi2 / posts;
+            const py = y0 + (y1 - y0) * t;
+            const px2 = x0 + dx * t + nx * hw * s, pz2 = z0 + dz * t + nz * hw * s;
+            surf.quad(
+              px2 - dx / len * 0.6, py, pz2 - dz / len * 0.6, px2 + dx / len * 0.6, py, pz2 + dz / len * 0.6,
+              px2 + dx / len * 0.6, py + 3.4, pz2 + dz / len * 0.6, px2 - dx / len * 0.6, py + 3.4, pz2 - dz / len * 0.6,
+              nx * s, 0, nz * s, rail.r * 0.88, rail.g * 0.88, rail.b * 0.88
+            );
+          }
+        }
+        // END CAPS — close the hollow slab at the polyline's first/last end. The
+        // per-piece chunk cull above means each end is reached in exactly ONE chunk,
+        // so the cap is emitted once (no double-draw across chunk seams).
+        if (i === 0 && pc === 0) {
+          surf.quad(
+            x0 - nx * hw, b0, z0 - nz * hw, x0 + nx * hw, b0, z0 + nz * hw,
+            x0 + nx * hw, y0, z0 + nz * hw, x0 - nx * hw, y0, z0 - nz * hw,
+            -dx / len, 0, -dz / len, skirt.r, skirt.g, skirt.b
           );
         }
-      }
-      // END CAPS — close the hollow slab at the strip's first/last node. The
-      // per-pair chunk cull above means each end is reached in exactly ONE chunk,
-      // so the cap is emitted once (no double-draw across chunk seams).
-      if (i === 0) {
-        surf.quad(
-          Rx[0], b0, Rz[0], Lx[0], b0, Lz[0],
-          Lx[0], y0, Lz[0], Rx[0], y0, Rz[0],
-          -ux, 0, -uz, skirt.r, skirt.g, skirt.b
-        );
-      }
-      if (j === N - 1) {
-        surf.quad(
-          Lx[j], b1, Lz[j], Rx[j], b1, Rz[j],
-          Rx[j], y1, Rz[j], Lx[j], y1, Lz[j],
-          ux, 0, uz, skirt.r, skirt.g, skirt.b
-        );
-      }
-    } else {
-      // wooden docks / foot-bridges: original full side skirt down to ground/water
-      const bottomY = Math.min(y0, y1) > 22 ? 0 : Math.max(0, Math.min(y0, y1) - 14);
-      for (const s of [1, -1] as const) {
-        const eX = s > 0 ? Lx : Rx, eZ = s > 0 ? Lz : Rz;
-        surf.quad(
-          eX[i], bottomY, eZ[i], eX[j], bottomY, eZ[j],
-          eX[j], y1, eZ[j], eX[i], y0, eZ[i],
-          -uz * s, 0, ux * s, skirt.r, skirt.g, skirt.b
-        );
+        if (i + 4 >= pts.length && pc === pieces - 1) {
+          surf.quad(
+            x1 + nx * hw, b1, z1 + nz * hw, x1 - nx * hw, b1, z1 - nz * hw,
+            x1 - nx * hw, y1, z1 - nz * hw, x1 + nx * hw, y1, z1 + nz * hw,
+            dx / len, 0, dz / len, skirt.r, skirt.g, skirt.b
+          );
+        }
+      } else {
+        // wooden docks / foot-bridges: original full side skirt down to ground/water
+        const bottomY = Math.min(y0, y1) > 22 ? 0 : Math.max(0, Math.min(y0, y1) - 14);
+        for (const s of [1, -1]) {
+          surf.quad(
+            x0 + nx * hw * s, bottomY, z0 + nz * hw * s, x1 + nx * hw * s, bottomY, z1 + nz * hw * s,
+            x1 + nx * hw * s, y1, z1 + nz * hw * s, x0 + nx * hw * s, y0, z0 + nz * hw * s,
+            nx * s, 0, nz * s, skirt.r, skirt.g, skirt.b
+          );
+        }
       }
     }
   }
@@ -4774,8 +4710,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     // paved deck following the clearance profile — humps over roads it crosses
     // and lifts clear of any water it spans (the Gillis channel is left open for
     // the custom drawbridge)
-    ribbonDeck(buckets, r.p, r.w + 4, (x, z) => index.bridgeDeckYAt(r.p, x, z), true, ox, oy, true,
-      (r.c === 'motorway' || r.c === 'motorway_link') ? 'white' : 'yellow');   // one-way carriageways get highway paint; two-way keeps yellow
+    ribbonDeck(buckets, r.p, r.w + 4, (x, z) => index.bridgeDeckYAt(r.p, x, z), true, ox, oy, true);
     // hold the slab up: pier WALLS marching the span (turned across the deck, capped
     // under the soffit) + full-width abutments at the banks. One (x,z) each + the
     // chunk cull below ⇒ emitted in exactly one chunk.

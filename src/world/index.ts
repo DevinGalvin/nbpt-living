@@ -946,32 +946,6 @@ export class WorldIndex {
     }
     ctx.setLineDash([]);
 
-    // highways read as highways: solid edge lines hugging each shoulder, plus a
-    // dashed white lane divider down one-way carriageways (motorways are divided
-    // dual carriageways — a yellow two-way dash there would be wrong)
-    ctx.strokeStyle = 'rgba(233,233,225,0.85)';
-    for (const r of roads) {
-      const hwy = r.c === 'motorway' || r.c === 'motorway_link' || r.c === 'trunk' || r.c === 'trunk_link';
-      const wide = r.w >= 90 && (r.c === 'primary' || r.c === 'secondary');   // undivided 4-laners
-      if ((!hwy && !wide) || r.w < 12) continue;
-      ctx.lineWidth = 1.7;
-      strokeLine(ctx, offsetLine(r.p, r.w / 2 - 2.2));
-      strokeLine(ctx, offsetLine(r.p, -(r.w / 2 - 2.2)));
-      if (r.c === 'motorway' && r.w >= 18) {
-        ctx.setLineDash([14, 20]);
-        ctx.lineWidth = 2;
-        strokeLine(ctx, r.p);
-        ctx.setLineDash([]);
-      } else if (r.w >= 90) {
-        // 4-lane two-way: a white lane dash midway down each side
-        ctx.setLineDash([14, 20]);
-        ctx.lineWidth = 2;
-        strokeLine(ctx, offsetLine(r.p, r.w / 4));
-        strokeLine(ctx, offsetLine(r.p, -r.w / 4));
-        ctx.setLineDash([]);
-      }
-    }
-
     for (const pi of bucket.paths) this.drawPath(ctx, w.paths[pi]);
 
     this.drawStreetLabels(ctx, roads, ox, oy);
@@ -2038,25 +2012,6 @@ function strokeLine(ctx: CanvasRenderingContext2D, pts: number[]) {
   ctx.moveTo(pts[0], pts[1]);
   for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
   ctx.stroke();
-}
-
-// a mitred parallel of a polyline, o px to the left (+) / right (−) of travel —
-// lets highway edge lines hug the shoulder instead of restroking the centerline
-function offsetLine(pts: number[], o: number): number[] {
-  const n = pts.length / 2, out: number[] = [];
-  for (let i = 0; i < n; i++) {
-    const ip = Math.max(0, i - 1), iq = Math.min(n - 1, i + 1);
-    let aX = pts[i * 2] - pts[ip * 2], aZ = pts[i * 2 + 1] - pts[ip * 2 + 1];
-    let bX = pts[iq * 2] - pts[i * 2], bZ = pts[iq * 2 + 1] - pts[i * 2 + 1];
-    const al = Math.hypot(aX, aZ) || 1, bl = Math.hypot(bX, bZ) || 1;
-    aX /= al; aZ /= al; bX /= bl; bZ /= bl;
-    let mX = aX + bX, mZ = aZ + bZ;
-    const ml = Math.hypot(mX, mZ);
-    if (ml < 1e-6) { mX = aX; mZ = aZ; } else { mX /= ml; mZ /= ml; }
-    const sc = o / Math.min(2.5, Math.max(0.45, mX * aX + mZ * aZ));   // 1/cos(half-turn), clamped
-    out.push(pts[i * 2] - mZ * sc, pts[i * 2 + 1] + mX * sc);
-  }
-  return out;
 }
 
 export function walkLine(pts: number[], step: number, cb: (x: number, y: number, nx: number, ny: number) => void) {
