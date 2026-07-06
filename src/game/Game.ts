@@ -115,6 +115,8 @@ function makeSignMesh(name: string): THREE.Mesh {
 // Posts share cached resources (chunk teardown only disposes the board's texture).
 let postGeo: THREE.BoxGeometry | null = null;
 let postMat: THREE.MeshLambertMaterial | null = null;
+let signBackGeo: THREE.PlaneGeometry | null = null;
+let signBackMat: THREE.MeshLambertMaterial | null = null;
 function makeWelcomeSignMesh(town: string): THREE.Mesh {
   const c = document.createElement('canvas');
   c.width = 512;
@@ -142,15 +144,23 @@ function makeWelcomeSignMesh(town: string): THREE.Mesh {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
+  // front face carries the text; the back is a plain board (DoubleSide would
+  // show the lettering mirrored to traffic leaving town)
   const board = new THREE.Mesh(
-    new THREE.PlaneGeometry(38, 21.5),
-    new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })
+    new THREE.PlaneGeometry(56, 31.5),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.FrontSide })
   );
-  postGeo ??= new THREE.BoxGeometry(1.7, 30, 1.7);
+  signBackGeo ??= new THREE.PlaneGeometry(56, 31.5);
+  signBackMat ??= new THREE.MeshLambertMaterial({ color: '#e9e3d2', side: THREE.FrontSide });
+  const back = new THREE.Mesh(signBackGeo, signBackMat);
+  back.rotation.y = Math.PI;
+  back.position.z = -0.4;
+  board.add(back);
+  postGeo ??= new THREE.BoxGeometry(2.4, 46, 2.4);
   postMat ??= new THREE.MeshLambertMaterial({ color: '#6e5a42' });
   for (const sx of [-1, 1]) {
     const post = new THREE.Mesh(postGeo, postMat);
-    post.position.set(sx * 15, -14, -0.9);       // board center sits ~24 up; posts reach the ground
+    post.position.set(sx * 22, -19, -1.2);       // board center sits ~36 up; posts reach the ground
     post.castShadow = true;
     board.add(post);
   }
@@ -759,7 +769,7 @@ export class Game {
         if (s.x < ox || s.x >= ox + CHUNK || s.y < oy || s.y >= oy + CHUNK) continue;
         const mesh = makeWelcomeSignMesh(s.n);
         const gy = Math.max(this.terrain.heightAt(s.x, s.y), this.index.deckHeightAt(s.x, s.y));
-        mesh.position.set(s.x, gy + 24, s.y);
+        mesh.position.set(s.x, gy + 36, s.y);
         mesh.rotation.y = s.a;
         this.scene.add(mesh);
         signs.push(mesh);

@@ -95,6 +95,21 @@ function stitchChains(chains, joinTol = 120) {
   return rings;
 }
 
+// is this point open water? (sign posts belong on land — real town-line signs
+// sit at the ENDS of bridges, not over the channel)
+function makeWaterTest(world) {
+  const waters = world.polys.filter((p) => p.k === 'water' || p.k === 'ocean');
+  return (x, y) => {
+    for (const w of waters) {
+      if (!pointInRing(x, y, w.p)) continue;
+      let inHole = false;
+      for (const h of w.h || []) { if (pointInRing(x, y, h)) { inHole = true; break; } }
+      if (!inHole) return true;
+    }
+    return false;
+  };
+}
+
 // segment×segment intersection; returns t along (a1→a2) or null
 function segX(a1x, a1y, a2x, a2y, b1x, b1y, b2x, b2y) {
   const dax = a2x - a1x, day = a2y - a1y, dbx = b2x - b1x, dby = b2y - b1y;
@@ -103,6 +118,43 @@ function segX(a1x, a1y, a2x, a2y, b1x, b1y, b2x, b2y) {
   const t = ((b1x - a1x) * dby - (b1y - a1y) * dbx) / den;
   const u = ((b1x - a1x) * day - (b1y - a1y) * dax) / den;
   return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? t : null;
+}
+
+// From the crossing (segment i, param t on road.p), walk along the road in
+// direction s (±1) — into the town being entered — and return the first
+// roadside sign spot on dry land: pos on the right-hand shoulder of travel,
+// yaw facing the arriving player. Gives bridge crossings their sign at the
+// abutment instead of over the channel. null = no dry spot within reach.
+const SLIDE_MAX = 2600;   // px (~325 m) — the longest bridge span we'll walk
+function slideToLand(road, segI, segT, s, into, townAt, isWater) {
+  const P = road.p;
+  const step = 30;
+  // start exactly at the crossing, then advance vertex by vertex
+  let vi = s > 0 ? segI + 2 : segI;               // next vertex index in walk direction
+  let cx = P[segI] + (P[segI + 2] - P[segI]) * segT;
+  let cy = P[segI + 1] + (P[segI + 3] - P[segI + 1]) * segT;
+  let walked = 26;                                 // real signs sit a beat past the line
+  let dx = (P[segI + 2] - P[segI]), dy = (P[segI + 3] - P[segI + 1]);
+  let dn = Math.hypot(dx, dy) || 1; dx = dx / dn * s; dy = dy / dn * s;
+  cx += dx * 26; cy += dy * 26;
+  while (walked < SLIDE_MAX) {
+    // candidate: right-hand shoulder of travel at the current point
+    const px2 = cx - dy * (road.w / 2 + 12), py2 = cy + dx * (road.w / 2 + 12);
+    if (!isWater(px2, py2) && townAt(px2, py2) === into) {
+      return { x: px2, y: py2, a: Math.atan2(-dx, -dy) };
+    }
+    // advance toward the next vertex (or off the way's end, straight ahead)
+    const tx = P[vi], ty = P[vi + 1];
+    const hasNext = vi >= 0 && vi + 1 < P.length;
+    const gx = hasNext ? tx - cx : dx * step, gy = hasNext ? ty - cy : dy * step;
+    const gl = Math.hypot(gx, gy) || 1;
+    const adv = Math.min(step, gl);
+    dx = gx / gl; dy = gy / gl;
+    cx += dx * adv; cy += dy * adv;
+    walked += adv;
+    if (hasNext && gl <= step) vi += s > 0 ? 2 : -2;
+  }
+  return null;
 }
 
 // ---------- the bake ----------
@@ -128,6 +180,7 @@ export function bakeBorders(world, boundariesJson, px) {
     if (rings.length) towns.push({ n: rel.tags.name, p: rings });
   }
 
+  const isWater = makeWaterTest(world);
   const townAt = (x, y) => {
     for (const t of towns) for (const ring of t.p) if (pointInRing(x, y, ring)) return t.n;
     return null;
@@ -157,19 +210,19 @@ export function bakeBorders(world, boundariesJson, px) {
             const cx = x1 + (x2 - x1) * hit, cy = y1 + (y2 - y1) * hit;
             const dl = Math.hypot(x2 - x1, y2 - y1) || 1;
             const dx = (x2 - x1) / dl, dy = (y2 - y1) / dl;
-            // one sign per direction of travel, naming the town you're entering
+            // one sign per direction of travel, naming the town you're entering.
+            // Walk along the road INTO that town until the roadside spot is dry
+            // land — bridge crossings put the town line mid-channel, and the sign
+            // belongs at the bridge end (never floating over the water).
             for (const s of [1, -1]) {
               const into = townAt(cx + dx * s * 40, cy + dy * s * 40);
               if (!into) continue;
-              // right-hand side of travel, past the curb; face oncoming traffic
-              const rxs = -dy * s, rys = dx * s;
+              const spot = slideToLand(road, i, hit, s, into, townAt, isWater);
+              if (!spot) continue;
               raw.push({
-                x: Math.round(cx + dx * s * 26 + rxs * (road.w / 2 + 10)),
-                y: Math.round(cy + dy * s * 26 + rys * (road.w / 2 + 10)),
-                a: +Math.atan2(-dx * s, -dy * s).toFixed(3),
+                x: Math.round(spot.x), y: Math.round(spot.y), a: +spot.a.toFixed(3),
                 n: into,
-                rank: classRank(road.c),
-                b: road.b ? 1 : 0
+                rank: classRank(road.c)
               });
             }
           }
@@ -186,7 +239,7 @@ export function bakeBorders(world, boundariesJson, px) {
     signs.push(s);
     if (signs.length >= MAX_SIGNS) break;
   }
-  for (const s of signs) { delete s.rank; delete s.b; }
+  for (const s of signs) delete s.rank;
 
   return { towns, signs };
 }
