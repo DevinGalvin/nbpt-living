@@ -160,7 +160,9 @@ function makeWelcomeSignMesh(town: string): THREE.Mesh {
   postMat ??= new THREE.MeshLambertMaterial({ color: '#6e5a42' });
   for (const sx of [-1, 1]) {
     const post = new THREE.Mesh(postGeo, postMat);
-    post.position.set(sx * 22, -19, -1.2);       // board center sits ~36 up; posts reach the ground
+    // at the board's outer edges and fully BEHIND its face — flush posts were
+    // coplanar with the lettering and z-fought their way on top of it
+    post.position.set(sx * 25.5, -19, -1.8);     // board center sits ~36 up; posts reach the ground
     post.castShadow = true;
     board.add(post);
   }
