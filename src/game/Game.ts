@@ -1724,7 +1724,9 @@ export class Game {
         // on foot you can't walk out onto open water — only dry land, a real deck
         // (bridge/pier/boardwalk, where deckHeightAt rises above the waterline), or a
         // frozen pond (winter ice you can walk clear across)
-        && (!this.index.isWaterAt(x, y) || this.index.deckHeightAt(x, y) > WATER_Y || this.index.frozenWaterAt(x, y));
+        && (!this.index.isWaterAt(x, y) || this.index.deckHeightAt(x, y) > WATER_Y || this.index.frozenWaterAt(x, y))
+        // under a span: low-clearance slab and solid abutments/piers block; ON the deck never blocks
+        && !this.index.underDeckBlockedAt(x, y, this.kidY);
     // sub-step the move and slide along walls so tight streets glide instead of
     // snagging. When a move is wedged on both axes, try to slip free (round the
     // corner / glance off a one-sided jut) rather than stopping dead — keyboard

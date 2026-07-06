@@ -890,21 +890,21 @@ export class Life {
     return candidates.length ? candidates[Math.floor(rng() * candidates.length)] : null;
   }
 
-  private roadSpot(px: number, pz: number, fx: number, fz: number, rng: () => number): { pts: number[]; w: number; total: number; t: number; dir: number } | null {
+  private roadSpot(px: number, pz: number, fx: number, fz: number, rng: () => number): { pts: number[]; w: number; total: number; t: number; dir: number; c: string } | null {
     for (let tries = 0; tries < 12; tries++) {
       const cx = Math.floor((px + (rng() - 0.5) * 4400) / CHUNK);
       const cz = Math.floor((pz + (rng() - 0.5) * 4400) / CHUNK);
       const bucket = this.index.buckets.get(cx + ',' + cz);
       if (!bucket || !bucket.roads.length) continue;
       const r = this.index.world.roads[bucket.roads[Math.floor(rng() * bucket.roads.length)]];
-      if (!['primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'trunk'].includes(r.c)) continue;
+      if (!['motorway', 'motorway_link', 'primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'trunk'].includes(r.c)) continue;
       const total = polyLen(r.p);
       if (total < 260) continue;
       const t = 30 + rng() * (total - 60);
       const spot = alongPolyline(r.p, t);
       if (!spot) continue;
       if (!this.okToSpawn(spot.x, spot.z, px, pz, fx, fz, 1100, 2500)) continue;
-      return { pts: r.p, w: r.w, total, t, dir: rng() < 0.5 ? 1 : -1 };
+      return { pts: r.p, w: r.w, total, t, dir: rng() < 0.5 ? 1 : -1, c: r.c };
     }
     return null;
   }
@@ -997,7 +997,12 @@ export class Life {
           c.total = road.total;
           c.t = road.t;
           c.dir = road.dir;
-          c.cruise = 115 + rng() * 60;
+          // highways drive like highways: cruise scales with the road class
+          c.cruise = road.c === 'motorway' ? 250 + rng() * 50
+            : road.c === 'motorway_link' ? 170 + rng() * 30
+            : road.c === 'trunk' ? 190 + rng() * 40
+            : road.c === 'primary' ? 140 + rng() * 40
+            : 115 + rng() * 60;
           c.speed = c.cruise;
           c.step(0.016, this.groundAt(c.root.position.x, c.root.position.z));
           const at = alongPolyline(c.pts, c.t);

@@ -946,6 +946,32 @@ export class WorldIndex {
     }
     ctx.setLineDash([]);
 
+    // highways read as highways: solid edge lines hugging each shoulder, plus a
+    // dashed white lane divider down one-way carriageways (motorways are divided
+    // dual carriageways — a yellow two-way dash there would be wrong)
+    ctx.strokeStyle = 'rgba(233,233,225,0.85)';
+    for (const r of roads) {
+      const hwy = r.c === 'motorway' || r.c === 'motorway_link' || r.c === 'trunk' || r.c === 'trunk_link';
+      const wide = r.w >= 90 && (r.c === 'primary' || r.c === 'secondary');   // undivided 4-laners
+      if ((!hwy && !wide) || r.w < 12) continue;
+      ctx.lineWidth = 1.7;
+      strokeLine(ctx, offsetLine(r.p, r.w / 2 - 2.2));
+      strokeLine(ctx, offsetLine(r.p, -(r.w / 2 - 2.2)));
+      if (r.c === 'motorway' && r.w >= 18) {
+        ctx.setLineDash([14, 20]);
+        ctx.lineWidth = 2;
+        strokeLine(ctx, r.p);
+        ctx.setLineDash([]);
+      } else if (r.w >= 90) {
+        // 4-lane two-way: a white lane dash midway down each side
+        ctx.setLineDash([14, 20]);
+        ctx.lineWidth = 2;
+        strokeLine(ctx, offsetLine(r.p, r.w / 4));
+        strokeLine(ctx, offsetLine(r.p, -r.w / 4));
+        ctx.setLineDash([]);
+      }
+    }
+
     for (const pi of bucket.paths) this.drawPath(ctx, w.paths[pi]);
 
     this.drawStreetLabels(ctx, roads, ox, oy);
@@ -1521,6 +1547,37 @@ export class WorldIndex {
     return d <= from + 14 ? Math.max(t, d) : t;
   }
 
+  // Walking UNDER a span is fine where there's headroom; this blocks the two
+  // ways it used to break: wading into the low approach wedge (the kid clipped
+  // through the slab) and strolling through solid abutments/pier walls. Only
+  // consulted when the player is BELOW the deck — standing ON it never blocks.
+  static readonly KID_CLEAR = 34;   // kid height + hat
+  underDeckBlockedAt(x: number, y: number, playerY: number): boolean {
+    const d = this.deckHeightAt(x, y);
+    if (d <= 0 || playerY >= d - 2) return false;              // no deck / on the deck
+    const key = Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK);
+    const dc = this.deckCache.get(key);
+    if (!dc) return false;
+    for (const r of dc.bridges) {
+      if (distToPolylineSq(x, y, r.p) > (r.w / 2 + 5) ** 2) continue;
+      const topY = this.bridgeDeckYAt(r.p, x, y);
+      if (playerY >= topY - 2) return false;                   // on THIS deck
+      const clear = (topY - WorldIndex.DECK_T) - this.heightAtPx(x, y);
+      if (clear < WorldIndex.KID_CLEAR) return true;           // slab too low to duck under
+      // solid supports: abutments + pier walls (same dims decor builds them with)
+      const sup = this.bridgeProfile(r.p).supports;
+      const hw = (r.w + 4) / 2;
+      const inRect = (cx: number, cz: number, ux: number, uz: number, ha: number, hc: number) => {
+        const dx = x - cx, dz = y - cz;
+        const along = dx * ux + dz * uz, across = -dx * uz + dz * ux;
+        return Math.abs(along) < ha + 2 && Math.abs(across) < hc + 2;
+      };
+      for (const a of sup.abut) if (inRect(a.x, a.z, a.ux, a.uz, 15, hw * 0.95)) return true;
+      for (const p of sup.piers) if (inRect(p.x, p.z, p.ux, p.uz, 5, hw * 0.62)) return true;
+    }
+    return false;
+  }
+
   // ---------- camera occlusion ----------
   // absolute top of the tallest building covering a point (rough eave + roof
   // allowance, mirroring decor's buildingDims) — lets the chase camera test
@@ -1981,6 +2038,25 @@ function strokeLine(ctx: CanvasRenderingContext2D, pts: number[]) {
   ctx.moveTo(pts[0], pts[1]);
   for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
   ctx.stroke();
+}
+
+// a mitred parallel of a polyline, o px to the left (+) / right (−) of travel —
+// lets highway edge lines hug the shoulder instead of restroking the centerline
+function offsetLine(pts: number[], o: number): number[] {
+  const n = pts.length / 2, out: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const ip = Math.max(0, i - 1), iq = Math.min(n - 1, i + 1);
+    let aX = pts[i * 2] - pts[ip * 2], aZ = pts[i * 2 + 1] - pts[ip * 2 + 1];
+    let bX = pts[iq * 2] - pts[i * 2], bZ = pts[iq * 2 + 1] - pts[i * 2 + 1];
+    const al = Math.hypot(aX, aZ) || 1, bl = Math.hypot(bX, bZ) || 1;
+    aX /= al; aZ /= al; bX /= bl; bZ /= bl;
+    let mX = aX + bX, mZ = aZ + bZ;
+    const ml = Math.hypot(mX, mZ);
+    if (ml < 1e-6) { mX = aX; mZ = aZ; } else { mX /= ml; mZ /= ml; }
+    const sc = o / Math.min(2.5, Math.max(0.45, mX * aX + mZ * aZ));   // 1/cos(half-turn), clamped
+    out.push(pts[i * 2] - mZ * sc, pts[i * 2 + 1] + mX * sc);
+  }
+  return out;
 }
 
 export function walkLine(pts: number[], step: number, cb: (x: number, y: number, nx: number, ny: number) => void) {
