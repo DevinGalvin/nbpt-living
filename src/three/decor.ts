@@ -5,6 +5,7 @@ import { STYLE, SEASON, TREES, pick, hash32, mulberry32 } from '../world/style';
 import { clapboardTex, shingleTex, brickTex, plankTex } from './textures';
 import { WATER_Y } from './water';
 import { gillisCenter } from './gillis';
+import { TOWN } from '@town';
 
 // How full the harbor is — docked-boat slot occupancy (percent) per season.
 // Devin's law: summer = tons of boats everywhere, fall = fewer, spring = fewer
@@ -18,13 +19,13 @@ const MOOR_FILL = SEASON === 'summer' ? 82 : SEASON === 'fall' ? 30 : SEASON ===
 
 export const BRIDGE_DECK_Y = 7;
 export const PIER_DECK_Y = 4;
-// a cleared sledding lane down March's Hill in winter (keep in sync with life.ts
-// MARCH_TOP / MARCH_DIR / MARCH_RUN); trees inside the lane are skipped so the kids
-// have an open run and you can actually see them.
-const SLED_LANE = { x: 2534, z0: 8380, z1: 8650, halfW: 62 };
+// a cleared sledding lane down the town's sledding hill in winter (keep in sync with
+// the life.ts sled-hill constants); trees inside the lane are skipped so the kids
+// have an open run and you can actually see them. null = the town has no lane.
+const SLED_LANE = TOWN.sledLane;
 
 const TEX_SCALE = 16; // 1 texture repeat = 16 world px = 2 m
-const BEACH_X = 29000; // east of here = Plum Island beach zone (shake cottages, umbrellas)
+const BEACH_X = TOWN.beachX; // east of here = barrier-beach zone (shake cottages, umbrellas); Infinity = none
 
 const tmp = new THREE.Color();
 
@@ -306,7 +307,7 @@ function complexGable(shin: Bucket, clap: Bucket, ring: number[], eaveAbs: numbe
       return;
     }
     const ridgeH = Math.max(7, Math.min(22, obb.hw * 0.55));
-    gableRoof(shin, clap, ring, obb, eaveAbs, ridgeH, 4, roofHex, wallHex);
+    gableRoof(shin, clap, ring, obb, eaveAbs, ridgeH, 2.5, roofHex, wallHex);   // tight eave — sits on the foundation
   };
   // Accessory structures (garages/sheds) are single volumes — never split them
   // into two gabled wings (the "my one-car garage looks like two buildings" report).
@@ -1445,6 +1446,87 @@ function lighthouse(plain: Bucket, cx: number, cz: number, g: number) {
   walls(plain, oct(8.5), g + 86, g + 100, '#c0392b', 0);
   flatRoof(plain, oct(9.5), g + 100, '#f0ede2');
   flatRoof(plain, oct(5), g + 104, '#c0392b');
+}
+
+// A small bronze figure on a granite pedestal — the data-driven archetype for
+// tourism=artwork / historic=monument|memorial points (statues, town monuments).
+// Reads as "a statue stands here" at exploration scale; it's a silhouette, not the
+// specific likeness. Works in any town that maps its monuments.
+function landmarkStatue(plain: Bucket, cx: number, cz: number, g: number) {
+  const GRANITE = '#9c968b', GRANITE_D = '#857f74', BRONZE = '#4a4334';
+  plain.box(cx, cz, 4.0, 4.0, g, g + 12, GRANITE);          // pedestal
+  plain.box(cx, cz, 4.6, 4.6, g + 12, g + 14, GRANITE_D);   // cap lip
+  plain.box(cx, cz, 3.0, 3.0, g + 14, g + 16, GRANITE);     // figure block
+  plain.box(cx, cz, 1.4, 1.1, g + 16, g + 24, BRONZE);      // legs + torso
+  plain.box(cx, cz, 2.1, 1.3, g + 24, g + 28, BRONZE);      // shoulders
+  plain.box(cx, cz, 1.0, 1.0, g + 28, g + 31, BRONZE);      // head
+}
+
+// A granite obelisk on a stepped base — the archetype for war/civic memorials
+// (historic=memorial named "…Memorial/War/Veterans"): tapered shaft + pyramidion.
+function landmarkObelisk(plain: Bucket, cx: number, cz: number, g: number) {
+  const S = '#a8a299', SD = '#8d877d';
+  plain.box(cx, cz, 4.6, 4.6, g, g + 5, SD);         // base step
+  plain.box(cx, cz, 3.4, 3.4, g + 5, g + 9, S);      // plinth
+  plain.box(cx, cz, 2.3, 2.3, g + 9, g + 31, S);     // shaft
+  plain.box(cx, cz, 1.8, 1.8, g + 31, g + 48, SD);   // upper shaft
+  plain.box(cx, cz, 1.35, 1.35, g + 48, g + 57, S);
+  cone(plain, cx, g + 57, cz, 1.9, 6.5, new THREE.Color('#8d877d'));   // pyramidion
+}
+
+// A memorial arch / gateway — two piers + an entablature, opening between them
+// (historic=memorial named "…Arch", e.g. Washington Arch). Axis-aligned.
+function landmarkArch(plain: Bucket, cx: number, cz: number, g: number) {
+  const S = '#cfc7b6', SD = '#b3aa97';
+  const span = 7, pierW = 2.5, h = 25;
+  for (const s of [-1, 1]) {
+    plain.box(cx + s * span, cz, pierW + 0.9, 3.1, g, g + 3, SD);        // pier base
+    plain.box(cx + s * span, cz, pierW, 2.5, g + 3, g + h, S);           // pier
+  }
+  plain.box(cx, cz, span + pierW, 2.9, g + h, g + h + 5, S);             // entablature
+  plain.box(cx, cz, span + pierW + 0.7, 3.2, g + h + 5, g + h + 7, SD);  // cornice
+}
+
+// A tiered stone fountain — octagonal basin with water + a central two-bowl jet.
+// For amenity=fountain points (e.g. East India Square Fountain). Town-square staple.
+function landmarkFountain(plain: Bucket, cx: number, cz: number, g: number) {
+  const STONE = '#b9b2a3', STONE_D = '#9b9486', WATER = '#5f88a8';
+  const oct = (r: number): number[] => { const ring: number[] = []; for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; ring.push(cx + Math.cos(a) * r, cz + Math.sin(a) * r); } return ring; };
+  walls(plain, oct(10), g, g + 2.2, STONE_D);          // base foot
+  walls(plain, oct(9), g, g + 5.5, STONE);             // basin rim
+  flatRoof(plain, oct(8), g + 4.2, WATER);             // water surface
+  plain.box(cx, cz, 1.7, 1.7, g + 4, g + 10, STONE);   // central pedestal
+  flatRoof(plain, oct(3.4), g + 10, STONE_D);          // lower bowl
+  plain.box(cx, cz, 1.0, 1.0, g + 10, g + 15, STONE);  // upper stem
+  flatRoof(plain, oct(2.1), g + 15, STONE_D);          // upper bowl
+  plain.box(cx, cz, 0.5, 0.5, g + 15, g + 19, STONE_D); // jet
+}
+
+// A small coastal redoubt — square stone ramparts with raised corner bastions, an
+// earthwork interior, and a flag. For historic=fort points (e.g. Fort Pickering).
+function landmarkFort(plain: Bucket, cx: number, cz: number, g: number) {
+  const STONE = '#8f8a7e', STONE_D = '#777264', EARTH = '#6e6550';
+  const R = 18, H = 10;
+  plain.box(cx, cz - R, R + 2.5, 2.6, g, g + H, STONE);   // ramparts (4 walls)
+  plain.box(cx, cz + R, R + 2.5, 2.6, g, g + H, STONE);
+  plain.box(cx - R, cz, 2.6, R + 2.5, g, g + H, STONE);
+  plain.box(cx + R, cz, 2.6, R + 2.5, g, g + H, STONE);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1])
+    plain.box(cx + sx * R, cz + sz * R, 4.2, 4.2, g, g + H + 3.5, STONE_D);   // corner bastions
+  plain.box(cx, cz, R - 3, R - 3, g, g + 3.5, EARTH);      // earthwork interior
+  plain.box(cx, cz, 0.45, 0.45, g + 3.5, g + 28, STONE_D); // flagpole
+  plain.box(cx + 3.2, cz, 3.2, 0.3, g + 22, g + 26.5, '#b03a3a'); // flag
+}
+
+// A standalone tower (man_made=tower / building=tower): tall stone shaft + pointed
+// spire. Covers bell towers, observation towers, clock towers in any town.
+function buildTower(buckets: Bucket[], b: Building, g: number) {
+  const obb = obbOf(b.p);
+  const w = Math.min(obb.hw, obb.hl);
+  const top = g + Math.max(46, Math.min(100, w * 5));
+  walls(buckets[PLAIN], b.p, g - 4, top, '#b8b0a2');                                   // tall stone shaft
+  flatRoof(buckets[PLAIN], b.p, top, '#938b7e');                                       // cap deck
+  hipRoof(buckets[SHINGLE], obb, top, Math.max(12, w * 1.6), 1.5, '#6b5a48', true);    // pointed spire
 }
 
 // Water towers / storage tanks / silos — octagonal drums, not clapboard houses (the
@@ -2600,7 +2682,671 @@ function buildRidgeCarriage(buckets: Bucket[], b: Building, g: number, index: Wo
   gableEnd(buckets[PLAIN], ox + f.nx * 1.6, oz + f.nz * 1.6, 4, eave + 9, eave + 12, ang, f.nx, f.nz, TRIM);
 }
 
+// ---------- Salem First-Period houses (17th c.): dark weathered wood, steep street-facing
+// cross-gables tiling the facade, a massive central chimney, jettied floor lines, and small-pane
+// leaded casements. Parameterized so one builder serves the Witch House, the House of the Seven
+// Gables (many varied gables), Hathaway, and Narbonne. ----------
+type FirstPeriodOpts = { wall: string; shingle: string; jetty?: string; nGables?: number; vary?: boolean; chimney?: 'central' | 'big' | 'none'; eave?: number };
+function firstPeriod(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: FirstPeriodOpts) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  tmp.set(o.wall); const dr = tmp.r, dg = tmp.g, db = tmp.b;
+  tmp.set(o.shingle); const sr = tmp.r, sg = tmp.g, sb = tmp.b;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;     // +lz world dir = (-sa, ca)
+  const FW = front * (W + 1.4), BW = -front * (W + 1.4);
+  const eaveH = g + (o.eave ?? 26);
+  clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
+  walls(buckets[PLAIN], b.p, g + 11, g + 12.4, o.jetty ?? '#25272a', 0);
+  walls(buckets[PLAIN], b.p, eaveH - 1.3, eaveH, o.jetty ?? '#25272a', 0);
+  if (o.chimney !== 'none') { const cc = pt(0, 0, 0), cw = o.chimney === 'big' ? 5 : 3.7; buckets[BRICK].box(cc[0], cc[2], cw, cw - 0.5, eaveH + 6, eaveH + (o.chimney === 'big' ? 42 : 32), '#6f4636', 1); }
+  const n = o.nGables ?? 3, gw = L / n;
+  const ridges: [number, number][] = [];   // [center, ridgeY] for window placement
+  for (let i = 0; i < n; i++) {
+    const c = -L + gw * (2 * i + 1);
+    const rise = o.vary ? 22 + ((i * 53 + 13) % 5) * 4.5 + (i % 2 ? 5 : 0) : Math.max(26, gw * 1.25);
+    const ridgeY = eaveH + rise; ridges.push([c, ridgeY]);
+    const aF = pt(c, FW, ridgeY), aB = pt(c, BW, ridgeY);
+    const fL = pt(c - gw * 1.02, FW, eaveH), fR = pt(c + gw * 1.02, FW, eaveH), bL = pt(c - gw * 1.02, BW, eaveH), bR = pt(c + gw * 1.02, BW, eaveH);
+    buckets[CLAP].triUV(fL[0], fL[1], fL[2], fR[0], fR[1], fR[2], aF[0], aF[1], aF[2], -sa * front, 0, ca * front, dr, dg, db, 0, 0, 0, 0, 0, 0);
+    buckets[CLAP].triUV(bR[0], bR[1], bR[2], bL[0], bL[1], bL[2], aB[0], aB[1], aB[2], sa * front, 0, -ca * front, dr, dg, db, 0, 0, 0, 0, 0, 0);
+    buckets[SHINGLE].quad(fL[0], fL[1], fL[2], bL[0], bL[1], bL[2], aB[0], aB[1], aB[2], aF[0], aF[1], aF[2], -ca, 0.5, -sa, sr, sg, sb);
+    buckets[SHINGLE].quad(aF[0], aF[1], aF[2], aB[0], aB[1], aB[2], bR[0], bR[1], bR[2], fR[0], fR[1], fR[2], ca, 0.5, sa, sr * 0.9, sg * 0.9, sb * 0.9);
+  }
+  const win = (lx: number, y: number, hw: number, hh: number, side = front) => {
+    const c0 = pt(lx, side * W, y), nx = -sa * side, nz = ca * side, ax = ca, az = sa, pr = 0.4;
+    const C = (sx: number, sy: number): [number, number, number] => [c0[0] + ax * hw * sx + nx * pr, c0[1] + hh * sy, c0[2] + az * hw * sx + nz * pr];
+    const a = C(-1, -1), bb = C(1, -1), cc = C(1, 1), dd = C(-1, 1);
+    tmp.set('#a4b5bb'); buckets[PLAIN].quad(a[0], a[1], a[2], bb[0], bb[1], bb[2], cc[0], cc[1], cc[2], dd[0], dd[1], dd[2], nx, 0, nz, tmp.r, tmp.g, tmp.b);
+    tmp.set('#565f64'); const v0 = C(0, -1), v1 = C(0, 1), h0 = C(-1, 0), h1 = C(1, 0), tw = 0.16;
+    buckets[PLAIN].quad(v0[0] - ax * tw, v0[1], v0[2] - az * tw, v0[0] + ax * tw, v0[1], v0[2] + az * tw, v1[0] + ax * tw, v1[1], v1[2] + az * tw, v1[0] - ax * tw, v1[1], v1[2] - az * tw, nx, 0, nz, tmp.r, tmp.g, tmp.b);
+    buckets[PLAIN].quad(h0[0], h0[1] - 0.16, h0[2], h1[0], h1[1] - 0.16, h1[2], h1[0], h1[1] + 0.16, h1[2], h0[0], h0[1] + 0.16, h0[2], nx, 0, nz, tmp.r, tmp.g, tmp.b);
+  };
+  // windows on BOTH long faces — front-only left the harbor/back side a windowless
+  // black blob (exactly Devin's Seven Gables complaint, and Hathaway had it too)
+  for (const side of [front, -front]) {
+    for (const [c, ridgeY] of ridges) win(c, eaveH + (ridgeY - eaveH) * 0.42, 2.4, 3, side);   // a window up each gable
+    const cols = Math.max(4, n * 2);
+    for (let i = 0; i < cols; i++) { const lx = -L + (2 * L) * (i + 0.5) / cols; win(lx, g + 16, 2.6, 3.5, side); win(lx, g + 5.5, 2.6, 3.5, side); }   // rows of casements
+  }
+  // festive eave lights like the neighbours (heroes skip the generic decor pass)
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
+}
+function witchHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  firstPeriod(buckets, b, g, index, { wall: '#363a3e', shingle: '#2c2e32', nGables: 3, chimney: 'central' });   // charcoal, 3 gables
+}
+function sevenGables(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  // The real mansion's plan is a rambling 14-vertex zigzag, so the firstPeriod OBB
+  // treatment buried it under a floating roof-mountain: mega-gables over the concave
+  // notches, yard pines poking through them, and windows on ONE face only — from
+  // Turner St it read as a windowless black blob (Devin's words). Build on the TRUE
+  // footprint instead: real walls, a shingle cap on the real polygon, a gable rising
+  // from EVERY long wall (spiky from every angle, like the house itself), shared
+  // facades() windows all around (the e48f320 lesson), and the massive chimney.
+  const WALL = '#3d342c', SHINGLE_HEX = '#2f2a24', JETTY = '#221d18';
+  const ring = b.p;
+  const eaveH = g + 26;
+  clad(buckets[CLAP], ring, g - 2, eaveH, WALL);
+  walls(buckets[PLAIN], expandRing(ring, 0.4), g + 11, g + 12.4, JETTY, 0);
+  walls(buckets[PLAIN], expandRing(ring, 0.4), eaveH - 1.3, eaveH, JETTY, 0);
+  facades(buckets[PLAIN], ring, eaveH, 1, hash32(Math.round(ring[0]), Math.round(ring[1])), true, false, false, g);
+  flatRoof(buckets[SHINGLE], expandRing(ring, 1.5), eaveH + 0.5, SHINGLE_HEX);
+  tmp.set(WALL); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  tmp.set(SHINGLE_HEX); const sr2 = tmp.r, sg2 = tmp.g, sb2 = tmp.b;
+  // ring winding decides which side is "inward" for normals + ridge points
+  let area = 0;
+  for (let i = 0; i < ring.length; i += 2) {
+    const j = (i + 2) % ring.length;
+    area += ring[i] * ring[j + 1] - ring[j] * ring[i + 1];
+  }
+  const inw = area > 0 ? 1 : -1;
+  const nv = ring.length / 2;
+  let gi = 0, longest = 0, chX = 0, chZ = 0;
+  for (let i = 0; i < nv; i++) {
+    const ax = ring[i * 2], az = ring[i * 2 + 1];
+    const bx = ring[((i + 1) % nv) * 2], bz = ring[((i + 1) % nv) * 2 + 1];
+    const dx = bx - ax, dz = bz - az;
+    const len = Math.hypot(dx, dz);
+    if (len < 1) continue;
+    const ux = dx / len, uz = dz / len;
+    const nx = -uz * inw, nz = ux * inw;         // inward normal
+    if (len > longest) { longest = len; chX = (ax + bx) / 2 + nx * 14; chZ = (az + bz) / 2 + nz * 14; }
+    if (len < 55) continue;
+    const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+    const hw = Math.min(len * 0.42, 32);
+    const depth = Math.min(hw * 0.9, 22);
+    const rise = 15 + ((gi * 53 + 13) % 5) * 3.2 + (gi % 2 ? 3 : 0);   // varied, like the real cluster
+    gi++;
+    const ridgeY = eaveH + rise;
+    const fx = mx - nx * 0.5, fz = mz - nz * 0.5;  // face sits a hair proud of the wall plane
+    const aX = fx - ux * hw, aZ = fz - uz * hw;
+    const bX = fx + ux * hw, bZ = fz + uz * hw;
+    const rX = mx + nx * depth, rZ = mz + nz * depth;
+    // clapboard face triangle + a small diamond-pane window up the gable
+    buckets[CLAP].triUV(aX, eaveH, aZ, bX, eaveH, bZ, fx, ridgeY, fz, -nx, 0, -nz, wr, wg, wb, 0, 0, 0, 0, 0, 0);
+    tmp.set('#ded8c8');
+    buckets[PLAIN].quad(
+      fx - ux * 3 - nx * 1.1, eaveH + rise * 0.28, fz - uz * 3 - nz * 1.1, fx + ux * 3 - nx * 1.1, eaveH + rise * 0.28, fz + uz * 3 - nz * 1.1,
+      fx + ux * 3 - nx * 1.1, eaveH + rise * 0.28 + 4.6, fz + uz * 3 - nz * 1.1, fx - ux * 3 - nx * 1.1, eaveH + rise * 0.28 + 4.6, fz - uz * 3 - nz * 1.1,
+      -nx, 0, -nz, tmp.r, tmp.g, tmp.b);
+    tmp.set('#8fa3ab');
+    buckets[PLAIN].quad(
+      fx - ux * 2.2 - nx * 1.4, eaveH + rise * 0.28 + 0.6, fz - uz * 2.2 - nz * 1.4, fx + ux * 2.2 - nx * 1.4, eaveH + rise * 0.28 + 0.6, fz + uz * 2.2 - nz * 1.4,
+      fx + ux * 2.2 - nx * 1.4, eaveH + rise * 0.28 + 4, fz + uz * 2.2 - nz * 1.4, fx - ux * 2.2 - nx * 1.4, eaveH + rise * 0.28 + 4, fz - uz * 2.2 - nz * 1.4,
+      -nx, 0, -nz, tmp.r, tmp.g, tmp.b);
+    // two shingle slopes back to the inward ridge point
+    buckets[SHINGLE].triUV(aX, eaveH, aZ, fx, ridgeY, fz, rX, ridgeY, rZ, -ux * 0.7, 0.7, -uz * 0.7, sr2, sg2, sb2, 0, 0, 0, 0, 0, 0);
+    buckets[SHINGLE].triUV(bX, eaveH, bZ, rX, ridgeY, rZ, fx, ridgeY, fz, ux * 0.7, 0.7, uz * 0.7, sr2 * 0.9, sg2 * 0.9, sb2 * 0.9, 0, 0, 0, 0, 0, 0);
+  }
+  // the famous massive chimney, seated inside the longest wing (never floating)
+  buckets[BRICK].box(chX, chZ, 5, 4.5, eaveH - 2, eaveH + 40, '#6f4636', 1);
+  // festive eave lights like the neighbours (heroes skip the generic decor pass)
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
+}
+function hathawayHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  firstPeriod(buckets, b, g, index, { wall: '#3a342b', shingle: '#2a2620', nGables: 2, chimney: 'central', eave: 24 });   // dark weathered brown
+}
+function narbonneHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  firstPeriod(buckets, b, g, index, { wall: '#574f43', shingle: '#3f3a32', jetty: '#3a342c', nGables: 1, chimney: 'central', eave: 22 });   // plain weathered grey-brown
+}
+
+// Salem Custom House (1819) — red Federal brick, low slate hip, a central pedimented portico, and
+// the signature gilded eagle on a white octagonal cupola. (Where Hawthorne worked; the Scarlet Letter.)
+function customHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1, FW = front * (W + 0.6);
+  const eaveH = g + 45;
+  const exr = expandRing(b.p, 0.5);
+  walls(buckets[BRICK], b.p, g - 4, eaveH, '#9c4d3c');                 // red Federal brick
+  walls(buckets[PLAIN], exr, g + 23, g + 24.4, '#efe9dc', 0);          // white belt course (proud, between floors)
+  walls(buckets[PLAIN], exr, eaveH - 2, eaveH, '#efe9dc', 0);          // white cornice
+  flatRoof(buckets[SHINGLE], b.p, eaveH + 1.5, '#4a4e54');             // low slate hip
+  facades(buckets[PLAIN], b.p, eaveH, 2, Math.round(obb.cx * 7 + obb.cz * 3), true, false, false, g);   // framed windows + a door
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
+  tmp.set('#efe9dc'); const tr = tmp.r, tg = tmp.g, tb = tmp.b;
+  const pL = pt(-L * 0.26, FW, eaveH), pR = pt(L * 0.26, FW, eaveH), pPk = pt(0, FW, eaveH + 7);
+  buckets[PLAIN].triUV(pL[0], pL[1], pL[2], pR[0], pR[1], pR[2], pPk[0], pPk[1], pPk[2], -sa * front, 0, ca * front, tr, tg, tb, 0, 0, 0, 0, 0, 0);  // central pediment
+  for (const lx of [-L * 0.24, -L * 0.08, L * 0.08, L * 0.24]) { const c = pt(lx, FW + front * 1.5, 0); buckets[PLAIN].box(c[0], c[2], 0.9, 0.9, g, eaveH, '#efe9dc'); }  // portico columns
+  const cc = pt(0, 0, 0), base = eaveH + 2;
+  buckets[PLAIN].box(cc[0], cc[2], 3, 3, base, base + 4, '#f6f1e6');                        // cupola base (slim)
+  walls(buckets[PLAIN], octRing(cc[0], cc[2], 2.5), base + 4, base + 11, '#f8f4ea', 0);     // octagonal lantern
+  tmp.set('#cdd2cf'); cone(buckets[PLAIN], cc[0], base + 11, cc[2], 2.7, 3.5, tmp.clone()); // dome
+  const ey = base + 15, gx = -sa * front, gz = ca * front;                                  // gilded eagle on top — the signature
+  tmp.set('#eab73c');
+  octoCanopy(buckets[GLOW], cc[0], ey + 1.5, cc[2], 2.4, tmp.clone());                      // body
+  octoCanopy(buckets[GLOW], cc[0] + gx * 2.6, ey + 3, cc[2] + gz * 2.6, 1.3, tmp.clone());  // head, forward
+  for (const s of [-1, 1]) octoCanopy(buckets[GLOW], cc[0] + ca * s * 4.6, ey + 3.4, cc[2] + sa * s * 4.6, 1.9, tmp.clone());  // spread wings
+}
+
+// Salem Witch Museum — the old East Church (Minard Lafever, 1844): a brownstone Gothic
+// Revival church turned museum. Battlemented (crenellated) parapet with pale-stone caps,
+// two octagonal corner towers flanking the street front (four-stage originally, cut down
+// in the 1920s — squat today), a great central pointed-arch window over a pointed entrance,
+// corner buttresses, and tall stained-glass lancets down the nave. The "haunted castle"
+// silhouette tourists know — windows GLOW so it reads as a lit church after dark. The front
+// (towers + entrance + great window) auto-orients to the street via frontSegment.
+function witchMuseum(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  // the NAVE runs along the long axis; the gable end (towers + great window + entrance)
+  // is the short end, auto-pointed at the street by frontSegment — like the real church.
+  const fs = frontSegment(b, index);
+  const longL = obb.hl >= obb.hw;
+  const NAVE = longL ? obb.hl : obb.hw;              // half-length of the nave (front↔back)
+  const ACR = longL ? obb.hw : obb.hl;              // half-width of the gable front (towers spread here)
+  const ndx = longL ? ca : -sa, ndz = longL ? sa : ca;             // +nave (depth) world dir
+  const anx = longL ? -sa : ca, anz = longL ? ca : sa;            // +across world dir
+  const fsign = (fs.nx * ndx + fs.nz * ndz) >= 0 ? 1 : -1;        // which gable end faces the street
+  const dnx = ndx * fsign, dnz = ndz * fsign;                     // outward front normal
+  const P = (ac: number, dp: number, y: number): [number, number, number] => longL ? pt(dp, ac, y) : pt(ac, dp, y);
+  const ridgeAng = longL ? obb.ang + Math.PI / 2 : obb.ang;       // box angle aligned across the nave
+
+  const STONE = '#5d4034', TRIM = '#a89070', ROOF = '#2f2c31';    // brownstone + pale-stone trim + slate
+  const G_BIG = '#b5662f', G_NAVE = '#4a3a63', DOOR = '#241d16';  // amber great window, violet nave glass
+  const eaveH = g + 46, ridgeY = eaveH + Math.min(ACR * 0.7, 36); // tall church walls + a real pitched roof
+  walls(buckets[BRICK], b.p, g - 4, eaveH, STONE);
+  walls(buckets[PLAIN], expandRing(b.p, 0.5), eaveH - 3, eaveH - 1.4, TRIM, 0);   // pale stringcourse below the parapet (proud, no z-fight)
+
+  // ── pitched gable roof, ridge along the nave; slopes to the two long sides ──
+  tmp.set(ROOF); const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  for (const s of [1, -1] as const) {
+    const e0 = P(s * (ACR + 1), -NAVE - 1, eaveH - 1), e1 = P(s * (ACR + 1), NAVE + 1, eaveH - 1);
+    const r0 = P(0, -NAVE - 1, ridgeY), r1 = P(0, NAVE + 1, ridgeY);
+    buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], anx * s * 0.5, 0.85, anz * s * 0.5, rr, rg, rb);
+  }
+  tmp.set(STONE); const sr = tmp.r, sg = tmp.g, sb = tmp.b;       // gable-end triangles, front & back
+  for (const sd of [1, -1] as const) {
+    const a = P(-ACR, sd * NAVE, eaveH), b2 = P(ACR, sd * NAVE, eaveH), pk = P(0, sd * NAVE, ridgeY);
+    buckets[BRICK].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ndx * sd, 0, ndz * sd, sr, sg, sb, 0, 0, 0, 0, 0, 0);
+  }
+
+  // ── battlemented parapet: pale-capped merlons around the eave + the tower tops ──
+  const merlonLine = (p0: [number, number, number], p1: [number, number, number], y0: number, h: number) => {
+    const dx = p1[0] - p0[0], dz = p1[2] - p0[2], len = Math.hypot(dx, dz); if (len < 3) return;
+    const ux = dx / len, uz = dz / len;
+    for (let d = 2; d < len - 1; d += 6) {
+      const x = p0[0] + ux * d, z = p0[2] + uz * d;
+      buckets[BRICK].box(x, z, 1.8, 1.8, y0, y0 + h, STONE, 0);
+      buckets[PLAIN].box(x, z, 2.0, 2.0, y0 + h, y0 + h + 1, TRIM, 0);
+    }
+  };
+  const merlonRing = (ring: number[], y0: number, h: number) => {
+    for (let i = 0; i < ring.length; i += 2) merlonLine([ring[i], 0, ring[i + 1]], [ring[(i + 2) % ring.length], 0, ring[(i + 3) % ring.length]], y0, h);
+  };
+  merlonRing(b.p, eaveH, 5);
+
+  // ── pointed-arch window / door helper: pale stone surround + (glowing) glass, both proud ──
+  const win = (ac: number, dp: number, nx: number, nz: number, tx: number, tz: number, hw: number, y0: number, ySh: number, yAp: number, hex: string, glow: boolean) => {
+    const base = P(ac, dp, 0), cx = base[0], cz = base[2];
+    const Q = (sw: number, y: number, pr: number): [number, number, number] => [cx + tx * sw + nx * pr, y, cz + tz * sw + nz * pr];
+    tmp.set(TRIM); const Tr = tmp.r, Tg = tmp.g, Tb = tmp.b; const ow = hw + 1.2;                 // surround
+    let a = Q(-ow, y0 - 1.3, 0.3), bb = Q(ow, y0 - 1.3, 0.3), cc = Q(ow, ySh + 1, 0.3), dd = Q(-ow, ySh + 1, 0.3), ap = Q(0, yAp + 1.7, 0.3);
+    buckets[PLAIN].quad(a[0], a[1], a[2], bb[0], bb[1], bb[2], cc[0], cc[1], cc[2], dd[0], dd[1], dd[2], nx, 0, nz, Tr, Tg, Tb);
+    buckets[PLAIN].triUV(dd[0], dd[1], dd[2], cc[0], cc[1], cc[2], ap[0], ap[1], ap[2], nx, 0, nz, Tr, Tg, Tb, 0, 0, 0, 0, 0, 0);
+    tmp.set(hex); const Gr = tmp.r, Gg = tmp.g, Gb = tmp.b; const bk = glow ? buckets[GLOW] : buckets[PLAIN];   // glass / door
+    a = Q(-hw, y0, 0.55); bb = Q(hw, y0, 0.55); cc = Q(hw, ySh, 0.55); dd = Q(-hw, ySh, 0.55); ap = Q(0, yAp, 0.55);
+    bk.quad(a[0], a[1], a[2], bb[0], bb[1], bb[2], cc[0], cc[1], cc[2], dd[0], dd[1], dd[2], nx, 0, nz, Gr, Gg, Gb);
+    bk.triUV(dd[0], dd[1], dd[2], cc[0], cc[1], cc[2], ap[0], ap[1], ap[2], nx, 0, nz, Gr, Gg, Gb, 0, 0, 0, 0, 0, 0);
+  };
+
+  // tall stained-glass lancets down both long nave walls (glow at night), a few on the back
+  for (const s of [-1, 1] as const) for (let i = 0; i < 5; i++) win(s * ACR, -NAVE * 0.62 + NAVE * 1.12 * (i / 4), anx * s, anz * s, ndx, ndz, 2.6, g + 13, eaveH - 6, eaveH - 1, G_NAVE, true);
+  for (const ac of [-ACR * 0.46, 0, ACR * 0.46]) win(ac, -fsign * NAVE, -dnx, -dnz, anx, anz, 2.5, g + 13, eaveH - 8, eaveH - 3, G_NAVE, true);
+
+  // ── front gable: raised central bay framing the great window, pointed entrance below ──
+  const bayH = ACR * 0.4;
+  const bc = [P(-bayH, fsign * NAVE, eaveH - 2), P(bayH, fsign * NAVE, eaveH - 2), P(bayH, fsign * NAVE, ridgeY + 3), P(-bayH, fsign * NAVE, ridgeY + 3)];
+  buckets[BRICK].quad(bc[0][0], bc[0][1], bc[0][2], bc[1][0], bc[1][1], bc[1][2], bc[2][0], bc[2][1], bc[2][2], bc[3][0], bc[3][1], bc[3][2], dnx, 0, dnz, sr, sg, sb);
+  merlonLine(P(-bayH, fsign * NAVE, 0), P(bayH, fsign * NAVE, 0), ridgeY + 3, 5);
+  win(0, fsign * NAVE, dnx, dnz, anx, anz, Math.max(9, Math.min(14, ACR * 0.2)), g + 18, eaveH + 4, ridgeY + 4, G_BIG, true);    // great window
+  for (const s of [-1, 1] as const) win(s * ACR * 0.56, fsign * NAVE, dnx, dnz, anx, anz, 2.4, g + 13, g + 30, g + 35, G_NAVE, true);  // flanking lancets
+  win(0, fsign * NAVE, dnx, dnz, anx, anz, 3.8, g, g + 15, g + 21, DOOR, false);                 // pointed entrance
+
+  // ── two octagonal corner towers flanking the front, battlemented + pinnacle (cut down, but proud) ──
+  const trad = Math.max(9, Math.min(16, Math.min(ACR, NAVE) * 0.16)), tTop = ridgeY + 4;
+  for (const s of [-1, 1] as const) {
+    const tc = P(s * ACR * 0.84, fsign * NAVE * 0.9, 0), ring = octRing(tc[0], tc[2], trad);
+    walls(buckets[BRICK], ring, g - 4, tTop, STONE, 0);
+    flatRoof(buckets[SHINGLE], ring, tTop + 0.3, ROOF);
+    merlonRing(ring, tTop, 5);
+    buckets[BRICK].box(tc[0], tc[2], 2, 2, tTop, tTop + 11, STONE, 0);                            // central pinnacle
+    buckets[PLAIN].box(tc[0], tc[2], 2.4, 2.4, tTop + 11, tTop + 12.4, TRIM, 0);
+    win(s * ACR * 0.84, fsign * (NAVE * 0.9 + trad * 0.95), dnx, dnz, anx, anz, 1.7, eaveH - 14, eaveH - 2, eaveH + 3, G_NAVE, true);  // lancet up each tower face
+  }
+
+  // ── buttresses between the nave windows + at the back corners, with pale weathering caps ──
+  const buttress = (ac: number, dp: number, nx: number, nz: number) => {
+    const c = P(ac, dp, 0), ox = c[0] + nx * 1.2, oz = c[2] + nz * 1.2;
+    rotBox(buckets[BRICK], ox, oz, 2.2, 2.6, g - 4, eaveH + 2, ridgeAng, STONE);
+    rotBox(buckets[PLAIN], ox, oz, 2.5, 2.9, eaveH + 2, eaveH + 3.2, ridgeAng, TRIM);
+    buckets[BRICK].box(ox, oz, 1.4, 1.4, eaveH + 3.2, eaveH + 7, STONE, 0);
+  };
+  for (const s of [-1, 1] as const) for (const f of [-0.76, -0.34, 0.06, 0.46]) buttress(s * ACR, NAVE * f, anx * s, anz * s);
+  for (const s of [-1, 1] as const) buttress(s * ACR * 0.96, -fsign * NAVE, -dnx, -dnz);
+
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);          // festive eave lights like the neighbours
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
+}
+
+// ---------- Georgian & Federal landmark mansions ----------
+// A parameterized GAMBREL-roofed builder for the Salem mansions that share that barn-roof
+// silhouette: Derby House (brick), Crowninshield-Bentley (mustard clapboard), and the Ropes
+// Mansion (dove-grey clapboard). Built in OBB-local pt-space like firstPeriod/customHouse
+// (z passed straight through). All decor materials are DoubleSide so winding is free — the
+// quad normals are for sun shading only. The ridge runs parallel to the street facade.
+type GambrelOpts = {
+  wall: string; material: 'brick' | 'clap'; roof: string; trim: string;
+  storeys?: number; dormers?: number; chimney?: 'ends4' | 'ridge2';
+  entrance?: 'pediment' | 'ionic'; shutter?: string; quoins?: boolean;
+};
+// a footprint ring nudged outward from its centroid, so trim/cornice/stringcourse bands sit
+// slightly PROUD of the wall instead of coplanar with it — kills the z-fighting flicker.
+function expandRing(ring: number[], out: number): number[] {
+  let cx = 0, cz = 0; const n = ring.length / 2;
+  for (let i = 0; i < ring.length; i += 2) { cx += ring[i]; cz += ring[i + 1]; }
+  cx /= n; cz /= n;
+  const e: number[] = [];
+  for (let i = 0; i < ring.length; i += 2) { const dx = ring[i] - cx, dz = ring[i + 1] - cz, d = Math.hypot(dx, dz) || 1; e.push(ring[i] + dx / d * out, ring[i + 1] + dz / d * out); }
+  return e;
+}
+function gambrelHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: GambrelOpts) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const fs = frontSegment(b, index);
+  const pW = fs.nx * (-sa) + fs.nz * ca, pL = fs.nx * ca + fs.nz * sa;   // street normal · each OBB axis
+  const ridgeL = Math.abs(pW) >= Math.abs(pL);          // ridge ∥ facade: slopes face the street axis
+  const A = ridgeL ? obb.hl : obb.hw, B = ridgeL ? obb.hw : obb.hl;
+  const fsign = (ridgeL ? pW : pL) >= 0 ? 1 : -1;       // which front↔back side faces the street
+  const P = (al: number, ac: number, y: number): [number, number, number] => ridgeL ? pt(al, ac, y) : pt(ac, al, y);
+  const axx = ridgeL ? -sa : ca, axz = ridgeL ? ca : sa;          // world dir of +across (front)
+  const dAng = ridgeL ? obb.ang : obb.ang + Math.PI / 2;          // box angle aligned to the ridge
+  const storeys = o.storeys ?? 2.5, eaveH = g + (storeys >= 2.5 ? 44 : 36);
+  const ov = 1.6, Ar = A + ov, Br = B + ov, kn = 0.64, r1 = B * 0.38, r2 = B * 0.14, yK = eaveH + r1, yR = yK + r2;
+  const WALLBK = o.material === 'brick' ? BRICK : CLAP;
+  tmp.set(o.trim); const tcr = tmp.r, tcg = tmp.g, tcb = tmp.b;
+
+  if (o.material === 'brick') walls(buckets[BRICK], b.p, g - 4, eaveH, o.wall);
+  else clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
+  walls(buckets[PLAIN], expandRing(b.p, 0.5), eaveH - 1.3, eaveH + 0.4, o.trim, 0);   // eave cornice band (proud, no z-fight)
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);   // festive eave lights like the neighbours (glow at night)
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
+
+  tmp.set(o.roof); const rr = tmp.r, rg = tmp.g, rb = tmp.b;                       // gambrel: steep lower + shallow upper, outward normals
+  for (const s of [1, -1] as const) {
+    const e0 = P(-Ar, s * Br, eaveH), e1 = P(Ar, s * Br, eaveH), k0 = P(-Ar, s * kn * Br, yK), k1 = P(Ar, s * kn * Br, yK), u0 = P(-Ar, 0, yR), u1 = P(Ar, 0, yR);
+    const loA = s * r1, loY = Br * (1 - kn), loN = Math.hypot(loA, loY), upA = s * r2, upY = kn * Br, upN = Math.hypot(upA, upY);
+    const shLo = 0.82 + 0.18 * (loY / loN), shUp = 0.82 + 0.18 * (upY / upN);   // PLAIN bucket (untextured) so the slate colour reads true; bake a little slope shade
+    buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], k1[0], k1[1], k1[2], k0[0], k0[1], k0[2], axx * loA / loN, loY / loN, axz * loA / loN, rr * shLo, rg * shLo, rb * shLo);
+    buckets[PLAIN].quad(k0[0], k0[1], k0[2], k1[0], k1[1], k1[2], u1[0], u1[1], u1[2], u0[0], u0[1], u0[2], axx * upA / upN, upY / upN, axz * upA / upN, rr * shUp, rg * shUp, rb * shUp);
+  }
+  tmp.set(o.wall); const wr = tmp.r, wg = tmp.g, wb = tmp.b;                       // gambrel-profile gable-end walls at ±A
+  for (const sx of [1, -1] as const) {
+    const nx = (ridgeL ? ca : -sa) * sx, nz = (ridgeL ? sa : ca) * sx;
+    const p = [P(sx * A, B, eaveH), P(sx * A, kn * B, yK), P(sx * A, 0, yR), P(sx * A, -kn * B, yK), P(sx * A, -B, eaveH)];
+    for (const [i, j] of [[1, 2], [2, 3], [3, 4]] as const)
+      buckets[WALLBK].triUV(p[0][0], p[0][1], p[0][2], p[i][0], p[i][1], p[i][2], p[j][0], p[j][1], p[j][2], nx, 0, nz, wr, wg, wb, 0, 0, 0, 0, 0, 0);
+  }
+
+  const chim = (al: number, ac: number, top: number) => { const c = P(al, ac, 0); buckets[BRICK].box(c[0], c[2], 1.9, 1.9, eaveH + 3, top, '#7a4a39', 1); };
+  if (o.chimney === 'ends4') { for (const sx of [1, -1] as const) for (const sz of [1, -1] as const) chim(sx * A * 0.82, sz * B * 0.4, yR + 4); }
+  else for (const sx of [1, -1] as const) chim(sx * A * 0.34, 0, yR + 7);
+
+  const nDorm = o.dormers ?? 3;                                                    // pedimented dormers seated on the front lower slope
+  const dt = 0.32;                                                                 // fraction up the lower slope
+  for (let i = 0; i < nDorm; i++) {
+    const al = nDorm === 1 ? 0 : -A * 0.62 + (A * 1.24) * (i / (nDorm - 1));
+    const baseY = eaveH + r1 * dt, ac = fsign * Br * (1 - dt * (1 - kn)), topY = baseY + 8, c = P(al, ac, 0), gc = P(al, ac + fsign * 2.4, 0);
+    rotBox(buckets[WALLBK], c[0], c[2], 3, 2.4, baseY, topY, dAng, o.trim);
+    rotBox(buckets[PLAIN], gc[0], gc[2], 1.6, 0.35, baseY + 1.4, topY - 1, dAng, '#26333c');
+    const pl = P(al - 3.2, ac + fsign * 0.2, topY), pr = P(al + 3.2, ac + fsign * 0.2, topY), pk = P(al, ac + fsign * 0.2, topY + 4);
+    buckets[WALLBK].triUV(pl[0], pl[1], pl[2], pr[0], pr[1], pr[2], pk[0], pk[1], pk[2], axx * fsign, 0, axz * fsign, tcr, tcg, tcb, 0, 0, 0, 0, 0, 0);
+    rotBox(buckets[PLAIN], c[0], c[2], 3.5, 3, topY, topY + 1, dAng, o.roof);
+  }
+
+  // windows + doors via the shared facade renderer: framed glass, lit-at-night panes, real doors
+  facades(buckets[PLAIN], b.p, eaveH, 2, Math.round(obb.cx * 13 + obb.cz * 7), true, !!o.shutter, false, g);
+
+  const ac0 = fsign * B;                                                           // grand entrance frame (the door itself is drawn by facades)
+  if (o.entrance === 'ionic') {
+    for (const sx of [-1, 1]) { const cc = P(sx * 3.4, ac0 + fsign * 3.6, 0); buckets[PLAIN].box(cc[0], cc[2], 0.7, 0.7, g, g + 12, o.trim, 0); }
+    const rc = P(0, ac0 + fsign * 3.4, 0); rotBox(buckets[PLAIN], rc[0], rc[2], 4.6, 4, g + 12, g + 13.6, dAng, o.trim);
+  } else {
+    for (const sx of [-1, 1]) { const pc = P(sx * 2.9, ac0 + fsign * 0.4, 0); rotBox(buckets[PLAIN], pc[0], pc[2], 0.5, 0.5, g, g + 10.5, dAng, o.trim); }
+    const pl = P(-3.4, ac0 + fsign * 0.5, g + 10.5), pr = P(3.4, ac0 + fsign * 0.5, g + 10.5), pk = P(0, ac0 + fsign * 0.5, g + 14);
+    buckets[PLAIN].triUV(pl[0], pl[1], pl[2], pr[0], pr[1], pr[2], pk[0], pk[1], pk[2], axx * fsign, 0, axz * fsign, tcr, tcg, tcb, 0, 0, 0, 0, 0, 0);
+  }
+
+  if (o.quoins) for (const sx of [1, -1] as const) for (const sz of [1, -1] as const) {
+    const c = P(sx * (A - 0.5), sz * (B - 0.5), 0);
+    for (let y = g + 1; y < eaveH - 2; y += 3.4) buckets[PLAIN].box(c[0], c[2], 1.1, 1.1, y, y + 1.9, o.trim, 0);
+  }
+}
+function ropesMansion(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  gambrelHouse(buckets, b, g, index, { wall: '#e4e2da', material: 'clap', roof: '#b6bbc3', trim: '#fbfaf7', storeys: 2.5, dormers: 3, chimney: 'ridge2', entrance: 'ionic', quoins: true, shutter: '#23262a' });   // white Georgian w/ black shutters + light slate roof — the Hocus Pocus house (sources: stark-white facade, NOT grey/red)
+}
+function derbyHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  gambrelHouse(buckets, b, g, index, { wall: '#9c4d3c', material: 'brick', roof: '#aeb3bb', trim: '#efe9dc', storeys: 2.5, dormers: 3, chimney: 'ends4', entrance: 'pediment' });   // 1762 red brick, 4 end-wall chimneys
+}
+function crowninshieldBentley(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  gambrelHouse(buckets, b, g, index, { wall: '#c69a3f', material: 'clap', roof: '#b3a892', trim: '#f3efe3', storeys: 2.5, dormers: 3, chimney: 'ridge2', entrance: 'pediment' });   // mustard-gold clapboard, weathered-shingle roof
+}
+
+// Gardner-Pingree House (McIntire, 1804) — three-storey red Federal brick banded by white marble
+// stringcourses, a low hip rimmed by a white roof balustrade, and the signature semicircular domed
+// Corinthian entrance portico. Shortened third-floor windows, black shutters.
+function gardnerPingree(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1, FW = front * (W + 0.5);
+  const WHITE = '#efe9dc', eaveH = g + 64;
+  const exr = expandRing(b.p, 0.5);                                     // proud bands so the marble trim doesn't z-fight the brick
+  walls(buckets[BRICK], b.p, g - 4, eaveH, '#9c4d3c');                  // red Flemish-bond brick
+  walls(buckets[PLAIN], exr, g + 1, g + 2.4, WHITE, 0);                 // marble water table
+  for (const y of [g + 22, g + 43]) walls(buckets[PLAIN], exr, y, y + 1.6, WHITE, 0);   // marble stringcourses between the 3 floors
+  walls(buckets[PLAIN], exr, eaveH - 2.2, eaveH, WHITE, 0);             // cornice band
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);   // festive eave lights (glow at night)
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
+  flatRoof(buckets[SHINGLE], b.p, eaveH + 1, '#4a4e54');                // low hip, reads flat
+  for (let i = 0; i < b.p.length; i += 2) {                             // white roof balustrade: posts + rail
+    const ax = b.p[i], az = b.p[i + 1], bx = b.p[(i + 2) % b.p.length], bz = b.p[(i + 3) % b.p.length];
+    const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz); if (len < 2) continue;
+    for (let d = 1.5; d < len; d += 3) buckets[PLAIN].box(ax + (dx / len) * d, az + (dz / len) * d, 0.5, 0.5, eaveH + 1, eaveH + 5, WHITE, 0);
+    rotBox(buckets[PLAIN], (ax + bx) / 2, (az + bz) / 2, len / 2, 0.5, eaveH + 5, eaveH + 5.8, Math.atan2(dz, dx), WHITE);
+  }
+  for (const sx of [1, -1] as const) { const c = pt(sx * L * 0.4, 0, 0); buckets[BRICK].box(c[0], c[2], 1.8, 1.8, eaveH, eaveH + 6, '#7a4a39', 1); }   // 2 low interior chimneys
+  // 3 floors of framed glass + a door, via the shared facade renderer (black shutters, lit-at-night)
+  facades(buckets[PLAIN], b.p, eaveH, 3, Math.round(obb.cx * 9 + obb.cz * 5), true, true, false, g);
+  for (const t of [-0.95, -0.32, 0.32, 0.95]) { const c = pt(t * 5, FW + front * 4.5 * (1 - t * t * 0.5), 0); buckets[PLAIN].box(c[0], c[2], 0.7, 0.7, g, g + 13, WHITE, 0); }   // curved colonnade (frames the facade door)
+  const dc = pt(0, FW + front * 3, 0); tmp.set('#dcd6c8'); cone(buckets[PLAIN], dc[0], g + 13, dc[2], 5.4, 3, tmp.clone());   // shallow dome
+}
+
+// Yin Yu Tang (荫余堂) — the Qing-dynasty Huizhou house at the PEM. Tall plain whitewashed walls,
+// a low dark inward-pitching tile roof barely seen from outside, and the signature stepped
+// "horse-head" firewalls (马头墙) rising over the gable ends, each step capped in dark tile.
+function yinYuTang(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const WHITE = '#e9e6dc', GREY = '#cbc7bc', TILE = '#333436';
+  const eaveH = g + 34;
+  walls(buckets[PLAIN], b.p, g - 3, eaveH, WHITE, 0);                   // tall plain lime-plaster walls
+  walls(buckets[PLAIN], b.p, g - 3, g + 6, GREY, 0);                    // grimier weathered base
+  flatRoof(buckets[SHINGLE], b.p, eaveH + 2, TILE);                     // low dark inward-pitch tile roof
+  const seg = [[0, 0.34, 25], [0.34, 0.67, 17], [0.67, 1, 9]] as const; // stepped horse-head gable on each end
+  for (const sx of [1, -1] as const) for (const sz of [1, -1] as const) for (const [z0, z1, h] of seg) {
+    const mid = sz * W * (z0 + z1) / 2, half = W * (z1 - z0) / 2, c = pt(sx * L, mid, 0);
+    rotBox(buckets[PLAIN], c[0], c[2], 0.7, half, eaveH, eaveH + h, obb.ang, WHITE);
+    rotBox(buckets[SHINGLE], c[0], c[2], 1.2, half + 0.5, eaveH + h, eaveH + h + 1.3, obb.ang, TILE);   // dark tile cap
+  }
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1, dh = pt(0, front * (W + 0.3), 0);   // recessed door + carved hood (门罩)
+  rotBox(buckets[PLAIN], dh[0], dh[2], 2.4, 0.3, g, g + 11, obb.ang, '#3b342c');
+  rotBox(buckets[BRICK], dh[0], dh[2], 3.4, 0.5, g + 11, g + 12.4, obb.ang, '#6b6258');
+  const hc = pt(0, front * (W + 1.2), 0); rotBox(buckets[SHINGLE], hc[0], hc[2], 3.8, 1.4, g + 12.4, g + 13.4, obb.ang, TILE);
+}
+
+// ---------- Federal mansions & blocks (low hip / gable, c. 1800–1925) ----------
+// Shallow Federal hip roof in the PLAIN bucket (so the slate colour reads true), four trapezoid
+// slopes from the eave rectangle up to a small top deck.
+function lowHip(buckets: Bucket[], pt: (lx: number, lz: number, y: number) => [number, number, number], L: number, W: number, eaveH: number, ov: number, rise: number, roofHex: string) {
+  const Lr = L + ov, Wr = W + ov, tL = L * 0.4, tW = W * 0.4, topY = eaveH + rise;
+  tmp.set(roofHex); const r = tmp.r, gg = tmp.g, bb = tmp.b;
+  const E = [pt(-Lr, -Wr, eaveH), pt(Lr, -Wr, eaveH), pt(Lr, Wr, eaveH), pt(-Lr, Wr, eaveH)];
+  const T = [pt(-tL, -tW, topY), pt(tL, -tW, topY), pt(tL, tW, topY), pt(-tL, tW, topY)];
+  const sh = [0.9, 1.0, 0.86, 0.96];
+  for (let i = 0; i < 4; i++) { const j = (i + 1) % 4, s = sh[i]; buckets[PLAIN].quad(E[i][0], E[i][1], E[i][2], E[j][0], E[j][1], E[j][2], T[j][0], T[j][1], T[j][2], T[i][0], T[i][1], T[i][2], 0, 0.7, 0, r * s, gg * s, bb * s); }
+  buckets[PLAIN].quad(T[0][0], T[0][1], T[0][2], T[1][0], T[1][1], T[1][2], T[2][0], T[2][1], T[2][2], T[3][0], T[3][1], T[3][2], 0, 1, 0, r, gg, bb);
+}
+// a railing around the footprint at height y — plain Federal balustrade, or a denser "fret" lattice
+function roofRail(buckets: Bucket[], ring: number[], y: number, h: number, col: string, fret: boolean) {
+  for (let i = 0; i < ring.length; i += 2) {
+    const aX = ring[i], aZ = ring[i + 1], bX = ring[(i + 2) % ring.length], bZ = ring[(i + 3) % ring.length];
+    const dx = bX - aX, dz = bZ - aZ, len = Math.hypot(dx, dz); if (len < 2) continue;
+    const ang = Math.atan2(dz, dx);
+    for (let d = 1; d < len; d += fret ? 1.7 : 3) buckets[PLAIN].box(aX + dx / len * d, aZ + dz / len * d, 0.45, 0.45, y, y + h, col, 0);
+    rotBox(buckets[PLAIN], (aX + bX) / 2, (aZ + bZ) / 2, len / 2, 0.45, y + h, y + h + 0.8, ang, col);
+    if (fret) rotBox(buckets[PLAIN], (aX + bX) / 2, (aZ + bZ) / 2, len / 2, 0.4, y + h * 0.5, y + h * 0.5 + 0.5, ang, col);
+  }
+}
+type FederalOpts = {
+  wall: string; material: 'brick' | 'clap'; trim: string; roof: string;
+  storeys?: number; roofKind?: 'hip' | 'gable' | 'flat'; balustrade?: 'plain' | 'fret';
+  stringcourses?: boolean; chimney?: 'ends2' | 'interior4' | 'none'; bays?: number;
+  entrance?: 'pediment' | 'fan' | 'portico' | 'colossal' | 'canopy'; palladian?: 'single' | 'row';
+  cupola?: boolean; flag?: boolean; shutter?: string;
+};
+function federalHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: FederalOpts) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1, FW = front * (W + 0.4);
+  const nx = -sa * front, nz = ca * front;
+  const storeys = o.storeys ?? 2.5, floors = Math.max(2, Math.round(storeys)), eaveH = g + floors * 19 + 7;   // size walls to the 19px window rhythm
+  const WALLBK = o.material === 'brick' ? BRICK : CLAP;
+  tmp.set(o.trim); const tr = tmp.r, tg = tmp.g, tb = tmp.b;
+
+  if (o.material === 'brick') walls(buckets[BRICK], b.p, g - 4, eaveH, o.wall);
+  else clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
+  const exr = expandRing(b.p, 0.5);                                                         // proud trim bands (no z-fight)
+  walls(buckets[PLAIN], exr, g + 0.5, g + 1.8, o.trim, 0);                                  // water table
+  if (o.stringcourses) { const per = (eaveH - g) / floors; for (let i = 1; i < floors; i++) walls(buckets[PLAIN], exr, g + per * i, g + per * i + 1.2, o.trim, 0); }
+  walls(buckets[PLAIN], exr, eaveH - 1.6, eaveH + 0.3, o.trim, 0);                          // cornice
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);   // festive eave lights (glow at night, like the neighbours)
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
+
+  const ov = 1.3, rk = o.roofKind ?? 'hip', hipRise = storeys >= 3 ? 12 : 9;
+  let roofTopY = eaveH + 2;
+  if (rk === 'flat') flatRoof(buckets[PLAIN], b.p, eaveH + 1.5, o.roof);
+  else if (rk === 'gable') {
+    const ridgeY = eaveH + Math.min(W * 0.7, 22), Lr = L + ov, Wr = W + ov; roofTopY = ridgeY;
+    tmp.set(o.roof); const r = tmp.r, gg = tmp.g, bb = tmp.b;
+    for (const s of [1, -1] as const) { const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY); buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, r * 0.93, gg * 0.93, bb * 0.93); }
+    tmp.set(o.wall); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+    for (const sx of [1, -1] as const) { const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY); buckets[WALLBK].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, wr, wg, wb, 0, 0, 0, 0, 0, 0); }
+  } else { lowHip(buckets, pt, L, W, eaveH, ov, hipRise, o.roof); roofTopY = eaveH + hipRise; }
+
+  if (o.balustrade) roofRail(buckets, b.p, eaveH + (rk === 'flat' ? 1.6 : 0.3), 4.2, o.trim, o.balustrade === 'fret');
+
+  const chim = (lx: number, lz: number) => { const c = pt(lx, lz, 0); buckets[BRICK].box(c[0], c[2], 1.8, 1.8, eaveH, roofTopY + 9, '#7a4a39', 1); };
+  if (o.chimney === 'ends2') for (const s of [1, -1] as const) chim(s * L * 0.82, 0);
+  else if (o.chimney === 'interior4') for (const sx of [1, -1] as const) for (const sz of [1, -1] as const) chim(sx * L * 0.5, sz * W * 0.38);
+
+  // windows + doors via the shared facade renderer (framed glass, lit-at-night panes, real doors)
+  facades(buckets[PLAIN], b.p, eaveH, floors, Math.round(obb.cx * 11 + obb.cz * 3), true, !!o.shutter, false, g);
+
+  // grand entrance frame on the front (the door itself is drawn by facades)
+  const ent = o.entrance ?? 'fan';
+  if (ent === 'colossal') {                                       // Andrew Safford — 4 giant columns ground→roof
+    const ph = eaveH - 2;
+    for (const t of [-1, -0.34, 0.34, 1]) { const c = pt(t * L * 0.34, FW + front * 2.6, 0); buckets[PLAIN].box(c[0], c[2], 1.2, 1.2, g, ph, o.trim, 0); }
+    const ec = pt(0, FW + front * 2.6, 0); rotBox(buckets[PLAIN], ec[0], ec[2], L * 0.4, 2.6, ph, ph + 3.6, obb.ang, o.trim);
+    const pl = pt(-L * 0.38, FW + front * 2.8, ph + 3.6), pr = pt(L * 0.38, FW + front * 2.8, ph + 3.6), pk = pt(0, FW + front * 2.8, ph + 9);
+    buckets[PLAIN].triUV(pl[0], pl[1], pl[2], pr[0], pr[1], pr[2], pk[0], pk[1], pk[2], nx, 0, nz, tr, tg, tb, 0, 0, 0, 0, 0, 0);
+  } else if (ent === 'portico') {
+    for (const s of [-1, 1]) { const c = pt(s * 3.2, FW + front * 3.2, 0); buckets[PLAIN].box(c[0], c[2], 0.8, 0.8, g, g + 12, o.trim, 0); }
+    const rc = pt(0, FW + front * 3, 0); rotBox(buckets[PLAIN], rc[0], rc[2], 4.4, 3.4, g + 12, g + 13.6, obb.ang, o.trim);
+    const pl = pt(-4.6, FW + front * 3.2, g + 13.6), pr = pt(4.6, FW + front * 3.2, g + 13.6), pk = pt(0, FW + front * 3.2, g + 17);
+    buckets[PLAIN].triUV(pl[0], pl[1], pl[2], pr[0], pr[1], pr[2], pk[0], pk[1], pk[2], nx, 0, nz, tr, tg, tb, 0, 0, 0, 0, 0, 0);
+  } else if (ent === 'canopy') {
+    const rc = pt(0, FW + front * 2.4, 0); rotBox(buckets[PLAIN], rc[0], rc[2], 4, 2.6, g + 10, g + 11.4, obb.ang, '#2c3550');   // awning
+  } else if (ent === 'pediment') {
+    for (const s of [-1, 1]) { const c = pt(s * 2.9, FW + front * 0.4, 0); rotBox(buckets[PLAIN], c[0], c[2], 0.5, 0.5, g, g + 10.5, obb.ang, o.trim); }
+    const pl = pt(-3.4, FW + front * 0.5, g + 10.5), pr = pt(3.4, FW + front * 0.5, g + 10.5), pk = pt(0, FW + front * 0.5, g + 14);
+    buckets[PLAIN].triUV(pl[0], pl[1], pl[2], pr[0], pr[1], pr[2], pk[0], pk[1], pk[2], nx, 0, nz, tr, tg, tb, 0, 0, 0, 0, 0, 0);
+  } else {                                                        // 'fan' — pilasters + semicircular fanlight
+    for (const s of [-1, 1]) { const c = pt(s * 2.7, FW + front * 0.4, 0); rotBox(buckets[PLAIN], c[0], c[2], 0.4, 0.4, g, g + 10.5, obb.ang, o.trim); }
+    tmp.set('#d7d2c4'); const fr = tmp.r, fg = tmp.g, fb = tmp.b; const R = 2.5, ctr = pt(0, FW + front * 0.4, g + 10.6);
+    for (let i = 0; i < 6; i++) { const a0 = Math.PI * i / 6, a1 = Math.PI * (i + 1) / 6, p0 = pt(Math.cos(a0) * R, FW + front * 0.4, g + 10.6 + Math.sin(a0) * R), p1 = pt(Math.cos(a1) * R, FW + front * 0.4, g + 10.6 + Math.sin(a1) * R); buckets[PLAIN].triUV(ctr[0], ctr[1], ctr[2], p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], nx, 0, nz, fr, fg, fb, 0, 0, 0, 0, 0, 0); }
+  }
+
+  if (o.cupola) { const cc = pt(0, 0, 0), base = roofTopY + 1; buckets[PLAIN].box(cc[0], cc[2], 3, 3, base, base + 3, o.trim, 0); walls(buckets[PLAIN], octRing(cc[0], cc[2], 2.4), base + 3, base + 9, o.trim, 0); tmp.set('#cdd2cf'); cone(buckets[PLAIN], cc[0], base + 9, cc[2], 2.6, 3, tmp.clone()); }
+  if (o.flag) { const fc = pt(L * 0.5, 0, 0); buckets[PLAIN].box(fc[0], fc[2], 0.4, 0.4, roofTopY, roofTopY + 16, '#d8d2c4', 0); buckets[GLOW].box(fc[0] + 3, fc[2], 3, 0.2, roofTopY + 11, roofTopY + 15, '#b03030', 0); }
+}
+
+// Gothic Revival GRANITE churches (First Church, St. Peter's): a grey-stone gable nave with tall
+// pointed lancet windows and a square crenellated front-centre tower (NO spire) — a little castle.
+function salemChurch(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: { stone: string; quatrefoil?: boolean }) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const eaveH = g + 30;
+  walls(buckets[BRICK], b.p, g - 3, eaveH, o.stone);                                    // granite ashlar
+  const ridgeY = eaveH + Math.min(W * 0.85, 19), Lr = L + 1, Wr = W + 1;
+  tmp.set('#34343a'); const rr = tmp.r, rg = tmp.g, rb = tmp.b;                          // dark slate roof
+  for (const s of [1, -1] as const) { const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY); buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr, rg, rb); }
+  tmp.set(o.stone); const sr = tmp.r, sg = tmp.g, sb = tmp.b;
+  for (const sx of [1, -1] as const) { const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY); buckets[BRICK].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, sr, sg, sb, 0, 0, 0, 0, 0, 0); }
+  // tall pointed lancet windows down the long sides (GLOW stained glass)
+  tmp.set('#3c4a6e'); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  const lancet = (lx: number, sLz: number) => {
+    const lzf = sLz * (W + 0.2), nx = -sa * sLz, nz = ca * sLz, C = (sx: number, y: number): [number, number, number] => pt(lx + sx * 1.3, lzf, y);
+    const a = C(-1, g + 8), bb = C(1, g + 8), cc = C(1, g + 22), dd = C(-1, g + 22), apex = pt(lx, lzf, g + 26);
+    buckets[GLOW].quad(a[0], a[1], a[2], bb[0], bb[1], bb[2], cc[0], cc[1], cc[2], dd[0], dd[1], dd[2], nx, 0, nz, wr, wg, wb);
+    buckets[GLOW].triUV(dd[0], dd[1], dd[2], cc[0], cc[1], cc[2], apex[0], apex[1], apex[2], nx, 0, nz, wr, wg, wb, 0, 0, 0, 0, 0, 0);
+  };
+  for (const s of [1, -1] as const) for (let i = 0; i < 4; i++) lancet(-L * 0.6 + L * 1.2 * (i / 3), s);
+  // square crenellated front-centre tower
+  const tw = Math.min(L * 0.4, 12), ring: number[] = [], TP = (lx: number, lz: number) => { const p = pt(lx, lz, 0); ring.push(p[0], p[2]); };
+  TP(-tw, front * (W - tw * 0.3)); TP(tw, front * (W - tw * 0.3)); TP(tw, front * (W + tw * 1.6)); TP(-tw, front * (W + tw * 1.6));
+  const towerH = ridgeY + 13;
+  walls(buckets[BRICK], ring, g - 3, towerH, o.stone, 0);
+  flatRoof(buckets[SHINGLE], ring, towerH + 0.4, '#2b2b30');
+  for (let i = 0; i < ring.length; i += 2) {                                            // crenellations + corner pinnacles
+    const aX = ring[i], aZ = ring[i + 1], bX = ring[(i + 2) % ring.length], bZ = ring[(i + 3) % ring.length], dx = bX - aX, dz = bZ - aZ, len = Math.hypot(dx, dz); if (len < 2) continue;
+    for (let d = 1.6; d < len - 1; d += 4) buckets[BRICK].box(aX + dx / len * d, aZ + dz / len * d, 1.2, 1.2, towerH, towerH + 3.5, o.stone, 0);
+    buckets[BRICK].box(aX, aZ, 1.5, 1.5, towerH, towerH + 5.5, o.stone, 0);
+  }
+  // tower front: a Tudor-arch door + a tall lancet (or quatrefoil) window above
+  const tf = front * (W + tw * 1.6), nx = -sa * front, nz = ca * front;
+  const door = pt(0, tf, 0); rotBox(buckets[PLAIN], door[0], door[2], 2.2, 0.3, g, g + 11, obb.ang, '#2c2620');
+  if (o.quatrefoil) { tmp.set('#3c4a6e'); const q = pt(0, tf, g + 22); for (const [dx, dy] of [[0, 1.6], [0, -1.6], [1.6, 0], [-1.6, 0]] as const) { const c = pt(dx, tf, g + 22 + dy); octoCanopy(buckets[GLOW], c[0], c[1], c[2], 1.3, tmp.clone()); } }
+  else { tmp.set('#3c4a6e'); const wr2 = tmp.r, wg2 = tmp.g, wb2 = tmp.b, C = (sx: number, y: number): [number, number, number] => pt(sx * 1.5, tf, y); const a = C(-1, g + 15), bb = C(1, g + 15), cc = C(1, g + 27), dd = C(-1, g + 27), apex = pt(0, tf, g + 32); buckets[GLOW].quad(a[0], a[1], a[2], bb[0], bb[1], bb[2], cc[0], cc[1], cc[2], dd[0], dd[1], dd[2], nx, 0, nz, wr2, wg2, wb2); buckets[GLOW].triUV(dd[0], dd[1], dd[2], cc[0], cc[1], cc[2], apex[0], apex[1], apex[2], nx, 0, nz, wr2, wg2, wb2, 0, 0, 0, 0, 0, 0); }
+}
+
+// Pedrick Store House — a long, low, bare-wood maritime warehouse: steep side-gable, big plank
+// cargo doors, a gable hoist beam, a few small windows.
+function warehouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: { wall: string; roof: string }) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const eaveH = g + 22;
+  clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
+  const ridgeY = eaveH + Math.min(W * 1.05, 24), Lr = L + 1.4, Wr = W + 1.4;
+  tmp.set(o.roof); const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  for (const s of [1, -1] as const) { const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY); buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr, rg, rb); }
+  tmp.set(o.wall); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  for (const sx of [1, -1] as const) { const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY); buckets[CLAP].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, wr, wg, wb, 0, 0, 0, 0, 0, 0); }
+  const fz = front * (W + 0.2);
+  for (const lx of [-L * 0.4, L * 0.4]) { const d = pt(lx, fz, 0); rotBox(buckets[PLAIN], d[0], d[2], 3, 0.3, g, g + 13, obb.ang, '#4a3f30'); }   // cargo doors
+  const up = pt(0, fz, 0); rotBox(buckets[PLAIN], up[0], up[2], 2.4, 0.3, g + 15, eaveH - 1, obb.ang, '#4a3f30');                                  // upper loading door
+  const hb = pt(0, front * (W + 4), ridgeY - 3); buckets[PLAIN].box(hb[0], hb[2], 0.5, 3.5, ridgeY - 3.5, ridgeY - 2.5, '#34291e', 0);            // hoist beam
+}
+
+// Friendship of Salem — the replica 1797 East Indiaman at Derby Wharf: black hull + cream sheer
+// stripe, three masts (main tallest), crossed yards (furled), a long bowsprit. The big surprise.
+function tallShip(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = Math.min(obb.hw, L * 0.22);
+  const HULL = '#2a2a30', CREAM = '#cdb985', DECK = '#6b5a42', SPAR = '#4a3d2e';
+  const wl = g, deck = g + 24;                                                                         // tall freeboard so it reads as a hull
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.82, W, wl, deck, obb.ang, HULL);                        // hull
+  for (const s of [1, -1] as const) { const a = pt(L * 0.82, s * W, wl), b2 = pt(L * 0.82, s * W, deck), t1 = pt(L * 1.04, 0, deck), t0 = pt(L * 1.04, 0, wl + 2); buckets[PLAIN].quad(a[0], a[1], a[2], b2[0], b2[1], b2[2], t1[0], t1[1], t1[2], t0[0], t0[1], t0[2], ca * s, 0.2, sa * s, 0.17, 0.17, 0.19); }   // bow wedge
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.83, W + 0.4, deck - 5, deck - 2.5, obb.ang, CREAM);     // cream sheer stripe
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.8, W - 0.6, deck, deck + 0.8, obb.ang, DECK);           // deck
+  const masts: [number, number][] = [[L * 0.46, L * 0.46], [-L * 0.04, L * 0.56], [-L * 0.5, L * 0.36]]; // fore / main / mizzen (main tallest)
+  for (const [mlx, mh] of masts) {
+    const m = pt(mlx, 0, 0); buckets[PLAIN].box(m[0], m[2], 1.1, 1.1, deck, deck + mh, SPAR, 0);
+    for (let k = 0; k < 3; k++) { const yh = deck + mh * (0.45 + 0.18 * k), yl = W * (1.5 - 0.32 * k); rotBox(buckets[PLAIN], m[0], m[2], 0.5, yl, yh, yh + 0.9, obb.ang, SPAR); }
+  }
+  const bsp = pt(L + L * 0.28, 0, 0); rotBox(buckets[PLAIN], bsp[0], bsp[2], L * 0.3, 0.6, deck + 5, deck + 7.5, obb.ang, SPAR);                    // bowsprit
+}
+
+// tiny utilitarian outbuildings: a one-room brick gable box (the Scale House by the Custom House).
+function brickShed(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: { wall: string; roof: string }) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw, eaveH = g + 11;
+  walls(buckets[BRICK], b.p, g - 2, eaveH, o.wall);
+  const ridgeY = eaveH + Math.min(W * 0.9, 8), Lr = L + 0.8, Wr = W + 0.8;
+  tmp.set(o.roof); const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  for (const s of [1, -1] as const) { const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY); buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr, rg, rb); }
+  tmp.set(o.wall); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  for (const sx of [1, -1] as const) { const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY); buckets[BRICK].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, wr, wg, wb, 0, 0, 0, 0, 0, 0); }
+}
+
 const HEROES: Record<string, HeroBuilder> = {
+  // Both towns' heroes coexist here — entries are keyed by unique OSM building
+  // names, so only the loaded town's world.json ever matches its own set.
+  'The Witch House': witchHouse,
+  'The House of the Seven Gables': sevenGables,
+  'Hathaway House': hathawayHouse,
+  'Narbonne House': narbonneHouse,
+  'Custom House': customHouse,
+  'Salem Witch Museum': witchMuseum,
+  'Ropes Mansion': ropesMansion,
+  'Derby House': derbyHouse,
+  'Gardner-Pingree House': gardnerPingree,
+  'Crowninshield-Bentley House': crowninshieldBentley,
+  'Yin Yu Tang': yinYuTang,
+  'Hamilton Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#ece6d8', roof: '#7f848c', storeys: 3, roofKind: 'gable', stringcourses: true, palladian: 'row', entrance: 'portico', chimney: 'interior4' }),
+  'Andrew Safford House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#ece6d8', roof: '#7f848c', storeys: 3, roofKind: 'hip', balustrade: 'plain', entrance: 'colossal', palladian: 'single', shutter: '#23262a', chimney: 'interior4' }),
+  'Philips House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#e0ddd2', material: 'clap', trim: '#fbfaf6', roof: '#9aa0a8', storeys: 3, roofKind: 'hip', entrance: 'portico', palladian: 'single', shutter: '#2f3a30', chimney: 'interior4' }),
+  'Hawkes House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#d8c373', material: 'clap', trim: '#fbfaf6', roof: '#9aa0a8', storeys: 3, roofKind: 'hip', balustrade: 'plain', entrance: 'fan', shutter: '#3a5a3a', chimney: 'interior4' }),
+  'Nathaniel Bowditch House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#cfcdc2', material: 'clap', trim: '#fbfaf6', roof: '#9aa0a8', storeys: 3, roofKind: 'hip', balustrade: 'fret', entrance: 'fan', shutter: '#33403a', chimney: 'interior4' }),
+  'Salem Athenæum': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#ece6d8', roof: '#7f848c', storeys: 2, roofKind: 'hip', entrance: 'portico', palladian: 'single', stringcourses: true, chimney: 'ends2' }),
+  'Lyceum Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9e5340', material: 'brick', trim: '#d8d0c0', roof: '#7f848c', storeys: 2, roofKind: 'gable', entrance: 'fan' }),
+  'Hawthorne Hotel': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#97493a', material: 'brick', trim: '#e6e0d2', roof: '#3a3a3d', storeys: 6, roofKind: 'flat', entrance: 'canopy', flag: true, bays: 7 }),
+  'First Church in Salem': (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#7e7f83' }),
+  "St. Peter's Episcopal Church": (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#9a9b9d', quatrefoil: true }),
+  'Pedrick Store House': (bk, b, g, i) => warehouse(bk, b, g, i, { wall: '#6e6250', roof: '#4a4438' }),
+  'Friendship of Salem': tallShip,
+  'Scale House': (bk, b, g, i) => brickShed(bk, b, g, i, { wall: '#9c4d3c', roof: '#777c85' }),
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,
@@ -2712,36 +3458,69 @@ function ghost(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: num
   }
 }
 
-// pumpkins by the front door — some carved and glowing — plus pots of mums
+// a round, squat, lightly-ribbed pumpkin body — replaces octoCanopy's pointy 4-sided diamond
+// (which read as little pinecones) with a proper bulging sphere, flat-capped at top/bottom so
+// the stem sits cleanly. Centered on (x,y,z); rests on the ground when y ≈ g + r*0.7.
+function pumpkinBody(bk: Bucket, x: number, y: number, z: number, r: number, col: THREE.Color) {
+  const N = 8, SQ = 0.82;                                  // 8 facets, a touch wider than tall
+  const bands = [-0.86, -0.5, 0, 0.5, 0.86];               // latitudes (sin θ) — bulge in the middle
+  const ring = (s: number): [number, number, number][] => {
+    const rr = r * Math.sqrt(Math.max(0.0001, 1 - s * s)), yy = y + r * SQ * s;
+    const p: [number, number, number][] = [];
+    for (let i = 0; i < N; i++) { const a = (i / N) * Math.PI * 2, rib = 1 - 0.08 * (i % 2); p.push([x + Math.cos(a) * rr * rib, yy, z + Math.sin(a) * rr * rib]); }
+    return p;
+  };
+  const R = bands.map(ring);
+  for (let b = 0; b < R.length - 1; b++) for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N, lo = R[b], hi = R[b + 1];
+    const nx = (lo[i][0] + lo[j][0]) / 2 - x, nz = (lo[i][2] + lo[j][2]) / 2 - z, nl = Math.hypot(nx, nz) || 1;
+    const sh = 0.8 + 0.2 * (i % 2 ? 1 : 0.55);
+    bk.quad(lo[i][0], lo[i][1], lo[i][2], lo[j][0], lo[j][1], lo[j][2], hi[j][0], hi[j][1], hi[j][2], hi[i][0], hi[i][1], hi[i][2], nx / nl, 0.3, nz / nl, col.r * sh, col.g * sh, col.b * sh);
+  }
+  const hi = R[R.length - 1], lo = R[0], topY = y + r * SQ * 0.86, botY = y - r * SQ * 0.86;   // flat caps (no spike)
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    bk.triUV(x, topY, z, hi[i][0], hi[i][1], hi[i][2], hi[j][0], hi[j][1], hi[j][2], 0, 1, 0, col.r * 0.96, col.g * 0.96, col.b * 0.96, 0, 0, 0, 0, 0, 0);
+    bk.triUV(x, botY, z, lo[j][0], lo[j][1], lo[j][2], lo[i][0], lo[i][1], lo[i][2], 0, -1, 0, col.r * 0.66, col.g * 0.66, col.b * 0.66, 0, 0, 0, 0, 0, 0);
+  }
+}
+
+// pumpkins by the front door — some carved and glowing — plus pots of mums. Classic
+// towns keep the original 4–7 patch density; haunted towns (the Halloween Capital)
+// set out a tidy, well-spaced row of bigger, mostly-carved pumpkins.
 function pumpkins(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: number; nx: number; nz: number }, g: number, seed: number) {
   const rng = mulberry32(hash32(seed, 91, 7));
-  const n = 4 + (hash32(seed, 3, 11) % 4);   // 4–7 pumpkins: a real New England patch
+  const haunted = TOWN.halloween === 'haunted';
+  const n = haunted ? 3 + (hash32(seed, 3, 11) % 3)   // 3–5: a tidy stoop cluster, not a pile
+    : 4 + (hash32(seed, 3, 11) % 4);                  // 4–7: a real New England patch
   for (let i = 0; i < n; i++) {
-    const off = (i - (n - 1) / 2) * 4.6 + (rng() - 0.5) * 2.2;   // spread across the front
-    const px = f.x + f.tx * off + f.nx * (5.2 + (rng() - 0.5) * 2.4);
-    const pz = f.z + f.tz * off + f.nz * (5.2 + (rng() - 0.5) * 2.4);
-    const r = 3.8 + rng() * 2.6;   // bigger
-    tmp.set(rng() < 0.85 ? '#d97a28' : '#e8e2cf');
-    octoCanopy(buckets[PLAIN], px, g + r * 0.85, pz, r, tmp.clone());
-    buckets[PLAIN].box(px, pz, 0.4, 0.4, g + r * 1.55, g + r * 1.55 + 1.3, '#5e4a28');
-    if (rng() < 0.55) {
-      // jack-o'-lantern: glowing face toward the street
-      const cxf = px + f.nx * (r * 0.92), czf = pz + f.nz * (r * 0.92);
-      const ty = g + r * 0.95;
-      tmp.set('#ffc14e');
-      for (const sd of [-1, 1]) {
-        buckets[GLOW].triUV(
-          cxf + f.tx * (sd * 0.9 - 0.42), ty, czf + f.tz * (sd * 0.9 - 0.42),
-          cxf + f.tx * (sd * 0.9 + 0.42), ty, czf + f.tz * (sd * 0.9 + 0.42),
-          cxf + f.tx * sd * 0.9, ty + 0.8, czf + f.tz * sd * 0.9,
-          f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0
-        );
-      }
-      buckets[GLOW].quad(
-        cxf - f.tx * 1.25, ty - 1.15, czf - f.tz * 1.25, cxf + f.tx * 1.25, ty - 1.15, czf + f.tz * 1.25,
-        cxf + f.tx * 1.25, ty - 0.6, czf + f.tz * 1.25, cxf - f.tx * 1.25, ty - 0.6, czf - f.tz * 1.25,
-        f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b
-      );
+    const off = (i - (n - 1) / 2) * (haunted ? 8.5 : 4.6) + (rng() - 0.5) * (haunted ? 2.4 : 2.2);   // spread across the front
+    const px = f.x + f.tx * off + f.nx * ((haunted ? 8 : 5.2) + (rng() - 0.5) * (haunted ? 3 : 2.4));
+    const pz = f.z + f.tz * off + f.nz * ((haunted ? 8 : 5.2) + (rng() - 0.5) * (haunted ? 3 : 2.4));
+    const r = haunted ? 5 + rng() * 2.5 : 3.8 + rng() * 2.6;
+    tmp.set(haunted ? (rng() < 0.82 ? '#f0801e' : '#df6a16')   // haunted: bright pumpkin orange only
+      : (rng() < 0.85 ? '#d97a28' : '#e8e2cf'));
+    pumpkinBody(buckets[PLAIN], px, g + r * 0.7, pz, r, tmp.clone());
+    buckets[PLAIN].box(px, pz, r * 0.08, r * 0.08, g + r * 1.32, g + r * 1.32 + r * 0.3, '#6b5a2e');   // stubby green stem
+    if (rng() < (haunted ? 0.82 : 0.55)) {
+      // jack-o'-lantern: glowing triangular eyes + nose + a grin on the street-facing side,
+      // all scaled to the pumpkin so a big one gets a big face.
+      const cxf = px + f.nx * (r * 0.86), czf = pz + f.nz * (r * 0.86), ty = g + r * 0.74;
+      tmp.set('#ffb43a');
+      const tri = (ox: number, oy: number, hw: number, hh: number) => buckets[GLOW].triUV(
+        cxf + f.tx * (ox - hw), ty + oy, czf + f.tz * (ox - hw),
+        cxf + f.tx * (ox + hw), ty + oy, czf + f.tz * (ox + hw),
+        cxf + f.tx * ox, ty + oy + hh, czf + f.tz * ox,
+        f.nx, 0.1, f.nz, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0);
+      tri(-r * 0.34, r * 0.1, r * 0.16, r * 0.22);   // left eye ▲
+      tri(r * 0.34, r * 0.1, r * 0.16, r * 0.22);    // right eye ▲
+      tri(0, -r * 0.04, r * 0.09, r * 0.16);         // nose ▲
+      buckets[GLOW].quad(                            // wide toothy grin
+        cxf - f.tx * r * 0.42, ty - r * 0.42, czf - f.tz * r * 0.42,
+        cxf + f.tx * r * 0.42, ty - r * 0.42, czf + f.tz * r * 0.42,
+        cxf + f.tx * r * 0.32, ty - r * 0.24, czf + f.tz * r * 0.32,
+        cxf - f.tx * r * 0.32, ty - r * 0.24, czf - f.tz * r * 0.32,
+        f.nx, 0.1, f.nz, tmp.r, tmp.g, tmp.b);
     }
   }
   // pots of mums on the steps
@@ -2754,6 +3533,71 @@ function pumpkins(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: 
     tmp.set(mums[hash32(seed, i, 31) % mums.length]);
     octoCanopy(buckets[PLAIN], mx, g + 2.7, mz, 1.7, tmp.clone());
   }
+}
+
+// ---------- Halloween monsters (Salem's extreme fall): blocky, friendly-spooky figures —
+// Frankenstein & Dracula loom in the yards, witches soar on brooms overhead. Glowing eyes. ----------
+type Front = { x: number; z: number; tx: number; tz: number; nx: number; nz: number };
+
+// Frankenstein's monster: flat-top green head, neck bolts, stiff arms reaching at the street.
+function franken(buckets: Bucket[], f: Front, g: number, seed: number) {
+  const rng = mulberry32(hash32(seed, 71, 9));
+  const off = (rng() < 0.5 ? -1 : 1) * (9 + rng() * 7);
+  const x = f.x + f.tx * off + f.nx * (9 + rng() * 5);
+  const z = f.z + f.tz * off + f.nz * (9 + rng() * 5);
+  const skin = '#6f8f3f', coat = '#2b2823';
+  for (const s of [-1, 1]) buckets[PLAIN].box(x + f.tx * s * 2.4, z + f.tz * s * 2.4, 1.8, 1.8, g, g + 9, '#1b1916');   // legs
+  buckets[PLAIN].box(x, z, 4.6, 3, g + 8, g + 20, coat);                                                                // torso
+  for (const s of [-1, 1]) {                                                                                            // stiff arms reaching the street
+    const ax = x + f.tx * s * 5.4, az = z + f.tz * s * 5.4;
+    buckets[PLAIN].box(ax, az, 1.7, 1.7, g + 12, g + 19, coat);
+    buckets[PLAIN].box(ax + f.nx * 4.5, az + f.nz * 4.5, 1.7, 1.7, g + 12, g + 13.6, skin);
+  }
+  buckets[PLAIN].box(x, z, 3.5, 3.1, g + 20, g + 28, skin);                                                             // flat-top green head
+  buckets[PLAIN].box(x, z, 3.6, 3.2, g + 27.4, g + 29, '#15120e');                                                      // flat black hair
+  for (const s of [-1, 1]) buckets[PLAIN].box(x + f.tx * s * 4.1, z + f.tz * s * 4.1, 0.85, 0.85, g + 21, g + 23.5, '#b7b7ad'); // neck bolts
+  tmp.set('#ffd23c');
+  for (const s of [-1, 1]) octoCanopy(buckets[GLOW], x + f.tx * s * 1.4 + f.nx * 3.1, g + 24, z + f.tz * s * 1.4 + f.nz * 3.1, 0.7, tmp.clone()); // glowing eyes
+}
+
+// Dracula: black suit + high-collared cape flaring behind, pale face, red eyes.
+function dracula(buckets: Bucket[], f: Front, g: number, seed: number) {
+  const rng = mulberry32(hash32(seed, 83, 11));
+  const off = (rng() < 0.5 ? -1 : 1) * (9 + rng() * 7);
+  const x = f.x + f.tx * off + f.nx * (9 + rng() * 5);
+  const z = f.z + f.tz * off + f.nz * (9 + rng() * 5);
+  const ang = Math.atan2(f.nz, f.nx);
+  const blk = '#100e15', pale = '#e7ddc8';
+  rotBox(buckets[PLAIN], x - f.nx * 2.6, z - f.nz * 2.6, 1, 6.4, g + 1, g + 22, ang, blk);                  // cape panel behind
+  for (const s of [-1, 1]) buckets[PLAIN].box(x + f.tx * s * 2.2, z + f.tz * s * 2.2, 1.7, 1.7, g, g + 9, blk); // legs
+  buckets[PLAIN].box(x, z, 4, 2.6, g + 8, g + 19, blk);                                                       // suit torso
+  buckets[PLAIN].box(x + f.nx * 0.6, z + f.nz * 0.6, 0.9, 1, g + 12, g + 18, '#7a1420');                       // red sash down the front
+  for (const s of [-1, 1]) rotBox(buckets[PLAIN], x + f.tx * s * 2.4 - f.nx * 1.4, z + f.tz * s * 2.4 - f.nz * 1.4, 0.6, 2.6, g + 18, g + 27, ang, blk); // high collar
+  buckets[PLAIN].box(x, z, 2.7, 2.4, g + 19, g + 25, pale);                                                   // pale head
+  buckets[PLAIN].box(x, z, 2.8, 2.5, g + 24.6, g + 26, '#15120f');                                            // slicked black hair
+  tmp.set('#ff3b2e');
+  for (const s of [-1, 1]) octoCanopy(buckets[GLOW], x + f.tx * s * 1.1 + f.nx * 2.5, g + 22.4, z + f.tz * s * 1.1 + f.nz * 2.5, 0.6, tmp.clone()); // red glowing eyes
+}
+
+// a witch soaring on a broomstick, high over the rooftops (Salem fall).
+function witch(buckets: Bucket[], f: Front, g: number, seed: number) {
+  const rng = mulberry32(hash32(seed, 97, 13));
+  const a = rng() * Math.PI * 2;                 // flight heading
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const px2 = Math.cos(a + Math.PI / 2), pz2 = Math.sin(a + Math.PI / 2);
+  const x = f.x + (rng() - 0.5) * 34;
+  const z = f.z + (rng() - 0.5) * 34;
+  const y = g + 46 + rng() * 36;                 // soaring overhead
+  const blk = '#16121d', skin = '#7aa84a';
+  rotBox(buckets[PLAIN], x, z, 9, 0.55, y - 0.6, y + 0.6, a, '#7a4a1e');         // broom handle along the heading
+  tmp.set('#c8a24a'); cone(buckets[PLAIN], x - ca * 9.5, y - 2, z - sa * 9.5, 1.8, 4.5, tmp.clone()); // straw bristles
+  tmp.set(blk); cone(buckets[PLAIN], x, y - 2, z, 5, 7, tmp.clone());            // robe, flaring at the hem
+  tmp.set(blk); octoCanopy(buckets[PLAIN], x, y + 4.5, z, 3.6, tmp.clone());     // hunched body
+  tmp.set(skin); octoCanopy(buckets[PLAIN], x + ca * 1.2, y + 9, z + sa * 1.2, 2.4, tmp.clone()); // green head, leaning forward
+  buckets[PLAIN].box(x + ca * 1.2, z + sa * 1.2, 4.2, 4.2, y + 10.3, y + 11, blk); // hat brim
+  tmp.set(blk); cone(buckets[PLAIN], x + ca * 1.2, y + 11, z + sa * 1.2, 3, 9.5, tmp.clone()); // pointed hat
+  tmp.set('#b9ff4a');
+  for (const s of [-1, 1]) octoCanopy(buckets[GLOW], x + ca * 3 + px2 * s * 1.1, y + 9, z + sa * 3 + pz2 * s * 1.1, 0.5, tmp.clone()); // glowing eyes
 }
 
 // front-yard snowman, dressed for the season
@@ -2960,6 +3804,14 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       buildTank(buckets, b, g);
       continue;
     }
+    if (b.k === 'tower') {
+      buildTower(buckets, b, g);
+      continue;
+    }
+    if (b.k === 'gazebo') {
+      buildGazebo(buckets, b, g);
+      continue;
+    }
     // a home the map names an architecture style for — render it in that style
     if (b.style) {
       styledHouse(buckets, b, g, index);
@@ -3073,20 +3925,32 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         snowman(buckets, frontSegment(b, index), g, seed);
       }
     } else if (SEASON === 'fall' && b.k !== 'shed') {
+      // Halloween dressing, scaled to the town's temperament: 'haunted' towns (Salem,
+      // the Halloween Capital of the World) deck nearly EVERYTHING out — lights,
+      // pumpkins on every stoop, ghosts, monsters, cobwebs on homes too — while
+      // 'classic' towns keep the original tasteful New England October.
+      const haunted = TOWN.halloween === 'haunted';
       // Halloween eave lights (orange + purple) on the shops and many homes
-      const festive = b.k === 'commercial' || b.k === 'civic' || !!b.sf || hash32(seed, 19, 3) % 100 < 55;
+      const festive = b.k === 'commercial' || b.k === 'civic' || !!b.sf || hash32(seed, 19, 3) % 100 < (haunted ? 92 : 55);
       if (festive) stringLights(buckets[GLOW], b.p, eaveAbs - 1.5, HALLOWEEN_BULBS);
-      const porch = b.k === 'house' ? hash32(seed, 23, 5) % 100 < 88
-        : (b.k === 'commercial' || !!b.sf) && hash32(seed, 23, 5) % 100 < 65;
+      const porch = b.k === 'house' ? hash32(seed, 23, 5) % 100 < (haunted ? 100 : 88)
+        : (b.k === 'commercial' || !!b.sf) && hash32(seed, 23, 5) % 100 < (haunted ? 90 : 65);
       if (porch) pumpkins(buckets, frontSegment(b, index), g, seed);
-      // a friendly ghost haunting some front yards
-      if (b.k === 'house' && hash32(seed, 53, 7) % 100 < 15) ghost(buckets, frontSegment(b, index), g, seed);
-      // cobwebs in the eave corners of the shops (a couple per storefront)
-      if (b.k === 'commercial' || b.sf) {
+      // a friendly ghost haunting some front yards (a good chunk of them when haunted)
+      if (b.k === 'house' && hash32(seed, 53, 7) % 100 < (haunted ? 38 : 15)) ghost(buckets, frontSegment(b, index), g, seed);
+      if (haunted) {
+        // monsters loom in the yards (Frankenstein, Dracula) and witches soar overhead —
+        // the Halloween Capital goes all out. Independent rolls, so a yard can stack several.
+        if (b.k === 'house' && hash32(seed, 61, 7) % 100 < 16) franken(buckets, frontSegment(b, index), g, seed);
+        if (b.k === 'house' && hash32(seed, 73, 7) % 100 < 16) dracula(buckets, frontSegment(b, index), g, seed);
+        if (hash32(seed, 89, 7) % 100 < 9) witch(buckets, frontSegment(b, index), g, seed);   // flying — over any building
+      }
+      // cobwebs in the eave corners of the shops (haunted: on homes too, a few each)
+      if (haunted || b.k === 'commercial' || b.sf) {
         const ring = b.p, np = ring.length / 2;
         let webs = 0;
-        for (let i = 0; i < np && webs < 2; i++) {
-          if (hash32(seed, i, 29) % 100 > 32) continue;
+        for (let i = 0; i < np && webs < (haunted ? 3 : 2); i++) {
+          if (hash32(seed, i, 29) % 100 > (haunted ? 50 : 32)) continue;
           const vx = ring[i * 2], vz = ring[i * 2 + 1];
           const pi = ((i - 1 + np) % np) * 2, ni = ((i + 1) % np) * 2;
           let ux = ring[pi] - vx, uz = ring[pi + 1] - vz; const lu = Math.hypot(ux, uz) || 1;
@@ -3442,9 +4306,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     }
   }
 
-  // MBTA commuter-rail train parked at the Newburyport station platform
-  const ST_X = -5450, ST_Z = 11790;
-  if (Math.floor(ST_X / CHUNK) === ckx && Math.floor(ST_Z / CHUNK) === cky) {
+  // commuter-rail train parked at the town's station platform set piece
+  // (null = the town has no surface platform, e.g. an underground depot)
+  if (TOWN.trainPlatform && Math.floor(TOWN.trainPlatform.x / CHUNK) === ckx && Math.floor(TOWN.trainPlatform.z / CHUNK) === cky) {
+    const ST_X = TOWN.trainPlatform.x, ST_Z = TOWN.trainPlatform.z;
     let bestD = Infinity, bestAng = 0, bx = ST_X, bz = ST_Z;
     for (const rl of world.rails) {
       const pts = rl.p;
@@ -3523,13 +4388,27 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     }
   }
   for (const poi of world.pois) {
-    if (poi.k !== 'windsock') continue;
     if (poi.x < ox || poi.x >= ox + CHUNK || poi.y < oy || poi.y >= oy + CHUNK) continue;
-    const g = index.heightAtPx(poi.x, poi.y);
-    const a = ((hash32(Math.round(poi.x), 7) % 100) / 100) * Math.PI * 2;
-    buckets[PLAIN].box(poi.x, poi.y, 0.6, 0.6, g, g + 20, '#d8d5cc');
-    rotBox(buckets[PLAIN], poi.x + Math.cos(a) * 4, poi.y + Math.sin(a) * 4, 4, 1.4, g + 17, g + 19.4, a, '#e8762e');
-    rotBox(buckets[PLAIN], poi.x + Math.cos(a) * 9.5, poi.y + Math.sin(a) * 9.5, 2.2, 0.9, g + 17.6, g + 18.9, a, '#e8762e');
+    if (poi.k === 'windsock') {
+      const g = index.heightAtPx(poi.x, poi.y);
+      const a = ((hash32(Math.round(poi.x), 7) % 100) / 100) * Math.PI * 2;
+      buckets[PLAIN].box(poi.x, poi.y, 0.6, 0.6, g, g + 20, '#d8d5cc');
+      rotBox(buckets[PLAIN], poi.x + Math.cos(a) * 4, poi.y + Math.sin(a) * 4, 4, 1.4, g + 17, g + 19.4, a, '#e8762e');
+      rotBox(buckets[PLAIN], poi.x + Math.cos(a) * 9.5, poi.y + Math.sin(a) * 9.5, 2.2, 0.9, g + 17.6, g + 18.9, a, '#e8762e');
+    } else if (poi.k === 'lighthouse') {
+      // a lighthouse mapped as a point (not a building footprint) — e.g. Fort Pickering Light
+      lighthouse(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    } else if (poi.k === 'statue') {
+      landmarkStatue(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    } else if (poi.k === 'obelisk') {
+      landmarkObelisk(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    } else if (poi.k === 'arch') {
+      landmarkArch(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    } else if (poi.k === 'fountain') {
+      landmarkFountain(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    } else if (poi.k === 'fort') {
+      landmarkFort(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    }
   }
 
   // real property-line barriers: stockade fences, hedges, stone walls
@@ -3604,8 +4483,8 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
 
   const allPlants = index.treesFor(key).concat(index.extraPlantingsFor(key));
   for (const t of allPlants) {
-    // winter: keep the March's Hill sled lane clear of trees so the kids have a run
-    if (SEASON === 'winter') {
+    // winter: keep the sled lane (if the town has one) clear of trees so the kids have a run
+    if (SEASON === 'winter' && SLED_LANE) {
       const cz = Math.max(SLED_LANE.z0, Math.min(SLED_LANE.z1, t.y));
       if (Math.hypot(t.x - SLED_LANE.x, t.y - cz) < SLED_LANE.halfW) continue;
     }
