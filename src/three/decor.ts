@@ -3330,6 +3330,618 @@ function brickShed(buckets: Bucket[], b: Building, g: number, index: WorldIndex,
   for (const sx of [1, -1] as const) { const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY); buckets[BRICK].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, wr, wg, wb, 0, 0, 0, 0, 0, 0); }
 }
 
+// ---------- Beverly bespoke heroes (specs: docs/research/beverly.md) ----------
+
+// Beverly Depot (1897, Bradford Lee Gilbert) — Richardsonian Romanesque: buff/cream brick
+// over a rough red-brown sandstone base (~lower third), one tall waiting-room storey, and
+// a broad red shingle hip whose VERY deep eaves ring the whole building as platform
+// canopies carried on dark curved brackets. One hip dormer; today a steakhouse + live MBTA stop.
+function beverlyDepot(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const BUFF = '#ddd0ad', STONE = '#7c4a37', STONE2 = '#6a3d2c', TRIM = '#b0512e',
+        RED = '#a53a28', BRKT = '#42302a', GLASS = '#2b3a44';
+  let obb = obbOf(b.p);
+  if (obb.hw > obb.hl) obb = { cx: obb.cx, cz: obb.cz, ang: obb.ang + Math.PI / 2, hl: obb.hw, hw: obb.hl };   // ridge along the true long axis
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const eave = g + 30, base = g + 10;                                            // one generous storey; stone base = lower third
+
+  // rock-faced sandstone base, proud of the brick, two rusticated courses
+  walls(buckets[PLAIN], expandRing(b.p, 0.7), g - 4, base, STONE, 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.9), g + 2.6, g + 3.4, STONE2, 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.9), g + 6.2, g + 7, STONE2, 0);
+
+  // buff brick above; red-orange stone-cap + lintel courses carry the trim colour
+  walls(buckets[BRICK], b.p, base, eave, BUFF);
+  walls(buckets[PLAIN], expandRing(b.p, 0.5), base, base + 1.3, TRIM, 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.5), g + 19.4, g + 20.6, TRIM, 0);
+  facades(buckets[PLAIN], b.p, eave, 1, 1897, true, false, false, g);
+
+  // broad hip, VERY deep eaves = the all-round platform canopy (ov 16 ≈ 2 m — intentional)
+  const OV = 16, rise = Math.max(18, Math.min(W * 0.95, 28));
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L + OV - 0.2, W + OV - 0.2, eave - 1.2, eave + 0.3, obb.ang, '#8a4230');   // soffit slab + fascia lip
+  hipRoof(buckets[SHINGLE], obb, eave, rise, OV, RED, false);
+
+  // rows of dark eave brackets carrying the canopy (the curved braces, as radial posts)
+  for (const s of [1, -1] as const) {
+    for (let lx = -L + 7; lx <= L - 7; lx += 13) { const c = pt(lx, s * (W + 0.3 + OV * 0.42), 0); rotBox(buckets[PLAIN], c[0], c[2], 0.7, OV * 0.42, eave - 6, eave - 1.1, obb.ang, BRKT); }
+    for (let lz = -W + 7; lz <= W - 7; lz += 13) { const c = pt(s * (L + 0.3 + OV * 0.42), lz, 0); rotBox(buckets[PLAIN], c[0], c[2], OV * 0.42, 0.7, eave - 6, eave - 1.1, obb.ang, BRKT); }
+  }
+
+  // one hip dormer on the street-facing slope
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const dLz = front * (W * 0.72), surf = eave + rise * (1 - Math.abs(dLz) / (W + OV));
+  const dTop = Math.min(surf + 8, eave + rise - 4.5);                            // never pokes the ridge
+  const dc = pt(0, dLz, 0);
+  rotBox(buckets[PLAIN], dc[0], dc[2], 6, 4.5, surf - 3, dTop, obb.ang, BUFF);
+  const dw = pt(0, dLz + front * 4.7, 0);
+  rotBox(buckets[PLAIN], dw[0], dw[2], 3, 0.35, surf + 1.5, dTop - 1.6, obb.ang, GLASS);
+  hipRoof(buckets[SHINGLE], { cx: dc[0], cz: dc[2], ang: obb.ang, hl: 6, hw: 4.5 }, dTop, 3.5, 0.9, RED, false);
+
+  // buff-brick chimney breaking the roofline
+  const ch = pt(L * 0.3, 0, 0);
+  buckets[BRICK].box(ch[0], ch[2], 2.1, 2.1, eave, eave + rise + 8, '#cbbd96', 1);
+
+  // warm steakhouse sign glowing under the canopy by the door
+  const fang = Math.atan2(fs.tz, fs.tx);
+  rotBox(buckets[GLOW], fs.x + fs.nx * 0.9, fs.z + fs.nz * 0.9, 6.5, 0.3, g + 21.5, g + 24, fang, '#ffca7a');
+
+  // festive eave lights like the neighbours (heroes skip the generic decor pass)
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eave - 2.5, HALLOWEEN_BULBS);
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eave - 2.5);
+}
+
+// Beverly Public Library (1913, Cass Gilbert) — Beaux-Arts jewel on Essex St:
+// red Flemish-bond brick on a white-marble raised basement, giant marble
+// pilasters between the two tall window storeys, carved author-name frieze
+// panels under a deep entablature, a marble balustraded parapet hiding the
+// flat roof, and a deep round-arched marble centre entry up granite steps.
+function beverlyLibrary(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const MARBLE = '#efeadb', BASE = '#e2dccc', PANEL = '#e4dfd0', DARK = '#2e2a26';
+  const eave = g + 52;                                                   // 2 tall storeys over the raised basement
+  const [cx, cz] = centroidOf(b.p);
+  walls(buckets[PLAIN], b.p, g - 6, g + 11, BASE, 0);                    // raised marble basement
+  walls(buckets[PLAIN], expandRing(b.p, 0.7), g + 9.8, g + 11.6, MARBLE, 0);      // proud water table
+  walls(buckets[BRICK], b.p, g + 11, eave, '#fbf2e4');                   // Flemish-bond red brick body
+  walls(buckets[PLAIN], expandRing(b.p, 0.8), eave - 5, eave + 0.3, MARBLE, 0);   // deep marble entablature
+  walls(buckets[PLAIN], expandRing(b.p, 1.4), eave + 0.2, eave + 1.4, MARBLE, 0); // projecting cornice
+  flatRoof(buckets[PLAIN], b.p, eave + 1.6, '#6b6e67');                  // flat membrane hidden by the parapet
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), eave + 1.2, eave + 2.4, MARBLE, 0); // parapet plinth
+  roofRail(buckets, expandRing(b.p, 0.4), eave + 2.4, 3.2, MARBLE, false);        // marble balustrade
+  facades(buckets[PLAIN], b.p, eave, 2, 1913, false, false, false, g);   // two tall storeys of framed glass
+
+  const f = heroFront(b, index, { road: 'Essex Street' });
+  const ang = Math.atan2(f.tz, f.tx);
+
+  // giant marble pilasters — mirror facades' 24px window rhythm so the shafts
+  // land BETWEEN the glass; plinth + capital at each, author panels in the frieze
+  for (let i = 0; i + 1 < b.p.length; i += 2) {
+    const x0 = b.p[i], z0 = b.p[i + 1], x1 = b.p[(i + 2) % b.p.length], z1 = b.p[(i + 3) % b.p.length];
+    const dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz);
+    if (len < 24) continue;
+    const ux = dx / len, uz = dz / len;
+    let nx = uz, nz = -ux;
+    const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    if ((mx - cx) * nx + (mz - cz) * nz < 0) { nx = -nx; nz = -nz; }     // outward, away from centroid
+    const eAng = Math.atan2(dz, dx);
+    const cols = Math.floor((len - 10) / 24), gap = len / (cols + 1);
+    for (let c = 0; c <= cols; c++) {
+      const d = gap * (c + 0.5), px = x0 + ux * d, pz = z0 + uz * d;
+      if (Math.hypot(px - f.x, pz - f.z) < 14) continue;                 // the entry frontispiece owns this bay
+      rotBox(buckets[PLAIN], px + nx * 0.55, pz + nz * 0.55, 1.7, 1.15, g + 11.6, g + 13.4, eAng, MARBLE);  // plinth
+      rotBox(buckets[PLAIN], px + nx * 0.55, pz + nz * 0.55, 1.2, 1.0, g + 13.4, eave - 6.6, eAng, MARBLE); // shaft
+      rotBox(buckets[PLAIN], px + nx * 0.55, pz + nz * 0.55, 1.7, 1.15, eave - 6.6, eave - 5, eAng, MARBLE); // capital
+    }
+    for (let c = 1; c <= cols; c++) {                                    // carved author-name panels (skip the lettering)
+      const d = gap * c, px = x0 + ux * d, pz = z0 + uz * d;
+      if (Math.hypot(px - f.x, pz - f.z) < 14) continue;
+      rotBox(buckets[PLAIN], px + nx * 1.0, pz + nz * 1.0, Math.min(gap * 0.35, 6), 0.25, eave - 4, eave - 1, eAng, PANEL);
+    }
+  }
+
+  // deep round-arched recessed centre entry: marble frontispiece + keystone,
+  // shadowed recess with warm glazed doors, short granite flight up from the walk
+  rotBox(buckets[PLAIN], f.x + f.nx * 0.9, f.z + f.nz * 0.9, 10, 1.1, g - 2, g + 36, ang, MARBLE);
+  rotBox(buckets[PLAIN], f.x + f.nx * 1.3, f.z + f.nz * 1.3, 1.2, 1.15, g + 26, g + 31.5, ang, MARBLE);   // keystone
+  const fan = (R: number, off: number, hex: string) => {                 // semicircle on the facade plane
+    tmp.set(hex);
+    const ox = f.x + f.nx * off, oz = f.z + f.nz * off;
+    for (let s = 0; s < 7; s++) {
+      const a0 = Math.PI * s / 7, a1 = Math.PI * (s + 1) / 7;
+      buckets[PLAIN].triUV(ox, g + 20, oz,
+        ox + f.tx * Math.cos(a0) * R, g + 20 + Math.sin(a0) * R, oz + f.tz * Math.cos(a0) * R,
+        ox + f.tx * Math.cos(a1) * R, g + 20 + Math.sin(a1) * R, oz + f.tz * Math.cos(a1) * R,
+        f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0);
+    }
+  };
+  fan(7.8, 2.1, MARBLE);                                                 // archivolt ring…
+  fan(6.2, 2.35, DARK);                                                  // …around the shadowed recess
+  const rq = (bk: Bucket, hw: number, off: number, y0: number, y1: number, hex: string) => {
+    tmp.set(hex);
+    bk.quad(f.x - f.tx * hw + f.nx * off, y0, f.z - f.tz * hw + f.nz * off,
+      f.x + f.tx * hw + f.nx * off, y0, f.z + f.tz * hw + f.nz * off,
+      f.x + f.tx * hw + f.nx * off, y1, f.z + f.tz * hw + f.nz * off,
+      f.x - f.tx * hw + f.nx * off, y1, f.z - f.tz * hw + f.nz * off,
+      f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b);
+  };
+  rq(buckets[PLAIN], 6.2, 2.35, g + 4, g + 20, DARK);                    // recess shadow
+  rq(buckets[GLOW], 2.8, 2.6, g + 4, g + 13, '#9c7c46');                 // glazed doors, lit from within
+  for (const s of [-1, 1]) buckets[GLOW].box(f.x + f.tx * s * 8.2 + f.nx * 2.4, f.z + f.tz * s * 8.2 + f.nz * 2.4, 0.6, 0.6, g + 13, g + 14.6, '#ffe2a8', 0);   // entry lanterns
+  rotBox(buckets[PLAIN], f.x + f.nx * 3.2, f.z + f.nz * 3.2, 8.5, 1.4, g - 2, g + 4, ang, '#b9b5a8');     // granite stoop
+  rotBox(buckets[PLAIN], f.x + f.nx * 5.2, f.z + f.nz * 5.2, 9.3, 1.2, g - 2, g + 2.7, ang, '#b9b5a8');
+  rotBox(buckets[PLAIN], f.x + f.nx * 7.0, f.z + f.nz * 7.0, 10.1, 1.0, g - 2, g + 1.4, ang, '#b9b5a8');
+
+  // festive eave lights like the neighbours (heroes skip the generic decor pass)
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eave - 1.5, HALLOWEEN_BULBS);
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eave - 1.5);
+}
+
+// United Shoe Machinery Plant / Cummings Center — "The Shoe" (1902-06, Ernest Ransome),
+// the world's first great reinforced-concrete daylight factory. Long parallel wings of pale
+// buff EXPOSED-CONCRETE grid: full-height piers + shallow floor spandrels, the bays between
+// almost entirely glass ("thousands of windows" — dark glazed by day, dimly lit at night via
+// GLOW). Flat membrane roof behind a concrete parapet; 100 Cummings keeps the powerhouse's
+// tall round concrete smokestack. One builder serves all four HEROES keys via opts.
+function cummingsShoe(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: { storeys: number; stack?: boolean }) {
+  const CONC = '#cfc9ba', PLINTH = '#b3aea1', CAP = '#dcd7c9', GLASS = '#31414b', ROOF = '#95979a';
+  const ring = b.p;
+  const floors = Math.max(1, Math.round(o.storeys));
+  const eaveH = g + floors * 19;                       // 19px storey rhythm — height from storeys, never the footprint
+  // stacked bands (no coplanar overlap → no z-fight): spandrel then glass, storey by storey
+  walls(buckets[PLAIN], ring, g - 4, g, PLINTH, 0);                                        // foundation
+  for (let f = 0; f < floors; f++) {
+    walls(buckets[PLAIN], ring, g + f * 19, g + f * 19 + 5.5, CONC, 0);                    // shallow spandrel — Ransome kept them thin to max daylight
+    walls(buckets[GLOW], ring, g + f * 19 + 5.5, g + (f + 1) * 19, GLASS, 0);              // the glass bay, wall-to-wall
+  }
+  walls(buckets[PLAIN], ring, eaveH, eaveH + 3, CONC, 0);                                  // parapet
+  walls(buckets[PLAIN], ring, eaveH + 3, eaveH + 4.2, CAP, 0);                             // pale coping
+  flatRoof(buckets[PLAIN], ring, eaveH + 1.6, ROOF);                                       // membrane behind the parapet
+
+  // full-height concrete piers every structural bay (real Ransome bays ≈ 20 ft), proud of the
+  // glass; the bay stretches on 100 Cummings' 2.3 km comb perimeter so the pier count stays sane
+  let perim = 0, li = 0, ll = 0;
+  for (let i = 0; i < ring.length; i += 2) {
+    const l = Math.hypot(ring[(i + 2) % ring.length] - ring[i], ring[(i + 3) % ring.length] - ring[i + 1]);
+    perim += l; if (l > ll) { ll = l; li = i; }
+  }
+  const bay = Math.max(30, perim / 520);
+  for (let i = 0; i < ring.length; i += 2) {
+    const aX = ring[i], aZ = ring[i + 1], bX = ring[(i + 2) % ring.length], bZ = ring[(i + 3) % ring.length];
+    const dx = bX - aX, dz = bZ - aZ, len = Math.hypot(dx, dz);
+    if (len < 10) continue;                            // tiny jogs keep their glass, skip piers
+    const ang = Math.atan2(dz, dx), nP = Math.max(1, Math.round(len / bay));
+    for (let k = 0; k < nP; k++) {                     // k=0 sits on the vertex → corners read as solid concrete
+      const d = (len * k) / nP;
+      rotBox(buckets[PLAIN], aX + dx / len * d, aZ + dz / len * d, 1.0, 1.3, g - 4, eaveH + 3, ang, CONC);
+    }
+  }
+
+  // interior probe — the comb-shaped 100 building's centroid can sit near a courtyard, so
+  // rooftop gear anchors off the longest wing wall, each spot verified inside the footprint
+  const inside = (x: number, z: number): boolean => {
+    let inPoly = false;
+    for (let i = 0, j = ring.length - 2; i < ring.length; j = i, i += 2) {
+      const xi = ring[i], zi = ring[i + 1], xj = ring[j], zj = ring[j + 1];
+      if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inPoly = !inPoly;
+    }
+    return inPoly;
+  };
+  const eAx = ring[li], eAz = ring[li + 1], eBx = ring[(li + 2) % ring.length], eBz = ring[(li + 3) % ring.length];
+  const ex = eBx - eAx, ez = eBz - eAz, el = Math.hypot(ex, ez) || 1;
+  let inx = -ez / el, inz = ex / el;                   // inward normal — sign settled by the probe
+  if (!inside(eAx + ex * 0.5 + inx * 15, eAz + ez * 0.5 + inz * 15)) { inx = -inx; inz = -inz; }
+  const eang = Math.atan2(ez, ex);
+  // rooftop air handlers + vents along the wing (heroes skip the generic roofClutter pass)
+  for (const [t, hl2, hw2, h2] of [[0.38, 7, 4.5, 6], [0.5, 2.4, 2.4, 4], [0.62, 5, 3.5, 5]] as const) {
+    const mx = eAx + ex * t + inx * 13, mz = eAz + ez * t + inz * 13;
+    if (inside(mx, mz)) rotBox(buckets[PLAIN], mx, mz, hl2, hw2, eaveH + 1.6, eaveH + 1.6 + h2, eang, '#b8b3a6');
+  }
+
+  // street entry: concrete surround, warm-lit lobby doors, flat concrete hood
+  const fs = frontSegment(b, index);
+  const fang = Math.atan2(fs.tz, fs.tx);
+  rotBox(buckets[PLAIN], fs.x + fs.nx * 1.2, fs.z + fs.nz * 1.2, 5.8, 1.2, g - 1, g + 15, fang, CONC);
+  rotBox(buckets[GLOW], fs.x + fs.nx * 1.6, fs.z + fs.nz * 1.6, 3.4, 0.5, g, g + 11.5, fang, '#6b5836');
+  rotBox(buckets[PLAIN], fs.x + fs.nx * 1.7, fs.z + fs.nz * 1.7, 6.6, 1.9, g + 15, g + 16.6, fang, CAP);
+
+  // the powerhouse's tall round concrete stack — tapered octagon, soot-dark crown, ~25 m up
+  if (o.stack) {
+    let sx = eAx + ex * 0.82 + inx * 20, sz = eAz + ez * 0.82 + inz * 20;   // toward the wing's end, powerhouse-style
+    if (!inside(sx, sz)) { sx = eAx + ex * 0.5 + inx * 20; sz = eAz + ez * 0.5 + inz * 20; }
+    walls(buckets[PLAIN], octRing(sx, sz, 7), g - 4, eaveH + 40, CONC, 0);
+    walls(buckets[PLAIN], octRing(sx, sz, 5.8), eaveH + 40, eaveH + 88, CONC, 0);
+    walls(buckets[PLAIN], octRing(sx, sz, 4.9), eaveH + 88, eaveH + 122, '#c4beb0', 0);
+    walls(buckets[PLAIN], octRing(sx, sz, 5.2), eaveH + 114, eaveH + 124, '#6e6a64', 0);   // soot band
+    flatRoof(buckets[PLAIN], octRing(sx, sz, 5.2), eaveH + 123, '#3a3835');                // closes the flue from flight view
+  }
+}
+
+// The Cabot (1920) — Cabot Street's movie palace: a flat red-brown brick front block with
+// stone stringcourses + cornice, storefronts flanking a glowing lobby entrance, the white
+// marquee canopy out over the sidewalk (warm bulb-lit soffit + changeable letter board),
+// the skeletal steel rooftop CABOT sign relit in 2020, and the taller blank-brick stage
+// house rising over the auditorium's rear half.
+function cabotTheatre(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const BRICKH = '#84463a', STONE = '#d9cfb9', WHITE = '#f4f1e8', STEEL = '#33302c',
+        BULB = '#ffd98a', LETTER = '#ffe4a6', ROOF = '#565049', LOBBY = '#e3c78f';
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  // the facade can sit on either OBB axis (the auditorium runs back from the street) —
+  // pick whichever axis frontSegment's street normal agrees with
+  const fs = frontSegment(b, index);
+  const dLx = fs.nx * ca + fs.nz * sa, dLz = -fs.nx * sa + fs.nz * ca;
+  const alongL = Math.abs(dLx) >= Math.abs(dLz);
+  const fSign = (alongL ? dLx : dLz) >= 0 ? 1 : -1;
+  const halfFace = alongL ? obb.hw : obb.hl, halfDeep = alongL ? obb.hl : obb.hw;
+  // facade frame: u runs across the front face, d = depth behind it (negative = over the sidewalk)
+  const P = (u: number, d: number, y: number): [number, number, number] =>
+    alongL ? pt(fSign * (halfDeep - d), u, y) : pt(u, fSign * (halfDeep - d), y);
+  const fAng = alongL ? obb.ang + Math.PI / 2 : obb.ang;   // rotBox axis = along the facade
+
+  const eave = g + 52;                                                                  // 2½ tall commercial storeys
+  walls(buckets[BRICK], b.p, g - 4, eave, BRICKH);                                      // flat red-brown brick throughout
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), eave - 2.6, eave + 0.8, STONE, 0);        // stone cornice / parapet cap
+  flatRoof(buckets[PLAIN], b.p, eave + 1.2, ROOF);
+  // storefront glass flanking the entrance + a row of uppers; long side walls earn exit doors
+  facades(buckets[PLAIN], b.p, eave, 2, Math.round(obb.cx * 11 + obb.cz * 3), true, false, true, g);
+
+  // lighter stone/terracotta accent bands across the street facade (clear of the window rows)
+  for (const [y, h] of [[g + 27, 1.5], [g + 33.5, 1.5]] as const) {
+    const c = P(0, -0.4, 0);
+    rotBox(buckets[PLAIN], c[0], c[2], halfFace * 0.98, 0.55, y, y + h, fAng, STONE);
+  }
+
+  // white marquee canopy out over the sidewalk — the real one projects well past the wall
+  const mw = Math.min(halfFace * 0.55, 13), proj = 9;
+  const mc = P(0, 0.2 - proj / 2, 0);
+  rotBox(buckets[PLAIN], mc[0], mc[2], mw, proj / 2 + 0.3, g + 18, g + 21, fAng, WHITE);            // thin white fascia slab
+  rotBox(buckets[GLOW], mc[0], mc[2], mw - 0.7, proj / 2 - 0.4, g + 17.4, g + 18.05, fAng, BULB);   // warm bulb-lit soffit
+  const lb = P(0, -(proj + 0.35), 0);
+  rotBox(buckets[GLOW], lb[0], lb[2], mw * 0.88, 0.3, g + 18.5, g + 20.5, fAng, LETTER);            // changeable letter board
+
+  // glowing lobby doors under the marquee, white surround, lit poster cases flanking
+  const ds = P(0, -0.5, 0), dl = P(0, -0.8, 0);
+  rotBox(buckets[PLAIN], ds[0], ds[2], 6.8, 0.55, g, g + 12, fAng, WHITE);
+  rotBox(buckets[GLOW], dl[0], dl[2], 5.8, 0.55, g + 1, g + 11, fAng, LOBBY);
+  const pcU = Math.min(halfFace - 3, mw + 3.2);
+  for (const s of [-1, 1] as const) {
+    const pc = P(s * pcU, -0.7, 0);
+    rotBox(buckets[GLOW], pc[0], pc[2], 2.1, 0.3, g + 4, g + 10, fAng, '#e9dcc0');                  // lobby cards
+  }
+
+  // stage house: plain brick fly tower over the auditorium's rear half, half again taller
+  const sRing: number[] = [];
+  const SP = (u: number, d: number) => { const p = P(u, d, 0); sRing.push(p[0], p[2]); };
+  const si = 1.2;                                                                       // inset so the front-block brick reads in front
+  SP(-halfFace + si, halfDeep); SP(halfFace - si, halfDeep);
+  SP(halfFace - si, 2 * halfDeep - si); SP(-halfFace + si, 2 * halfDeep - si);
+  const stageTop = g + 78;                                                              // ~1.5× the facade height
+  walls(buckets[BRICK], sRing, eave - 8, stageTop, BRICKH);
+  walls(buckets[PLAIN], expandRing(sRing, 0.3), stageTop - 2, stageTop + 0.6, STONE, 0);
+  flatRoof(buckets[PLAIN], sRing, stageTop + 1, ROOF);
+  const vc = P(0, halfDeep * 1.5, 0);
+  buckets[PLAIN].box(vc[0], vc[2], 2.6, 2, stageTop + 1, stageTop + 4, '#6b675f', 0);   // rooftop vent
+
+  // skeletal rooftop sign: open steel posts + rails carrying five warm blocks (C·A·B·O·T at night)
+  const sw = Math.min(halfFace * 0.72, 17), sd = Math.min(5, halfDeep * 0.3);
+  const s0 = eave + 1.2, s1 = s0 + 16;
+  for (const t of [-1, -0.5, 0, 0.5, 1] as const) {
+    const lp = P(t * sw, sd, 0);
+    buckets[PLAIN].box(lp[0], lp[2], 0.45, 0.45, s0, s1, STEEL, 0);
+  }
+  const rc = P(0, sd, 0);
+  rotBox(buckets[PLAIN], rc[0], rc[2], sw + 0.4, 0.35, s0 + 4.2, s0 + 4.9, fAng, STEEL);
+  rotBox(buckets[PLAIN], rc[0], rc[2], sw + 0.4, 0.35, s1 - 0.7, s1, fAng, STEEL);
+  for (let i = 0; i < 5; i++) {
+    const u = -sw * 0.82 + sw * 1.64 * (i / 4);
+    const c = P(u, sd - 0.75, 0);
+    rotBox(buckets[GLOW], c[0], c[2], sw * 0.13, 0.35, s0 + 6, s1 - 2, fAng, LETTER);
+  }
+
+  // festive eave lights like the neighbours (heroes skip the generic decor pass)
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eave - 1.5, HALLOWEEN_BULBS);
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eave - 1.5);
+}
+
+// First Parish Church Beverly (1770 meetinghouse, 1835 Greek Revival remodel) — pale
+// YELLOW clapboard with white trim (photo-verified; not white, not granite): a gable-front
+// temple with four square white piers on the facade, a square white clock tower at the
+// front of the ridge, and an octagonal OPEN belfry under a dark domed cap.
+function firstParishBeverly(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const YELLOW = '#f0e2ab', WHITE = '#fbfaf3', ROOF = '#85888c', DARK = '#33363b';
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  // temple form: the GABLE END faces Cabot St — pick the street end of the long axis
+  // (facade normal when the front is a short end, midpoint fallback when it isn't)
+  const dn = fs.nx * ca + fs.nz * sa;
+  const fx = (Math.abs(dn) > 0.3 ? dn : (fs.x - obb.cx) * ca + (fs.z - obb.cz) * sa) >= 0 ? 1 : -1;
+  const eave = g + 40;                                                         // one tall meetinghouse storey
+
+  // pale yellow clapboard body, white water table + cornice
+  clad(buckets[CLAP], b.p, g - 4, eave, YELLOW);
+  const exr = expandRing(b.p, 0.5);
+  walls(buckets[PLAIN], exr, g + 0.3, g + 1.8, WHITE, 0);
+  walls(buckets[PLAIN], exr, eave - 2, eave + 0.4, WHITE, 0);
+  // tall arched side windows ≈ two stacked sash tiers (gallery level inside)
+  facades(buckets[PLAIN], b.p, eave, 2, Math.round(obb.cx * 11 + obb.cz * 3), false, false, false, g);
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eave - 1.5, HALLOWEEN_BULBS);
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eave - 1.5);
+
+  // weathered gray shingle nave gable, ridge down the long axis; yellow tympanum ends
+  const ridgeY = eave + Math.min(W * 0.72, 20), Lr = L + 1.2, Wr = W + 1.2;
+  tmp.set(ROOF); const rr = tmp.r, rg = tmp.g, rb2 = tmp.b;
+  for (const s of [1, -1] as const) {
+    const e0 = pt(-Lr, s * Wr, eave), e1 = pt(Lr, s * Wr, eave), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY);
+    const sh = s > 0 ? 0.97 : 0.88;
+    buckets[SHINGLE].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr * sh, rg * sh, rb2 * sh);
+  }
+  tmp.set(YELLOW); const yr = tmp.r, yg = tmp.g, yb = tmp.b;
+  for (const sx of [1, -1] as const) {
+    const a = pt(sx * L, W, eave), b2 = pt(sx * L, -W, eave), pk = pt(sx * L, 0, ridgeY);
+    buckets[CLAP].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, yr, yg, yb, 0, 0, 0, 0, 0, 0);
+  }
+
+  // Greek Revival front: four square white corner piers/pilasters + entablature band
+  for (const t of [-0.92, -0.31, 0.31, 0.92]) {
+    const c = pt(fx * (L + 0.4), t * W, 0);
+    rotBox(buckets[PLAIN], c[0], c[2], 1.1, 2.2, g - 2, eave + 0.3, obb.ang, WHITE);
+  }
+  const ec = pt(fx * (L + 0.6), 0, 0);
+  rotBox(buckets[PLAIN], ec[0], ec[2], 1.0, W + 1.0, eave - 0.4, eave + 1.6, obb.ang, WHITE);
+  // central double door in a white surround under the pediment
+  const ds = pt(fx * (L + 0.2), 0, 0);
+  rotBox(buckets[PLAIN], ds[0], ds[2], 0.5, 4.6, g, g + 12.5, obb.ang, WHITE);
+  const dd = pt(fx * (L + 0.7), 0, 0);
+  rotBox(buckets[PLAIN], dd[0], dd[2], 0.3, 3.4, g, g + 11, obb.ang, '#3a3a34');
+
+  // square white clock tower rising from the front of the ridge (face just behind the pediment)
+  const tw = Math.min(W * 0.42, 20), cxL = fx * (L - tw - 1.2);
+  const tRing: number[] = [];
+  const TP = (lx: number, lz: number) => { const p = pt(lx, lz, 0); tRing.push(p[0], p[2]); };
+  TP(cxL - tw, -tw); TP(cxL + tw, -tw); TP(cxL + tw, tw); TP(cxL - tw, tw);
+  const stageT = g + 72;
+  clad(buckets[CLAP], tRing, g + 34, stageT, WHITE);                           // starts inside the roof — no seam
+  walls(buckets[PLAIN], expandRing(tRing, 0.4), stageT - 1.6, stageT + 0.3, WHITE, 0);
+  flatRoof(buckets[PLAIN], tRing, stageT + 0.3, WHITE);                        // belfry deck
+
+  // a clock face on each side: white disc (backlit at night) in a dark bezel ring
+  const faces: [number, number, number, number][] = [
+    [cxL + tw, 0, ca, sa], [cxL - tw, 0, -ca, -sa],
+    [cxL, tw, -sa, ca], [cxL, -tw, sa, -ca]
+  ];
+  for (const [flx, flz, nx2, nz2] of faces) {
+    const c = pt(flx, flz, g + 64);
+    const tx2 = nz2, tz2 = -nx2;                                               // t×up = n → fan faces out
+    const disc = (r: number, off: number, hex: string, bk: Bucket) => {
+      tmp.set(hex); const cr = tmp.r, cg = tmp.g, cb = tmp.b;
+      const dx = c[0] + nx2 * off, dy = c[1], dz = c[2] + nz2 * off;
+      for (let k = 0; k < 8; k++) {
+        const a0 = (k / 8) * Math.PI * 2, a1 = ((k + 1) / 8) * Math.PI * 2;
+        bk.triUV(dx, dy, dz,
+          dx + tx2 * Math.cos(a0) * r, dy + Math.sin(a0) * r, dz + tz2 * Math.cos(a0) * r,
+          dx + tx2 * Math.cos(a1) * r, dy + Math.sin(a1) * r, dz + tz2 * Math.cos(a1) * r,
+          nx2, 0, nz2, cr, cg, cb, 0, 0, 0, 0, 0, 0);
+      }
+    };
+    disc(3.1, 0.3, '#2f3237', buckets[PLAIN]);
+    disc(2.35, 0.55, '#efe9d8', buckets[GLOW]);
+  }
+
+  // octagonal OPEN belfry: 8 white posts, the bell showing between, dark domed cap
+  const tc = pt(cxL, 0, 0), tcx = tc[0], tcz = tc[2];
+  const rb = tw * 0.7, belT = g + 84;
+  for (let k = 0; k < 8; k++) {
+    const a = obb.ang + (k / 8) * Math.PI * 2;
+    buckets[PLAIN].box(tcx + Math.cos(a) * rb, tcz + Math.sin(a) * rb, 0.8, 0.8, stageT, belT, WHITE);
+  }
+  buckets[PLAIN].box(tcx, tcz, 2, 2, stageT + 3, stageT + 7, '#6f5a2e');       // the bronze bell
+  walls(buckets[PLAIN], octRing(tcx, tcz, rb + 1.4), belT, belT + 2.2, DARK, 0);
+  walls(buckets[PLAIN], octRing(tcx, tcz, rb * 0.72), belT + 2.2, belT + 4, DARK, 0);
+  tmp.set(DARK);
+  cone(buckets[PLAIN], tcx, belT + 4, tcz, rb * 0.75, 4.8, tmp.clone());       // dome ≈ g+93
+  buckets[PLAIN].box(tcx, tcz, 0.35, 0.35, belT + 7, belT + 11.5, '#d8d3c2');  // finial → ≈ g+95
+}
+
+// Prides Crossing Station (c.1880) — the tiny Stick-style B&M depot on the tracks off Hale St,
+// now the Prides Crossing Confections candy shop. Photo-true: dark forest-green boards, grey/
+// silver trim, RED doors + red window sash, a grey shingle gable roof with DEEP bracketed
+// eaves, stick-truss work in each gable end, and the little red PRIDES sign board.
+function pridesStation(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const GREEN = '#2e4d3b', TRIM = '#b6bcbe', RED = '#b03028', ROOF = '#8a8f94', GLASS = '#2b3a44';
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;                 // trackside long face
+  const eaveH = g + 24, ridgeY = eaveH + Math.min(14, W * 0.9);             // one tall storey, ridge ≈ g+38
+
+  clad(buckets[CLAP], b.p, g - 4, eaveH, GREEN);                            // dark forest-green boards
+  walls(buckets[PLAIN], expandRing(b.p, 0.35), g + 0.3, g + 2, TRIM, 0);    // grey water table
+
+  // grey shingle gable roof — DEEP Stick-style eaves (~0.5 m past the walls, carried on brackets)
+  const ov = 4, ovEnd = 3, Lr = L + ovEnd, Wr = W + ov;
+  tmp.set(ROOF); const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  for (const s of [1, -1] as const) {
+    const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY);
+    const sh = s > 0 ? 1 : 0.92;
+    buckets[SHINGLE].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr * sh, rg * sh, rb * sh);
+  }
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, Lr, 0.8, ridgeY - 0.5, ridgeY + 0.4, obb.ang, '#75797e');   // ridge cap
+  tmp.set(GREEN); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  for (const sx of [1, -1] as const) {                                      // green gable-end triangles
+    const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY);
+    buckets[CLAP].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, wr, wg, wb, 0, 0, 0, 0, 0, 0);
+  }
+
+  // grey soffit boards fill the overhang's underside, bracket arms marching below the eave
+  for (const s of [1, -1] as const) {
+    const sf = pt(0, s * (W + ov / 2 - 0.7), 0);
+    rotBox(buckets[PLAIN], sf[0], sf[2], Lr - 0.4, ov / 2 + 0.9, eaveH - 1.2, eaveH - 0.2, obb.ang, TRIM);
+    const nB = Math.max(3, Math.round(L / 5));
+    for (let i = 0; i < nB; i++) {
+      const lxb = -L + 2 + (2 * L - 4) * i / (nB - 1);
+      if (s === front && Math.abs(lxb) < 8) continue;                       // keep the sign clear
+      const bc = pt(lxb, s * (W + ov / 2 - 0.8), 0);
+      rotBox(buckets[PLAIN], bc[0], bc[2], 0.5, ov / 2 + 0.6, eaveH - 3.4, eaveH - 1.1, obb.ang, TRIM);
+    }
+  }
+
+  // decorative stick-truss work in each gable: a grey king post + two rising diagonals
+  tmp.set(TRIM); const tr2 = tmp.r, tg2 = tmp.g, tb2 = tmp.b;
+  const stick = (sx: 1 | -1, lz0: number, y0: number, lz1: number, y1: number) => {
+    const off = sx * (L + 0.4);                                             // proud of the gable boards
+    const dlz = lz1 - lz0, dy = y1 - y0, dl = Math.hypot(dlz, dy) || 1;
+    const pz = (-dy / dl) * 0.55, py = (dlz / dl) * 0.55;
+    const A = pt(off, lz0 + pz, y0 + py), B = pt(off, lz0 - pz, y0 - py), C = pt(off, lz1 - pz, y1 - py), D = pt(off, lz1 + pz, y1 + py);
+    buckets[PLAIN].quad(A[0], A[1], A[2], B[0], B[1], B[2], C[0], C[1], C[2], D[0], D[1], D[2], ca * sx, 0, sa * sx, tr2, tg2, tb2);
+  };
+  for (const sx of [1, -1] as const) {
+    stick(sx, 0, eaveH + 0.8, 0, ridgeY - 0.8);                             // king post
+    stick(sx, -W * 0.78, eaveH + 1, -1.4, ridgeY - 2.4);                    // diagonals
+    stick(sx, W * 0.78, eaveH + 1, 1.4, ridgeY - 2.4);
+  }
+
+  // red-sash windows down both long faces — glass floats just proud of the red frame slab
+  tmp.set(GLASS); const glr = tmp.r, glg = tmp.g, glb = tmp.b;
+  const winRed = (lx: number, side: number) => {
+    const c = pt(lx, side * (W + 0.1), 0);
+    rotBox(buckets[PLAIN], c[0], c[2], 2.8, 0.45, g + 8, g + 17.5, obb.ang, RED);
+    const o2 = side * (W + 0.62), nx2 = -sa * side, nz2 = ca * side;
+    const Cg = (sx2: number, y: number): [number, number, number] => pt(lx + sx2 * 2.1, o2, y);
+    const a = Cg(-1, g + 9), b2 = Cg(1, g + 9), c2 = Cg(1, g + 16.7), d2 = Cg(-1, g + 16.7);
+    buckets[PLAIN].quad(a[0], a[1], a[2], b2[0], b2[1], b2[2], c2[0], c2[1], c2[2], d2[0], d2[1], d2[2], nx2, 0, nz2, glr, glg, glb);
+    const mr = pt(lx, side * (W + 0.35), 0);
+    rotBox(buckets[PLAIN], mr[0], mr[2], 2.1, 0.4, g + 12.5, g + 13.1, obb.ang, RED);   // meeting rail
+  };
+  const nW = Math.max(2, Math.round(L / 10));
+  for (const side of [front, -front]) for (let i = 0; i < nW; i++) {
+    const lx = -L + (2 * L) * (i + 0.5) / nW;
+    if (side === front && Math.abs(lx) < 4.8) continue;                     // the door bay
+    winRed(lx, side);
+  }
+
+  // red door in a grey casing, centre of the trackside face, one low granite step
+  const dc = pt(0, front * (W + 0.12), 0);
+  rotBox(buckets[PLAIN], dc[0], dc[2], 3.6, 0.4, g, g + 12.5, obb.ang, TRIM);
+  const dd = pt(0, front * (W + 0.3), 0);
+  rotBox(buckets[PLAIN], dd[0], dd[2], 2.7, 0.4, g, g + 11.5, obb.ang, RED);
+  const st = pt(0, front * (W + 1.5), 0);
+  rotBox(buckets[PLAIN], st[0], st[2], 3.2, 1.3, g - 2, g + 1, obb.ang, '#9aa0a4');
+
+  // the little red PRIDES sign board under the eave, lettering band picked out in cream
+  const sc = pt(0, front * (W + 0.5), 0);
+  rotBox(buckets[PLAIN], sc[0], sc[2], 6.5, 0.3, eaveH - 5.6, eaveH - 2.3, obb.ang, RED);
+  const sl = pt(0, front * (W + 0.82), 0);
+  rotBox(buckets[PLAIN], sl[0], sl[2], 5.2, 0.12, eaveH - 4.7, eaveH - 3.2, obb.ang, '#ece7d8');
+
+  // little brick stove chimney on the ridge
+  const cc = pt(-L * 0.3, 0, 0);
+  buckets[BRICK].box(cc[0], cc[2], 1.6, 1.6, ridgeY - 4, ridgeY + 7, '#7a4a39', 1);
+
+  // festive eave lights like the neighbours (heroes skip the generic decor pass)
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
+}
+
+// Beverly Golf & Tennis clubhouse (1910) — the Tudor Revival country club United Shoe
+// built for its workers: cream stucco on a fieldstone base, dark brown trim, a dark
+// roofed veranda wrapping the long front and both ends, and a gray-brown shingle roof
+// with a parade of steep gabled dormers marching down each long slope. Brick chimneys.
+function golfClubhouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const STUCCO = '#efe7d3', TRIM = '#4a3729', STONE = '#8b8177', ROOF = '#6e655a', GLASS = '#2b3a44', PORCH = '#4d3b2b';
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;        // veranda faces the street/course side
+  const eave = g + 42;                                             // 2.5 storeys — the half lives up in the dormers
+
+  walls(buckets[BRICK], b.p, g - 4, g + 6, STONE);                 // fieldstone/cobble foundation (coursing tex, grayed to stone)
+  walls(buckets[PLAIN], b.p, g + 6, eave, STUCCO, 0);              // cream stucco upper walls
+  const exr = expandRing(b.p, 0.4);
+  walls(buckets[PLAIN], exr, g + 25, g + 26.2, TRIM, 0);           // dark brown second-floor band
+  walls(buckets[PLAIN], exr, eave - 1.5, eave + 0.3, TRIM, 0);     // dark eave fascia
+  facades(buckets[PLAIN], b.p, eave, 2, Math.round(obb.cx * 11 + obb.cz * 3), true, false, false, g);
+  if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eave - 1.5, HALLOWEEN_BULBS);
+  else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eave - 1.5);
+
+  // long gray-brown shingle gable down the true long axis
+  const rise = Math.min(W * 0.85, 30), ridgeY = eave + rise, ov = 1.4, Lr = L + ov, Wr = W + ov;
+  tmp.set(ROOF); const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  for (const s of [1, -1] as const) {
+    const e0 = pt(-Lr, s * Wr, eave), e1 = pt(Lr, s * Wr, eave), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY);
+    const sh = s === front ? 1 : 0.9;
+    buckets[SHINGLE].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr * sh, rg * sh, rb * sh);
+  }
+  // stucco gable ends with dark half-timber studs up the peak — the Tudor tell
+  tmp.set(STUCCO); const ur = tmp.r, ug = tmp.g, ub = tmp.b;
+  for (const sx of [1, -1] as const) {
+    const a = pt(sx * L, W, eave), b2 = pt(sx * L, -W, eave), pk = pt(sx * L, 0, ridgeY);
+    buckets[PLAIN].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, ur, ug, ub, 0, 0, 0, 0, 0, 0);
+    for (const t of [-0.6, -0.3, 0, 0.3, 0.6]) {
+      const c = pt(sx * L, t * W, 0);
+      rotBox(buckets[PLAIN], c[0], c[2], 0.55, 0.7, eave + 0.3, eave + Math.max(2, rise * (1 - Math.abs(t)) - 1), obb.ang, TRIM);
+    }
+  }
+  for (const sx of [1, -1] as const) { const c = pt(sx * L * 0.5, 0, 0); buckets[BRICK].box(c[0], c[2], 2.2, 2.2, ridgeY - 10, ridgeY + 10, '#7a4a39', 1); }   // brick chimneys punch the ridge
+
+  // the dormer parade — 5-7 steep little gables marching down BOTH long slopes
+  const n = Math.max(5, Math.min(7, Math.round(L / 30)));
+  const zf = W * 0.68, zb = W * 0.24, dw = 3.4;
+  const y0 = eave + rise * (1 - zf / Wr) - 2, y1 = y0 + 9, y2 = y0 + 15;    // buried base → cheeks → steep gablet ridge (stays under the main ridge)
+  for (const s of [1, -1] as const) for (let i = 0; i < n; i++) {
+    const c = -L + (2 * L) * (i + 0.5) / n;
+    const nx = -sa * s, nz = ca * s;
+    const bc = pt(c, s * (zf + zb) / 2, 0);
+    rotBox(buckets[PLAIN], bc[0], bc[2], dw, (zf - zb) / 2, y0, y1, obb.ang, STUCCO);   // stucco body, back buried in the slope
+    const fL = pt(c - s * dw, s * zf, y1), fR = pt(c + s * dw, s * zf, y1), aF = pt(c, s * zf, y2), aB = pt(c, s * zb, y2), aF2 = pt(c, s * (zf + 0.7), y2);
+    buckets[PLAIN].triUV(fL[0], fL[1], fL[2], fR[0], fR[1], fR[2], aF[0], aF[1], aF[2], nx, 0, nz, ur, ug, ub, 0, 0, 0, 0, 0, 0);   // steep stucco gablet
+    for (const sx of [1, -1] as const) {                                    // little shingle planes to a cross ridge
+      const e0 = pt(c + sx * (dw + 0.7), s * (zf + 0.7), y1 - 0.4), e1 = pt(c + sx * (dw + 0.7), s * zb, y1 - 0.4);
+      const shd = sx > 0 ? 1 : 0.88;
+      buckets[SHINGLE].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], aB[0], aB[1], aB[2], aF2[0], aF2[1], aF2[2], ca * sx * 0.55, 0.72, sa * sx * 0.55, rr * shd, rg * shd, rb * shd);
+    }
+    const wf = pt(c, s * (zf + 0.25), 0), gc = pt(c, s * (zf + 0.5), 0);    // dark-framed casement in each dormer face
+    rotBox(buckets[PLAIN], wf[0], wf[2], 2.3, 0.3, y0 + 2.4, y0 + 8.2, obb.ang, TRIM);
+    rotBox(buckets[PLAIN], gc[0], gc[2], 1.7, 0.25, y0 + 3, y0 + 7.6, obb.ang, GLASS);
+  }
+
+  // dark brown wraparound veranda: plank-brown deck, thin posts, low double rail,
+  // shed roof visible edge ≈ g+14 (deep by design — a real roofed porch, not eave creep)
+  const porch = (x0: number, z0: number, x1: number, z1: number, ox: number, oz: number, dy: number) => {
+    const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, len = Math.hypot(x1 - x0, z1 - z0), half = len / 2;
+    const ux = (x1 - x0) / len, uz = (z1 - z0) / len;
+    const segAng = obb.ang + Math.atan2(uz, ux);
+    const PD = 12;                                                          // veranda depth (~1.5 m)
+    const at = (t: number, o: number, y: number): [number, number, number] => pt(mx + ux * t + ox * o, mz + uz * t + oz * o, y);
+    const dc = at(0, (PD - 2) / 2, 0);
+    rotBox(buckets[PLAIN], dc[0], dc[2], half, (PD + 2) / 2, g - 3, g + 2.2 + dy, segAng, PORCH);   // deck (dy staggers segment tops — no coplanar fight)
+    const nP = Math.max(2, Math.round(len / 13));
+    for (let i = 0; i <= nP; i++) {
+      const pc = at(-half + (len * i) / nP, PD - 1, 0);
+      rotBox(buckets[PLAIN], pc[0], pc[2], 0.7, 0.7, g + 2, g + 14, segAng, TRIM);                  // thin posts
+    }
+    const rl = at(0, PD - 1, 0);
+    rotBox(buckets[PLAIN], rl[0], rl[2], half, 0.5, g + 8.6 + dy, g + 9.4 + dy, segAng, TRIM);      // low rail + mid rail
+    rotBox(buckets[PLAIN], rl[0], rl[2], half, 0.4, g + 5 + dy, g + 5.6 + dy, segAng, TRIM);
+    const i0 = at(-half - 1, -1.5, g + 19.5), i1 = at(half + 1, -1.5, g + 19.5), o1 = at(half + 1, PD + 0.6, g + 14), o0 = at(-half - 1, PD + 0.6, g + 14);
+    const wnx = ox * ca - oz * sa, wnz = ox * sa + oz * ca;
+    tmp.set('#4a382a');
+    buckets[SHINGLE].quad(i0[0], i0[1], i0[2], i1[0], i1[1], i1[2], o1[0], o1[1], o1[2], o0[0], o0[1], o0[2], wnx * 0.5, 0.85, wnz * 0.5, tmp.r, tmp.g, tmp.b);  // shed roof, tucked over the row-1 window heads
+    const fc = at(0, PD + 0.4, 0);
+    rotBox(buckets[PLAIN], fc[0], fc[2], half + 1, 0.5, g + 13.2, g + 14.4, segAng, TRIM);          // fascia
+  };
+  porch(-L, front * W, L, front * W, 0, front, 0);                                                  // the long front band
+  for (const sx of [1, -1] as const) porch(sx * L, front * W, sx * L, -front * (W - 2), sx, 0, 0.18);   // wraps both ends
+}
+
 const HEROES: Record<string, HeroBuilder> = {
   // Both towns' heroes coexist here — entries are keyed by unique OSM building
   // names, so only the loaded town's world.json ever matches its own set.
@@ -3364,6 +3976,16 @@ const HEROES: Record<string, HeroBuilder> = {
   'Beverly City Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#a8543f', material: 'brick', trim: '#f4efe4', roof: '#6f7d72', storeys: 3, roofKind: 'flat', entrance: 'portico', chimney: 'none', flag: true }),   // 1783 Andrew Cabot mansion — PAINTED barn-red brick, white Ionic porch; the 1874 mansard+cupola came off in 1933, so: flat
   'Tupper Manor': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#f0ebdf', roof: '#7f848c', storeys: 3, roofKind: 'hip', balustrade: 'plain', entrance: 'portico', palladian: 'single', stringcourses: true, chimney: 'interior4' }),   // 1901 Georgian Revival (Guy Lowell), Endicott's oceanfront mansion
   'Hospital Point Light': buildHospitalPoint,
+  'Beverly Depot': beverlyDepot,
+  'Beverly Public Library': beverlyLibrary,
+  '100 Cummings Center': (bk, b, g, i) => cummingsShoe(bk, b, g, i, { storeys: 4, stack: true }),
+  '200 Cummings Center': (bk, b, g, i) => cummingsShoe(bk, b, g, i, { storeys: 2 }),
+  '500 Cummings Center': (bk, b, g, i) => cummingsShoe(bk, b, g, i, { storeys: 6 }),
+  '600 Cummings Center': (bk, b, g, i) => cummingsShoe(bk, b, g, i, { storeys: 2 }),
+  'Cabot Theatre': cabotTheatre,
+  'First Parish Church': firstParishBeverly,
+  'Prides Crossing Confections': pridesStation,
+  'Beverly Golf & Tennis Clubhouse': golfClubhouse,
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,

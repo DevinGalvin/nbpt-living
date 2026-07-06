@@ -1708,7 +1708,7 @@ export class Hud {
         [/witch|bewitched/, '🧙'],   // Salem's whole brand — must beat house/museum
         [/mansion|manor/, '🏛'],     // before /garden/: "Ropes Mansion — house & garden"
         [/stadium|football/, '🏈'],  // before /light /: "football under Friday lights" isn't a lighthouse
-        [/ice cream|creamery/, '🍦'], [/roast beef/, '🥪'], [/theatre|theater|cinema/, '🎭'],
+        [/ice cream|creamery/, '🍦'], [/roast beef/, '🥪'], [/theatre|theater|cinema|movie/, '🎭'],
         [/library/, '📚'], [/\bshoe\b/, '👞'],   // "The Shoe" = Beverly's Cummings Center
         [/little league|\bfield\b/, '⚾'],       // singular only: "Fields" stays farm-country
         [/frog|pond/, '🐸'], [/light(house)?\b|light /, '🗼'], [/airport|airfield|runway/, '✈️'],
@@ -1716,10 +1716,11 @@ export class Hud {
         [/burying|cemetery|graveyard/, '🪦'], [/bridge/, '🌉'], [/station|depot/, '🚂'],
         [/tall ship|friendship|schooner|\bship\b/, '⛵'], [/hotel|inn\b/, '🏨'], [/fort\b|castle/, '🏰'],
         [/beach|island|dune|sand/, '🏖'],   // before /farm/: "the Farms' mile-long beach" is a beach
+        [/\bfarms\b/, '🏘'],                // "Beverly Farms" is a village, not farmland ("Hale Farm" stays 🧙/🚜)
         [/farm|pasture|orchard|\bfields\b/, '🚜'], [/flats|marsh|bird/, '🦆'],   // \b: "ballfields" is a park, not a farm
         [/boardwalk|waterfront|wharf|dock|harbor|landing/, '⚓'],
         [/woods|forest|park|garden|common|maudslay|willow|gallows|refuge|sanctuar/, '🌳'], [/trail|rail/, '🚲'],
-        [/reservoir|lake|river/, '🌊'], [/statue|garrison/, '🗽'], [/church|chapel|meeting/, '⛪'],
+        [/reservoir|\blake\b|river/, '🌊'], [/statue|garrison/, '🗽'], [/church|chapel|meeting/, '⛪'],   // \b: Fish FLAKE Hill is not a lake
         [/school|academy/, '🏫'], [/court/, '⚖️'], [/museum|house|hall|athen/, '🏛'],
         [/square|downtown|market/, '⛲'], [/street|road|lane/, '🛣'],
       ];
