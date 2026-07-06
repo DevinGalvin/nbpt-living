@@ -67,6 +67,13 @@ export const TOWN: TownPack = {
     goldMid: '#e8c44f',
     goldBright: '#f6dd8a',
   },
+  borderLore: {
+    'Newburyport': 'the Clipper City · est. 1764',
+    'Newbury': 'settled 1635',
+    'Salisbury': 'settled 1638',
+    'Amesbury': 'settled 1654',
+    'West Newbury': 'incorporated 1819',
+  },
   searchPlaceholder: 'Go anywhere… try “241 High Street” or “The Grog”',
   fallSeasonLine: 'the leaves redden over Clipper Town',
   streetNudge: '📍 This is the real map of Newburyport.<br><b>Tap to find your street →</b>',

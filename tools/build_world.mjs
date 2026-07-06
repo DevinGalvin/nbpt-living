@@ -10,6 +10,7 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { loadTown } from './lib/town.mjs';
+import { bakeBorders } from './lib/borders.mjs';
 
 const T = await loadTown();
 const { PX_PER_M, ORIGIN, M_PER_DEG_LAT, BBOX, px } = T;
@@ -962,6 +963,19 @@ function simplifyDP(pts, eps) {
   }
   stats['poly-verts'] = `${before}>${after}`;
   console.log(`Poly simplify (DP 4/8px tiered): ${before} -> ${after} vertices`);
+}
+
+// ---------- town borders: municipal boundaries + welcome-sign spots ----------
+// (data/<town>/raw/boundaries.json — tools/fetch_boundaries.mjs, usually via the
+// fetch-data CI workflow; patch_borders.mjs applies the same bake without a rebuild)
+try {
+  const bj = JSON.parse(await readFile(new URL('boundaries.json', T.rawDir), 'utf8'));
+  const baked = bakeBorders(world, bj, px);
+  world.towns = baked.towns;
+  world.signs = baked.signs;
+  stats['welcome-signs'] = baked.signs.length;
+} catch (e) {
+  console.warn('Town borders SKIPPED (no boundaries.json — run the fetch-data workflow):', e.message);
 }
 
 // ---------- sort, QA, write ----------

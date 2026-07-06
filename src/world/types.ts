@@ -74,6 +74,21 @@ export interface Barrier {
   k: string; // fence | hedge | wall | picket (white post-and-rail, hand-mapped yards)
 }
 
+// a municipality's outer ring(s) in world px (baked from OSM admin boundaries)
+export interface TownArea {
+  n: string;
+  p: number[][];
+}
+
+// a roadside "Welcome to …" sign spot: where a real road crosses a town line;
+// yaw `a` faces the arriving player, `n` = the town being entered
+export interface TownSign {
+  x: number;
+  y: number;
+  a: number;
+  n: string;
+}
+
 export interface WorldData {
   meta: WorldMeta;
   polys: Poly[];
@@ -88,4 +103,6 @@ export interface WorldData {
   trees: { x: number; y: number }[]; // real surveyed tree positions
   addrs: { s: string; a: [string, number, number][] }[]; // mapped addresses per street
   power: { p: number[]; c: string }[]; // mapped power lines (vertices = poles)
+  towns?: TownArea[];           // municipal boundaries — "Entering …" banner + welcome signs
+  signs?: TownSign[];           // welcome-sign spots (tools/lib/borders.mjs)
 }

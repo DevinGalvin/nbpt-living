@@ -68,6 +68,16 @@ interface ChunkEntry {
   decorOnly: boolean;               // built without ground/signs (cheap, churn-safe) for phone flight
 }
 
+// point-in-polygon (ray cast) over a flat [x,y,...] ring — town-line checks
+function pointInRing(x: number, y: number, pts: number[]): boolean {
+  let inside = false;
+  for (let i = 0, j = pts.length - 2; i < pts.length; j = i, i += 2) {
+    const xi = pts[i], yi = pts[i + 1], xj = pts[j], yj = pts[j + 1];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
 // real store signs: small canvas-texture boards mounted on the building edge
 function makeSignMesh(name: string): THREE.Mesh {
   const c = document.createElement('canvas');
@@ -98,6 +108,53 @@ function makeSignMesh(name: string): THREE.Mesh {
     new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })
   );
   return mesh;
+}
+
+// classic New England town-line sign: white board, green trim, "entering TOWN" —
+// placed by the world builder wherever a real road crosses a municipal boundary.
+// Posts share cached resources (chunk teardown only disposes the board's texture).
+let postGeo: THREE.BoxGeometry | null = null;
+let postMat: THREE.MeshLambertMaterial | null = null;
+function makeWelcomeSignMesh(town: string): THREE.Mesh {
+  const c = document.createElement('canvas');
+  c.width = 512;
+  c.height = 288;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#f7f4ea';                       // aged white board
+  g.beginPath(); g.roundRect(4, 4, 504, 280, 14); g.fill();
+  g.strokeStyle = '#1e4a2f';                     // park-service green double trim
+  g.lineWidth = 10;
+  g.beginPath(); g.roundRect(10, 10, 492, 268, 10); g.stroke();
+  g.lineWidth = 3;
+  g.beginPath(); g.roundRect(26, 26, 460, 236, 6); g.stroke();
+  g.fillStyle = '#1e4a2f';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.font = 'italic 600 44px Georgia, serif';
+  g.fillText('entering', 256, 86);
+  const name = town.toUpperCase();
+  let size = 76;
+  do {
+    g.font = `700 ${size}px Georgia, serif`;
+    size -= 4;
+  } while (g.measureText(name).width > 430 && size > 26);
+  g.fillText(name, 256, 176);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  const board = new THREE.Mesh(
+    new THREE.PlaneGeometry(38, 21.5),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })
+  );
+  postGeo ??= new THREE.BoxGeometry(1.7, 30, 1.7);
+  postMat ??= new THREE.MeshLambertMaterial({ color: '#6e5a42' });
+  for (const sx of [-1, 1]) {
+    const post = new THREE.Mesh(postGeo, postMat);
+    post.position.set(sx * 15, -14, -0.9);       // board center sits ~24 up; posts reach the ground
+    post.castShadow = true;
+    board.add(post);
+  }
+  return board;
 }
 
 export class Game {
@@ -182,6 +239,8 @@ export class Game {
   private fpsAccum = 0; // seconds accumulated in the current FPS sample window
   private fpsFrames = 0; // frames counted in the current FPS sample window
   private pollAcc = 0;
+  private townAcc = 0;
+  private curTown: string | null = null;   // which municipality the player is in (banner on change)
   private sprinting = false;
   private debugVec: { x: number; y: number; until: number } | null = null;
   private waterUpdate: ((t: number) => void) | null = null;
@@ -691,6 +750,17 @@ export class Game {
         const mesh = makeSignMesh(s.name);
         mesh.position.set(s.x, this.terrain.heightAt(s.x, s.z) + 22.5, s.z);
         mesh.rotation.y = s.rotY;
+        this.scene.add(mesh);
+        signs.push(mesh);
+      }
+      // town-line "Welcome to …" signs (world.signs — road × municipal-boundary crossings)
+      const ox = cx * CHUNK, oy = cy * CHUNK;
+      for (const s of this.world.signs ?? []) {
+        if (s.x < ox || s.x >= ox + CHUNK || s.y < oy || s.y >= oy + CHUNK) continue;
+        const mesh = makeWelcomeSignMesh(s.n);
+        const gy = Math.max(this.terrain.heightAt(s.x, s.y), this.index.deckHeightAt(s.x, s.y));
+        mesh.position.set(s.x, gy + 24, s.y);
+        mesh.rotation.y = s.a;
         this.scene.add(mesh);
         signs.push(mesh);
       }
@@ -1883,6 +1953,28 @@ export class Game {
     }
 
     // polls
+    // town-line watcher: which municipality are we in? Baked borders (world.towns)
+    // + a slow poll; crossing shows the "Entering …" banner — the roadside signs'
+    // UI echo. Skipped in flight (you'd cross three towns in a minute of soaring).
+    this.townAcc += dt;
+    if (this.townAcc > 0.9 && (this.world.towns?.length ?? 0) > 0) {
+      this.townAcc = 0;
+      if (!this.flying) {
+        let now: string | null = null;
+        for (const t of this.world.towns!) {
+          for (const ring of t.p) {
+            if (pointInRing(this.px, this.pz, ring)) { now = t.n; break; }
+          }
+          if (now) break;
+        }
+        if (now && now !== this.curTown) {
+          // announce only on a real crossing — the spawn-in town sets silently
+          if (this.curTown) this.hud.announce('🪧 Entering ' + now, TOWN.borderLore?.[now] ?? 'crossing the town line');
+          this.curTown = now;
+        }
+      }
+    }
+
     this.pollAcc += dt;
     if (this.pollAcc > 0.45) {
       this.pollAcc = 0;

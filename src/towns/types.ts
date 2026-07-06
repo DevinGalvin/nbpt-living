@@ -76,6 +76,10 @@ export interface TownPack {
     goldMid: string;
     goldBright: string;
   };
+  // one-liners under the "Entering …" town-line banner, keyed by municipality
+  // name as mapped in OSM (optional — unlisted neighbors get no subtitle)
+  borderLore?: Record<string, string>;
+
   searchPlaceholder: string;
   fallSeasonLine: string;   // season-card copy for fall
   streetNudge: string;      // first-visit "find your street" toast (HTML)
