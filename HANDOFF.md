@@ -1,7 +1,13 @@
 # Clipper Town — Handoff
 
-A cozy, all-ages Zelda-like set on the **exact map of Newburyport, MA**. Three.js +
-TypeScript + Vite. Live at **https://clippertown.io**.
+A cozy, all-ages Zelda-like set on the **exact maps of real towns** — Newburyport at
+`/` and Salem at `/salem/`, one codebase. Three.js + TypeScript + Vite. Live at
+**https://clippertown.io**.
+
+> **⚡ FRESHEST STATE (July 6, 2026): read the ✦ MULTI-TOWN ARCHITECTURE section
+> first** — the Salem fork is retired, both towns ship from every push to `source`,
+> town borders/Welcome signs are live, and the North Shore build-out is ranked
+> (Beverly next). The Level-2 banner below is older but still current for story work.
 
 > ## 🚀 LIVE & stable at clippertown.io — launched June 16, 2026 to r/Newburyport
 > (the "I found my house!" hook landed). A LOT has shipped since launch — see §5. Every
@@ -26,23 +32,93 @@ TypeScript + Vite. Live at **https://clippertown.io**.
 
 ---
 
-## ✦ MULTI-TOWN ARCHITECTURE (July 2026) — one engine, N towns
+## ✦ MULTI-TOWN ARCHITECTURE (July 6, 2026) — one engine, N towns — ALL LIVE
 
 The Salem hard fork (`salem-experiment` branch + `nbpt-salem` worktree + committed
-`public/salem/` bundles) is **retired**. One codebase now builds every town:
+`public/salem/` bundles) is **retired, deleted, and archived** (history preserved at
+`archive/salem-experiment` + `archive/cloud-source`; the repo now carries only
+`source`, `main`, and those two archives). One codebase builds every town:
 
 - **Per-town config**: `towns/<id>/town.json` (identity/geodesy/branding/storage) +
-  `towns/<id>/map.mjs` (map curation) + `towns/<id>/public/` (world.json, heights.bin).
+  `towns/<id>/map.mjs` (map curation: landmarks, spot fixes, QA) + `towns/<id>/public/`
+  (world.json, heights.bin, manifest, og-image).
 - **Per-town content pack**: `src/towns/<id>/index.ts` (TownPack: spawn, flight,
-  atmosphere, courses, theme, copy) selected at build time via the `@town` alias
-  (`TOWN=salem vite build`). Salem runs `story: false` (world-only sandbox).
+  atmosphere, courses, theme, copy, borderLore) selected at build time via the `@town`
+  alias (`TOWN=salem vite build`). Salem runs `story: false` (world-only sandbox);
+  the NBPT quest line stays inline in quest.ts and is gated off in bare towns.
 - **CI builds every town from the same commit** (`npm run build:all` → `dist/` +
-  `dist/salem/`) — "Both towns:" hand-porting and "Salem bundle" commits are gone.
-- **Saves are namespaced per town** by a boot-time localStorage shim (rider name +
-  ghost pref + board-url stay global — the contract is documented in race.ts).
-- **Adding a town** is a checklist, not a fork: **docs/TOWNS.md**.
+  `dist/salem/`; deploy.yml runs it on every push to `source`) — "Both towns:"
+  hand-porting and "Salem bundle" commits are gone forever.
+- **Saves are namespaced per town** by a boot-time localStorage shim generated in
+  vite.config.ts from town.json's `savePrefix` (NBPT = bare legacy keys, Salem =
+  `salem:` matching its old live shim, so nobody lost saves). Rider name + ghost
+  pref + board-url stay global — the contract is documented in race.ts.
+- **Verified equivalence**: regenerating NBPT's world.json through the parameterized
+  pipeline is byte-identical to the shipped file; `npm run map` is no longer
+  destructive (all hand-curation lives in map.mjs and re-applies on rebuild).
+- **Adding a town** is a checklist, not a fork: **docs/TOWNS.md**. Next up (ranked
+  July 2026, criteria = community hook / landmark identity / contiguity):
+  **Beverly → Gloucester → Marblehead**, then Amesbury+Salisbury, Ipswich, Rockport,
+  Essex/Manchester; long-term goal = a contiguous North Shore where town-to-town
+  travel is a **geographic handoff** (cross the line → neighbor bundle loads at the
+  same lat/lon; every town.json knows its origin, so cross-town coordinate
+  conversion is pure math). The border system below is the foundation for that.
 
-Do not develop on `salem-experiment` — its content was folded into the pack.
+### 🪧 Town borders & Welcome signs (shipped July 6)
+
+Crossing a municipal line shows an **"Entering Salisbury · settled 1638" banner**
+(hud.announce; lore = `borderLore` in the town pack, keyed by OSM name) and the
+world carries classic **white/green roadside "entering TOWN" signs** wherever a
+real road crosses a town line — one per direction of travel, facing arriving
+traffic, at the bridge ABUTMENTS (never over water), off every road's pavement.
+
+- **Data**: OSM `admin_level=8` relations → `data/<id>/raw/boundaries.json` via
+  `tools/fetch_boundaries.mjs`. ⚠️ Cloud sessions **cannot reach Overpass** (proxy
+  allowlist) — run the **fetch-data workflow** (Actions tab or API dispatch); it
+  fetches for every town and pushes to the `map-data` branch; pull files from there.
+- **Bake**: `tools/lib/borders.mjs` (`bakeBorders`) → `world.towns` (municipality
+  rings) + `world.signs` (sign spots). Applied by `tools/patch_borders.mjs`
+  (in-place, no rebuild — use this; Salem has no local raw OSM/duckdb) and
+  automatically by build_world.mjs when boundaries.json exists. Placement rules
+  learned the hard way: slide along the road into the destination town until the
+  shoulder spot is (a) dry land — water polys + holes, (b) in the right town,
+  (c) clear of EVERY road's half-width+8px (painted roads are wider than road.w;
+  dual carriageways put a second centerline on the first one's shoulder).
+- **Runtime**: Game.ts town watcher (0.9s poll, point-in-ring, silent at spawn,
+  skipped in flight) + `makeWelcomeSignMesh` (canvas board like the shop signs;
+  posts at the board's outer edges BEHIND the face — flush posts z-fight the
+  lettering; plain back panel — DoubleSide shows mirrored text). Signs place in
+  buildChunk (skipped in decor-only phone-flight chunks) and dispose with chunks.
+- Current bake: NBPT 48 signs (Newbury/Salisbury/Amesbury/West Newbury),
+  Salem 65 (Marblehead/Beverly/Peabody/Danvers/Swampscott/Lynn). Fun fact the data
+  surfaced: Plum Island Airport is in **Newbury** — flights cross a town line.
+
+### 🏁 Racing fixes (shipped July 6)
+
+- **Picker shows LIVE town boards**: opening the 🏁 picker pulls every course's
+  cloud board (GET-only, 60s-throttled per course — `refreshBoards` in race.ts)
+  and re-renders when it lands; previously a fresh device said "no time yet"
+  forever until you raced. The results board after a finish always synced.
+- **Countdown faces down-course**: the orient callback computed
+  `atan2(-dx, dz)` which MIRRORS east/west — Salem's Witch Hunt Dash (due west)
+  opened facing backwards. Forward is `(sin az, cos az)`; it's `atan2(dx, dz)`,
+  and the kid model snaps too (`Kid.face()`). Verified 0.0° on all 6 courses.
+
+### 🧪 Headless verification patterns (they'll save you an hour each)
+
+Playwright + the pre-installed chromium (`/opt/pw-browsers/chromium-1194/...`,
+`playwright-core` in the session scratchpad) against a static server on `dist/`:
+
+- **rAF is throttled headless** — dt barely accrues. Pump frames by hand:
+  `let t = g.lastTime; for (i<N) g.frame(t += 16.7); g.lastTime = t` (§3 hooks).
+  Beware: 90 software-GL frames take >3.4s real time, long enough for the 3.4s
+  banner to show AND expire inside the pump — assert on textContent, not `.show`.
+- **`nbpt.go()` water-recovers**: teleporting onto water/bridges marches the
+  player back toward spawn (findFree). Probe for dry land first via
+  `g.index.isWaterAt/isBlocked` before asserting a cross-border teleport.
+- **Screenshots hang on backgrounded pages** (no compositor frame): call
+  `page.bringToFront()` first. Seed `nbpt-welcomed=1` + promo flags in
+  addInitScript or the modepick overlay eats your clicks.
 
 ---
 
@@ -126,7 +202,7 @@ are dead lines. Everything lives here now.
 | **Live site** | https://clippertown.io (and https://devingalvin.github.io/nbpt-living/) |
 | **Hosting** | GitHub Pages serves branch **`main`** (built artifacts only — no source) |
 | **Custom domain** | `public/CNAME` = `clippertown.io` (must stay — see Gotchas) |
-| **Backups/dead branches** | `cloud-source` + `claude/*` = old dist snapshots; ignore them |
+| **Archived history** | `archive/salem-experiment` + `archive/cloud-source` (read-only keepsakes; all other stale branches deleted July 6, 2026) |
 
 ---
 
@@ -134,7 +210,9 @@ are dead lines. Everything lives here now.
 
 ```bash
 npm install            # first time
-npm run dev            # dev server at http://localhost:5173 (HMR)
+npm run dev            # Newburyport dev server at http://localhost:5173 (HMR)
+npm run dev:salem      # Salem dev server (TOWN=salem — any town id works)
+npm run build:all      # dist/ = Newburyport (+ ClipperTown.html) + dist/salem/ = Salem
 npm run build          # tsc --noEmit && vite build  → dist/
 npm run share          # build + inline single-file dist/NBPT-Living.html
 npm run deploy         # OPTIONAL now — CI auto-deploys on push to source (see below)

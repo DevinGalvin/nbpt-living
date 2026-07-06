@@ -50,6 +50,11 @@ Say the next town is Portsmouth (`id: pmth`).
 6. **Assets** — `towns/pmth/public/`: og-image + manifest (copy Salem's and
    re-word). Favicons/icons are shared from `public/` unless the town wants
    its own.
+6b. **Borders** — run the **fetch-data** workflow (Actions tab; cloud sessions
+   can't reach Overpass) to get `data/pmth/raw/boundaries.json` from the
+   `map-data` branch, then `TOWN=pmth node tools/patch_borders.mjs`. That's the
+   whole "Entering …" banner + roadside Welcome-sign system; add `borderLore`
+   lines to the pack for the banner subtitles.
 7. **Landmark heroes (optional polish)** — hand-modeled buildings go in
    `src/three/decor.ts`'s `HEROES` dict, keyed by the building's OSM `name`.
    All towns' heroes coexist (names are unique); a building without a hero
