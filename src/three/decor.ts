@@ -5063,9 +5063,12 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     for (const ri of bucket.roads) {
       const r = world.roads[ri];
       if (r.c !== 'service') continue;
-      for (let i = 0; i + 1 < r.p.length; i += 2) {
-        if (pointInPolyD(r.p[i], r.p[i + 1], poly)) { aisles.push(r); break; }
-      }
+      // SAMPLE along the way — a straight aisle crossing the lot has both
+      // endpoints outside and zero vertices inside (Cummings: every grid
+      // looked aisle-less to the vertex test and rendered EMPTY)
+      let inside = false;
+      walkLineD(r.p, 30, (x, z) => { if (!inside && pointInPolyD(x, z, poly)) inside = true; });
+      if (inside) aisles.push(r);
     }
     if (aisles.length) {
       for (const r of aisles) {
@@ -5096,7 +5099,13 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
     const noseA = obb.ang + Math.PI / 2;
     const nx2 = Math.cos(noseA), nz2 = Math.sin(noseA);
-    for (let w0 = -obb.hw + 24; w0 <= obb.hw - 24 && cars < 110; w0 += 78) {
+    // narrow strip-lots (each aisle row mapped as its own poly — Cummings) get
+    // a single centered row; the 24px margin gave them ZERO rows and no cars
+    const rows: number[] = [];
+    if (obb.hw < 26) rows.push(0);
+    else for (let w0 = -obb.hw + 24; w0 <= obb.hw - 24; w0 += 78) rows.push(w0);
+    for (const w0 of rows) {
+      if (cars >= 110) break;
       for (let l0 = -obb.hl + 16; l0 <= obb.hl - 16 && cars < 110; l0 += 22) {
         const x = obb.cx + l0 * ca - w0 * sa;
         const z = obb.cz + l0 * sa + w0 * ca;
