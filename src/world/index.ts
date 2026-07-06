@@ -946,6 +946,41 @@ export class WorldIndex {
     }
     ctx.setLineDash([]);
 
+    // highways read as highways: solid edge lines on each shoulder + a dashed
+    // white lane divider (motorways are one-way carriageways — yellow would be
+    // wrong). Mid-block way seams join cleanly (round caps, same offset); real
+    // INTERSECTIONS are wiped by the junction discs painted after.
+    ctx.strokeStyle = 'rgba(233,233,225,0.85)';
+    for (const r of roads) {
+      const hwy = r.c === 'motorway' || r.c === 'motorway_link' || r.c === 'trunk' || r.c === 'trunk_link';
+      const wide = r.w >= 90 && (r.c === 'primary' || r.c === 'secondary');
+      if ((!hwy && !wide) || r.w < 12) continue;
+      ctx.lineWidth = 1.7;
+      strokeLine(ctx, offsetLine(r.p, r.w / 2 - 2.2));
+      strokeLine(ctx, offsetLine(r.p, -(r.w / 2 - 2.2)));
+      if (r.c === 'motorway' && r.w >= 18) {
+        ctx.setLineDash([14, 20]);
+        ctx.lineWidth = 2;
+        strokeLine(ctx, r.p);
+        ctx.setLineDash([]);
+      } else if (r.w >= 90) {
+        ctx.setLineDash([14, 20]);
+        ctx.lineWidth = 2;
+        strokeLine(ctx, offsetLine(r.p, r.w / 4));
+        strokeLine(ctx, offsetLine(r.p, -r.w / 4));
+        ctx.setLineDash([]);
+      }
+    }
+    // junction discs: markings never cross an intersection — plain asphalt
+    // repainted over every node where a way ends against another road
+    for (const jn of this.roadChains().junctions) {
+      if (jn.x + jn.r < ox || jn.x - jn.r > ox + CHUNK || jn.y + jn.r < oy || jn.y - jn.r > oy + CHUNK) continue;
+      ctx.fillStyle = roadFill(STYLE.road[jn.c] || STYLE.road.residential);
+      ctx.beginPath();
+      ctx.arc(jn.x, jn.y, jn.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     for (const pi of bucket.paths) this.drawPath(ctx, w.paths[pi]);
 
     this.drawStreetLabels(ctx, roads, ox, oy);
@@ -1297,9 +1332,12 @@ export class WorldIndex {
     if (!d) {
       const b = this.bucket(key);
       d = { bridges: [], piers: [], lines: [] };
-      for (const ri of b.roads) {
-        const r = this.world.roads[ri];
-        if (r.b) d.bridges.push({ p: r.p, w: r.w });
+      const [ckx, cky] = key.split(',').map(Number);
+      const ox = ckx * CHUNK, oy = cky * CHUNK;
+      for (const ch of this.roadChains().bridge) {
+        const pad = ch.w / 2 + 8;
+        if (ch.bb[2] < ox - pad || ch.bb[0] > ox + CHUNK + pad || ch.bb[3] < oy - pad || ch.bb[1] > oy + CHUNK + pad) continue;
+        d.bridges.push({ p: ch.pts, w: ch.w });
       }
       for (const pi of b.paths) {
         const p = this.world.paths[pi];
@@ -1331,6 +1369,159 @@ export class WorldIndex {
     return 0;
   }
 
+  // ---------- the road graph: chains + junctions ----------
+  // Decks and markings are properties of the road NETWORK, not of single OSM
+  // ways (docs/BRIDGE-ROADS-REDESIGN.md): a street is many short ways sharing
+  // endpoints. A CHAIN merges maximal degree-2 runs of compatible ways (same
+  // class/bridge/layer/width) into one logical polyline — decks end at real
+  // junctions or banks instead of putting caps and rail stubs at every seam.
+  // JUNCTIONS are way-end nodes that touch any other road: markings get an
+  // asphalt disc painted over them so stripes never cross an intersection.
+  private roadChainsCache: {
+    bridge: { pts: number[]; w: number; c: string; l: number; bb: [number, number, number, number]; trim0: number; trim1: number; other0: number; other1: number }[];
+    junctions: { x: number; y: number; r: number; c: string }[];
+  } | null = null;
+
+  roadChains() {
+    if (this.roadChainsCache) return this.roadChainsCache;
+    const roads = this.world.roads;
+    const kOf = (x: number, y: number) => x + ',' + y;
+    // vertex occupancy over ALL road vertices (interior included — T-junctions
+    // land on a main road's interior vertex), and end occupancy per node
+    const vertexRoads = new Map<string, number[]>();
+    for (let i = 0; i < roads.length; i++) {
+      const p = roads[i].p;
+      for (let j = 0; j + 1 < p.length; j += 2) {
+        const k = kOf(p[j], p[j + 1]);
+        let a = vertexRoads.get(k);
+        if (!a) vertexRoads.set(k, (a = []));
+        if (a[a.length - 1] !== i) a.push(i);
+      }
+    }
+    const endsAt = new Map<string, number[]>();   // node -> road indices ENDING there
+    for (let i = 0; i < roads.length; i++) {
+      const p = roads[i].p;
+      for (const k of [kOf(p[0], p[1]), kOf(p[p.length - 2], p[p.length - 1])]) {
+        let a = endsAt.get(k);
+        if (!a) endsAt.set(k, (a = []));
+        a.push(i);
+      }
+    }
+    // junction discs: a way-end that touches any other road (end or interior)
+    const junctions: { x: number; y: number; r: number; c: string }[] = [];
+    for (const [k, ends] of endsAt) {
+      const touching = vertexRoads.get(k) ?? [];
+      if (touching.length < 2) continue;
+      const [xs, ys] = k.split(',');
+      let r = 0, widest = touching[0];
+      for (const ri of touching) if (roads[ri].w / 2 > r) { r = roads[ri].w / 2; widest = ri; }
+      // a continuation seam (two compatible ways of the SAME street) is not a junction
+      if (touching.length === 2 && ends.length === 2) {
+        const [a, b] = ends.map((i) => roads[i]);
+        if (a.c === b.c && !!a.b === !!b.b && (a.l ?? 0) === (b.l ?? 0) && a.w === b.w) continue;
+      }
+      junctions.push({ x: +xs, y: +ys, r: r + 3, c: roads[widest].c });
+    }
+    // chains: walk maximal runs of compatible ways joined end-to-end at
+    // degree-2 nodes (no third road passing through)
+    const layerOf = (i: number) => roads[i].l != null ? roads[i].l! : (roads[i].b ? 1 : 0);
+    const compat = (a: number, b: number) =>
+      roads[a].c === roads[b].c && !!roads[a].b === !!roads[b].b && layerOf(a) === layerOf(b) && roads[a].w === roads[b].w;
+    const mergeableAt = (k: string, i: number): number => {
+      const ends = endsAt.get(k) ?? [];
+      const through = vertexRoads.get(k) ?? [];
+      if (ends.length !== 2 || through.length !== 2) return -1;
+      const other = ends[0] === i ? ends[1] : ends[0];
+      return other !== i && compat(i, other) ? other : -1;
+    };
+    const used = new Set<number>();
+    const bridge: { pts: number[]; w: number; c: string; l: number; bb: [number, number, number, number]; trim0: number; trim1: number; other0: number; other1: number }[] = [];
+    for (let i = 0; i < roads.length; i++) {
+      if (used.has(i) || !roads[i].b) continue;
+      // walk to the chain's start
+      let cur = i, prevKey = kOf(roads[i].p[0], roads[i].p[1]);
+      const seen = new Set([i]);
+      for (;;) {
+        const nxt = mergeableAt(prevKey, cur);
+        if (nxt < 0 || seen.has(nxt)) break;   // seen-guard: ring roads terminate
+        seen.add(nxt); cur = nxt;
+        const p = roads[cur].p;
+        const k0 = kOf(p[0], p[1]), k1 = kOf(p[p.length - 2], p[p.length - 1]);
+        prevKey = prevKey === k0 ? k1 : k0;    // hop to the far end
+        prevKey = kOf(...(prevKey.split(',').map(Number) as [number, number]));
+      }
+      // stitch forward from the start, orienting each way as we go
+      const pts: number[] = [];
+      let node = prevKey;
+      let walk = cur;
+      const chainSeen = new Set<number>();
+      for (;;) {
+        chainSeen.add(walk); used.add(walk);
+        let p = roads[walk].p;
+        if (kOf(p[0], p[1]) !== node) {   // reverse to flow start→end
+          const rp: number[] = [];
+          for (let j = p.length - 2; j >= 0; j -= 2) rp.push(p[j], p[j + 1]);
+          p = rp;
+        }
+        const from = pts.length ? 2 : 0;  // skip the shared node on later ways
+        for (let j = from; j < p.length; j++) pts.push(p[j]);
+        node = kOf(p[p.length - 2], p[p.length - 1]);
+        const nxt = mergeableAt(node, walk);
+        if (nxt < 0 || chainSeen.has(nxt)) break;
+        walk = nxt;
+      }
+      // merge-end trim: if a chain END touches another BRIDGE way (ramp joins a
+      // span), pull this deck back to that deck's edge so caps/rails don't
+      // slice across its surface
+      const trimAt = (k: string): { t: number; other: number } => {
+        let t = 0, other = -1;
+        for (const ri of vertexRoads.get(k) ?? []) {
+          if (chainSeen.has(ri) || !roads[ri].b) continue;
+          if (roads[ri].w / 2 + 4 > t) { t = roads[ri].w / 2 + 4; other = ri; }
+        }
+        return { t, other };
+      };
+      let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+      for (let j = 0; j + 1 < pts.length; j += 2) {
+        if (pts[j] < bx0) bx0 = pts[j]; if (pts[j] > bx1) bx1 = pts[j];
+        if (pts[j + 1] < by0) by0 = pts[j + 1]; if (pts[j + 1] > by1) by1 = pts[j + 1];
+      }
+      const m0 = trimAt(kOf(pts[0], pts[1]));
+      const m1 = trimAt(kOf(pts[pts.length - 2], pts[pts.length - 1]));
+      bridge.push({
+        pts, w: roads[i].w, c: roads[i].c, l: layerOf(i), bb: [bx0, by0, bx1, by1],
+        trim0: m0.t, trim1: m1.t, other0: m0.other, other1: m1.other,
+      });
+    }
+    // register chain polylines so effLayer sees the right layer (clearance
+    // bumps die silently otherwise — chains aren't in world.roads)
+    this.effLayer(roads[0]?.p ?? []);   // ensure the map exists
+    for (const ch of bridge) this.wayLayer!.set(ch.pts, ch.l);
+    // a merge end inherits the OTHER deck's height there (a ramp that kept the
+    // terrain grade would nose-dive under the span it joins) — resolve the
+    // other WAY to its owning CHAIN so bridgeProfile can ask for its deck Y
+    const wayChain = new Map<number, number[]>();
+    for (const ch of bridge) {
+      // chains were built from ways; recover membership by endpoint walk is
+      // overkill — the used-set order isn't kept, so match by vertex identity
+      for (let ri = 0; ri < roads.length; ri++) {
+        if (!roads[ri].b || wayChain.has(ri)) continue;
+        const p = roads[ri].p;
+        // a way belongs to the chain that contains its first segment midpoint
+        const mx = (p[0] + p[2]) / 2, my = (p[1] + p[3]) / 2;
+        if (distToPolylineSq(mx, my, ch.pts) < 1) wayChain.set(ri, ch.pts);
+      }
+    }
+    for (const ch of bridge) {
+      const e: { o0?: number[]; o1?: number[] } = {};
+      if (ch.other0 >= 0) e.o0 = wayChain.get(ch.other0);
+      if (ch.other1 >= 0) e.o1 = wayChain.get(ch.other1);
+      if (e.o0 || e.o1) this.chainMergeEnds.set(ch.pts, e);
+    }
+    this.roadChainsCache = { bridge, junctions };
+    return this.roadChainsCache;
+  }
+
   // ---------- bridge deck profiles ----------
   // Decks span bank to bank at the higher approach (+6) exactly as before, but
   // wherever ANOTHER road or path genuinely passes beneath the span, the deck
@@ -1345,6 +1536,7 @@ export class WorldIndex {
   private static readonly PIER_SPACING = 140; // columns this far apart along the span
   private static readonly CROSS_WINDOW = 60;   // no pier within this of a crossed road (leave the gap open)
   private bridgeProfiles = new Map<number[], BridgeProfile>();
+  private chainMergeEnds = new Map<number[], { o0?: number[]; o1?: number[] }>();   // merge end -> the deck it tees into
   private bridgeComputing = new Set<number[]>();   // recursion guard for bridge-over-bridge clearance
   private wayLayer: Map<number[], number> | null = null;
 
@@ -1363,13 +1555,20 @@ export class WorldIndex {
     if (prof) return prof;
     const h0 = this.terrain.heightAt(pts[0], pts[1]);
     const h1 = this.terrain.heightAt(pts[pts.length - 2], pts[pts.length - 1]);
-    const g0 = h0 + 6, g1 = h1 + 6;            // deck meets EACH bank's approach grade
-    // re-entrant (can't happen under a strict layer order; guard against bad data)
+    // re-entrant guard FIRST — merge-end lookups below recurse into neighbor
+    // profiles (A tees into B tees into A must bottom out here, not overflow)
     if (this.bridgeComputing.has(pts)) {
-      const fb = Math.max(g0, g1);
+      const fb = Math.max(h0, h1) + 2.5;
       return { g0: fb, g1: fb, total: 1, cum: [0], bumps: [], supports: { piers: [], abut: [] } };
     }
     this.bridgeComputing.add(pts);
+    // decks die INTO the pavement (+2.5, just proud of the paint) instead of the
+    // old +6 step — the step was the visible stub at every approach and turned
+    // short culvert bridges into plateaus (the 7/6 screenshot-2 slab). A MERGE
+    // end (ramp teeing into another span) meets THAT deck's height instead.
+    const merge = this.chainMergeEnds.get(pts);
+    const g0 = merge?.o0 ? this.bridgeDeckYAt(merge.o0, pts[0], pts[1]) : h0 + 2.5;
+    const g1 = merge?.o1 ? this.bridgeDeckYAt(merge.o1, pts[pts.length - 2], pts[pts.length - 1]) : h1 + 2.5;
     const myLayer = this.effLayer(pts);
     const cum: number[] = [0];
     for (let i = 0; i + 3 < pts.length; i += 2) {
@@ -1462,7 +1661,10 @@ export class WorldIndex {
     // abutments seat the deck ends into the banks (close any gap at the lower bank)
     for (const tEnd of [Math.min(20, total / 2), Math.max(total - 20, total / 2)]) {
       const [x, z, ux, uz] = xzAtT(tEnd);
-      prof.supports.abut.push({ x, z, footY: this.terrain.heightAt(x, z) - 6, topY: this.deckHeightAtT(prof, tEnd) - T, ux, uz });
+      const topY = this.deckHeightAtT(prof, tEnd) - T;
+      const footY = this.terrain.heightAt(x, z) - 6;
+      if (topY - footY < 8) continue;   // flush approach — nothing to seat
+      prof.supports.abut.push({ x, z, footY, topY, ux, uz });
     }
     return prof;
   }
@@ -2012,6 +2214,25 @@ function strokeLine(ctx: CanvasRenderingContext2D, pts: number[]) {
   ctx.moveTo(pts[0], pts[1]);
   for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
   ctx.stroke();
+}
+
+// a mitred parallel of a polyline, o px to the left (+) / right (-) of travel —
+// highway edge lines hug the shoulder. Clamped 1.4x so corners pinch, not spike.
+function offsetLine(pts: number[], o: number): number[] {
+  const n = pts.length / 2, out: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const ip = Math.max(0, i - 1), iq = Math.min(n - 1, i + 1);
+    let aX = pts[i * 2] - pts[ip * 2], aZ = pts[i * 2 + 1] - pts[ip * 2 + 1];
+    let bX = pts[iq * 2] - pts[i * 2], bZ = pts[iq * 2 + 1] - pts[i * 2 + 1];
+    const al = Math.hypot(aX, aZ) || 1, bl = Math.hypot(bX, bZ) || 1;
+    aX /= al; aZ /= al; bX /= bl; bZ /= bl;
+    let mX = aX + bX, mZ = aZ + bZ;
+    const ml = Math.hypot(mX, mZ);
+    if (ml < 1e-6) { mX = aX; mZ = aZ; } else { mX /= ml; mZ /= ml; }
+    const sc = o / Math.min(1.4, Math.max(0.72, Math.abs(mX * aX + mZ * aZ)));
+    out.push(pts[i * 2] - mZ * sc, pts[i * 2 + 1] + mX * sc);
+  }
+  return out;
 }
 
 export function walkLine(pts: number[], step: number, cb: (x: number, y: number, nx: number, ny: number) => void) {

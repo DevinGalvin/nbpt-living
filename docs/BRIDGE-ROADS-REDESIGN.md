@@ -68,4 +68,13 @@ Plus: walk the full Gillis span on foot; drive-under at an underpass.
 ## Status
 
 - Revert live (a7b595b). Collision + traffic speeds + eps kept.
-- Implementation NOT started — this brief is the sign-off gate.
+- **IMPLEMENTED on branch `beverly` (7/6 evening)**: roadChains() (chains +
+  junctions + merge-end resolution) in WorldIndex; chain-based decks with
+  defended mitre (dedupe, 1.4x clamp, twist guard) + trim at merge ends +
+  merge ends inherit the joined deck's height (re-entrancy-guarded); flush
+  +2.5 approach endpoints; junction discs over markings; highway paint
+  (edges + lane dashes, motorway white / wide-4-lane mixed).
+- Gallery verified in dev: Gillis approach fan (no origami), Route 1 paint +
+  junctions (no spaghetti), Essex Bridge chain (continuous, 4-lane paint).
+  Remaining before deploy: 128 interchange spot-check, one Salem bridge,
+  on-foot span walk. NOT pushed to source — Devin's call.
