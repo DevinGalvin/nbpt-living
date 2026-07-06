@@ -41,8 +41,9 @@ Say the next town is Portsmouth (`id: pmth`).
    Watch the QA lines; add `qaDistances` (real, independently-known distances)
    once you have two verified points.
 4. **Pack** — `src/towns/pmth/index.ts`: copy Salem's (`story: false` = a
-   world-only sandbox is a complete, shippable game). Pick a `spawn` (downtown,
-   verified on land), a flight site, theme colors, copy. Empty `courses` is
+   world-only sandbox is a complete, shippable game). Pick a `spawn` at the town's MOST-LOVED
+   spot — where a local kid would take a visitor first (Market Square,
+   Essex St mall, Lynch Park), not just geometric downtown; verified on land, a flight site, theme colors, copy. Empty `courses` is
    fine to start; author races later with `TOWN=pmth node tools/make_course.mjs`.
 5. **Register** — one line in `src/towns/registry.ts` (adds it to every town's
    Fast-Travel switcher) and a `build:pmth`-style step in `build:all`

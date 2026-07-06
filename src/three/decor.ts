@@ -5080,11 +5080,13 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     }
   }
 
-  // boats tied up along the real mooring docks
+  // boats tied up along the docks — EVERY pierline moors now, not just OSM
+  // mooring-tagged ones (Beverly's whole marina is untagged pierline floats
+  // and sat empty in summer; same fix the pier POLYS got below)
   const moored: [number, number][] = [];
   for (const pi of bucket.paths) {
     const p = world.paths[pi];
-    if (!p.m || !MOOR_FILL) continue;
+    if ((p.c !== 'pierline' && !p.m) || !MOOR_FILL) continue;
     let flip = 1;
     walkLineD(p.p, 116, (x, z, tx, tz) => {
       flip = -flip;

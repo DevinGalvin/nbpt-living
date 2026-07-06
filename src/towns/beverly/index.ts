@@ -17,7 +17,7 @@ export const TOWN: TownPack = {
 
   story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
 
-  spawn: { x: 1050, z: 6250 },   // downtown Cabot Street at Ellis Square
+  spawn: { x: 12450, z: 10550 },   // Lynch Park's great lawn — the town's beloved spot (rose garden, beaches, THE hill)
 
   // ✈️ scenic flight from BEVERLY REGIONAL AIRPORT — a real working airfield
   // (est. 1928, Navy-paved in WWII). Board runway 16 and depart SSE over town,
