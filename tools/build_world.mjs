@@ -911,6 +911,17 @@ for (const f of T.map.levelFixes ?? []) {
   else console.warn('LEVEL_FIX missed:', f);
 }
 
+// ---------- manual name fixes: names OSM puts on nodes, not footprints ----------
+// HEROES and search bind to the BUILDING's name; when OSM names only a POI node
+// (Beverly City Hall, Hale Farm), stamp the name onto the containing footprint.
+// Same anchoring rule as levelFixes: a point inside the building, never a
+// street-name lookup.
+for (const f of T.map.nameFixes ?? []) {
+  const hit = world.buildings.find((b) => pointInRing(f.x, f.y, b.p));
+  if (hit) hit.n = f.n;
+  else console.warn('NAME_FIX missed:', f);
+}
+
 // ---------- manual features: real details OSM doesn't carry ----------
 // A free-form per-town hook (backyard pools, hand-mapped picket fences, …) —
 // it may push onto any world collection. Survives `npm run map` re-runs by

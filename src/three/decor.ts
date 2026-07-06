@@ -2268,6 +2268,16 @@ function buildPILight(buckets: Bucket[], b: Building, g: number) {
   lanternTop(buckets[PLAIN], cx, cz, g + 88, 3.6);
 }
 
+// Hospital Point Range Front Light (1872) — a square white-painted brick tower
+// (45 ft) standing in a keeper's front yard on Bayview Ave, Beverly. The station
+// is fully mapped (oil shed, equipment building); the tower gets the hero.
+function buildHospitalPoint(buckets: Bucket[], b: Building, g: number) {
+  const [cx, cz] = centroidOf(b.p);
+  walls(buckets[BRICK], b.p, g - 2, g + 70, '#f6f3ea');                      // square shaft, painted brick
+  walls(buckets[PLAIN], octRing(cx, cz, 3.6), g + 70, g + 84, '#f6f3ea', 0); // watch room
+  lanternTop(buckets[PLAIN], cx, cz, g + 84, 3.2);                           // black lantern — still an active range light
+}
+
 // the Graf Rink — Low Street's big barrel-roofed hockey barn
 function buildGrafRink(buckets: Bucket[], b: Building, g: number) {
   const eave = g + 26;
@@ -3347,6 +3357,13 @@ const HEROES: Record<string, HeroBuilder> = {
   'Pedrick Store House': (bk, b, g, i) => warehouse(bk, b, g, i, { wall: '#6e6250', roof: '#4a4438' }),
   'Friendship of Salem': tallShip,
   'Scale House': (bk, b, g, i) => brickShed(bk, b, g, i, { wall: '#9c4d3c', roof: '#777c85' }),
+  // — Beverly (colors photo-verified, docs/research/beverly.md) —
+  'John Balch House': (bk, b, g, i) => firstPeriod(bk, b, g, i, { wall: '#43302a', shingle: '#59604f', nGables: 2, chimney: 'central', eave: 22 }),   // dark red-brown clapboard, weathered gray-green roof, twin front cross-gables ("1636", dendro ~1679)
+  'Hale Farm': (bk, b, g, i) => gambrelHouse(bk, b, g, i, { wall: '#c89a45', material: 'clap', roof: '#8f887a', trim: '#f0ead8', storeys: 2.5, dormers: 2, chimney: 'ridge2', entrance: 'pediment', shutter: '#2f4a30' }),   // mustard/ochre + dark green shutters — NOT brown, NOT white; the 1745 gambrel wing faces Hale St
+  'Cabot House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#f2ede1', roof: '#8a8f97', storeys: 3, roofKind: 'hip', entrance: 'portico', stringcourses: true, chimney: 'ends2' }),   // 1781 — Beverly's first brick mansion; Beverly Bank founded in it 1802
+  'Beverly City Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#a8543f', material: 'brick', trim: '#f4efe4', roof: '#6f7d72', storeys: 3, roofKind: 'flat', entrance: 'portico', chimney: 'none', flag: true }),   // 1783 Andrew Cabot mansion — PAINTED barn-red brick, white Ionic porch; the 1874 mansard+cupola came off in 1933, so: flat
+  'Tupper Manor': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#f0ebdf', roof: '#7f848c', storeys: 3, roofKind: 'hip', balustrade: 'plain', entrance: 'portico', palladian: 'single', stringcourses: true, chimney: 'interior4' }),   // 1901 Georgian Revival (Guy Lowell), Endicott's oceanfront mansion
+  'Hospital Point Light': buildHospitalPoint,
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,

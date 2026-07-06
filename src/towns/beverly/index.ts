@@ -17,28 +17,29 @@ export const TOWN: TownPack = {
 
   story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
 
-  spawn: { x: 0, z: 0 },   // VERIFY: Cabot St at City Hall (the town.json origin)
+  spawn: { x: 1050, z: 6250 },   // downtown Cabot Street at Ellis Square
 
   // ✈️ scenic flight from BEVERLY REGIONAL AIRPORT — a real working airfield
-  // (est. 1928). Board by the runway and lift off over the Garden City.
+  // (est. 1928, Navy-paved in WWII). Board runway 16 and depart SSE over town,
+  // exactly the real pattern. Endpoints read from the built runway way ("16/34").
   flight: {
-    runwayStart: { x: -23900, z: -23300 },   // VERIFY against the built runway
-    runwayHdg: 2.79,                          // depart runway 16, SSE toward town
-    airport: { x: -23900, z: -23300, r: 1600 },
+    runwayStart: { x: -27000, z: -29500 },   // runway 16 threshold (NW end)
+    runwayHdg: 0.69,                          // atan2(dx,dz) down the centerline → SSE
+    airport: { x: -23700, z: -23800, r: 1600 },
     liftoffMsg: '✈️ Lifting off from Beverly Regional — steer to bank over town',
     promoBody: 'Scenic flights are open to everyone. Head to Beverly Regional Airport — a real airfield since 1928 — and tap ✈️ FLY to soar over the Garden City and the harbor. You can’t crash, promise.',
     promoCta: 'Take me to the airport',
   },
 
   beachX: Infinity,      // Beverly's beaches are mapped sand — no recolor zone
-  sledLane: null,        // candidate: the Mack Park hill (add verified in polish)
-  trainPlatform: null,   // VERIFY: Beverly Depot has surface platforms — set in polish
-  holidayTree: null,     // candidate: Ellis Square — set verified in polish
+  sledLane: null,        // Lynch Park's hill is the real one — needs terrain-verified geometry (handoff)
+  trainPlatform: { x: -3580, z: 9509 },   // the Newburyport/Rockport line beside Beverly Depot
+  holidayTree: { x: 1115, z: 6043 },      // Ellis Square, downtown's little crossroads park
 
   attractions: {
-    frogPond: null,
-    sledHill: null,      // candidate: Mack Park — set verified in polish
-    graveyard: null,     // candidate: Central Cemetery — set verified in polish
+    frogPond: { x: 8890, z: -6487 },      // Kellehers Pond — THE pond-hockey pond
+    sledHill: null,                        // Lynch Park hill — set with terrain-verified run (handoff)
+    graveyard: { x: 1598, z: 8689 },       // Ancient Burial Ground (1672) — fall mist
   },
 
   // classic bright New England fall (Beverly is not a Halloween town)
@@ -50,14 +51,14 @@ export const TOWN: TownPack = {
     duskStart: false,
   },
   halloween: 'classic',
-  halloweenDisplay: { x: 0, z: 0 },   // VERIFY: downtown Cabot St — set with spawn
+  halloweenDisplay: { x: 900, z: 5900 },   // downtown Cabot St by Ellis Square
 
   courses: COURSES,
   raceTown: 'beverly',
   devCourse: 'homecoming',
   racePromo: {
-    course: 'homecoming',
-    body: 'Real races on real streets! Three courses run through Beverly — dash the Cabot Street grid, run the shore to Lynch Park, or ride home from Beverly Farms. Beat the clock, top the town leaderboard, and race the leader’s ghost. Any route counts — shortcuts welcome.',
+    course: 'hannah',
+    body: 'Real races on real streets! Three courses run through Beverly — dash Cabot Street to the wharf where the Hannah sailed, run the shore to Lynch Park, or ride home from Beverly Farms. Beat the clock, top the town leaderboard, and race the leader’s ghost. Any route counts — shortcuts welcome.',
   },
 
   // BEVERLY palette: deep garden-green chrome + warm gold accent

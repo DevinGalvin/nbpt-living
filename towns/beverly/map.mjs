@@ -73,6 +73,17 @@ export const manualBuildings = [];
 
 export const levelFixes = [];
 
+// Names OSM carries on POI nodes but not on the footprints — stamped onto the
+// containing building so HEROES/search bind. Anchors = the POI node coords
+// (verified inside the footprint at build time: watch for NAME_FIX missed).
+export const nameFixes = [
+  { x: 969, y: 9097, n: 'Beverly City Hall' },
+  { x: 3781, y: 7917, n: 'Hale Farm' },          // POI node is in the yard; anchor = footprint centroid
+  { x: 39, y: 10768, n: 'Cabot House' },        // OSM POI says "John Canot House" (sic)
+  { x: 15791, y: 10220, n: 'Hospital Point Light' },   // the k:'light' tower footprint (station fully mapped)
+  { x: -9737, y: -5681, n: 'Beverly Golf & Tennis Clubhouse' }   // 134 McKay addr → the 58k px² long footprint
+];
+
 // Real-world verified distances guard the projection — add pairs once two
 // points are independently verified (never computed from the same formula).
 export const qaDistances = [];
