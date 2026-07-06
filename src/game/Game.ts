@@ -392,9 +392,11 @@ export class Game {
       this.hud.fadeThrough(() => { this.travelToXY(c.start.x, c.start.z); this.race!.startById(id); });
     };
     this.race = new RaceRunner(this.scene, this.index, this.hud, this.audio, (on) => this.lendBike(on),
-      // at the start line, spin the chase cam to face down-course — the first thing a
-      // dropped-in racer sees is the way to go
-      (dx, dz) => { this.camAz = Math.atan2(-dx, dz); this.updateCamera(0, true); },
+      // at the start line, spin the chase cam AND the rider to face down-course — the
+      // first thing a racer sees during the countdown is the way to go. Forward is
+      // (sin az, cos az) (see updateCamera/movement), so az = atan2(dx, dz) — the old
+      // -dx here mirrored east/west starts and pointed the camera sideways or backwards.
+      (dx, dz) => { this.camAz = Math.atan2(dx, dz); this.kid.face(this.camAz); this.updateCamera(0, true); },
       startRace);
     // 🏁 front door: pick a course anywhere in town → fade to its start line → countdown.
     // (The in-world start flag still works for players who ride up to it.)

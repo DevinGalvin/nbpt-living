@@ -208,6 +208,12 @@ export class Kid {
   // every frame from hud.hasBackpack().
   setBackpack(on: boolean) { this.pack.visible = on; }
 
+  /** snap the facing (no lerp) — race starts point the rider down-course */
+  face(az: number) {
+    this.prevFace = this.faceAngle = az;
+    this.heading.rotation.y = az;
+  }
+
   // vx/vz = velocity in world px/s
   update(dt: number, vx: number, vz: number, sprinting: boolean, riding = false, boating = false) {
     this.t += dt;
