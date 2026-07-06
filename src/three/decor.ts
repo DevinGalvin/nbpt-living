@@ -5048,16 +5048,54 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     }
   }
 
-  // parked cars filling the real lots, in rows aligned to each lot
+  // parked cars filling the real lots. Big lots (Cummings Center, hospitals)
+  // have their drive aisles MAPPED as service ways — the naive grid put every
+  // row near an aisle and the aisle buffer emptied the whole lot (Devin,
+  // Beverly 7/6). Where aisles exist, anchor nose-in stall rows to them like
+  // a real lot; the free grid only fills simple lots with no internal aisles.
   for (const pi of bucket.polys) {
     const poly = world.polys[pi];
     if (poly.k !== 'parking') continue;
     const obb = obbOf(poly.p);
     if (obb.hw < 16 || obb.hl < 20) continue;
+    let cars = 0;
+    const aisles: typeof world.roads = [];
+    for (const ri of bucket.roads) {
+      const r = world.roads[ri];
+      if (r.c !== 'service') continue;
+      for (let i = 0; i + 1 < r.p.length; i += 2) {
+        if (pointInPolyD(r.p[i], r.p[i + 1], poly)) { aisles.push(r); break; }
+      }
+    }
+    if (aisles.length) {
+      for (const r of aisles) {
+        walkLineD(r.p, 21, (x, z, tx, tz) => {
+          if (cars >= 130) return;
+          for (const sSide of [1, -1] as const) {
+            const off = r.w / 2 + 11;
+            const sx = x - tz * sSide * off, sz = z + tx * sSide * off;
+            if (sx < ox || sx >= ox + CHUNK || sz < oy || sz >= oy + CHUNK) continue;
+            const h2 = hash32(Math.round(sx * 2), Math.round(sz * 2), 97);
+            if (h2 % 100 > 55) continue;
+            if (!pointInPolyD(sx, sz, poly)) continue;
+            let clash = false;
+            for (const qi of bucket.roads) {
+              const rq = world.roads[qi];
+              if (rq === r) continue;
+              if (distToPolylineSq(sx, sz, rq.p) < (rq.w / 2 + 8) ** 2) { clash = true; break; }
+            }
+            if (clash) continue;
+            const ang = Math.atan2(tx * sSide, -tz * sSide);   // nose-in, away from the aisle
+            car(buckets[PLAIN], sx, sz, ang + (((h2 >> 3) % 9) - 4) * 0.015, pick(STYLE.building.cars, h2), index.heightAtPx(sx, sz));
+            cars++;
+          }
+        });
+      }
+      continue;
+    }
     const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
     const noseA = obb.ang + Math.PI / 2;
     const nx2 = Math.cos(noseA), nz2 = Math.sin(noseA);
-    let cars = 0;
     for (let w0 = -obb.hw + 24; w0 <= obb.hw - 24 && cars < 110; w0 += 78) {
       for (let l0 = -obb.hl + 16; l0 <= obb.hl - 16 && cars < 110; l0 += 22) {
         const x = obb.cx + l0 * ca - w0 * sa;
