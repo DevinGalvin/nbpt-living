@@ -259,6 +259,15 @@ const ROAD_RANK: Record<string, number> = {
   tertiary: 3, secondary: 4, primary: 5, trunk: 6, motorway: 7
 };
 
+// How much a bike should CALM DOWN on each road class: 1 = a lane/alley where full,
+// gamey bike speed is reckless (a new rider ploughs the nearest porch), 0 = a through-
+// road or open ground where it can open up. Keyed on the authored class, not width, so
+// a narrow motorway ramp never reads as a quiet lane. Missing class → 0 (no calming).
+// living_street literally means pedestrian-priority, so it's the calmest.
+const STREET_CALM: Record<string, number> = {
+  living_street: 1, service: 0.85, residential: 0.7, unclassified: 0.45, tertiary: 0.3,
+};
+
 export interface Bucket {
   polys: number[];
   buildings: number[];
@@ -744,6 +753,24 @@ export class WorldIndex {
       if (pointInPoly(x, y, poly)) return true;
     }
     return false;
+  }
+
+  /** How much a bike should ease off on the road under (x,y): 1 = a small residential
+   *  lane/alley, 0 = a through-road or open ground. Reads the CLASS of whichever paved
+   *  surface you're most centered on (so a wide road wins at an intersection with a
+   *  service drive, and you speed back up as you cross onto it). Off any roadway → 0,
+   *  and the caller's physical-clearance sense takes over. Cheap: a handful of
+   *  distance-to-centerline tests against this chunk's roads. */
+  streetCalm(x: number, y: number): number {
+    const key = Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK);
+    let best = Infinity, calm = 0;
+    for (const ri of this.bucket(key).roads) {
+      const r = this.world.roads[ri];
+      const d2 = distToPolylineSq(x, y, r.p);
+      if (d2 > (r.w / 2 + 6) ** 2 || d2 >= best) continue;   // must be ON it, and the one you're most centered on
+      best = d2; calm = STREET_CALM[r.c] ?? 0;
+    }
+    return calm;
   }
 
   // inside any road's paved surface (small margin past the curb)

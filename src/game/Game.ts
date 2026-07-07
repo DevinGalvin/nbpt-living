@@ -190,6 +190,7 @@ export class Game {
   private dog = new Dog();
   private bike = new Bike();
   private riding = false;
+  private bikeEase = 0;             // 0 = open road (full speed) → 1 = tight lane (eased); smoothed per frame
   private hud = new Hud();
   private audio = new GameAudio();
   private nearWater = false;
@@ -824,11 +825,46 @@ export class Game {
 
   // ---------- movement ----------
 
+  /** How boxed-in a rider is right here: 0 = wide open (road/plaza), 1 = a tight lane
+   *  hemmed by buildings on both sides. Measures building clearance to the LEFT and
+   *  RIGHT of travel — a narrow street pinches both, an open road doesn't — by reading
+   *  the same collision grid the walls use, so it needs no per-road width data and works
+   *  in every town. (hx,hz) is the current heading; when standing still we fall back to
+   *  a fixed axis so a stopped rider still reads the lane before pulling away.
+   *  Cheap: two rays, ≤9 grid lookups each, all off a cached per-chunk raster. */
+  private laneTightness(x: number, z: number, hx: number, hz: number): number {
+    const MAX = 72, STEP = 8;                 // probe out to 9 m in 1 m (one-cell) steps
+    let px = -hz, pz = hx;                     // perpendicular to travel
+    if (Math.hypot(px, pz) < 0.01) { px = 1; pz = 0; }
+    const clear = (sx: number, sz: number) => {
+      for (let d = STEP; d <= MAX; d += STEP)
+        if (this.index.isBlocked(x + sx * d, z + sz * d)) return d;
+      return MAX;
+    };
+    const gap = clear(px, pz) + clear(-px, -pz);   // total lateral room, 2·STEP … 2·MAX
+    return Math.max(0, Math.min(1, 1 - (gap - 2 * STEP) / (2 * MAX - 2 * STEP)));
+  }
+
+  /** Target for the bike governor at the rider's spot: how much it should ease off,
+   *  0 (open road) → 1 (a quiet lane or a truly pinched spot). Whichever sense says
+   *  "careful" wins — the road's class (a small residential street stays calm along
+   *  its whole length, not just the pinch points) OR the immediate physical squeeze
+   *  (a hemmed downtown block, or threading off-road between two houses). */
+  private bikeGovTarget(): number {
+    return Math.max(
+      this.index.streetCalm(this.px, this.pz),
+      this.laneTightness(this.px, this.pz, this.aimX, this.aimZ),
+    );
+  }
+
   toggleBike() {
     if (this.inside || this.onWater) return;   // bikes are everyone's — only indoors/water say no
     this.riding = !this.riding;
     this.bike.root.visible = this.riding;
     this.hud.setBikeState(this.riding);
+    // pre-charge the governor to the current street so mounting on a quiet lane doesn't
+    // lurch to full speed for a frame before the brake catches up (dismount resets it too)
+    this.bikeEase = this.riding ? this.bikeGovTarget() : 0;
     this.audio.bell();
     // NOTE: hopping off mid-race is legal — locals cut through alleys on foot. Only the
     // ✕ on the race clock, fast travel, or the finish line end a run.
@@ -1696,8 +1732,10 @@ export class Game {
     // ease the heading toward the input so small wobbles don't twitch the path — a kid
     // can hold a straight line, and turns round off instead of snapping. Full input
     // still reaches full speed; mid-turn the shorter vector just eases the pace down.
-    // The bike steers lazier than on foot (it was the worst offender).
-    const turnK = this.riding ? 4.2 : 7.5;
+    // The bike steers lazier than on foot (it was the worst offender) — but in a
+    // tight lane we tighten it back up (bikeEase, updated below) so a new rider can
+    // still thread the street instead of ploughing the nearest porch.
+    const turnK = this.riding ? 4.2 + this.bikeEase * 3.3 : 7.5;
     // U-turns snap: when the stick OPPOSES current motion (backing out of a
     // tight spot, turning around), ease ~3x faster — the smoothing above is for
     // small wobbles on a straight line, not for trapping kids in corners
@@ -1709,12 +1747,31 @@ export class Game {
     if (mag < 0.01) { this.aimX = 0; this.aimZ = 0; }  // crisp stop on release — no floaty glide
     vx = this.aimX; vz = this.aimZ;
 
+    // Bike governor — the smart brake for small streets. A bike is faster than a
+    // sprint and it's baseline gameplay now, so a new rider dropped into a residential
+    // neighborhood used to careen straight into a house. Instead of a hard block
+    // (unfun) the bike EASES its top speed + tightens its steering on quiet streets,
+    // then opens up on through-roads and open ground — you calm in the lanes and fly
+    // on the boulevard. Two senses, whichever says "careful" wins: the road's own
+    // class (small residential lane vs. wide arterial), and how physically hemmed-in
+    // you are right now (a downtown block or an off-road gap between houses). The
+    // wind-DOWN is quick (you feel the street settle you); the wind-UP on release is
+    // snappier still — that burst back to full speed is the fun part.
+    if (this.riding && !this.inside) {
+      const t = this.bikeGovTarget();
+      this.bikeEase += (t - this.bikeEase) * Math.min(1, dt * (t > this.bikeEase ? 6 : 3));
+    } else {
+      this.bikeEase = 0;
+    }
+
     this.sprinting = this.autoRun || k.has('ShiftLeft') || k.has('ShiftRight') || this.hud.sprintTouch;
     // indoors (tunnels + hand-built interiors) is walk-only: no run, no sprint,
     // no bike — the rooms are small and a kid mashing run shouldn't rocket around
     // them. Force a walk regardless of the run toggle or any stray riding state.
     if (this.inside) this.sprinting = false;
-    let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
+    // bike top speed eases from 530 (open road) down to ~300 in the tightest lane —
+    // still quicker than a jog, never a crawl, so it reads as control, not a penalty
+    let speed = this.inside ? JOG : this.riding ? 530 - this.bikeEase * 230 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
