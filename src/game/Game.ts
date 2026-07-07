@@ -1781,43 +1781,31 @@ export class Game {
     const steps = Math.max(1, Math.ceil(Math.hypot(moveX, moveZ) / 4));
     const stepX = moveX / steps, stepZ = moveZ / steps;
     nx = this.px; nz = this.pz;
-    const slip = 3;                             // corner-round nudge for one-sided juts
     const spd = Math.hypot(stepX, stepZ);       // intended per-step speed, preserved when we skim
     for (let s = 0; s < steps; s++) {
-      const okX = stepX !== 0 && free(nx + stepX, nz);
-      const okZ = stepZ !== 0 && free(nx, nz + stepZ);
-      if (okX && okZ) { nx += stepX; nz += stepZ; this.wedgeDir = 0; continue; }   // open (incl. clean diagonal) — wedge over
-      if (okX || okZ) {
-        // exactly one axis is walled → glance off it: keep the full intended speed
-        // along the open axis (redirect the blocked component into it), not just its
-        // own small share — this is the "skim the building" feel vs. a crawl.
-        if (okX) { const d = Math.sign(stepX) * spd; nx += free(nx + d, nz) ? d : stepX; }
-        else     { const d = Math.sign(stepZ) * spd; nz += free(nx, nz + d) ? d : stepZ; }
-        continue;
+      // fast path: the intended move is clear — take it and clear any wedge
+      if (free(nx + stepX, nz + stepZ)) { nx += stepX; nz += stepZ; this.wedgeDir = 0; continue; }
+      if (spd < 1e-6) break;                    // no input, nowhere to go
+      // BLOCKED → glance along the wall. Rotate the intended move toward the first
+      // open direction (smallest turn first; an axis-slide falls out near 90°), so you
+      // skim a building instead of stopping dead. The rotation SIDE is LOCKED per wedge
+      // in wedgeDir: the old code re-picked a side every sub-step, and against an angled
+      // wall one branch shoved you OFF the wall while the next drove you back INTO it —
+      // an infinite frame-rate shake (Devin: "goes straight at something ... shakes
+      // endlessly"). One committed side can only ever slide ALONG the wall, never buzz
+      // across it. Boxed in past ~75°? Rest, don't jitter.
+      const base = Math.atan2(stepZ, stepX);
+      const sides = this.wedgeDir !== 0 ? [this.wedgeDir] : [1, -1];
+      let glanced = false;
+      for (const sgn of sides) {
+        for (const a of [0.28, 0.6, 0.95, 1.3] as const) {
+          const ang = base + sgn * a;
+          const rx = Math.cos(ang) * spd, rz = Math.sin(ang) * spd;
+          if (free(nx + rx, nz + rz)) { nx += rx; nz += rz; this.wedgeDir = sgn; glanced = true; break; }
+        }
+        if (glanced) break;
       }
-      if (stepX === 0 && stepZ === 0) continue;
-      // both axes walled: round a convex corner if the diagonal is clear, else deflect
-      // along the wall toward whichever side is open (still gliding, never a dead stop),
-      // falling back to a small corner-slip to clear a one-sided jut.
-      if (stepX !== 0 && stepZ !== 0 && free(nx + stepX, nz + stepZ)) { nx += stepX; nz += stepZ; continue; }
-      // deflection HYSTERESIS: while wedged, we commit to ONE glance side. The old
-      // "try +spd, else -spd" re-decided every sub-step, and in a shore pocket or
-      // corner where the free cell alternates it flung the kid back and forth at
-      // full speed forever — the infinite shake. Now the first free side wins for
-      // the whole wedge; if that side closes too, you rest calmly instead.
-      if (Math.abs(stepX) >= Math.abs(stepZ)) {         // pushing mostly along X → wall faces X, glide on Z
-        const s1 = this.wedgeDir || Math.sign(stepZ) || 1;   // committed side, else lean the way you're heading
-        if (free(nx, nz + s1 * spd)) { nz += s1 * spd; this.wedgeDir = s1; }
-        else if (this.wedgeDir === 0 && free(nx, nz - s1 * spd)) { nz -= s1 * spd; this.wedgeDir = -s1; }
-        else if (stepX !== 0 && free(nx + stepX, nz + slip)) { nx += stepX; nz += slip; }
-        else if (stepX !== 0 && free(nx + stepX, nz - slip)) { nx += stepX; nz -= slip; }
-      } else {                                          // pushing mostly along Z → glide on X
-        const s1 = this.wedgeDir || Math.sign(stepX) || 1;
-        if (free(nx + s1 * spd, nz)) { nx += s1 * spd; this.wedgeDir = s1; }
-        else if (this.wedgeDir === 0 && free(nx - s1 * spd, nz)) { nx -= s1 * spd; this.wedgeDir = -s1; }
-        else if (free(nx + slip, nz + stepZ)) { nx += slip; nz += stepZ; }
-        else if (free(nx - slip, nz + stepZ)) { nx -= slip; nz += stepZ; }
-      }
+      if (!glanced) break;                      // fully boxed in this sub-step — hold still
     }
     // safety net: nothing should ever trap you fully — a wall, the bounds clamp, a
     // teleport, OR a car/pedestrian that drove onto you (life obstacles). The old
