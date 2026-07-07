@@ -1383,7 +1383,7 @@ export class WorldIndex {
   // JUNCTIONS are way-end nodes that touch any other road: markings get an
   // asphalt disc painted over them so stripes never cross an intersection.
   private roadChainsCache: {
-    bridge: { pts: number[]; w: number; c: string; l: number; bb: [number, number, number, number]; trim0: number; trim1: number; other0: number; other1: number }[];
+    bridge: { pts: number[]; w: number; w0: number; w1: number; c: string; l: number; bb: [number, number, number, number]; trim0: number; trim1: number; other0: number; other1: number }[];
     junctions: { x: number; y: number; r: number; c: string }[];
   } | null = null;
 
@@ -1494,7 +1494,9 @@ export class WorldIndex {
       return other !== i && compat(i, other) ? other : -1;
     };
     const used = new Set<number>();
-    const bridge: { pts: number[]; w: number; c: string; l: number; bb: [number, number, number, number]; trim0: number; trim1: number; other0: number; other1: number }[] = [];
+    // w0/w1: deck width AT each end — fused decks taper back to the real road width
+    // where they die into dry pavement (full width squared off as a visible "wing")
+    const bridge: { pts: number[]; w: number; w0: number; w1: number; c: string; l: number; bb: [number, number, number, number]; trim0: number; trim1: number; other0: number; other1: number }[] = [];
     const chainWays = new Map<number[], number[]>();   // chain pts -> exact member way indices (survives fusing)
     for (let i = 0; i < roads.length; i++) {
       if (used.has(i) || !roads[i].b) continue;
@@ -1549,7 +1551,7 @@ export class WorldIndex {
       const m0 = trimAt(kOf(pts[0], pts[1]));
       const m1 = trimAt(kOf(pts[pts.length - 2], pts[pts.length - 1]));
       bridge.push({
-        pts, w: roads[i].w, c: roads[i].c, l: layerOf(i), bb: [bx0, by0, bx1, by1],
+        pts, w: roads[i].w, w0: roads[i].w, w1: roads[i].w, c: roads[i].c, l: layerOf(i), bb: [bx0, by0, bx1, by1],
         trim0: m0.t, trim1: m1.t, other0: m0.other, other1: m1.other,
       });
       chainWays.set(pts, [...chainSeen]);
@@ -1665,15 +1667,23 @@ export class WorldIndex {
               over1 = Math.max(over1, (ex - mp[m2 - 2]) * u1x + (ez - mp[m2 - 1]) * u1z);
             }
           }
-          if (over0 > 4) mp.unshift(mp[0] + u0x * over0, mp[1] + u0z * over0);
-          if (over1 > 4) mp.push(mp[mp.length - 2] + u1x * over1, mp[mp.length - 1] + u1z * over1);
+          // extend only ends sitting over WATER (reaching for the shore) — a dry end
+          // already dies into painted pavement, and extending it just shoves a wide
+          // slab tail across the junction (the Gillis connector "wing")
+          if (over0 > 4 && this.isWaterAt(mp[0], mp[1])) mp.unshift(mp[0] + u0x * over0, mp[1] + u0z * over0);
+          if (over1 > 4 && this.isWaterAt(mp[mp.length - 2], mp[mp.length - 1])) mp.push(mp[mp.length - 2] + u1x * over1, mp[mp.length - 1] + u1z * over1);
         }
         let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
         for (let i = 0; i + 1 < mp.length; i += 2) {
           const px = mp[i], pz = mp[i + 1];
           if (px < bx0) bx0 = px; if (px > bx1) bx1 = px; if (pz < by0) by0 = pz; if (pz > by1) by1 = pz;
         }
-        out.push({ pts: mp, w: Math.round(hw * 2), c: spine.c, l: spine.l, bb: [bx0, by0, bx1, by1], trim0: spine.trim0, trim1: spine.trim1, other0: spine.other0, other1: spine.other1 });
+        // a DRY end tapers back to the spine's real road width (the painted approach
+        // takes over there); a WET end keeps full width — it's a landing over water
+        const W = Math.round(hw * 2);
+        const w0 = this.isWaterAt(mp[0], mp[1]) ? W : Math.min(W, spine.w);
+        const w1 = this.isWaterAt(mp[mp.length - 2], mp[mp.length - 1]) ? W : Math.min(W, spine.w);
+        out.push({ pts: mp, w: W, w0, w1, c: spine.c, l: spine.l, bb: [bx0, by0, bx1, by1], trim0: spine.trim0, trim1: spine.trim1, other0: spine.other0, other1: spine.other1 });
         chainWays.set(mp, fusedWays);   // absorbed ways now belong to the merged deck
       }
       bridge.length = 0; for (const b of out) bridge.push(b);

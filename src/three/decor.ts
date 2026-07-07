@@ -1300,7 +1300,8 @@ function inGillisRect(x: number, z: number): boolean {
 // the caller — the underside is open between supports so roads & boats pass beneath.
 // Bare docks / foot-bridges (rails=false) stay wooden planks on a full side skirt.
 function ribbonDeck(buckets: Bucket[], pts0: number[], w: number, topYAt: number | ((x: number, z: number) => number),
-                    rails: boolean, ox: number, oy: number, skipGillis = false, trim0 = 0, trim1 = 0, lanes: 'yellow' | 'white' = 'yellow') {
+                    rails: boolean, ox: number, oy: number, skipGillis = false, trim0 = 0, trim1 = 0, lanes: 'yellow' | 'white' = 'yellow',
+                    w0 = w, w1 = w) {   // end widths — a fused deck TAPERS to the real road width where it dies into dry pavement
   const isRoad = rails;
   const surf = isRoad ? buckets[PLAIN] : buckets[PLANK];
   const asphalt = new THREE.Color('#3a3d42');
@@ -1365,6 +1366,20 @@ function ribbonDeck(buckets: Bucket[], pts0: number[], w: number, topYAt: number
   if (N < 2) return;
   const Lx = new Float64Array(N), Lz = new Float64Array(N), Rx = new Float64Array(N), Rz = new Float64Array(N);
   const Yn = new Float64Array(N), cum = new Float64Array(N);
+  for (let i = 1; i < N; i++) cum[i] = cum[i - 1] + Math.hypot(nxA[i] - nxA[i - 1], nzA[i] - nzA[i - 1]);
+  const totalLen = cum[N - 1];
+  // per-node halfwidth: full mid-span, easing to the end widths over the last TAPER px
+  // (a fused dual-carriageway deck funnels into the painted road instead of squaring
+  // off as a wide "wing" over the approach)
+  const TAPER = 140;
+  const hw0 = Math.min(w0, w) / 2, hw1 = Math.min(w1, w) / 2;
+  const hwAt = (d: number) => {
+    let h = hw;
+    if (hw0 < hw && d < TAPER) h = Math.min(h, hw0 + (hw - hw0) * (d / TAPER));
+    if (hw1 < hw && totalLen - d < TAPER) h = Math.min(h, hw1 + (hw - hw1) * ((totalLen - d) / TAPER));
+    return h;
+  };
+  const hwN = new Float64Array(N);
   let plX = 0, plZ = 0;   // previous lateral — the twist guard
   for (let i = 0; i < N; i++) {
     const ip = Math.max(0, i - 1), iq = Math.min(N - 1, i + 1);
@@ -1378,14 +1393,13 @@ function ribbonDeck(buckets: Bucket[], pts0: number[], w: number, topYAt: number
     let lX = -mZ, lZ = mX;                                          // mitre lateral
     if (i > 0 && lX * plX + lZ * plZ < 0) { lX = -lX; lZ = -lZ; }   // never twist (bowtie guard)
     plX = lX; plZ = lZ;
+    hwN[i] = hwAt(cum[i]);
     // stay hw off both segments, but 1.4x max — sharper corners pinch instead of spiking
-    const scale = hw / Math.min(1.4, Math.max(0.72, Math.abs(lX * -aZ + lZ * aX)));
+    const scale = hwN[i] / Math.min(1.4, Math.max(0.72, Math.abs(lX * -aZ + lZ * aX)));
     Lx[i] = nxA[i] + lX * scale; Lz[i] = nzA[i] + lZ * scale;
     Rx[i] = nxA[i] - lX * scale; Rz[i] = nzA[i] - lZ * scale;
     Yn[i] = yAt(nxA[i], nzA[i]);
-    if (i > 0) cum[i] = cum[i - 1] + Math.hypot(nxA[i] - nxA[ip], nzA[i] - nzA[ip]);
   }
-  const totalLen = cum[N - 1];
 
   // a paint stripe across the strip at across-offset o (0=centerline, +->R side)
   const stripe = (i: number, j: number, o: number, lw: number, c: THREE.Color) => {
@@ -1423,7 +1437,7 @@ function ribbonDeck(buckets: Bucket[], pts0: number[], w: number, topYAt: number
       0, 1, 0, topC.r, topC.g, topC.b,
       0, 0, u, 0, u, vv, 0, vv
     );
-    if (isRoad && w > 12) {
+    if (isRoad && w > 12 && hwN[i] >= hw - 0.5 && hwN[j] >= hw - 0.5) {   // no paint on tapered ends
       const dashOn = Math.floor(((cum[i] + cum[j]) / 2) / 26) % 2 === 0;
       if (lanes === 'white') {
         // one-way carriageway (motorway): solid edges + dashed white lane line
@@ -4950,7 +4964,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     // the custom drawbridge). trim0/trim1 pull a ramp deck back to the deck it
     // merges into, so its end never slices across the other span's surface.
     ribbonDeck(buckets, ch.pts, ch.w + 4, (x, z) => index.bridgeDeckYAt(ch.pts, x, z), true, ox, oy, true, ch.trim0, ch.trim1,
-      (ch.c === 'motorway' || ch.c === 'motorway_link') ? 'white' : 'yellow');
+      (ch.c === 'motorway' || ch.c === 'motorway_link') ? 'white' : 'yellow', ch.w0 + 4, ch.w1 + 4);
     // hold the slab up: pier WALLS marching the span (turned across the deck, capped
     // under the soffit) + full-width abutments at the banks. One (x,z) each + the
     // chunk cull below ⇒ emitted in exactly one chunk.
