@@ -268,6 +268,7 @@ export class Game {
   private debugVec: { x: number; y: number; until: number } | null = null;
   private waterUpdate: ((t: number) => void) | null = null;
   private kidY = 0;
+  private wedgeDir = 0;   // committed glance side while wedged on a wall/shore — one direction per wedge, so the deflection can't ±flip into an infinite shake
   private hopT = 0; private wasNearFence = false;       // kid hops low fences
   private dogHopT = 0; private dogWasNearFence = false; // so does Clipper
   private dogY = 0;
@@ -1785,7 +1786,7 @@ export class Game {
     for (let s = 0; s < steps; s++) {
       const okX = stepX !== 0 && free(nx + stepX, nz);
       const okZ = stepZ !== 0 && free(nx, nz + stepZ);
-      if (okX && okZ) { nx += stepX; nz += stepZ; continue; }   // open (incl. clean diagonal)
+      if (okX && okZ) { nx += stepX; nz += stepZ; this.wedgeDir = 0; continue; }   // open (incl. clean diagonal) — wedge over
       if (okX || okZ) {
         // exactly one axis is walled → glance off it: keep the full intended speed
         // along the open axis (redirect the blocked component into it), not just its
@@ -1799,16 +1800,21 @@ export class Game {
       // along the wall toward whichever side is open (still gliding, never a dead stop),
       // falling back to a small corner-slip to clear a one-sided jut.
       if (stepX !== 0 && stepZ !== 0 && free(nx + stepX, nz + stepZ)) { nx += stepX; nz += stepZ; continue; }
+      // deflection HYSTERESIS: while wedged, we commit to ONE glance side. The old
+      // "try +spd, else -spd" re-decided every sub-step, and in a shore pocket or
+      // corner where the free cell alternates it flung the kid back and forth at
+      // full speed forever — the infinite shake. Now the first free side wins for
+      // the whole wedge; if that side closes too, you rest calmly instead.
       if (Math.abs(stepX) >= Math.abs(stepZ)) {         // pushing mostly along X → wall faces X, glide on Z
-        const s1 = Math.sign(stepZ) || 1;               // lean the way you're already heading
-        if (free(nx, nz + s1 * spd)) nz += s1 * spd;
-        else if (free(nx, nz - s1 * spd)) nz -= s1 * spd;
+        const s1 = this.wedgeDir || Math.sign(stepZ) || 1;   // committed side, else lean the way you're heading
+        if (free(nx, nz + s1 * spd)) { nz += s1 * spd; this.wedgeDir = s1; }
+        else if (this.wedgeDir === 0 && free(nx, nz - s1 * spd)) { nz -= s1 * spd; this.wedgeDir = -s1; }
         else if (stepX !== 0 && free(nx + stepX, nz + slip)) { nx += stepX; nz += slip; }
         else if (stepX !== 0 && free(nx + stepX, nz - slip)) { nx += stepX; nz -= slip; }
       } else {                                          // pushing mostly along Z → glide on X
-        const s1 = Math.sign(stepX) || 1;
-        if (free(nx + s1 * spd, nz)) nx += s1 * spd;
-        else if (free(nx - s1 * spd, nz)) nx -= s1 * spd;
+        const s1 = this.wedgeDir || Math.sign(stepX) || 1;
+        if (free(nx + s1 * spd, nz)) { nx += s1 * spd; this.wedgeDir = s1; }
+        else if (this.wedgeDir === 0 && free(nx - s1 * spd, nz)) { nx -= s1 * spd; this.wedgeDir = -s1; }
         else if (free(nx + slip, nz + stepZ)) { nx += slip; nz += stepZ; }
         else if (free(nx - slip, nz + stepZ)) { nx -= slip; nz += stepZ; }
       }
