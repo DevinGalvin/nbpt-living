@@ -1552,6 +1552,102 @@ export class WorldIndex {
         trim0: m0.t, trim1: m1.t, other0: m0.other, other1: m1.other,
       });
     }
+    // ---- fuse overlapping bridge decks: dual carriageways + stacked ramps ----
+    // OSM maps a divided highway as two parallel ways, and a ramp split as several
+    // piled ways. One-deck-per-chain then stacks those wide slabs at slightly
+    // different headings into "origami" at the approach (the Gillis span was the
+    // worst offender). Fuse each cluster of parallel, overlapping, same-class /
+    // -layer bridge chains into ONE deck — centred, and wide enough to cover them
+    // all — so the approach reads as a single clean carriageway.
+    type BC = (typeof bridge)[number];
+    {
+      const len = (pts: number[]) => { let L = 0; for (let j = 0; j + 3 < pts.length; j += 2) L += Math.hypot(pts[j + 2] - pts[j], pts[j + 3] - pts[j + 1]); return L; };
+      const bboxHit = (a: BC, b: BC, m: number) => a.bb[0] - m <= b.bb[2] && b.bb[0] - m <= a.bb[2] && a.bb[1] - m <= b.bb[3] && b.bb[1] - m <= a.bb[3];
+      // fraction of A's vertices lying within lateral tol of B's centreline
+      const overlapFrac = (A: BC, B: BC) => {
+        const tol = (A.w + B.w) / 2 * 0.6, t2 = tol * tol;
+        let hit = 0, tot = 0;
+        for (let j = 0; j + 1 < A.pts.length; j += 2) { tot++; if (distToPolylineSq(A.pts[j], A.pts[j + 1], B.pts) <= t2) hit++; }
+        return tot ? hit / tot : 0;
+      };
+      const parent = bridge.map((_, i) => i);
+      const find = (i: number): number => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+      for (let a = 0; a < bridge.length; a++) for (let b = a + 1; b < bridge.length; b++) {
+        const A = bridge[a], B = bridge[b];
+        if (A.c !== B.c || A.l !== B.l || !bboxHit(A, B, (A.w + B.w) / 2)) continue;
+        const short = A.pts.length <= B.pts.length ? A : B, long = short === A ? B : A;
+        if (overlapFrac(short, long) >= 0.5) parent[find(a)] = find(b);   // parallel & overlapping ⇒ same deck
+      }
+      const groups = new Map<number, number[]>();
+      for (let i = 0; i < bridge.length; i++) { const r = find(i); let g = groups.get(r); if (!g) groups.set(r, g = []); g.push(i); }
+      // nearest point on pts to (x,y), returned as a signed offset along (nX,nZ)
+      const nearestSigned = (x: number, y: number, nX: number, nZ: number, pts: number[]) => {
+        let bd = Infinity, bx = x, by = y;
+        for (let j = 0; j + 3 < pts.length; j += 2) {
+          const ax = pts[j], az = pts[j + 1], ex = pts[j + 2] - ax, ez = pts[j + 3] - az;
+          const l2 = ex * ex + ez * ez || 1;
+          let s = ((x - ax) * ex + (y - az) * ez) / l2; s = s < 0 ? 0 : s > 1 ? 1 : s;
+          const px = ax + ex * s, pz = az + ez * s, d = (px - x) ** 2 + (pz - y) ** 2;
+          if (d < bd) { bd = d; bx = px; by = pz; }
+        }
+        return (bx - x) * nX + (by - y) * nZ;
+      };
+      const CAP = 150;   // px: max lateral gap a way may sit from the spine and still FUSE
+      const medOffset = (m: BC, sp: number[]) => {
+        const ds: number[] = [];
+        for (let j = 0; j + 1 < m.pts.length; j += 2) ds.push(Math.sqrt(distToPolylineSq(m.pts[j], m.pts[j + 1], sp)));
+        ds.sort((a, b) => a - b);
+        return ds.length ? ds[ds.length >> 1] : 0;
+      };
+      const out: BC[] = [];
+      for (const grp of groups.values()) {
+        if (grp.length < 2) { out.push(bridge[grp[0]]); continue; }
+        const members = grp.map((i) => bridge[i]);
+        const spine = members.reduce((p, c) => len(c.pts) >= len(p.pts) ? c : p);
+        const sp = spine.pts, n = sp.length / 2;
+        // only FUSE ways that ride alongside the spine the whole way — a divergent
+        // ramp that peels off is kept as its own deck, so it can't balloon the width
+        const fuse = members.filter((m) => m === spine || medOffset(m, sp) <= CAP);
+        for (const m of members) if (m !== spine && !fuse.includes(m)) out.push(m);
+        if (fuse.length < 2) { out.push(spine); continue; }
+        const nx = new Float64Array(n), nz = new Float64Array(n);
+        for (let i = 0; i < n; i++) {
+          const ip = Math.max(0, i - 1), iq = Math.min(n - 1, i + 1);
+          let dx = sp[2 * iq] - sp[2 * ip], dz = sp[2 * iq + 1] - sp[2 * ip + 1];
+          const dl = Math.hypot(dx, dz) || 1;
+          nx[i] = -dz / dl; nz[i] = dx / dl;
+        }
+        // cover interval [L,R] each node reaches across the fused ways, then reduce to
+        // one scalar shift (centre) + half-width; a way only counts where it actually
+        // runs alongside (its nearest point stays within CAP of the spine here)
+        const lft = new Float64Array(n), rgt = new Float64Array(n);
+        let shift = 0, maxHw = spine.w / 2;
+        for (const m of fuse) maxHw = Math.max(maxHw, m.w / 2);
+        for (let i = 0; i < n; i++) {
+          let L = -spine.w / 2, R = spine.w / 2;
+          for (const m of fuse) {
+            if (m === spine) continue;
+            const s = nearestSigned(sp[2 * i], sp[2 * i + 1], nx[i], nz[i], m.pts), h = m.w / 2;
+            if (Math.abs(s) > CAP + h) continue;   // peeled away at this node
+            if (s - h < L) L = s - h; if (s + h > R) R = s + h;
+          }
+          lft[i] = L; rgt[i] = R; shift += (L + R) / 2;
+        }
+        shift /= n;
+        let hw = 0;
+        for (let i = 0; i < n; i++) hw = Math.max(hw, rgt[i] - shift, shift - lft[i]);
+        hw = Math.min(hw, maxHw + CAP);   // hard clamp — never balloon past a sane divided-road width
+        const mp: number[] = [];
+        let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+        for (let i = 0; i < n; i++) {
+          const px = sp[2 * i] + nx[i] * shift, pz = sp[2 * i + 1] + nz[i] * shift;
+          mp.push(px, pz);
+          if (px < bx0) bx0 = px; if (px > bx1) bx1 = px; if (pz < by0) by0 = pz; if (pz > by1) by1 = pz;
+        }
+        out.push({ pts: mp, w: Math.round(hw * 2), c: spine.c, l: spine.l, bb: [bx0, by0, bx1, by1], trim0: spine.trim0, trim1: spine.trim1, other0: spine.other0, other1: spine.other1 });
+      }
+      bridge.length = 0; for (const b of out) bridge.push(b);
+    }
     // register chain polylines so effLayer sees the right layer (clearance
     // bumps die silently otherwise — chains aren't in world.roads)
     this.effLayer(roads[0]?.p ?? []);   // ensure the map exists
@@ -1560,16 +1656,15 @@ export class WorldIndex {
     // terrain grade would nose-dive under the span it joins) — resolve the
     // other WAY to its owning CHAIN so bridgeProfile can ask for its deck Y
     const wayChain = new Map<number, number[]>();
-    for (const ch of bridge) {
-      // chains were built from ways; recover membership by endpoint walk is
-      // overkill — the used-set order isn't kept, so match by vertex identity
-      for (let ri = 0; ri < roads.length; ri++) {
-        if (!roads[ri].b || wayChain.has(ri)) continue;
-        const p = roads[ri].p;
-        // a way belongs to the chain that contains its first segment midpoint
-        const mx = (p[0] + p[2]) / 2, my = (p[1] + p[3]) / 2;
-        if (distToPolylineSq(mx, my, ch.pts) < 1) wayChain.set(ri, ch.pts);
-      }
+    for (let ri = 0; ri < roads.length; ri++) {
+      if (!roads[ri].b) continue;
+      const p = roads[ri].p;
+      // a way belongs to its NEAREST chain (fusing shifts merged centrelines off
+      // the raw way, so an exact on-centreline test no longer holds)
+      const mx = (p[0] + p[2]) / 2, my = (p[1] + p[3]) / 2;
+      let best: number[] | null = null, bd = Infinity;
+      for (const ch of bridge) { const d = distToPolylineSq(mx, my, ch.pts); if (d < bd) { bd = d; best = ch.pts; } }
+      if (best) wayChain.set(ri, best);
     }
     for (const ch of bridge) {
       const e: { o0?: number[]; o1?: number[] } = {};
