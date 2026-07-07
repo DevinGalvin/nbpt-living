@@ -79,6 +79,8 @@ function pointInRing(x: number, y: number, pts: number[]): boolean {
 }
 
 // real store signs: small canvas-texture boards mounted on the building edge
+let shopBackGeo: THREE.PlaneGeometry | null = null;
+let shopBackMat: THREE.MeshBasicMaterial | null = null;
 function makeSignMesh(name: string): THREE.Mesh {
   const c = document.createElement('canvas');
   c.width = 256;
@@ -103,10 +105,18 @@ function makeSignMesh(name: string): THREE.Mesh {
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
+  // front face carries the text; the back is a plain board — DoubleSide showed the
+  // lettering mirrored to anyone behind the sign (same fix as the welcome signs)
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(36, 9),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.FrontSide })
   );
+  shopBackGeo ??= new THREE.PlaneGeometry(36, 9);
+  shopBackMat ??= new THREE.MeshBasicMaterial({ color: '#1a2028', side: THREE.FrontSide });
+  const back = new THREE.Mesh(shopBackGeo, shopBackMat);
+  back.rotation.y = Math.PI;
+  back.position.z = -0.2;
+  mesh.add(back);
   return mesh;
 }
 

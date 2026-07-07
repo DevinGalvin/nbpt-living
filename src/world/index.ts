@@ -963,7 +963,10 @@ export class WorldIndex {
         ctx.lineWidth = 2;
         strokeLine(ctx, r.p);
         ctx.setLineDash([]);
-      } else if (r.w >= 90) {
+      } else if (r.w >= 90 && maxTurn(r.p) < 0.28) {
+        // straight enough (< ~16° max turn) for interior lane dashes; on curving
+        // wide streets the offset parallels wander off the pavement, so we keep
+        // only the edge lines + yellow centerline (Devin: "reads cluttered on curves")
         ctx.setLineDash([14, 20]);
         ctx.lineWidth = 2;
         strokeLine(ctx, offsetLine(r.p, r.w / 4));
@@ -1413,14 +1416,22 @@ export class WorldIndex {
       const touching = vertexRoads.get(k) ?? [];
       if (touching.length < 2) continue;
       const [xs, ys] = k.split(',');
-      let r = 0, widest = touching[0];
-      for (const ri of touching) if (roads[ri].w / 2 > r) { r = roads[ri].w / 2; widest = ri; }
+      // the two widest touching roads: the disc must cover the crossing to its
+      // CORNER (hypot of the two half-widths), not just the widest road's edge —
+      // a widest-only disc left marking stubs poking past it near the corners of
+      // wide×wide intersections (a 90×90 crossing corners at 64px, not 45px)
+      let r1 = 0, r2 = 0, widest = touching[0];
+      for (const ri of touching) {
+        const hw = roads[ri].w / 2;
+        if (hw > r1) { r2 = r1; r1 = hw; widest = ri; }
+        else if (hw > r2) { r2 = hw; }
+      }
       // a continuation seam (two compatible ways of the SAME street) is not a junction
       if (touching.length === 2 && ends.length === 2) {
         const [a, b] = ends.map((i) => roads[i]);
         if (a.c === b.c && !!a.b === !!b.b && (a.l ?? 0) === (b.l ?? 0) && a.w === b.w) continue;
       }
-      junctions.push({ x: +xs, y: +ys, r: r + 3, c: roads[widest].c });
+      junctions.push({ x: +xs, y: +ys, r: Math.hypot(r1, r2) + 3, c: roads[widest].c });
     }
     // chains: walk maximal runs of compatible ways joined end-to-end at
     // degree-2 nodes (no third road passing through)
@@ -2230,6 +2241,23 @@ function strokeLine(ctx: CanvasRenderingContext2D, pts: number[]) {
   ctx.moveTo(pts[0], pts[1]);
   for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
   ctx.stroke();
+}
+
+// the sharpest heading change (radians) between consecutive segments of a
+// polyline — wide-road lane dashes are skipped on curvy streets, where the
+// interior parallels diverge from the pavement and read as clutter (the edge
+// lines + centerline still define the road on a curve).
+function maxTurn(pts: number[]): number {
+  let m = 0;
+  for (let i = 2; i + 3 < pts.length; i += 2) {
+    const ax = pts[i] - pts[i - 2], ay = pts[i + 1] - pts[i - 1];
+    const bx = pts[i + 2] - pts[i], by = pts[i + 3] - pts[i + 1];
+    const al = Math.hypot(ax, ay), bl = Math.hypot(bx, by);
+    if (al < 1 || bl < 1) continue;
+    const d = Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / (al * bl))));
+    if (d > m) m = d;
+  }
+  return m;
 }
 
 // a mitred parallel of a polyline, o px to the left (+) / right (-) of travel —
