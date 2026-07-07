@@ -368,6 +368,8 @@ const css = `
 #hud:has(.race-count.show) .objective,
 #hud:has(.race-timer.show) .objective,
 #hud:has(.board-panel.show) .objective { display: none !important; }
+/* mid-race landmark banners duck BELOW the clock chip instead of underneath it */
+#hud:has(.race-timer.show) .banner { top: 108px; }
 /* the off-screen waypoint arrow steps aside whenever a panel/dialogue is up */
 #hud:has(.travel-panel.open) .waypoint,
 #hud:has(.journey-panel.show) .waypoint,
@@ -720,7 +722,9 @@ const css = `
 }
 @keyframes nbpt-race-pop { 0% { transform: scale(1.7); opacity: 0; } 25% { opacity: 1; } 100% { transform: scale(0.92); opacity: 0.95; } }
 #hud .race-timer {
-  position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+  /* rides the very TOP of the screen — the objective pill hides during races so the
+     slot is free, and landmark banners (top: 58px) stop colliding with the clock */
+  position: absolute; top: max(10px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
   display: none; align-items: baseline; gap: 9px; flex-wrap: wrap;
   max-width: min(400px, calc(100vw - 24px));
   background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-radius: 12px;
