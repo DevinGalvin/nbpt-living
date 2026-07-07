@@ -4,10 +4,59 @@ A cozy, all-ages Zelda-like set on the **exact maps of real towns** — Newburyp
 `/` and Salem at `/salem/`, one codebase. Three.js + TypeScript + Vite. Live at
 **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE (July 6, 2026): read the ✦ MULTI-TOWN ARCHITECTURE section
-> first** — the Salem fork is retired, both towns ship from every push to `source`,
-> town borders/Welcome signs are live, and the North Shore build-out is ranked
-> (Beverly next). The Level-2 banner below is older but still current for story work.
+> **⚡ FRESHEST STATE (July 6, 2026, LATE EVENING — a huge day): read
+> ✦ BEVERLY DAY below first.** Beverly is LIVE at /beverly/ (town #3), all 54
+> Salem+NBPT heroes were photo-audited (14 fixed), bridges/roads got a
+> network-graph redesign (after one hard revert lesson), and a playtest wave
+> landed: boats at every dock, cars in every lot, scale-free impostor (blurry
+> blotches dead), Lynch Park spawn, U-turn snap, arrive-facing fast travel,
+> per-town og-image guard. The MULTI-TOWN section + Level-2 banner below
+> remain current.
+
+## ✦ BEVERLY DAY (July 6, evening) — state + ranked open items
+
+**Live at `d417f7a`.** Deep refs: `BEVERLY-HANDOFF.md` (town status),
+`docs/BRIDGE-ROADS-REDESIGN.md` (the redesign + its failure analysis),
+`docs/research/beverly.md` (photo-verified specs), `docs/research/hero-audit-2026-07.md`
+(54 verdicts). Everything below ships engine-wide unless noted.
+
+**Open items, ranked:**
+1. **Wide-road paint polish** — Devin's last screenshot (biking downtown
+   Beverly): the ≥90px two-way paint (white edges + ±w/4 lane dashes + yellow
+   center) reads CLUTTERED on curving streets, and some junctions still show
+   markings running through (disc radius may be too small where wide roads
+   meet). Revisit: maybe only edge lines on curves, dashes on straights; check
+   junction-disc coverage on wide-road junctions.
+2. **Shop-sign text reads mirrored from behind** (same screenshot, "House of
+   Pizza") — welcome signs solved this with a plain back panel
+   (makeWelcomeSignMesh); shop signs still DoubleSide. Port the fix.
+3. **Cummings NW aprons** — aisles mapped in OSM but NO parking polys (bare
+   terrain reads as grass, no cars possible). Curate 2-3 polys in
+   towns/beverly/map.mjs manualFeatures sized to the aisle clusters
+   (~[-4200,2500], [-3200,2300]) or edit OSM + refetch.
+4. **Salem North St bridge spot-check** (the one unchecked redesign site) +
+   **one full race end-to-end** in Beverly (board tab 'beverly' write/read).
+5. **Salem landmark top-up 14→33** — proposed roster in the
+   town-fast-travel-recipe memory; pre-Reddit polish (Salem launch Sat 7/11).
+6. **Beverly launch prep** — recommend Sat 7/18 ~10-11am after r/beverlyma
+   modmail; og-image is now real (Depot) but link-preview caches hold the old
+   Salem image for a while; St. Mary Star of the Sea hero = colors UNVERIFIED
+   (the Ropes-trap), don't model without photos; Lynch Park sled-hill geometry.
+
+**Hard-won session gotchas (save an hour each):**
+- **Preview screenshots go stale after location.reload()** — the tab loses
+  live rAF; `preview_click` the canvas once, then screenshots are fresh.
+- **Worktree merge trap**: `git merge beverly` run INSIDE the ../nbpt-beverly
+  worktree is a no-op (merging into itself); merge in THIS tree, then push.
+- **Overpass 504s on all mirrors = your ASK is too big, not the query** —
+  schedulers defer huge [timeout]/[maxsize] requests past the gateway's
+  patience. fetch_osm.mjs: OSM_TILES=2x3 + modest asks.
+- **Verify at the HARD sites** (ramp merges, junctions, ends), not the easy
+  mid-spans — and verify the actual predicate the player exercises (free()),
+  not a lower-level function. Both bit us today.
+- **"Engine-generic" fixes with absolute constants are still town-calibrated**
+  — Beverly's map size broke the impostor's tuned -18 sink. Prefer bounds true
+  by construction (the new minHeightOver envelope).
 
 > ## 🚀 LIVE & stable at clippertown.io — launched June 16, 2026 to r/Newburyport
 > (the "I found my house!" hook landed). A LOT has shipped since launch — see §5. Every
