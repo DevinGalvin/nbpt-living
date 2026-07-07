@@ -70,6 +70,23 @@ export class Terrain {
     return Math.max(0, meters) * PX_PER_M;
   }
 
+  // conservative LOWER bound of the surface over a world-px box: the min of
+  // the raw grid nodes covering it (bilinear extrema live on nodes; the box is
+  // snapped OUTWARD one cell by floor/ceil), water-clamped once at the end.
+  // Used by the impostor so its chords can never rise above the true ground.
+  minHeightOver(x0: number, z0: number, x1: number, z1: number): number {
+    if (!this.ok) return 0;
+    const ix0 = Math.max(0, Math.min(this.w - 1, Math.floor((x0 - this.x0) / this.spacing)));
+    const ix1 = Math.max(0, Math.min(this.w - 1, Math.ceil((x1 - this.x0) / this.spacing)));
+    const iz0 = Math.max(0, Math.min(this.h - 1, Math.floor((z0 - this.y0) / this.spacing)));
+    const iz1 = Math.max(0, Math.min(this.h - 1, Math.ceil((z1 - this.y0) / this.spacing)));
+    let m = Infinity;
+    for (let iz = iz0; iz <= iz1; iz++) {
+      for (let ix = ix0; ix <= ix1; ix++) m = Math.min(m, this.data[iz * this.w + ix]);
+    }
+    return Math.max(0, m / 10) * PX_PER_M;
+  }
+
   // ground normal via central differences (for terrain shading)
   normalAt(x: number, z: number, out: { x: number; y: number; z: number }) {
     const e = this.spacing / 2;

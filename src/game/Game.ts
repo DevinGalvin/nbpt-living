@@ -1268,9 +1268,17 @@ export class Game {
     geo.rotateX(-Math.PI / 2);
     const pos = geo.attributes.position as THREE.BufferAttribute;
     const uv = geo.attributes.uv as THREE.BufferAttribute;
+    // Each vert takes the MIN terrain over its whole span box (exact on grid
+    // nodes), so the flat chord between verts can never rise above the true
+    // ground — zero poke-through at ANY map scale. The old fixed -18 sink was
+    // calibrated on NBPT's flat coast; Beverly's wider map (234px spans) and
+    // steep bluffs beat it by up to 51px and the low-res texture surfaced as
+    // the pale "blurry blotches" (worst at dawn/dusk shading, 10% of cells on
+    // mobile). Scale-free by construction — new towns can't regress it.
+    const dxSpan = ex / segX, dzSpan = ey / segZ;
     for (let i = 0; i < pos.count; i++) {
       const wx = cx + pos.getX(i), wz = cz + pos.getZ(i);
-      pos.setY(i, this.terrain.heightAt(wx, wz) - 18);    // sit clearly UNDER the detailed chunks
+      pos.setY(i, this.terrain.minHeightOver(wx - dxSpan, wz - dzSpan, wx + dxSpan, wz + dzSpan) - 6);
       uv.setXY(i, (wx - b.minX) / ex, (wz - b.minY) / ey);
     }
     geo.computeVertexNormals();
