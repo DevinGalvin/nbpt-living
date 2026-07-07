@@ -1495,6 +1495,7 @@ export class WorldIndex {
     };
     const used = new Set<number>();
     const bridge: { pts: number[]; w: number; c: string; l: number; bb: [number, number, number, number]; trim0: number; trim1: number; other0: number; other1: number }[] = [];
+    const chainWays = new Map<number[], number[]>();   // chain pts -> exact member way indices (survives fusing)
     for (let i = 0; i < roads.length; i++) {
       if (used.has(i) || !roads[i].b) continue;
       // walk to the chain's start
@@ -1551,6 +1552,7 @@ export class WorldIndex {
         pts, w: roads[i].w, c: roads[i].c, l: layerOf(i), bb: [bx0, by0, bx1, by1],
         trim0: m0.t, trim1: m1.t, other0: m0.other, other1: m1.other,
       });
+      chainWays.set(pts, [...chainSeen]);
     }
     // ---- fuse overlapping bridge decks: dual carriageways + stacked ramps ----
     // OSM maps a divided highway as two parallel ways, and a ramp split as several
@@ -1593,11 +1595,15 @@ export class WorldIndex {
         return (bx - x) * nX + (by - y) * nZ;
       };
       const CAP = 150;   // px: max lateral gap a way may sit from the spine and still FUSE
-      const medOffset = (m: BC, sp: number[]) => {
-        const ds: number[] = [];
-        for (let j = 0; j + 1 < m.pts.length; j += 2) ds.push(Math.sqrt(distToPolylineSq(m.pts[j], m.pts[j + 1], sp)));
-        ds.sort((a, b) => a - b);
-        return ds.length ? ds[ds.length >> 1] : 0;
+      // a fused member LOSES its own deck, so it must ride the spine's covered band
+      // for its ENTIRE length — judged by its worst (max) offset, not its median. A
+      // rotary arc or link ramp that wanders off partway keeps its own deck instead:
+      // overlapping decks are a cosmetic z-epsilon, an uncovered stretch is a HOLE
+      // the player can't cross (Bridge St rotary, Beverly↔Salem span).
+      const maxOffset = (m: BC, sp: number[]) => {
+        let worst = 0;
+        for (let j = 0; j + 1 < m.pts.length; j += 2) worst = Math.max(worst, distToPolylineSq(m.pts[j], m.pts[j + 1], sp));
+        return Math.sqrt(worst);
       };
       const out: BC[] = [];
       for (const grp of groups.values()) {
@@ -1607,9 +1613,10 @@ export class WorldIndex {
         const sp = spine.pts, n = sp.length / 2;
         // only FUSE ways that ride alongside the spine the whole way — a divergent
         // ramp that peels off is kept as its own deck, so it can't balloon the width
-        const fuse = members.filter((m) => m === spine || medOffset(m, sp) <= CAP);
+        const fuse = members.filter((m) => m === spine || maxOffset(m, sp) <= CAP);
         for (const m of members) if (m !== spine && !fuse.includes(m)) out.push(m);
         if (fuse.length < 2) { out.push(spine); continue; }
+        const fusedWays = fuse.flatMap((m) => chainWays.get(m.pts) ?? []);
         const nx = new Float64Array(n), nz = new Float64Array(n);
         for (let i = 0; i < n; i++) {
           const ip = Math.max(0, i - 1), iq = Math.min(n - 1, i + 1);
@@ -1638,13 +1645,36 @@ export class WorldIndex {
         for (let i = 0; i < n; i++) hw = Math.max(hw, rgt[i] - shift, shift - lft[i]);
         hw = Math.min(hw, maxHw + CAP);   // hard clamp — never balloon past a sane divided-road width
         const mp: number[] = [];
+        for (let i = 0; i < n; i++) mp.push(sp[2 * i] + nx[i] * shift, sp[2 * i + 1] + nz[i] * shift);
+        // the spine rarely reaches as far as every member: a dual carriageway's two
+        // ways end at DIFFERENT points, and cutting the deck at the spine's end left
+        // a hole of open water at the Beverly↔Salem landing (deck started ~170px off
+        // the bank — uncrossable). Extend the merged centreline past each end to the
+        // farthest member endpoint, so the fused deck covers the union of its parts.
+        {
+          const dx0 = mp[0] - mp[2], dz0 = mp[1] - mp[3];
+          const l0 = Math.hypot(dx0, dz0) || 1, u0x = dx0 / l0, u0z = dz0 / l0;   // points outward past the start
+          const m2 = mp.length;
+          const dx1 = mp[m2 - 2] - mp[m2 - 4], dz1 = mp[m2 - 1] - mp[m2 - 3];
+          const l1 = Math.hypot(dx1, dz1) || 1, u1x = dx1 / l1, u1z = dz1 / l1;   // outward past the end
+          let over0 = 0, over1 = 0;
+          for (const m of fuse) {
+            if (m === spine) continue;
+            for (const [ex, ez] of [[m.pts[0], m.pts[1]], [m.pts[m.pts.length - 2], m.pts[m.pts.length - 1]]]) {
+              over0 = Math.max(over0, (ex - mp[0]) * u0x + (ez - mp[1]) * u0z);
+              over1 = Math.max(over1, (ex - mp[m2 - 2]) * u1x + (ez - mp[m2 - 1]) * u1z);
+            }
+          }
+          if (over0 > 4) mp.unshift(mp[0] + u0x * over0, mp[1] + u0z * over0);
+          if (over1 > 4) mp.push(mp[mp.length - 2] + u1x * over1, mp[mp.length - 1] + u1z * over1);
+        }
         let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
-        for (let i = 0; i < n; i++) {
-          const px = sp[2 * i] + nx[i] * shift, pz = sp[2 * i + 1] + nz[i] * shift;
-          mp.push(px, pz);
+        for (let i = 0; i + 1 < mp.length; i += 2) {
+          const px = mp[i], pz = mp[i + 1];
           if (px < bx0) bx0 = px; if (px > bx1) bx1 = px; if (pz < by0) by0 = pz; if (pz > by1) by1 = pz;
         }
         out.push({ pts: mp, w: Math.round(hw * 2), c: spine.c, l: spine.l, bb: [bx0, by0, bx1, by1], trim0: spine.trim0, trim1: spine.trim1, other0: spine.other0, other1: spine.other1 });
+        chainWays.set(mp, fusedWays);   // absorbed ways now belong to the merged deck
       }
       bridge.length = 0; for (const b of out) bridge.push(b);
     }
@@ -1655,17 +1685,11 @@ export class WorldIndex {
     // a merge end inherits the OTHER deck's height there (a ramp that kept the
     // terrain grade would nose-dive under the span it joins) — resolve the
     // other WAY to its owning CHAIN so bridgeProfile can ask for its deck Y
+    // exact membership recorded during the chain walk (and unioned through fusing) —
+    // geometric nearest-guessing mis-resolved at junction knots where chains converge,
+    // and a wrong owner feeds a wrong deck height into bridgeProfile's merge ends
     const wayChain = new Map<number, number[]>();
-    for (let ri = 0; ri < roads.length; ri++) {
-      if (!roads[ri].b) continue;
-      const p = roads[ri].p;
-      // a way belongs to its NEAREST chain (fusing shifts merged centrelines off
-      // the raw way, so an exact on-centreline test no longer holds)
-      const mx = (p[0] + p[2]) / 2, my = (p[1] + p[3]) / 2;
-      let best: number[] | null = null, bd = Infinity;
-      for (const ch of bridge) { const d = distToPolylineSq(mx, my, ch.pts); if (d < bd) { bd = d; best = ch.pts; } }
-      if (best) wayChain.set(ri, best);
-    }
+    for (const ch of bridge) for (const ri of chainWays.get(ch.pts) ?? []) wayChain.set(ri, ch.pts);
     for (const ch of bridge) {
       const e: { o0?: number[]; o1?: number[] } = {};
       if (ch.other0 >= 0) e.o0 = wayChain.get(ch.other0);
@@ -1721,8 +1745,14 @@ export class WorldIndex {
     // short culvert bridges into plateaus (the 7/6 screenshot-2 slab). A MERGE
     // end (ramp teeing into another span) meets THAT deck's height instead.
     const merge = this.chainMergeEnds.get(pts);
-    const g0 = merge?.o0 ? this.bridgeDeckYAt(merge.o0, pts[0], pts[1]) : h0 + 2.5;
-    const g1 = merge?.o1 ? this.bridgeDeckYAt(merge.o1, pts[pts.length - 2], pts[pts.length - 1]) : h1 + 2.5;
+    let g0 = merge?.o0 ? this.bridgeDeckYAt(merge.o0, pts[0], pts[1]) : h0 + 2.5;
+    let g1 = merge?.o1 ? this.bridgeDeckYAt(merge.o1, pts[pts.length - 2], pts[pts.length - 1]) : h1 + 2.5;
+    // an end OVER WATER has no pavement to die into — the +2.5 fallback would ride
+    // the seabed (-80s at the Bridge St rotary) and the deck plunged into the sea,
+    // leaving an uncrossable hole mid-junction. Any wet end floats at span height.
+    const floor = WATER_Y + WorldIndex.WATER_CLEAR;
+    if (g0 < floor && (this.isWaterAt(pts[0], pts[1]) || h0 < WATER_Y)) g0 = floor;
+    if (g1 < floor && (this.isWaterAt(pts[pts.length - 2], pts[pts.length - 1]) || h1 < WATER_Y)) g1 = floor;
     const myLayer = this.effLayer(pts);
     const cum: number[] = [0];
     for (let i = 0; i + 3 < pts.length; i += 2) {
