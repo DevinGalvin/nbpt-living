@@ -310,6 +310,19 @@ export class Game {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('game')!.appendChild(this.renderer.domElement);
 
+    // Town hops (Fast-Travel chips) are plain navigations, and iOS Safari keeps the
+    // departing page ALIVE in the back/forward cache — GL context, textures and all.
+    // Mid-hop that means TWO full towns resident at once, which is exactly when
+    // Safari jetsams the tab. Release the GPU on the way out; if Safari later
+    // restores this page from bfcache its context is gone, so reboot it instead
+    // of showing a frozen black canvas.
+    window.addEventListener('pagehide', () => {
+      this.renderer.setAnimationLoop(null);
+      this.renderer.forceContextLoss();
+      this.renderer.dispose();
+    });
+    window.addEventListener('pageshow', (e) => { if ((e as PageTransitionEvent).persisted) location.reload(); });
+
     const fogRange: [number, number] = SEASON === 'fall' ? TOWN.fall.fogRange : SEASON === 'winter' ? [1250, 2900] : [1500, 3200];
     this.scene.fog = new THREE.Fog(STYLE.sky, fogRange[0], fogRange[1]);
     this.camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 10, 6000);
