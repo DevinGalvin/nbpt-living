@@ -1543,6 +1543,33 @@ function lighthouse(plain: Bucket, cx: number, cz: number, g: number) {
   flatRoof(plain, oct(5), g + 104, '#c0392b');
 }
 
+// ⛽ a gas station forecourt — the data-driven set piece for amenity=fuel POIs:
+// white canopy on posts with a red fascia band, pump islands underneath. The
+// brand name already rides the shop building as a sign; this makes the lot
+// itself READ as a gas station from the air. Long axis squares to the road.
+function gasStation(plain: Bucket, cx: number, cz: number, ang: number, g: number) {
+  const CANOPY = '#eae8df', FASCIA = '#bf4030', POST = '#c2beb2', CURB = '#b4b0a4', PUMP = '#c8442f', SCREEN = '#2e3136';
+  const hl = 48, hw = 30;                        // 12m × 7.5m canopy
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const pt = (lx: number, lz: number): [number, number] => [cx + lx * ca - lz * sa, cz + lx * sa + lz * ca];
+  for (const [px, pz] of [pt(-hl + 12, -hw + 9), pt(hl - 12, -hw + 9), pt(-hl + 12, hw - 9), pt(hl - 12, hw - 9)]) {
+    plain.box(px, pz, 1.6, 1.6, g, g + 35, POST);
+  }
+  rotBox(plain, cx, cz, hl, hw, g + 35, g + 40, ang, CANOPY);
+  rotBox(plain, cx, cz, hl + 1, hw + 1, g + 31.5, g + 35, ang, FASCIA);
+  // soffit — rotBox has no bottom face, and you can see up under a canopy
+  const c0 = pt(-hl, -hw), c1 = pt(hl, -hw), c2 = pt(hl, hw), c3 = pt(-hl, hw);
+  tmp.set(CANOPY);
+  plain.quad(c3[0], g + 35, c3[1], c2[0], g + 35, c2[1], c1[0], g + 35, c1[1], c0[0], g + 35, c0[1], 0, -1, 0, tmp.r * 0.72, tmp.g * 0.72, tmp.b * 0.72);
+  // two pump islands along the drive-through axis, one pump each
+  for (const s of [-1, 1] as const) {
+    const [ix, iz] = pt(s * hl * 0.42, 0);
+    rotBox(plain, ix, iz, 11, 4, g, g + 1.8, ang, CURB);
+    rotBox(plain, ix, iz, 3.4, 2.2, g + 1.8, g + 13, ang, PUMP);
+    rotBox(plain, ix, iz, 3.6, 2.4, g + 9.6, g + 11, ang, SCREEN);
+  }
+}
+
 // A small bronze figure on a granite pedestal — the data-driven archetype for
 // tourism=artwork / historic=monument|memorial points (statues, town monuments).
 // Reads as "a statue stands here" at exploration scale; it's a silhouette, not the
@@ -5297,6 +5324,45 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       landmarkFountain(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
     } else if (poi.k === 'fort') {
       landmarkFort(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    } else if (poi.k === 'fuel') {
+      // ⛽ canopy + pumps in the forecourt, squared to the frontage road. The POI
+      // is often the SHOP building's centroid (way-pois), so if the point itself
+      // is blocked, probe toward the road for the first clear forecourt spot —
+      // and place NOTHING rather than clip a building or the roadway.
+      let rx = poi.x, rz = poi.y, ang = 0, bd = Infinity, rw = 0;
+      for (const pass of [0, 1]) {   // pass 0: real streets; pass 1: service aisles (fallback)
+        for (const ri of bucket.roads) {
+          const r = world.roads[ri];
+          if ((r.c === 'service') !== (pass === 1)) continue;
+          for (let i = 0; i + 3 < r.p.length; i += 2) {
+            const ax = r.p[i], az = r.p[i + 1], ex = r.p[i + 2] - ax, ez = r.p[i + 3] - az;
+            const l2 = ex * ex + ez * ez || 1;
+            let t = ((poi.x - ax) * ex + (poi.y - az) * ez) / l2;
+            t = t < 0 ? 0 : t > 1 ? 1 : t;
+            const px = ax + ex * t, pz = az + ez * t, d = (px - poi.x) ** 2 + (pz - poi.y) ** 2;
+            if (d < bd) { bd = d; rx = px; rz = pz; ang = Math.atan2(ez, ex); rw = r.w; }
+          }
+        }
+        if (bd < 400 * 400) break;
+      }
+      const dl = Math.sqrt(bd) || 1, ux = (rx - poi.x) / dl, uz = (rz - poi.y) / dl;
+      const stop = Math.max(0, dl - (rw / 2 + 42));   // slide limit: canopy half-depth off the roadside
+      // 2-D probe, roadside-first: forecourts live between the shop and the street,
+      // but the shop often sits square on the POI — so also try sliding ALONG the
+      // road axis to the building's side before giving up. First clear spot wins;
+      // nothing is placed if every candidate clips a building or water.
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      placed: for (let k = 8; k >= 0; k--) {
+        const t = stop * (k / 8);
+        for (const lat of [0, 60, -60, 116, -116]) {
+          const cx = poi.x + ux * t + ca * lat, cz = poi.y + uz * t + sa * lat;
+          const clear = [[0, 0], [-48, -30], [48, -30], [48, 30], [-48, 30]].every(([lx, lz]) => {
+            const wx = cx + lx * ca - lz * sa, wz = cz + lx * sa + lz * ca;
+            return !index.isBlocked(wx, wz) && !index.isWaterAt(wx, wz);
+          });
+          if (clear) { gasStation(buckets[PLAIN], cx, cz, ang, index.heightAtPx(cx, cz)); break placed; }
+        }
+      }
     }
   }
 
