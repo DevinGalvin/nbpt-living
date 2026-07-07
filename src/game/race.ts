@@ -623,30 +623,39 @@ export class RaceRunner {
     const rdx = c.route[2] - c.route[0], rdz = c.route[3] - c.route[1];
     const rdl = Math.hypot(rdx, rdz) || 1;
     this.orient(rdx / rdl, rdz / rdl);
-    // load the town leader's ghost (if you lead, that's your own best — beat yourself);
-    // skipped entirely when the ⚙️ ghost toggle is off — just you and the clock
+    // load a ghost to race — the town leader's line by preference. Ghosts are stored
+    // PER DEVICE, so a cloud-synced leader usually has NO local recording; rather than
+    // show nothing (the "where's my ghost?" bug — a faster stranger's time on the cloud
+    // board hid your own ghost), walk down the board to the best entry we DO have a
+    // local ghost for (normally your own best). Skipped when the ⚙️ toggle is off.
     this.ghostRun = null;
     this.ghostCur = 0;
-    const lead = ghostEnabled() ? getBoard(c.id)[0] : undefined;
-    if (lead) {
-      try {
-        const gj = JSON.parse(localStorage.getItem(ghostKey(c.id, lead.n)) || 'null');
-        if (gj && gj.v === 1 && Array.isArray(gj.s) && gj.s.length >= 6) {
-          this.ghostRun = { pts: gj.s, tEnd: gj.s[gj.s.length - 3] / 10 };
-        }
-      } catch { /* corrupt recording = no ghost today */ }
+    let ghostName: string | null = null;
+    if (ghostEnabled()) {
+      for (const row of getBoard(c.id)) {
+        try {
+          const gj = JSON.parse(localStorage.getItem(ghostKey(c.id, row.n)) || 'null');
+          if (gj && gj.v === 1 && Array.isArray(gj.s) && gj.s.length >= 6) {
+            this.ghostRun = { pts: gj.s, tEnd: gj.s[gj.s.length - 3] / 10 };
+            ghostName = row.n;
+            break;
+          }
+        } catch { /* corrupt recording = skip this rider */ }
+      }
     }
-    if (this.ghostRun) {                     // the ghost waits with you at the line
+    if (this.ghostRun && ghostName) {        // the ghost waits with you at the line
       const s = this.ghostRun.pts;
       const gy = Math.max(this.index.heightAtPx(s[1], s[2]), this.index.deckHeightAt(s[1], s[2]));
       this.ghostRider.position.set(s[1], gy, s[2]);
       this.ghostRider.visible = true;
       // say who the pale blue rider IS — it just appears otherwise, and a kid can't
       // tell a ghost-to-beat from a glitch. Banner rides over the countdown, then fades.
-      const yours = hasRaceName() && lead!.n === getRaceName();
+      const yours = hasRaceName() && ghostName === getRaceName();
+      const leads = getBoard(c.id)[0]?.n === ghostName;   // is this ghost actually #1?
       this.hud.announce(
-        yours ? '👻 Your ghost rides too' : '👻 ' + lead!.n + '’s ghost rides too',
-        yours ? 'the blue rider is your best run — beat it!' : 'the blue rider is the town’s best run — chase it!'
+        yours ? '👻 Your ghost rides too' : '👻 ' + ghostName + '’s ghost rides too',
+        yours ? 'the blue rider is your best run — beat it!'
+              : 'the blue rider is ' + (leads ? 'the town’s best run — chase it!' : 'a run to chase — go!'),
       );
     } else this.ghostRider.visible = false;
     // the progress bar's ruler: cumulative arc length at every route vertex
