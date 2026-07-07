@@ -1570,6 +1570,124 @@ function gasStation(plain: Bucket, cx: number, cz: number, ang: number, g: numbe
   }
 }
 
+// find a clear spot for a road-facing set piece near a business POI. The POI is
+// often the shop building's own centroid, so a 2-D probe walks roadside-first
+// from the point toward the street AND sideways along the road axis, returning
+// the first spot whose hl×hw footprint is clear of buildings and water — or
+// null, so callers place NOTHING rather than clip. Long axis squares to the road.
+function forecourtSpot(world: WorldData, index: WorldIndex, bucket: ReturnType<WorldIndex['bucket']>,
+                       poi: { x: number; y: number }, hl: number, hw: number): { x: number; z: number; ang: number } | null {
+  let rx = poi.x, rz = poi.y, ang = 0, bd = Infinity, rw = 0;
+  for (const pass of [0, 1]) {   // pass 0: real streets; pass 1: service aisles (fallback)
+    for (const ri of bucket.roads) {
+      const r = world.roads[ri];
+      if ((r.c === 'service') !== (pass === 1)) continue;
+      for (let i = 0; i + 3 < r.p.length; i += 2) {
+        const ax = r.p[i], az = r.p[i + 1], ex = r.p[i + 2] - ax, ez = r.p[i + 3] - az;
+        const l2 = ex * ex + ez * ez || 1;
+        let t = ((poi.x - ax) * ex + (poi.y - az) * ez) / l2;
+        t = t < 0 ? 0 : t > 1 ? 1 : t;
+        const px = ax + ex * t, pz = az + ez * t, d = (px - poi.x) ** 2 + (pz - poi.y) ** 2;
+        if (d < bd) { bd = d; rx = px; rz = pz; ang = Math.atan2(ez, ex); rw = r.w; }
+      }
+    }
+    if (bd < 400 * 400) break;
+  }
+  const dl = Math.sqrt(bd) || 1, ux = (rx - poi.x) / dl, uz = (rz - poi.y) / dl;
+  const stop = Math.max(0, dl - (rw / 2 + hw + 12));   // slide limit: footprint off the roadside
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  for (let k = 8; k >= 0; k--) {
+    const t = stop * (k / 8);
+    for (const lat of [0, 60, -60, 116, -116]) {
+      const cx = poi.x + ux * t + ca * lat, cz = poi.y + uz * t + sa * lat;
+      const clear = [[0, 0], [-hl, -hw], [hl, -hw], [hl, hw], [-hl, hw]].every(([lx, lz]) => {
+        const wx = cx + lx * ca - lz * sa, wz = cz + lx * sa + lz * ca;
+        return !index.isBlocked(wx, wz) && !index.isWaterAt(wx, wz);
+      });
+      if (clear) return { x: cx, z: cz, ang };
+    }
+  }
+  return null;
+}
+
+// 🍦 a roadside ice-cream stand: giant soft-serve cone + picnic tables — the
+// classic New England summer stop (Captain Dusty's, Harbor Creamery, …).
+function iceCreamStand(plain: Bucket, cx: number, cz: number, ang: number, g: number) {
+  const CONE = '#c89a5e', CONE_D = '#ac824a', CREAM = '#f4f0e6', CHERRY = '#c23b2e', WOOD = '#8a6844';
+  plain.box(cx, cz, 4.5, 4.5, g, g + 3, CONE_D);           // stand ring
+  plain.box(cx, cz, 2.2, 2.2, g + 3, g + 8, CONE);         // cone tip (point-down)
+  plain.box(cx, cz, 3.6, 3.6, g + 8, g + 14, CONE);        // cone mid
+  plain.box(cx, cz, 5.0, 5.0, g + 14, g + 20, CONE_D);     // cone rim
+  plain.box(cx, cz, 5.6, 5.6, g + 20, g + 25, CREAM);      // swirl
+  plain.box(cx, cz, 4.2, 4.2, g + 25, g + 29, CREAM);
+  plain.box(cx, cz, 2.6, 2.6, g + 29, g + 32, CREAM);
+  plain.box(cx, cz, 1.3, 1.3, g + 32, g + 34.4, CHERRY);   // cherry on top
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  for (const s of [-1, 1] as const) {                      // two picnic tables flanking the cone
+    const tx = cx + ca * s * 17, tz = cz + sa * s * 17;
+    rotBox(plain, tx, tz, 7, 3.2, g + 5.2, g + 7, ang, WOOD);
+    for (const w of [-1, 1] as const) rotBox(plain, tx - sa * w * 5.4, tz + ca * w * 5.4, 6.2, 1.5, g + 3, g + 4.2, ang, WOOD);
+    for (const e of [-1, 1] as const) rotBox(plain, tx + ca * e * 5.6, tz + sa * e * 5.6, 0.9, 3.0, g, g + 5.2, ang, '#6f5436');
+  }
+}
+
+// 🚒 a fire engine parked out front of its station — ladder truck in town red
+function fireEngine(bk: Bucket, x: number, z: number, ang: number, g: number) {
+  const RED = '#bb2d24', DARK = '#2e3338', STEEL = '#d8d5cc';
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  chamferBox(bk, x - ca * 4, z - sa * 4, 23, 8.5, g + 3, g + 17, ang, RED, 1.8);      // body
+  chamferBox(bk, x + ca * 19, z + sa * 19, 8, 8.2, g + 3, g + 21, ang, RED, 2);       // cab
+  rotBox(bk, x + ca * 24.5, z + sa * 24.5, 2.2, 6.8, g + 12, g + 19, ang, DARK);      // windshield
+  rotBox(bk, x - ca * 5, z - sa * 5, 19, 2.4, g + 17.5, g + 19.5, ang, STEEL);        // ladder
+  rotBox(bk, x + ca * 19, z + sa * 19, 3.2, 3.6, g + 21, g + 22.6, ang, CHERRY_RED);  // beacon
+  for (const lx of [-19, -2, 13] as const) for (const lz of [-8.5, 8.5] as const) {
+    chamferBox(bk, x + lx * ca - lz * sa, z + lx * sa + lz * ca, 3.2, 1.2, g, g + 6, ang, '#23241f', 1);
+  }
+}
+const CHERRY_RED = '#c23b2e';
+
+// 🚓 a black-and-white cruiser parked at the police station
+function policeCruiser(bk: Bucket, x: number, z: number, ang: number, g: number) {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  car(bk, x, z, ang, '#22252a', g);
+  rotBox(bk, x + ca * 4, z + sa * 4, 6.5, 7.3, g + 4.5, g + 9, ang, '#e8e6df');        // white door band
+  rotBox(bk, x - ca * 3, z - sa * 3, 1.6, 4.6, g + 15.5, g + 17.2, ang, CHERRY_RED);   // light bar
+  rotBox(bk, x - ca * 3, z - sa * 3, 1.6, 1.7, g + 15.5, g + 17.4, ang, '#3b6fd8');    // blue centre
+}
+
+// 🎬 a lit marquee over a theatre/cinema entrance (The Cabot, the Screening Room…):
+// white canopy on a deep-red, gold-trimmed fascia jutting from the street facade,
+// with a warm glowing soffit — the one storefront that should read at dusk.
+function marquee(buckets: Bucket[], world: WorldData, index: WorldIndex,
+                 bucket: ReturnType<WorldIndex['bucket']>, poi: { x: number; y: number }) {
+  let b: Building | null = null, bd = 150 * 150;
+  for (const bi of bucket.buildings) {
+    const cand = world.buildings[bi];
+    if (pointInRingD(poi.x, poi.y, cand.p)) { b = cand; break; }
+    const [ccx, ccz] = centroidOf(cand.p);
+    const d = (ccx - poi.x) ** 2 + (ccz - poi.y) ** 2;
+    if (d < bd) { bd = d; b = cand; }
+  }
+  if (!b) return;
+  const fs = frontSegment(b, index);
+  // anchor to the BUILDING's base (highest footprint corner — how the walls sit),
+  // not the sloping terrain at the wall, or the band hangs below the storefront
+  let g = -Infinity;
+  for (let i = 0; i < b.p.length; i += 2) g = Math.max(g, index.heightAtPx(b.p[i], b.p[i + 1]));
+  const ang = Math.atan2(fs.tz, fs.tx);
+  // centre 8 out with half-depth 10: the band's back edge buries 2px INTO the
+  // facade, so it always reads bolted to the wall
+  const mx = fs.x + fs.nx * 8, mz = fs.z + fs.nz * 8;
+  rotBox(buckets[PLAIN], mx, mz, 34, 10, g + 26, g + 28.5, ang, '#eae8df');    // canopy top
+  rotBox(buckets[PLAIN], mx, mz, 35, 11, g + 21.5, g + 26, ang, '#8c2f2a');    // fascia band
+  rotBox(buckets[PLAIN], mx, mz, 35.4, 11.4, g + 25.2, g + 26, ang, '#d8b94a'); // gold trim
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const pt = (lx: number, lz: number): [number, number] => [mx + lx * ca - lz * sa, mz + lx * sa + lz * ca];
+  const c0 = pt(-34, -10), c1 = pt(34, -10), c2 = pt(34, 10), c3 = pt(-34, 10);
+  tmp.set('#ffd98a');
+  buckets[GLOW].quad(c3[0], g + 21.5, c3[1], c2[0], g + 21.5, c2[1], c1[0], g + 21.5, c1[1], c0[0], g + 21.5, c0[1], 0, -1, 0, tmp.r, tmp.g, tmp.b);
+}
+
 // A small bronze figure on a granite pedestal — the data-driven archetype for
 // tourism=artwork / historic=monument|memorial points (statues, town monuments).
 // Reads as "a statue stands here" at exploration scale; it's a silhouette, not the
@@ -5325,44 +5443,24 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     } else if (poi.k === 'fort') {
       landmarkFort(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
     } else if (poi.k === 'fuel') {
-      // ⛽ canopy + pumps in the forecourt, squared to the frontage road. The POI
-      // is often the SHOP building's centroid (way-pois), so if the point itself
-      // is blocked, probe toward the road for the first clear forecourt spot —
-      // and place NOTHING rather than clip a building or the roadway.
-      let rx = poi.x, rz = poi.y, ang = 0, bd = Infinity, rw = 0;
-      for (const pass of [0, 1]) {   // pass 0: real streets; pass 1: service aisles (fallback)
-        for (const ri of bucket.roads) {
-          const r = world.roads[ri];
-          if ((r.c === 'service') !== (pass === 1)) continue;
-          for (let i = 0; i + 3 < r.p.length; i += 2) {
-            const ax = r.p[i], az = r.p[i + 1], ex = r.p[i + 2] - ax, ez = r.p[i + 3] - az;
-            const l2 = ex * ex + ez * ez || 1;
-            let t = ((poi.x - ax) * ex + (poi.y - az) * ez) / l2;
-            t = t < 0 ? 0 : t > 1 ? 1 : t;
-            const px = ax + ex * t, pz = az + ez * t, d = (px - poi.x) ** 2 + (pz - poi.y) ** 2;
-            if (d < bd) { bd = d; rx = px; rz = pz; ang = Math.atan2(ez, ex); rw = r.w; }
-          }
-        }
-        if (bd < 400 * 400) break;
-      }
-      const dl = Math.sqrt(bd) || 1, ux = (rx - poi.x) / dl, uz = (rz - poi.y) / dl;
-      const stop = Math.max(0, dl - (rw / 2 + 42));   // slide limit: canopy half-depth off the roadside
-      // 2-D probe, roadside-first: forecourts live between the shop and the street,
-      // but the shop often sits square on the POI — so also try sliding ALONG the
-      // road axis to the building's side before giving up. First clear spot wins;
-      // nothing is placed if every candidate clips a building or water.
-      const ca = Math.cos(ang), sa = Math.sin(ang);
-      placed: for (let k = 8; k >= 0; k--) {
-        const t = stop * (k / 8);
-        for (const lat of [0, 60, -60, 116, -116]) {
-          const cx = poi.x + ux * t + ca * lat, cz = poi.y + uz * t + sa * lat;
-          const clear = [[0, 0], [-48, -30], [48, -30], [48, 30], [-48, 30]].every(([lx, lz]) => {
-            const wx = cx + lx * ca - lz * sa, wz = cz + lx * sa + lz * ca;
-            return !index.isBlocked(wx, wz) && !index.isWaterAt(wx, wz);
-          });
-          if (clear) { gasStation(buckets[PLAIN], cx, cz, ang, index.heightAtPx(cx, cz)); break placed; }
-        }
-      }
+      // ⛽ canopy + pumps in the forecourt (see forecourtSpot for the placement story)
+      const s = forecourtSpot(world, index, bucket, poi, 48, 30);
+      if (s) gasStation(buckets[PLAIN], s.x, s.z, s.ang, index.heightAtPx(s.x, s.z));
+    } else if (poi.k === 'ice_cream') {
+      // 🍦 the giant cone + picnic tables out front
+      const s = forecourtSpot(world, index, bucket, poi, 26, 12);
+      if (s) iceCreamStand(buckets[PLAIN], s.x, s.z, s.ang, index.heightAtPx(s.x, s.z));
+    } else if (poi.k === 'fire_station') {
+      // 🚒 the engine parked on the apron
+      const s = forecourtSpot(world, index, bucket, poi, 34, 12);
+      if (s) fireEngine(buckets[PLAIN], s.x, s.z, s.ang, index.heightAtPx(s.x, s.z));
+    } else if (poi.k === 'police') {
+      // 🚓 a cruiser out front
+      const s = forecourtSpot(world, index, bucket, poi, 22, 10);
+      if (s) policeCruiser(buckets[PLAIN], s.x, s.z, s.ang, index.heightAtPx(s.x, s.z));
+    } else if (poi.k === 'theatre' || poi.k === 'cinema') {
+      // 🎬 marquee over the entrance
+      marquee(buckets, world, index, bucket, poi);
     }
   }
 
