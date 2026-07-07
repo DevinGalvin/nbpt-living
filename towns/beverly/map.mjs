@@ -71,6 +71,24 @@ export const curatedPois = [];
 export const curatedPoisHand = {};
 export const manualBuildings = [];
 
+// Cummings Center parking. The campus lots have their drive AISLES mapped in OSM
+// (service ways) but no amenity=parking POLYGONS, so the fields rendered as bare
+// grass with no cars (Devin, Beverly 7/6). These hand-drawn lot polygons let the
+// aisle-anchored stall filler drop parked cars. The filler self-guards against
+// buildings and water (decor.ts), so a polygon may safely lap the wrapped "100
+// Cummings Center" footprint and the Bass River — stalls there are skipped and
+// the river still paints over the lot (water z=7 > parking z=6). Coords are world
+// px, snapped to the built world.json's service-aisle extents; every lot verified
+// in preview (cars land only on the open apron, none in a building/road/river).
+export const cummingsParking = [
+  // the big lot north of the main building, east of the Bass River, west of
+  // McPherson Dr — the clearest bare apron in Devin's screenshot
+  { k: 'parking', z: 6, p: [-4400, 820, -3600, 820, -3600, 3340, -4400, 3340] },
+];
+export function manualFeatures({ world }) {
+  for (const p of cummingsParking) world.polys.push({ ...p });
+}
+
 export const levelFixes = [];
 
 // Names OSM carries on POI nodes but not on the footprints — stamped onto the

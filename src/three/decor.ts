@@ -5081,6 +5081,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
             const h2 = hash32(Math.round(sx * 2), Math.round(sz * 2), 97);
             if (h2 % 100 > 55) continue;
             if (!pointInPolyD(sx, sz, poly)) continue;
+            // stalls never guard against buildings/water — a lot polygon that laps a
+            // building footprint or the shoreline (Cummings Center wraps a giant
+            // building and the Bass River) would otherwise park cars inside them
+            if (index.isBlocked(sx, sz) || index.isWaterAt(sx, sz)) continue;
             let clash = false;
             for (const qi of bucket.roads) {
               const rq = world.roads[qi];
@@ -5114,6 +5118,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         if (h2 % 100 > 47) continue;
         if (!pointInPolyD(x, z, poly)) continue;
         if (!pointInPolyD(x + nx2 * 11, z + nz2 * 11, poly) || !pointInPolyD(x - nx2 * 11, z - nz2 * 11, poly)) continue;
+        if (index.isBlocked(x, z) || index.isWaterAt(x, z)) continue;   // never park inside a building or on water
         // stay off the mapped drive aisles
         let onAisle = false;
         for (const ri of bucket.roads) {
