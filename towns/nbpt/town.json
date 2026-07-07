@@ -12,6 +12,7 @@
   "bbox": { "s": 42.763, "w": -70.955, "n": 42.84, "e": -70.795 },
   "mPerDegLat": 111089.0,
   "mPerDegLon": 81791.7,
+  "spawn": { "landmark": "market-square", "dx": 0, "dz": 40 },
   "branding": {
     "htmlTitle": "Clipper Town — explore Newburyport, MA",
     "appleTitle": "Clipper Town",

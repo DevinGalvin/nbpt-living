@@ -31,7 +31,7 @@ Say the next town is Portsmouth (`id: pmth`).
    frame), name/branding/path (`/pmth/`), `savePrefix` (`"pmth:"`). Leave
    `mPerDegLat/Lon` out at first — the loader derives them from the origin
    latitude; pin them only once a world.json has shipped (they keep rebuilds
-   byte-stable).
+   byte-stable). Set `spawn` once you've curated the heart landmark (step 4).
 2. **Curation** — `towns/pmth/map.mjs`: start with everything empty (Salem's is
    nearly empty). You can ship with zero curation; add landmarks after the
    world builds (grab centroids from world.json, or lat/lon like Newburyport's).
@@ -40,10 +40,29 @@ Say the next town is Portsmouth (`id: pmth`).
    heights (needs the `duckdb` CLI). Outputs land in `towns/pmth/public/`.
    Watch the QA lines; add `qaDistances` (real, independently-known distances)
    once you have two verified points.
-4. **Pack** — `src/towns/pmth/index.ts`: copy Salem's (`story: false` = a
-   world-only sandbox is a complete, shippable game). Pick a `spawn` at the town's MOST-LOVED
-   spot — where a local kid would take a visitor first (Market Square,
-   Essex St mall, Lynch Park), not just geometric downtown; verified on land, a flight site, theme colors, copy. Empty `courses` is
+4. **The drop point (the town's HEART)** — where a first-time player lands must
+   be the *most memorable part of town* — where a local kid would take a visitor
+   first (Newburyport → Market Square, Salem → Essex St Mall, Beverly → Ellis
+   Square by The Cabot), **not** the geometric centre and **not** a beloved-but-
+   outlying destination (Beverly first shipped dropping people a mile out at
+   Lynch Park — fixed). To keep this repeatable and enforced, the drop is a
+   **named landmark**, never a raw coordinate:
+   1. Curate that landmark in `towns/pmth/map.mjs` like any other (it gets a
+      `name` + `sub` the player already sees).
+   2. In `towns/pmth/town.json`, set
+      `"spawn": { "landmark": "<that-id>", "dx": 0, "dz": 0 }`. `dx/dz` are an
+      optional world-px nudge from the landmark's centre onto walkable ground
+      (+z = south); leave them 0 and let the engine's `findFree` snap to land,
+      or fine-tune once you've seen it in-game.
+   3. `node tools/check_town_spawn.mjs` (runs in `build:all` / CI, or via
+      `npm run check:towns`) **fails the build** if `spawn.landmark` is missing
+      or names a landmark that isn't in the town's `world.json`, or if the nudge
+      flings the drop far outside it — so no town can ship an anonymous or
+      broken drop point.
+
+   The pack (`src/towns/pmth/index.ts`, copy Salem's — `story: false` = a
+   world-only sandbox is a complete, shippable game) reads `spawn` straight from
+   `town.json`; also set a flight site, theme colors, copy. Empty `courses` is
    fine to start; author races later with `TOWN=pmth node tools/make_course.mjs`.
 5. **Register** — one line in `src/towns/registry.ts` (adds it to every town's
    Fast-Travel switcher) and a `build:pmth`-style step in `build:all`
@@ -72,6 +91,10 @@ after that is content polish, at whatever depth the town deserves.
 - **Engine changes land once.** If you're typing a town's name into `src/`
   (outside `src/towns/`), stop — it belongs in the pack, `town.json`, or
   `map.mjs`.
+- **The drop point is a named heart, not a coordinate.** A town's `spawn` names
+  one of its curated landmarks (`town.json` → `spawn.landmark`), so every player
+  lands at a real, celebrated, *named* place — the most memorable part of town —
+  and `tools/check_town_spawn.mjs` fails the build if that ever breaks.
 - **Curation is data, not output edits.** `npm run map` must always be safe to
   re-run: hand-added features (the Fox Run pool, level fixes, manual buildings)
   live in `map.mjs` and are re-applied by every rebuild. Never hand-edit

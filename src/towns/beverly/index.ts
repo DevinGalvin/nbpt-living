@@ -4,8 +4,9 @@
 //
 // ⚠️ Gameplay anchors below marked VERIFY are estimated from lat/lon and must
 // be confirmed on the built world.json (on land, right feature) before ship.
-import type { TownPack } from '../types';
+import type { TownPack, SpawnAnchor } from '../types';
 import { COURSES } from './courses';
+import cfg from '../../../towns/beverly/town.json';
 
 export const TOWN: TownPack = {
   id: 'beverly',
@@ -17,7 +18,7 @@ export const TOWN: TownPack = {
 
   story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
 
-  spawn: { x: 12450, z: 10550 },   // Lynch Park's great lawn — the town's beloved spot (rose garden, beaches, THE hill)
+  spawn: cfg.spawn as SpawnAnchor,   // Ellis Square, downtown by The Cabot — the town's heart (see town.json)
 
   // ✈️ scenic flight from BEVERLY REGIONAL AIRPORT — a real working airfield
   // (est. 1928, Navy-paved in WWII). Board runway 16 and depart SSE over town,

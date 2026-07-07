@@ -1,7 +1,8 @@
 // Newburyport — the flagship town pack. Values here were extracted verbatim
 // from the engine when the towns reunified; NBPT behavior is unchanged.
-import type { TownPack } from '../types';
+import type { TownPack, SpawnAnchor } from '../types';
 import { COURSES } from './courses';
+import cfg from '../../../towns/nbpt/town.json';
 
 export const TOWN: TownPack = {
   id: 'nbpt',
@@ -13,7 +14,7 @@ export const TOWN: TownPack = {
 
   story: true,
 
-  spawn: { x: 0, z: 40 },   // Market Square
+  spawn: cfg.spawn as SpawnAnchor,   // Market Square (heart landmark; see town.json)
 
   // ✈️ scenic flight from Plum Island Airport (real Runway 10/28). Board at the
   // east threshold, roll + take off west (28) out over downtown + the harbor.

@@ -10,6 +10,7 @@
   "pxPerMeter": 8,
   "origin": { "lat": 42.558, "lon": -70.88 },
   "bbox": { "s": 42.522, "w": -70.935, "n": 42.6, "e": -70.755 },
+  "spawn": { "landmark": "ellis-square", "dx": 0, "dz": 0 },
   "branding": {
     "htmlTitle": "Beverly — walk the real map of Beverly, MA in 3D",
     "appleTitle": "Beverly",

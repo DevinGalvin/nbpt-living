@@ -12,6 +12,7 @@
   "bbox": { "s": 42.485, "w": -70.945, "n": 42.545, "e": -70.855 },
   "mPerDegLat": 111089.0,
   "mPerDegLon": 81891.0,
+  "spawn": { "landmark": "essex-mall", "dx": -543, "dz": 152 },
   "branding": {
     "htmlTitle": "Salem — walk the real map of Salem, MA in 3D",
     "appleTitle": "Salem",

@@ -11,6 +11,15 @@ import type { Course } from '../game/race';
 
 export type Vec2 = { x: number; z: number };
 
+// Where a town drops you on first visit. It is NOT a raw coordinate — it names
+// one of the town's curated landmarks (its "heart": Market Square, Essex St
+// Mall, Ellis Square) so every town lands the player at a real, celebrated,
+// *named* place, never an anonymous point. `dx/dz` fine-tune from that
+// landmark's centre onto walkable ground (world-px; +z = south). Declared once
+// in `towns/<id>/town.json` and validated by tools/check_town_spawn.mjs, which
+// fails the build if the named landmark doesn't exist. See docs/TOWNS.md.
+export type SpawnAnchor = { landmark: string; dx?: number; dz?: number };
+
 export interface TownPack {
   id: string;
   name: string;          // "Newburyport"
@@ -24,7 +33,7 @@ export interface TownPack {
   // URL force-enables it for development.
   story: boolean;
 
-  spawn: Vec2;           // first-visit drop point (downtown)
+  spawn: SpawnAnchor;    // first-visit drop point — the town's heart landmark (see SpawnAnchor)
 
   // ✈️ scenic flight — where you board and how the promo talks about it
   flight: {

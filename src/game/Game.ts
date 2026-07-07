@@ -181,6 +181,7 @@ function makeWelcomeSignMesh(town: string): THREE.Mesh {
 
 export class Game {
   private world: WorldData;
+  private spawnPt: { x: number; z: number };   // resolved first-visit drop (TOWN.spawn's heart landmark + nudge); also findFree's "guaranteed land" anchor
   private terrain: Terrain;
   private index: WorldIndex;
   private renderer: THREE.WebGLRenderer;
@@ -375,9 +376,16 @@ export class Game {
     this.life = new Life(this.scene, this.index);
     if (!BARE) this.gillis = new GillisBridge(this.scene, this.index, world);
 
+    // resolve the town's heart: TOWN.spawn names a curated landmark (Market Square,
+    // Essex St Mall, Ellis Square) so the drop is always a real, named place; dx/dz
+    // nudge from its centre onto walkable ground. check_town_spawn.mjs guarantees the
+    // landmark exists, so the fallback (origin) is just belt-and-suspenders.
+    const heart = world.landmarks.find((l) => l.id === TOWN.spawn.landmark);
+    this.spawnPt = { x: (heart?.x ?? 0) + (TOWN.spawn.dx ?? 0), z: (heart?.y ?? 0) + (TOWN.spawn.dz ?? 0) };
+
     // spawn downtown (per-town) — or, after a season turned the town, exactly where
     // you stood (a one-shot resume point so the re-skin reload doesn't teleport you)
-    let sx = TOWN.spawn.x, sz = TOWN.spawn.z;
+    let sx = this.spawnPt.x, sz = this.spawnPt.z;
     try {
       const r = JSON.parse(localStorage.getItem('nbpt-resume-pos') || 'null');
       if (r && typeof r.x === 'number' && typeof r.z === 'number') { sx = r.x; sz = r.z; }   // keep it: the poll keeps it current, so any refresh resumes here; a story reset clears it
@@ -2360,7 +2368,7 @@ export class Game {
     // still nothing within reach — the target sits out in open water (e.g. the tidal
     // flats: the "Joppa Flat" POI is ~7000px from any shore). March back toward
     // downtown and land at the first dry, unblocked shore we cross.
-    const tx = TOWN.spawn.x, ty = TOWN.spawn.z;     // downtown spawn — guaranteed land
+    const tx = this.spawnPt.x, ty = this.spawnPt.z;     // downtown spawn — guaranteed land
     const dist = Math.hypot(tx - x, ty - y) || 1;
     const ux = (tx - x) / dist, uy = (ty - y) / dist;
     for (let d = 900; d <= dist; d += 24) {

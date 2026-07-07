@@ -1,8 +1,9 @@
 // Salem — Witch City. World-only sandbox (no story spine yet), fall-forward
 // atmosphere, its own race ladder. Values ported verbatim from the retired
 // salem-experiment fork when the towns reunified.
-import type { TownPack } from '../types';
+import type { TownPack, SpawnAnchor } from '../types';
 import { COURSES } from './courses';
+import cfg from '../../../towns/salem/town.json';
 
 export const TOWN: TownPack = {
   id: 'salem',
@@ -14,7 +15,7 @@ export const TOWN: TownPack = {
 
   story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
 
-  spawn: { x: 3550, z: -5800 },   // the heart of downtown: Essex St pedestrian mall, by Lappin Park
+  spawn: cfg.spawn as SpawnAnchor,   // Essex St pedestrian mall, by Lappin Park (heart landmark; see town.json)
 
   // ✈️ scenic flight from WINTER ISLAND — the real former US Coast Guard Air
   // Station Salem (seaplanes flew from here 1935–1970). Board on the old apron
