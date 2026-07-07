@@ -1750,30 +1750,46 @@ export class Game {
         && (!this.index.isWaterAt(x, y) || this.index.deckHeightAt(x, y) > WATER_Y || this.index.frozenWaterAt(x, y))
         // under a span: low-clearance slab and solid abutments/piers block; ON the deck never blocks
         && !this.index.underDeckBlockedAt(x, y, this.kidY);
-    // sub-step the move and slide along walls so tight streets glide instead of
-    // snagging. When a move is wedged on both axes, try to slip free (round the
-    // corner / glance off a one-sided jut) rather than stopping dead — keyboard
-    // players kept getting pinned on the corners of houses with no way out.
+    // sub-step the move and GLANCE off walls so structures deflect you instead of
+    // stopping you dead — better gameplay feel (Devin). A blocked axis doesn't just
+    // get dropped (which bleeds your speed to the small free component and reads as
+    // "stuck"); its momentum is redirected ALONG the wall at full speed, so you skim
+    // past a building. Even a head-on hit deflects to the open side rather than pinning.
     const moveX = vx * speed * dt, moveZ = vz * speed * dt;
     const steps = Math.max(1, Math.ceil(Math.hypot(moveX, moveZ) / 4));
     const stepX = moveX / steps, stepZ = moveZ / steps;
     nx = this.px; nz = this.pz;
-    const slip = 3;   // how far to nudge sideways to clear a corner each sub-step
+    const slip = 3;                             // corner-round nudge for one-sided juts
+    const spd = Math.hypot(stepX, stepZ);       // intended per-step speed, preserved when we skim
     for (let s = 0; s < steps; s++) {
       const okX = stepX !== 0 && free(nx + stepX, nz);
       const okZ = stepZ !== 0 && free(nx, nz + stepZ);
-      if (okX) nx += stepX;
-      if (okZ) nz += stepZ;
-      if (!okX && !okZ && (stepX !== 0 || stepZ !== 0)) {
-        if (stepX !== 0 && stepZ !== 0 && free(nx + stepX, nz + stepZ)) {
-          nx += stepX; nz += stepZ;                       // round a convex corner / doorway
-        } else if (stepX === 0 && stepZ !== 0) {          // walking N/S, jut on one side
-          if (free(nx + slip, nz + stepZ)) { nx += slip; nz += stepZ; }
-          else if (free(nx - slip, nz + stepZ)) { nx -= slip; nz += stepZ; }
-        } else if (stepZ === 0 && stepX !== 0) {          // walking E/W, jut on one side
-          if (free(nx + stepX, nz + slip)) { nx += stepX; nz += slip; }
-          else if (free(nx + stepX, nz - slip)) { nx += stepX; nz -= slip; }
-        }
+      if (okX && okZ) { nx += stepX; nz += stepZ; continue; }   // open (incl. clean diagonal)
+      if (okX || okZ) {
+        // exactly one axis is walled → glance off it: keep the full intended speed
+        // along the open axis (redirect the blocked component into it), not just its
+        // own small share — this is the "skim the building" feel vs. a crawl.
+        if (okX) { const d = Math.sign(stepX) * spd; nx += free(nx + d, nz) ? d : stepX; }
+        else     { const d = Math.sign(stepZ) * spd; nz += free(nx, nz + d) ? d : stepZ; }
+        continue;
+      }
+      if (stepX === 0 && stepZ === 0) continue;
+      // both axes walled: round a convex corner if the diagonal is clear, else deflect
+      // along the wall toward whichever side is open (still gliding, never a dead stop),
+      // falling back to a small corner-slip to clear a one-sided jut.
+      if (stepX !== 0 && stepZ !== 0 && free(nx + stepX, nz + stepZ)) { nx += stepX; nz += stepZ; continue; }
+      if (Math.abs(stepX) >= Math.abs(stepZ)) {         // pushing mostly along X → wall faces X, glide on Z
+        const s1 = Math.sign(stepZ) || 1;               // lean the way you're already heading
+        if (free(nx, nz + s1 * spd)) nz += s1 * spd;
+        else if (free(nx, nz - s1 * spd)) nz -= s1 * spd;
+        else if (stepX !== 0 && free(nx + stepX, nz + slip)) { nx += stepX; nz += slip; }
+        else if (stepX !== 0 && free(nx + stepX, nz - slip)) { nx += stepX; nz -= slip; }
+      } else {                                          // pushing mostly along Z → glide on X
+        const s1 = Math.sign(stepX) || 1;
+        if (free(nx + s1 * spd, nz)) nx += s1 * spd;
+        else if (free(nx - s1 * spd, nz)) nx -= s1 * spd;
+        else if (free(nx + slip, nz + stepZ)) { nx += slip; nz += stepZ; }
+        else if (free(nx - slip, nz + stepZ)) { nx -= slip; nz += stepZ; }
       }
     }
     // safety net: nothing should ever trap you fully — a wall, the bounds clamp, a
