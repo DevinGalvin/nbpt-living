@@ -951,6 +951,7 @@ export class WorldIndex {
     // wrong). Mid-block way seams join cleanly (round caps, same offset); real
     // INTERSECTIONS are wiped by the junction discs painted after.
     ctx.strokeStyle = 'rgba(233,233,225,0.85)';
+    const wideCurve = this.wideCurveSet();
     for (const r of roads) {
       const hwy = r.c === 'motorway' || r.c === 'motorway_link' || r.c === 'trunk' || r.c === 'trunk_link';
       const wide = r.w >= 90 && (r.c === 'primary' || r.c === 'secondary');
@@ -963,10 +964,11 @@ export class WorldIndex {
         ctx.lineWidth = 2;
         strokeLine(ctx, r.p);
         ctx.setLineDash([]);
-      } else if (r.w >= 90 && maxTurn(r.p) < 0.28) {
-        // straight enough (< ~16° max turn) for interior lane dashes; on curving
-        // wide streets the offset parallels wander off the pavement, so we keep
-        // only the edge lines + yellow centerline (Devin: "reads cluttered on curves")
+      } else if (r.w >= 90 && !wideCurve.has(r)) {
+        // straight enough for interior lane dashes; on curving wide streets the
+        // offset parallels wander off the pavement, so we keep only the edge
+        // lines + yellow centerline (Devin: "reads cluttered on curves"). Curvature
+        // is measured across same-street joints, not per-way (OSM splits curves).
         ctx.setLineDash([14, 20]);
         ctx.lineWidth = 2;
         strokeLine(ctx, offsetLine(r.p, r.w / 4));
@@ -1384,6 +1386,52 @@ export class WorldIndex {
     bridge: { pts: number[]; w: number; c: string; l: number; bb: [number, number, number, number]; trim0: number; trim1: number; other0: number; other1: number }[];
     junctions: { x: number; y: number; r: number; c: string }[];
   } | null = null;
+
+  // Wide two-way streets that bend — measured across same-street continuation
+  // joints, not just within one way. OSM splits a curving street into straight
+  // chords, so a per-way turn check misses the bend; here the heading change at
+  // each joint (to a same-name/class/width neighbour) counts too. On these the
+  // interior lane dashes are dropped: the offset parallels wander off the curving
+  // pavement and read as clutter (edge lines + centerline still carry the road).
+  private wideCurveCache: Set<Road> | null = null;
+  private wideCurveSet(): Set<Road> {
+    if (this.wideCurveCache) return this.wideCurveCache;
+    const roads = this.world.roads;
+    const kOf = (x: number, y: number) => x + ',' + y;
+    const endsAt = new Map<string, number[]>();
+    for (let i = 0; i < roads.length; i++) {
+      const p = roads[i].p;
+      for (const k of [kOf(p[0], p[1]), kOf(p[p.length - 2], p[p.length - 1])]) {
+        let a = endsAt.get(k); if (!a) endsAt.set(k, (a = [])); a.push(i);
+      }
+    }
+    // unit tangent at the given end, pointing INTO the way (toward its interior)
+    const inTangent = (p: number[], atStart: boolean): [number, number] => {
+      if (atStart) { const dx = p[2] - p[0], dy = p[3] - p[1]; const l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l]; }
+      const n = p.length; const dx = p[n - 4] - p[n - 2], dy = p[n - 3] - p[n - 1]; const l = Math.hypot(dx, dy) || 1; return [dx / l, dy / l];
+    };
+    const isWide = (r: Road) => r.w >= 90 && (r.c === 'primary' || r.c === 'secondary');
+    const set = new Set<Road>();
+    for (let i = 0; i < roads.length; i++) {
+      const r = roads[i]; if (!isWide(r)) continue; const p = r.p;
+      let bend = maxTurn(p);
+      for (const [atStart, node] of [[true, kOf(p[0], p[1])], [false, kOf(p[p.length - 2], p[p.length - 1])]] as [boolean, string][]) {
+        for (const j of endsAt.get(node) ?? []) {
+          if (j === i) continue;
+          const nb = roads[j];
+          if (nb.c !== r.c || nb.w !== r.w || (nb.n ?? '') !== (r.n ?? '')) continue;
+          const nbAtStart = kOf(nb.p[0], nb.p[1]) === node;
+          const t1 = inTangent(p, atStart), t2 = inTangent(nb.p, nbAtStart);
+          // continuation neighbours' inward tangents point opposite on a straight
+          // street; the street's heading change = π − angle(t1, t2)
+          const streetBend = Math.PI - Math.acos(Math.max(-1, Math.min(1, t1[0] * t2[0] + t1[1] * t2[1])));
+          if (streetBend > bend) bend = streetBend;
+        }
+      }
+      if (bend >= 0.28) set.add(r);   // ~16°: matches the per-way lane-dash threshold
+    }
+    return (this.wideCurveCache = set);
+  }
 
   roadChains() {
     if (this.roadChainsCache) return this.roadChainsCache;
