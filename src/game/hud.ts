@@ -1714,6 +1714,7 @@ export class Hud {
         [/frog|pond/, '🐸'], [/light(house)?\b|light /, '🗼'], [/airport|airfield|runway/, '✈️'],
         [/sled|march's hill/, '🛷'], [/skat/, '⛸'], [/playground|fountain/, '🛝'],
         [/burying|cemetery|graveyard/, '🪦'], [/bridge/, '🌉'], [/station|depot/, '🚂'],
+        [/candy|sweets|fudge|chocolate/, '🍬'],   // after depot: Prides Crossing's "green depot that sells fudge" stays 🚂
         [/tall ship|friendship|schooner|\bship\b/, '⛵'], [/hotel|inn\b/, '🏨'], [/fort\b|castle/, '🏰'],
         [/beach|island|dune|sand/, '🏖'],   // before /farm/: "the Farms' mile-long beach" is a beach
         [/\bfarms\b/, '🏘'],                // "Beverly Farms" is a village, not farmland ("Hale Farm" stays 🧙/🚜)
