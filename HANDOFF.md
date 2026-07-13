@@ -1,11 +1,53 @@
 # Clipper Town — Handoff
 
 A cozy, all-ages Zelda-like set on the **exact maps of real towns** — Newburyport at
-`/` and Salem at `/salem/`, one codebase. Three.js + TypeScript + Vite. Live at
-**https://clippertown.io**.
+`/`, Salem at `/salem/`, Beverly at `/beverly/`, and Ipswich at `/ipswich/`, one
+codebase. Three.js + TypeScript + Vite. Live at **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE (post-launch polish session): everything below shipped to
-> `source` and is LIVE at `b88e7fb`. Read ✦ POST-LAUNCH POLISH SESSION first**,
+> **⚡ FRESHEST STATE (July 13, 2026 — IPSWICH DAY): read ✦ IPSWICH DAY below
+> first**, then the post-launch polish session, then Beverly Day / multi-town
+> notes for background.
+
+## ✦ IPSWICH DAY (July 13, 2026) — state + what's in flight
+
+**Ipswich is LIVE at clippertown.io/ipswich/** — fourth town, built end-to-end
+in one session on branch `ipswich`, merged to `source` on Devin's greenlight
+(merge `1076103`), deploy verified (live `__build`, world.json serving, clean
+first visit spawns at Five Corners). Town status, session gotchas (the
+stale-screenshot preview trap, race-quit-on-teleport, `nGables` A-frame), and
+the ranked polish list live in **IPSWICH-HANDOFF.md**; research in
+`docs/research/ipswich.md` (photo-verified hero dossier) + `ipswich-landmarks.md`.
+
+**Also shipped this session (both live):**
+- `892d69f` **Accuracy pass** (Devin: "the most important thing in these towns
+  is accuracy") — caption corrections (Little Neck's school trust → past tense,
+  it sold in 2012), Wolf Hollow's point verified against the assessor address
+  layer (3.5m off 114 Essex Rd), all-17-hero visual audit completed.
+- `5e8b689` **Town-switcher balanced grid** — four towns broke the flex-wrap
+  row (3 + a lone stretched 4th). Now a grid sized from the town count
+  (`hud.ts` initTravel): 2-3 on one line, 4 as a 2×2, 5-6 as rows of three.
+
+**Open threads:**
+- **Beverly "ghost garage"** (r/northshore comment): a redditor's garage,
+  demolished ~6 years ago, still renders — it's still mapped in OSM (snapshot
+  age is NOT the cause; Beverly = July 6 data). Reply drafted; offered two
+  fixes: they edit OSM (rides the next refetch) or DM the location →
+  one-line `dropOsm` in `towns/beverly/map.mjs` + rebuild (the NBPT
+  golf-course-lake precedent). Waiting on their answer.
+- **Map freshness by town** (world.json `meta.generated`): NBPT Jun 8 ·
+  Salem Jun 25 · Beverly Jul 6 · Ipswich Jul 13. Idea parked: a one-line
+  "Map data: OpenStreetMap, <month year>" in the ⚙️ card.
+- **Launch calendar**: Beverly r/beverlyma post Sat 7/18 (prep in memory);
+  Ipswich launch unscheduled (after Beverly; modmail-first playbook).
+- **GLOUCESTER STARTED** on branch `gloucester` — next town per the ranking
+  (biggest remaining community, Hammond Castle-tier heroes, completes Cape Ann
+  contiguity with Ipswich's Essex frame). Bbox = all of Cape Ann incl. Rockport
+  + Thacher Island as in-frame nods. If the session ended mid-build: check the
+  branch, `GLOUCESTER-HANDOFF.md` if present, and re-run the docs/TOWNS.md
+  checklist from wherever it stopped.
+
+> **Prior state (post-launch polish session): everything below shipped to
+> `source` and was LIVE at `b88e7fb`. Read ✦ POST-LAUNCH POLISH SESSION next**,
 > then the older Beverly Day / multi-town notes for background.
 
 ## ✦ POST-LAUNCH POLISH SESSION — state + open items
