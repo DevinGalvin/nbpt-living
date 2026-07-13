@@ -45,7 +45,7 @@ const IPSWICH_LM = [
   ['white-farms', 'White Farms Ice Cream', 'Roadside homemade scoops for 50+ years', -26379, -23710, 300],
   // the Necks & the Sound
   ['pavilion-beach', 'Pavilion Beach', 'Free town beach between the two Necks', 32045, -17934, 500],
-  ['little-neck', 'Little Neck', 'Cottage colony run by a 350-year school trust', 32425, -14717, 450],
+  ['little-neck', 'Little Neck', 'A school trust ran this colony 350 years', 32425, -14717, 450],
   ['clark-pond', 'Clark Pond', 'Where Great Neck kids skate — dammed in 1897', 28497, -21202, 450],
   ['sandy-point', 'Sandy Point', "Plum Island's wild tip — yes, it's Ipswich!", 41021, -22359, 700],
   // Castle Hill & Crane Beach
@@ -60,11 +60,11 @@ const IPSWICH_LM = [
   ['appleton-farms', 'Appleton Farms', 'Farming since 1638 — among America’s oldest', -9678, 27781, 700],
   ['marini-farm', 'Marini Farm', 'Get lost in the 7-acre corn maze', -33081, -6541, 400],
   ['willowdale', 'Willowdale State Forest', 'Pine woods and fire roads to get lost in', -50000, 5172, 700],
-  ['rockery', 'The Rockery', 'A climbable boulder maze built 100 years ago', -52201, 38125, 550],
+  ['rockery', 'The Rockery', 'A climbable boulder maze from a century ago', -52201, 38125, 550],
   // neighbor nods
   ['woodmans', "Woodman's of Essex", 'Where the fried clam was invented — 1916', 43461, 43039, 340],
   ['essex-shipbuilding', 'Essex Shipbuilding Museum', 'The town that launched 4,000 wooden ships', 39966, 41484, 400],
-  ['rowley-common', 'Rowley Town Common', "Rowley's green since 1639", -26648, -30784, 450],
+  ['rowley-common', 'Rowley Town Common', 'The green at the heart of 1639 Rowley', -26648, -30784, 450],
   ['agawam-diner', 'Agawam Diner', 'Pie heaven in a shiny 1954 diner car', -44956, -22910, 300],
 ];
 export function landmarks() {

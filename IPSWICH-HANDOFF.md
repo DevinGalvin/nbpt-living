@@ -94,9 +94,10 @@ Run it: `npm run dev:ipswich` (or the `ipswich` entry in .claude/launch.json, po
    verified; the Apps Script POST needs one finish on clippertown.io/ipswich/
    (board auto-partitions by raceTown; nothing to deploy). Delete my test row
    ("CLAM", Choate Bridge Dash 0:36.1, local-only) if it somehow synced.
-2. **Eyeball in-game**: Ascension + the South Green museum cluster (Whipple/
-   Heard/Old Town Hall/Hall-Haskell sit within a block), Hart House, Perkins,
-   Caldwell (shots were oblique/too close); library's roof reads a bit tall.
+2. **Eyeball in-game**: visual audit is COMPLETE for all 17 heroes (Hart,
+   Perkins, Caldwell, Hall-Haskell, Old Town Hall all confirmed against the
+   dossier in a second shot pass); remaining soft spots are Ascension's tower
+   FORM (palette confirmed) and the library's slightly-tall gable roof.
 3. **Town Wharf moorings** — the river read boat-empty at the wharf (lot is
    full of cars, which carries it); pier-lines exist but check `mooring`
    coverage or seed a few river boats.
@@ -105,7 +106,8 @@ Run it: `npm run dev:ipswich` (or the `ipswich` entry in .claude/launch.json, po
 5. **Wolf Hollow set piece**: not in OSM — the icon is the barn-red roadside
    stockade fence + black wolf sign (spec in the dossier); needs
    manualFeatures fence + a small shed to really land. Landmark point is
-   address-interpolated — verify against aerial.
+   VERIFIED against the assessor address layer (114 Essex Rd point sits 3.5m
+   from it).
 6. **Choate Bridge stone-arch skin**: renders as the standard road bridge
    (crossable ✓); a granite two-arch hero treatment would be a jewel. Specs
    (spans, cutwater, parapet) are in the dossier.
