@@ -4,7 +4,96 @@ A cozy, all-ages Zelda-like set on the **exact maps of real towns** — Newburyp
 `/` and Salem at `/salem/`, one codebase. Three.js + TypeScript + Vite. Live at
 **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE (July 6, 2026, LATE EVENING — a huge day): read
+> **⚡ FRESHEST STATE (post-launch polish session): everything below shipped to
+> `source` and is LIVE at `b88e7fb`. Read ✦ POST-LAUNCH POLISH SESSION first**,
+> then the older Beverly Day / multi-town notes for background.
+
+## ✦ POST-LAUNCH POLISH SESSION — state + open items
+
+**Live at `b88e7fb`** (all pushed to `source`; CI `build:all` green). A fast,
+screenshot-driven bug-fix + content pass, run alongside the r/northshore launch.
+Everything ships engine-wide (all three towns) unless noted.
+
+**Shipped this session (source, in order):**
+- `b41f4e7` **Heart-landmark spawns.** The first-visit drop is no longer a raw
+  coordinate — it's a *named landmark* declared once in `towns/<id>/town.json`
+  as `"spawn": { "landmark": "<id>", "dx", "dz" }`, resolved at runtime against
+  `world.landmarks` (see `src/game/Game.ts` spawn block + `src/towns/types.ts`
+  `SpawnAnchor`). **Beverly moved Lynch Park → Ellis Square (downtown).** New
+  build guard `tools/check_town_spawn.mjs` (in `build:all` + `npm run
+  check:towns`) fails if a town's spawn landmark is missing. `docs/TOWNS.md`
+  documents it as the repeatable rule.
+- `cb7bc34` gitignore `dist-*/` (per-town build dirs).
+- `90b4788` **Bridge "origami" fix — dual-carriageway fuse.** OSM maps a divided
+  road as parallel ways; one-deck-per-chain stacked them into a fan at
+  approaches (the Gillis site). `roadChains()` in `src/world/index.ts` now fuses
+  parallel/overlapping same-class bridge chains into one centred deck. This was
+  the deferred "dual-carriageway detection" from `docs/BRIDGE-ROADS-REDESIGN.md`.
+- `16aa546` **iOS town-hop crash fix.** Town switches are plain navigations;
+  Safari kept the departing page (WebGL + textures) in bfcache → two towns
+  resident → tab jetsam. `pagehide` now releases the GL context;
+  `pageshow(persisted)` reloads. (`src/game/Game.ts`, in the constructor.)
+- `5507cd4` **Race clock → top of screen**, clear of landmark banners (`hud.ts`).
+- `7cf874d` **Gas stations** — canopy + pumps at every `amenity=fuel` POI.
+- `eea2c3e` **Business set pieces** — ice-cream cones, fire engines, police
+  cruisers, theatre marquees. Extracted the shared `forecourtSpot()` placement
+  helper (roadside-first 2-D probe, places nothing rather than clip). All in
+  `src/three/decor.ts`, dispatched in the `world.pois` loop.
+- `c0edc7d` **Bridge crossability** — fixed uncrossable holes at wet
+  junctions/landings (Beverly↔Salem Bridge St rotary): wet deck ends floor at
+  span height instead of the seabed; exact chain-membership recorded during the
+  walk (not nearest-guessed); merged deck extends to cover the *union* of its
+  members; a member must ride the spine its whole length to fuse (max offset).
+- `7600e3c` **Fused-deck taper** — a fused deck tapers to the real road width at
+  dry ends (no squared-off "wing" over the approach); union extension only at
+  wet ends. Per-end widths `w0/w1` threaded into `ribbonDeck`.
+- `b88e7fb` **Collision "infinite shake" — real fix.** The glance-off-walls
+  movement (`7359fc1`) ping-ponged between two branches at a wall (off, in, off,
+  in) at frame rate. Replaced the whole axis-flip deflection with a
+  rotate-the-move-vector glance whose rotation side is *locked per wedge*
+  (`wedgeDir`) — can only slide along a wall, never buzz across it; rests if
+  truly boxed in. Covers foot/bike/kayak/boat. (`src/game/Game.ts` movement.)
+  (`75fe208`, the tsconfig baseUrl removal between these, was another session.)
+
+**Reusable headless verification tooling (used all session, worth keeping):**
+Chromium is pre-installed at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`;
+`npm i playwright-core --no-save` and drive a town dev server (`TOWN=<id> vite
+--port <p>`). Two patterns proved essential:
+- **Screenshots / marketing shots:** the `window.nbpt` dev hooks — `go(x,z)`,
+  `zoom(z)`, `time(t)` (0.5 noon · 0.7 golden · ~0.93 twilight), `weather(0|1)`.
+  Season via `?season=<summer|fall|winter>` in the URL (localStorage season is
+  unreliable — Salem forces fall). Winter snow = `weather(1)`; the Frog Pond has
+  skaters. Suppress modals with `localStorage <town>-welcomed/-promo-* = 1`.
+- **Movement / physics bugs:** headless rAF is throttled to ~2 fps under
+  swiftshader, so the render loop *cannot* reproduce 60 fps behavior. Call
+  `Game.frame(t)` directly in a loop at fixed 16 ms with `keys` held to step the
+  sim deterministically — that's how the shake 2-cycle was finally caught.
+- Walk-across bridge tests: `nbpt.walk(dx,dy,ms)` toward waypoints, watch `pos()`.
+
+**Open items, ranked:**
+1. **Junction paint still busy** — the splayed crosshatch apron where wide roads
+   meet (Gillis/rotary approaches) is cosmetic, deferred. Same family as the
+   old #1 "wide-road paint polish" item below.
+2. **Divided-highway reads as one broad plate** — the fused deck spans both
+   carriageways + the median as a single slab (correct + crossable, but visually
+   wide, e.g. Beverly↔Salem Veterans Bridge hits the 412px width clamp).
+   Splitting it back into two visible carriageways with a median is a larger job.
+3. **NBPT tertiary bridge near the Artichoke** (~world -24600,-21300) has *both*
+   ends over water; it now floats safely at span height with caps, but it's a
+   map-curation candidate (dropOsm / spot-fix in `towns/nbpt/map.mjs`).
+4. **Salem Police Dept** set piece doesn't place (fully hemmed in) — the no-clip
+   rule working as intended; curate a spot if you want the cruiser there.
+5. Carryovers from Beverly Day (below): shop-sign mirrored text, Cummings NW
+   aprons, Salem North St bridge spot-check.
+
+**Launch status (r/northshore):** live as a **Link post → clippertown.io**.
+Learned the hard way: image/gallery posts don't click through and hide the URL
+in a comment; Link posts tap straight to the app + show the OG preview image +
+allow a text body with links. Earlier text/gallery versions were deleted (only
+one post ever live). r/newburyport and r/salem already posted. Next: r/beverly,
+and the "which town next?" prompt is gathering requests → next-town roadmap.
+
+> **⚡ PRIOR STATE (July 6, 2026, LATE EVENING — a huge day): read
 > ✦ BEVERLY DAY below first.** Beverly is LIVE at /beverly/ (town #3), all 54
 > Salem+NBPT heroes were photo-audited (14 fixed), bridges/roads got a
 > network-graph redesign (after one hard revert lesson), and a playtest wave
