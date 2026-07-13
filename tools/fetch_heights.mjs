@@ -36,7 +36,8 @@ console.log(`Querying Overture ${RELEASE} buildings for bbox`, BBOX, '…');
 const out = execFileSync('duckdb', ['-json', '-c', sql], {
   encoding: 'utf8',
   maxBuffer: 512 * 1024 * 1024,
-  timeout: 15 * 60 * 1000,
+  // S3 scan time varies with network weather — override via HEIGHTS_TIMEOUT_MIN
+  timeout: Number(process.env.HEIGHTS_TIMEOUT_MIN || 15) * 60 * 1000,
 });
 const rows = JSON.parse(out || '[]');
 
