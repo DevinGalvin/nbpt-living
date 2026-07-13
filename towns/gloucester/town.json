@@ -1,0 +1,40 @@
+{
+  "id": "gloucester",
+  "name": "Gloucester",
+  "worldName": "Gloucester, MA",
+  "title": "Gloucester",
+  "tag": "America's Oldest Seaport",
+  "emoji": "🎣",
+  "path": "/gloucester/",
+  "savePrefix": "gloucester:",
+  "pxPerMeter": 8,
+  "origin": { "lat": 42.615, "lon": -70.662 },
+  "bbox": { "s": 42.555, "w": -70.725, "n": 42.695, "e": -70.56 },
+  "spawn": { "landmark": "man-at-the-wheel", "dx": 0, "dz": 0 },
+  "branding": {
+    "htmlTitle": "Gloucester — walk the real map of Gloucester, MA in 3D",
+    "appleTitle": "Gloucester",
+    "themeColor": "#123a40",
+    "bgTop": "#1a4a52",
+    "bgBottom": "#0b262b",
+    "ruleColor": "#e0b23a",
+    "description": "A cozy, all-ages 3D walk through the exact map of Gloucester, Massachusetts. Wander the real streets, the working harbor, and the Boulevard — and find your own house.",
+    "ogSiteName": "Gloucester in 3D",
+    "ogDescription": "A cozy, all-ages 3D walk through the real map of Gloucester. Wander the streets, the harbor, and the Boulevard — and find your own house.",
+    "ogUrl": "https://clippertown.io/gloucester/",
+    "ogImage": "https://clippertown.io/gloucester/og-image.jpg",
+    "ogImageType": "image/jpeg",
+    "ogImageAlt": "A 3D voxel view of Gloucester, Massachusetts",
+    "twitterDescription": "Walk the real map of Gloucester — find your own street.",
+    "loadingTitle": "GLOUCESTER",
+    "loadingSub": "Exploring Gloucester, Massachusetts"
+  },
+  "storageSeeds": {
+    "nbpt-bike": "1",
+    "nbpt-kayak": "1",
+    "nbpt-seasons-rewarded": "1"
+  },
+  "storageSeedIfUnset": {
+    "nbpt-season": "summer"
+  }
+}

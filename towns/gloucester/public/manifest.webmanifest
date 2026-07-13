@@ -1,0 +1,15 @@
+{
+  "name": "Gloucester in 3D",
+  "short_name": "Gloucester",
+  "description": "Walk the real map of Gloucester, Massachusetts — a cozy, all-ages 3D town to explore.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#123a40",
+  "theme_color": "#123a40",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
