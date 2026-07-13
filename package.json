@@ -17,9 +17,11 @@
     "dev:salem": "TOWN=salem vite",
     "build:salem": "tsc --noEmit && TOWN=salem vite build",
     "check:towns": "node tools/check_town_assets.mjs && node tools/check_town_spawn.mjs",
-    "build:all": "node tools/check_town_assets.mjs && node tools/check_town_spawn.mjs && npm run share && TOWN=salem vite build && rm -rf dist/salem && mv dist-salem dist/salem && TOWN=beverly vite build && rm -rf dist/beverly && mv dist-beverly dist/beverly",
+    "build:all": "node tools/check_town_assets.mjs && node tools/check_town_spawn.mjs && npm run share && TOWN=salem vite build && rm -rf dist/salem && mv dist-salem dist/salem && TOWN=beverly vite build && rm -rf dist/beverly && mv dist-beverly dist/beverly && TOWN=ipswich vite build && rm -rf dist/ipswich && mv dist-ipswich dist/ipswich",
     "dev:beverly": "TOWN=beverly vite",
-    "build:beverly": "tsc --noEmit && TOWN=beverly vite build"
+    "build:beverly": "tsc --noEmit && TOWN=beverly vite build",
+    "dev:ipswich": "TOWN=ipswich vite",
+    "build:ipswich": "tsc --noEmit && TOWN=ipswich vite build"
   },
   "dependencies": {
     "three": "^0.166.1"
