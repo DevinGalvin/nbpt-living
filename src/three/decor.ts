@@ -4292,6 +4292,216 @@ function golfClubhouse(buckets: Bucket[], b: Building, g: number, index: WorldIn
   for (const sx of [1, -1] as const) porch(sx * L, front * W, sx * L, -front * (W - 2), sx, 0, 0.18);   // wraps both ends
 }
 
+// ---- Ipswich bespokes (colors photo-verified, docs/research/ipswich.md) ----
+
+// The Clam Box (1935) — the building IS an open fried-clam takeout box: walls
+// flare OUTWARD toward the top, four false-front "lid flaps" splay open above
+// a hidden flat roof. Gray-blue shingle, red-and-white awnings, red doors.
+function clamBox(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  // the rest of the footprint = the low one-storey rear dining wing
+  clad(buckets[SHINGLE], b.p, g - 2, g + 10, '#9aa1a6');
+  flatRoof(buckets[PLAIN], b.p, g + 10, '#6a6e73');
+  // the BOX itself: compact, centred, rising through the wing roof
+  const S = Math.min(L, W, 30), topH = g + 24, base = 0.88, flare = 1.06;
+  tmp.set('#8f979d'); const wr = tmp.r, wg = tmp.g, wb = tmp.b;   // weathered gray-blue shingle
+  tmp.set('#a8b0b6'); const fr = tmp.r, fg = tmp.g, fb = tmp.b;   // flaps catch more sky
+  const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const;
+  for (let i = 0; i < 4; i++) {   // four flared trapezoid walls
+    const [ax, az] = corners[i], [bx, bz] = corners[(i + 1) % 4];
+    const a0 = pt(ax * S * base, az * S * base, g - 1), b0 = pt(bx * S * base, bz * S * base, g - 1);
+    const a1 = pt(ax * S * flare, az * S * flare, topH), b1 = pt(bx * S * flare, bz * S * flare, topH);
+    const mx = (ax + bx) / 2, mz = (az + bz) / 2, nx = mx * ca - mz * sa, nz = mx * sa + mz * ca;
+    buckets[SHINGLE].quad(a0[0], a0[1], a0[2], b0[0], b0[1], b0[2], b1[0], b1[1], b1[2], a1[0], a1[1], a1[2], nx, 0.15, nz, wr, wg, wb);
+  }
+  const lid: number[] = [];
+  for (const [ax, az] of corners) { const p = pt(ax * S * flare, az * S * flare, 0); lid.push(p[0], p[2]); }
+  flatRoof(buckets[PLAIN], lid, topH, '#5b5e63');                 // the hidden flat roof
+  for (let i = 0; i < 4; i++) {   // four splayed lid flaps
+    const [ax, az] = corners[i], [bx, bz] = corners[(i + 1) % 4];
+    const a1 = pt(ax * S * flare, az * S * flare, topH), b1 = pt(bx * S * flare, bz * S * flare, topH);
+    const a2 = pt(ax * S * flare * 1.14, az * S * flare * 1.14, topH + 7), b2 = pt(bx * S * flare * 1.14, bz * S * flare * 1.14, topH + 7);
+    const mx = (ax + bx) / 2, mz = (az + bz) / 2, nx = mx * ca - mz * sa, nz = mx * sa + mz * ca;
+    buckets[SHINGLE].quad(a1[0], a1[1], a1[2], b1[0], b1[1], b1[2], b2[0], b2[1], b2[2], a2[0], a2[1], a2[2], nx, 0.4, nz, fr, fg, fb);
+  }
+  // white sign band + red letter-stripe on the street-facing flap
+  const sf = pt(0, front * (S * flare + 1.2), 0);
+  rotBox(buckets[PLAIN], sf[0], sf[2], S * 0.8, 0.5, topH + 1.5, topH + 6, obb.ang, '#f4f1ea');
+  rotBox(buckets[PLAIN], sf[0], sf[2], S * 0.66, 0.7, topH + 2.9, topH + 4.6, obb.ang, '#b03028');
+  // red-and-white striped awnings down both sides of the box
+  for (const s of [1, -1] as const) {
+    const off = s * (S * 0.95 + 2.2), ax = obb.cx + (-sa) * off, az = obb.cz + ca * off;
+    rotBox(buckets[PLAIN], ax, az, S * 0.75, 2.4, g + 11, g + 12, obb.ang, '#b03028');
+    rotBox(buckets[PLAIN], ax, az, S * 0.75, 2.5, g + 10.4, g + 11, obb.ang, '#f4f1ea');
+  }
+  // red doors + little gray entry canopy on the street face
+  const df = pt(0, front * (S * base + 0.6), 0);
+  rotBox(buckets[PLAIN], df[0], df[2], 3.0, 0.5, g, g + 9, obb.ang, '#a3282e');
+  rotBox(buckets[PLAIN], df[0], df[2], 4.2, 2.0, g + 9, g + 9.8, obb.ang, '#7d8187');
+  // roadside "Since 1935" sign on a post by the street
+  const sp = pt(S * 1.4, front * (S * flare + 8), 0);
+  buckets[PLAIN].box(sp[0], sp[2], 0.5, 0.5, g, g + 12, '#4a4d52', 0);
+  rotBox(buckets[PLAIN], sp[0], sp[2], 4.4, 0.5, g + 12, g + 18, obb.ang, '#f4f1ea');
+  rotBox(buckets[PLAIN], sp[0], sp[2], 3.6, 0.65, g + 13.4, g + 16.4, obb.ang, '#b03028');
+}
+
+// First Church in Ipswich (1971) — the SIXTH meetinghouse on the Green (the
+// 1846 Gothic burned in 1965): white contemporary sanctuary, square front
+// tower with tall amber glass strips + clock, white spire, the gilded rooster.
+function ipswichFirstChurch(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const eaveH = g + 15;
+  clad(buckets[CLAP], b.p, g - 2, eaveH, '#f2f0ea');              // white body
+  flatRoof(buckets[PLAIN], b.p, eaveH, '#b9b6ad');                // the low parish wings
+  // a modest gable over the central sanctuary only (the OBB spans the wings too)
+  const ridgeY = eaveH + 9, L2 = L * 0.55, W2 = Math.min(W * 0.75, 15);
+  tmp.set('#8a8d92'); const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  for (const s of [1, -1] as const) { const e0 = pt(-L2, s * W2, eaveH), e1 = pt(L2, s * W2, eaveH), r0 = pt(-L2, 0, ridgeY), r1 = pt(L2, 0, ridgeY); buckets[SHINGLE].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.7, 0.7, ca * s * 0.7, rr, rg, rb); }
+  tmp.set('#f2f0ea'); const gr = tmp.r, gg = tmp.g, gb = tmp.b;
+  for (const sx of [1, -1] as const) { const a = pt(sx * L2, W2, eaveH), b2 = pt(sx * L2, -W2, eaveH), pk = pt(sx * L2, 0, ridgeY); buckets[CLAP].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, gr, gg, gb, 0, 0, 0, 0, 0, 0); }
+  // pointed amber windows down the sides
+  tmp.set('#d8a83c'); const ar = tmp.r, ag = tmp.g, ab = tmp.b;
+  for (const s of [1, -1] as const) for (let i = 0; i < 3; i++) {
+    const lx = -L * 0.5 + L * (i / 2), lzf = s * (W + 0.2), nx = -sa * s, nz = ca * s;
+    const C = (sx: number, y: number): [number, number, number] => pt(lx + sx * 1.2, lzf, y);
+    const a = C(-1, g + 6), bb = C(1, g + 6), cc = C(1, g + 12), dd = C(-1, g + 12), apex = pt(lx, lzf, g + 14.5);
+    buckets[GLOW].quad(a[0], a[1], a[2], bb[0], bb[1], bb[2], cc[0], cc[1], cc[2], dd[0], dd[1], dd[2], nx, 0, nz, ar, ag, ab);
+    buckets[GLOW].triUV(dd[0], dd[1], dd[2], cc[0], cc[1], cc[2], apex[0], apex[1], apex[2], nx, 0, nz, ar, ag, ab, 0, 0, 0, 0, 0, 0);
+  }
+  // the square front tower
+  const tw = Math.min(W * 0.55, 8), ring: number[] = [];
+  const TP = (lx: number, lz: number) => { const p = pt(lx, lz, 0); ring.push(p[0], p[2]); };
+  TP(-tw, front * (W - tw * 0.2)); TP(tw, front * (W - tw * 0.2)); TP(tw, front * (W + tw * 1.7)); TP(-tw, front * (W + tw * 1.7));
+  const towerH = ridgeY + 16;
+  clad(buckets[CLAP], ring, g - 2, towerH, '#f2f0ea');
+  flatRoof(buckets[PLAIN], ring, towerH + 0.3, '#e9e6dd');
+  // tall amber glass strips + clock on the tower's street face
+  const tf = front * (W + tw * 1.7 + 0.25), nx = -sa * front, nz = ca * front;
+  for (const dx of [-2.2, 0, 2.2]) {
+    const q0 = pt(dx - 0.7, tf, g + 4), q1 = pt(dx + 0.7, tf, g + 4), q2 = pt(dx + 0.7, tf, towerH - 8), q3 = pt(dx - 0.7, tf, towerH - 8);
+    buckets[GLOW].quad(q0[0], q0[1], q0[2], q1[0], q1[1], q1[2], q2[0], q2[1], q2[2], q3[0], q3[1], q3[2], nx, 0, nz, ar, ag, ab);
+  }
+  const ck = pt(0, tf, 0);
+  rotBox(buckets[PLAIN], ck[0], ck[2], 1.8, 0.2, towerH - 5.5, towerH - 2, obb.ang, '#fbfaf6');   // clock face panel
+  // white tapered spire + the gilded rooster
+  const apex = pt(0, front * (W + tw * 0.75), towerH + 17);
+  tmp.set('#f4f2ec'); const sr2 = tmp.r, sg2 = tmp.g, sb2 = tmp.b;
+  for (let i = 0; i < ring.length; i += 2) {
+    const aX = ring[i], aZ = ring[i + 1], bX = ring[(i + 2) % ring.length], bZ = ring[(i + 3) % ring.length];
+    buckets[PLAIN].triUV(aX, towerH + 0.3, aZ, bX, towerH + 0.3, bZ, apex[0], apex[1], apex[2], 0, 0.9, 0, sr2, sg2, sb2, 0, 0, 0, 0, 0, 0);
+  }
+  buckets[PLAIN].box(apex[0], apex[2], 0.7, 0.7, towerH + 17, towerH + 19.2, '#d8b23c', 0);   // the ~40 lb gilded rooster
+}
+
+// Ascension Memorial Church (Renwick, 1869) — WOOD Carpenter Gothic, not
+// stone: olive board-and-batten body, dark brown trim, crimson doors, side
+// bell tower with a steep pyramidal cap.
+function ascensionIpswich(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const eaveH = g + 14;
+  clad(buckets[CLAP], b.p, g - 2, eaveH, '#7b7767');              // olive/taupe body
+  const ridgeY = eaveH + Math.min(W * 0.95, 15), Lr = L + 1, Wr = W + 1;
+  tmp.set('#4a423a'); const rr = tmp.r, rg = tmp.g, rb = tmp.b;   // dark brown shingle roof
+  for (const s of [1, -1] as const) { const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY); buckets[SHINGLE].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr, rg, rb); }
+  tmp.set('#7b7767'); const gr = tmp.r, gg = tmp.g, gb = tmp.b;
+  for (const sx of [1, -1] as const) { const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY); buckets[CLAP].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, gr, gg, gb, 0, 0, 0, 0, 0, 0); }
+  // pointed windows (soft amber glow), crimson double door + rose window on the front gable
+  tmp.set('#c08a4a'); const ar = tmp.r, ag = tmp.g, ab = tmp.b;
+  for (const s of [1, -1] as const) for (let i = 0; i < 3; i++) {
+    const lx = -L * 0.55 + L * 1.1 * (i / 2), lzf = s * (W + 0.2), nx = -sa * s, nz = ca * s;
+    const C = (sx: number, y: number): [number, number, number] => pt(lx + sx * 1.1, lzf, y);
+    const a = C(-1, g + 5), bb = C(1, g + 5), cc = C(1, g + 11), dd = C(-1, g + 11), apex = pt(lx, lzf, g + 13);
+    buckets[GLOW].quad(a[0], a[1], a[2], bb[0], bb[1], bb[2], cc[0], cc[1], cc[2], dd[0], dd[1], dd[2], nx, 0, nz, ar, ag, ab);
+    buckets[GLOW].triUV(dd[0], dd[1], dd[2], cc[0], cc[1], cc[2], apex[0], apex[1], apex[2], nx, 0, nz, ar, ag, ab, 0, 0, 0, 0, 0, 0);
+  }
+  const df = pt(0, front * (W + 0.4), 0), nx = -sa * front, nz = ca * front;
+  rotBox(buckets[PLAIN], df[0], df[2], 2.4, 0.45, g, g + 9, obb.ang, '#a3282e');      // crimson doors
+  const q0 = pt(-1.6, front * (W + 0.25), ridgeY - 6), q1 = pt(1.6, front * (W + 0.25), ridgeY - 6), q2 = pt(1.6, front * (W + 0.25), ridgeY - 3), q3 = pt(-1.6, front * (W + 0.25), ridgeY - 3);
+  buckets[GLOW].quad(q0[0], q0[1], q0[2], q1[0], q1[1], q1[2], q2[0], q2[1], q2[2], q3[0], q3[1], q3[2], nx, 0, nz, ar, ag, ab);   // rose window (abstracted)
+  // corner bell tower with pyramidal cap
+  const tw = Math.min(W * 0.42, 6), ring: number[] = [];
+  const TP = (lx: number, lz: number) => { const p = pt(lx, lz, 0); ring.push(p[0], p[2]); };
+  TP(L * 0.6 - tw, front * (W - tw * 0.1)); TP(L * 0.6 + tw, front * (W - tw * 0.1)); TP(L * 0.6 + tw, front * (W + tw * 1.8)); TP(L * 0.6 - tw, front * (W + tw * 1.8));
+  const towerH = ridgeY + 10;
+  clad(buckets[CLAP], ring, g - 2, towerH, '#7b7767');
+  const bo = pt(L * 0.6, front * (W + tw * 1.8 + 0.2), 0);
+  rotBox(buckets[PLAIN], bo[0], bo[2], 1.6, 0.2, towerH - 6, towerH - 1.5, obb.ang, '#241f1c');   // open belfry (dark)
+  const capApex = pt(L * 0.6, front * (W + tw * 0.85), towerH + 9);
+  tmp.set('#4a423a'); const cr = tmp.r, cg = tmp.g, cb = tmp.b;
+  for (let i = 0; i < ring.length; i += 2) {
+    const aX = ring[i], aZ = ring[i + 1], bX = ring[(i + 2) % ring.length], bZ = ring[(i + 3) % ring.length];
+    buckets[SHINGLE].triUV(aX, towerH, aZ, bX, towerH, bZ, capApex[0], capApex[1], capApex[2], 0, 0.9, 0, cr, cg, cb, 0, 0, 0, 0, 0, 0);
+  }
+}
+
+// A big New England working barn — weathered boards, metal gable roof, big
+// sliding doors on both gable ends (Russell Orchards' 1800s store barn).
+function boardBarn(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: { wall: string; roof: string; door: string; trim: string; h?: number }) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw, eaveH = g + (o.h ?? 17);
+  clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
+  const ridgeY = eaveH + Math.min(W * 0.95, 13), Lr = L + 1, Wr = W + 1;
+  tmp.set(o.roof); const rr = tmp.r, rg = tmp.g, rb = tmp.b;      // silver standing-seam metal
+  for (const s of [1, -1] as const) { const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY); buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr, rg, rb); }
+  tmp.set(o.wall); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  for (const sx of [1, -1] as const) {
+    const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY);
+    buckets[CLAP].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, wr, wg, wb, 0, 0, 0, 0, 0, 0);
+    // dark green sliding door + white transom strip on each gable end
+    const d = pt(sx * (L + 0.35), 0, 0);
+    rotBox(buckets[PLAIN], d[0], d[2], 0.5, Math.min(W * 0.45, 5.5), g, g + 10, obb.ang, o.door);
+    rotBox(buckets[PLAIN], d[0], d[2], 0.4, Math.min(W * 0.5, 6), g + 10.2, g + 11.4, obb.ang, o.trim);
+  }
+}
+
+// Woodman's of Essex (1914) — the fried clam's birthplace: gray shingle box,
+// white sidewalk canopy, stacked red/white/navy roof signs, the flag.
+function woodmansEssex(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const L = obb.hl, W = obb.hw;
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const eaveH = g + 19;
+  clad(buckets[SHINGLE], b.p, g - 2, eaveH, '#97999b');           // gray shingle + gray boards
+  const ridgeY = eaveH + Math.min(W * 0.7, 9), Lr = L + 0.8, Wr = W + 0.8;
+  tmp.set('#3f4145'); const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  for (const s of [1, -1] as const) { const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY); buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr, rg, rb); }
+  tmp.set('#97999b'); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  for (const sx of [1, -1] as const) { const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY); buckets[SHINGLE].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, wr, wg, wb, 0, 0, 0, 0, 0, 0); }
+  // white flat canopy along the sidewalk face, on slim posts
+  const cf = front * (W + 3.2), cx = obb.cx + (-sa) * cf, cz = obb.cz + ca * cf;
+  rotBox(buckets[PLAIN], cx, cz, L * 0.9, 3.4, g + 10.6, g + 11.4, obb.ang, '#f4f1ea');
+  for (const dx of [-L * 0.7, 0, L * 0.7]) { const p = pt(dx, front * (W + 5.8), 0); buckets[PLAIN].box(p[0], p[2], 0.4, 0.4, g, g + 10.6, '#f4f1ea', 0); }
+  // stacked roof sign panels above the ridge: WOODMAN'S / FRIED CLAMS / IN THE ROUGH
+  const sf = pt(0, front * W * 0.35, 0);
+  rotBox(buckets[PLAIN], sf[0], sf[2], L * 0.6, 0.6, ridgeY + 0.5, ridgeY + 3.6, obb.ang, '#b03028');
+  rotBox(buckets[PLAIN], sf[0], sf[2], L * 0.52, 0.7, ridgeY + 3.6, ridgeY + 6.2, obb.ang, '#f4f1ea');
+  rotBox(buckets[PLAIN], sf[0], sf[2], L * 0.44, 0.8, ridgeY + 6.2, ridgeY + 8.4, obb.ang, '#26324e');
+  // the flag
+  const fp = pt(-L * 0.78, front * W * 0.35, 0);
+  buckets[PLAIN].box(fp[0], fp[2], 0.3, 0.3, ridgeY, ridgeY + 11, '#e8e5da', 0);
+  rotBox(buckets[PLAIN], fp[0] + ca * 2.2, fp[2] + sa * 2.2, 2.2, 0.15, ridgeY + 8.5, ridgeY + 10.5, obb.ang, '#b03028');
+}
+
 const HEROES: Record<string, HeroBuilder> = {
   // Both towns' heroes coexist here — entries are keyed by unique OSM building
   // names, so only the loaded town's world.json ever matches its own set.
@@ -4336,6 +4546,23 @@ const HEROES: Record<string, HeroBuilder> = {
   'First Parish Church': firstParishBeverly,
   'Prides Crossing Confections': pridesStation,
   'Beverly Golf & Tennis Clubhouse': golfClubhouse,
+  // — Ipswich (colors photo-verified, docs/research/ipswich.md) —
+  'the Captain John Whipple House (1677)': (bk, b, g, i) => firstPeriod(bk, b, g, i, { wall: '#2b2825', shingle: '#6e675c', nGables: 2, chimney: 'central', eave: 26 }),   // near-BLACK clapboard, weathered gray-brown roof — National Historic Landmark
+  'the John and Sarah Dillingham Caldwell house (1660)': (bk, b, g, i) => firstPeriod(bk, b, g, i, { wall: '#3d2b1f', shingle: '#8a857a', nGables: 2, chimney: 'central' }),   // dark chocolate clapboard, gray shingle roof
+  'the John Kimball house (1680)': (bk, b, g, i) => firstPeriod(bk, b, g, i, { wall: '#7e3a2a', shingle: '#5c5c60', jetty: '#7e3a2a', nGables: 2, chimney: 'central' }),   // barn-red incl. casings; 12-inch jetty overhang
+  'the Captain Matthew Perkins house (1701)': (bk, b, g, i) => firstPeriod(bk, b, g, i, { wall: '#d9d6cc', shingle: '#7d8271', nGables: 2, chimney: 'big' }),   // white/off-white, green-gray wood-shingle roof, elaborate pilastered chimney
+  'Heard House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#e9e2cf', material: 'clap', trim: '#f7f3e8', roof: '#8b9097', storeys: 3, roofKind: 'hip', entrance: 'portico', shutter: '#2f4a30', chimney: 'interior4' }),   // 1795 China-trade Federal: cream clapboard, DARK GREEN shutters — the Ipswich Museum
+  'Ipswich Town Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9c4d3c', material: 'brick', trim: '#f2ede1', roof: '#5a5c60', storeys: 3, roofKind: 'flat', entrance: 'colossal', flag: true, stringcourses: true, chimney: 'none' }),   // 1936 PWA school-turned-town-hall: red brick + monumental white portico
+  'Ipswich Public Library': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9a4b38', material: 'brick', trim: '#d9d5c9', roof: '#55575c', storeys: 2, roofKind: 'gable', entrance: 'portico', chimney: 'none' }),   // 1869: red brick with pale granite quoins, pedimented front
+  'Old Town Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9aa38b', material: 'clap', trim: '#6f7a68', roof: '#7f838a', storeys: 2, roofKind: 'gable', entrance: 'pediment', shutter: '#23262a', chimney: 'none' }),   // 1833 Greek Revival temple front — pale sage green, columns removed 1876, no cupola today
+  'Hall-Haskell House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#8e3b2e', material: 'clap', trim: '#efe9dc', roof: '#b3ac9c', storeys: 2, roofKind: 'gable', entrance: 'pediment', chimney: 'ends2' }),   // 1820 barn-red visitor center on S Main
+  'the Hart House (1678)': (bk, b, g, i) => gambrelHouse(bk, b, g, i, { wall: '#c9b998', material: 'clap', roof: '#4e463c', trim: '#f0ead9', storeys: 2.5, dormers: 2, chimney: 'ridge2', entrance: 'pediment' }),   // light TAN/putty (NOT dark brown — the trap), gambrel block of the restaurant cluster
+  'Great House': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#c09578', material: 'brick', trim: '#e5decd', roof: '#7d8a80', storeys: 3, roofKind: 'hip', balustrade: 'plain', cupola: true, entrance: 'portico', stringcourses: true, chimney: 'interior4' }),   // Castle Hill, 1928: rosy-buff Holland brick (NOT deep red), stone trim, gray-green slate, white balustrade + cupola
+  'First Church in Ipswich': ipswichFirstChurch,
+  'Ascension Memorial Church': ascensionIpswich,
+  'Clam Box': clamBox,
+  "Woodman's": woodmansEssex,
+  'Russell Orchards': (bk, b, g, i) => boardBarn(bk, b, g, i, { wall: '#a8845c', roof: '#c4c7cb', door: '#2f4a30', trim: '#f4f1ea', h: 18 }),   // honey-amber weathered boards, SILVER metal roof, dark green sliding doors — NOT a red barn
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,

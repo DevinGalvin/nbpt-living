@@ -1,0 +1,40 @@
+{
+  "id": "ipswich",
+  "name": "Ipswich",
+  "worldName": "Ipswich, MA",
+  "title": "Ipswich",
+  "tag": "Birthplace of Independence",
+  "emoji": "🦪",
+  "path": "/ipswich/",
+  "savePrefix": "ipswich:",
+  "pxPerMeter": 8,
+  "origin": { "lat": 42.679, "lon": -70.841 },
+  "bbox": { "s": 42.625, "w": -70.925, "n": 42.72, "e": -70.74 },
+  "spawn": { "landmark": "five-corners", "dx": -250, "dz": 250 },
+  "branding": {
+    "htmlTitle": "Ipswich — walk the real map of Ipswich, MA in 3D",
+    "appleTitle": "Ipswich",
+    "themeColor": "#152c3d",
+    "bgTop": "#1d3c52",
+    "bgBottom": "#0d1e2a",
+    "ruleColor": "#e0b23a",
+    "description": "A cozy, all-ages 3D walk through the exact map of Ipswich, Massachusetts. Wander the real streets, the river, and Crane Beach — and find your own house.",
+    "ogSiteName": "Ipswich in 3D",
+    "ogDescription": "A cozy, all-ages 3D walk through the real map of Ipswich. Wander the streets, the river, and Crane Beach — and find your own house.",
+    "ogUrl": "https://clippertown.io/ipswich/",
+    "ogImage": "https://clippertown.io/ipswich/og-image.jpg",
+    "ogImageType": "image/jpeg",
+    "ogImageAlt": "A 3D voxel view of historic Ipswich, Massachusetts",
+    "twitterDescription": "Walk the real map of Ipswich — find your own street.",
+    "loadingTitle": "IPSWICH",
+    "loadingSub": "Exploring Ipswich, Massachusetts"
+  },
+  "storageSeeds": {
+    "nbpt-bike": "1",
+    "nbpt-kayak": "1",
+    "nbpt-seasons-rewarded": "1"
+  },
+  "storageSeedIfUnset": {
+    "nbpt-season": "summer"
+  }
+}

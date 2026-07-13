@@ -8,10 +8,64 @@
       "port": 5173
     },
     {
+      "name": "beverly",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:beverly", "--prefix", "/Users/devingalvin/claude_apps/nbpt-beverly", "--", "--port", "5219", "--strictPort"],
+      "port": 5219
+    },
+    {
+      "name": "ipswich",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:ipswich", "--", "--port", "5269", "--strictPort"],
+      "port": 5269
+    },
+    {
+      "name": "beverly-local",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:beverly", "--", "--port", "5249", "--strictPort"],
+      "port": 5249
+    },
+    {
+      "name": "salem-local",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:salem", "--", "--port", "5259", "--strictPort"],
+      "port": 5259
+    },
+    {
+      "name": "nbpt-audit",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "/Users/devingalvin/claude_apps/nbpt-beverly", "--", "--port", "5239", "--strictPort"],
+      "port": 5239
+    },
+    {
+      "name": "salem-audit",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:salem", "--prefix", "/Users/devingalvin/claude_apps/nbpt-beverly", "--", "--port", "5229", "--strictPort"],
+      "port": 5229
+    },
+    {
+      "name": "nbpt-5183",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5183", "--strictPort"],
+      "port": 5183
+    },
+    {
       "name": "clippertown-dist",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "preview", "--", "--port", "4173"],
       "port": 4173
+    },
+    {
+      "name": "salem",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "/Users/devingalvin/claude_apps/nbpt-salem", "--port", "5199", "--strictPort"],
+      "port": 5199
+    },
+    {
+      "name": "salem-5209",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "/Users/devingalvin/claude_apps/nbpt-salem", "--port", "5209", "--strictPort"],
+      "port": 5209
     }
   ]
 }

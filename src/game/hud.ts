@@ -1710,24 +1710,29 @@ export class Hud {
       // gravestone on City Hall.
       const table: [RegExp, string][] = [
         [/witch|bewitched/, '🧙'],   // Salem's whole brand — must beat house/museum
+        [/wolf hollow|gray wol(f|ves)/, '🐺'],   // Ipswich's wolf sanctuary
         [/mansion|manor/, '🏛'],     // before /garden/: "Ropes Mansion — house & garden"
         [/stadium|football/, '🏈'],  // before /light /: "football under Friday lights" isn't a lighthouse
+        [/clam box|fried clam|clambake/, '🍤'],   // tight on purpose: Joppa Park's "Clam country" stays a park
+        [/rockery|boulder/, '🪨'], [/diner\b/, '🥧'],
         [/ice cream|creamery/, '🍦'], [/roast beef/, '🥪'], [/theatre|theater|cinema|movie/, '🎭'],
         [/library/, '📚'], [/\bshoe\b/, '👞'],   // "The Shoe" = Beverly's Cummings Center
+        [/flying field/, '✈️'],                  // before ⚾: the 1910 Burgess Flying Field isn't a ballfield
         [/little league|\bfield\b/, '⚾'],       // singular only: "Fields" stays farm-country
         [/frog|pond/, '🐸'], [/light(house)?\b|light /, '🗼'], [/airport|airfield|runway/, '✈️'],
         [/sled|march's hill/, '🛷'], [/skat/, '⛸'], [/playground|fountain/, '🛝'],
         [/burying|cemetery|graveyard/, '🪦'], [/bridge/, '🌉'], [/station|depot/, '🚂'],
         [/candy|sweets|fudge|chocolate/, '🍬'],   // after depot: Prides Crossing's "green depot that sells fudge" stays 🚂
-        [/tall ship|friendship|schooner|\bship\b/, '⛵'], [/hotel|inn\b/, '🏨'], [/fort\b|castle/, '🏰'],
+        [/tall ship|friendship|schooner|\bships?\b|shipbuilding/, '⛵'], [/hotel|inn\b/, '🏨'], [/fort\b|castle/, '🏰'],
+        [/\bwreck\b/, '⚓'],                 // whole word: Misery's "shipwreck islands" stay islands
         [/beach|island|dune|sand/, '🏖'],   // before /farm/: "the Farms' mile-long beach" is a beach
-        [/\bfarms\b/, '🏘'],                // "Beverly Farms" is a village, not farmland ("Hale Farm" stays 🧙/🚜)
+        [/beverly farms|the farms\b|cottage/, '🏘'],   // villages, not farmland ("Appleton Farms" stays 🚜)
         [/farm|pasture|orchard|\bfields\b/, '🚜'], [/flats|marsh|bird/, '🦆'],   // \b: "ballfields" is a park, not a farm
         [/boardwalk|waterfront|wharf|dock|harbor|landing/, '⚓'],
-        [/woods|forest|park|garden|common|maudslay|willow|gallows|refuge|sanctuar/, '🌳'], [/trail|rail/, '🚲'],
+        [/woods|forest|park|garden|common|green\b|allée|maudslay|willow|gallows|refuge|sanctuar/, '🌳'], [/trail|rail/, '🚲'],
         [/reservoir|\blake\b|river/, '🌊'], [/statue|garrison/, '🗽'], [/church|chapel|meeting/, '⛪'],   // \b: Fish FLAKE Hill is not a lake
         [/school|academy/, '🏫'], [/court/, '⚖️'], [/museum|house|hall|athen/, '🏛'],
-        [/square|downtown|market/, '⛲'], [/street|road|lane/, '🛣'],
+        [/square|downtown|market|corners/, '⛲'], [/street|road|lane/, '🛣'],
       ];
       for (const [re, em] of table) if (re.test(s)) return em;
       return '📍';
