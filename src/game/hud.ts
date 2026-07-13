@@ -416,8 +416,8 @@ const css = `
 /* town switcher — hop between Newburyport, Salem (and future towns), at the top of Fast Travel */
 #hud .travel-towns { margin: 0 0 14px; }
 #hud .tt-hdr { font-size: 10.5px; letter-spacing: 1.5px; color: #c9a84e; font-weight: 700; margin: 0 0 8px; }
-#hud .tt-row { display: flex; gap: 8px; flex-wrap: wrap; }
-#hud .tt-chip { flex: 1 1 0; min-width: 132px; display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 10px; background: rgba(243,241,232,0.07); border: 1px solid rgba(243,241,232,0.16); cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+#hud .tt-row { display: grid; gap: 8px; grid-template-columns: repeat(2, 1fr); }   /* column count set per town count in initTravel — balanced rows, never a lone stretched chip */
+#hud .tt-chip { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 10px; background: rgba(243,241,232,0.07); border: 1px solid rgba(243,241,232,0.16); cursor: pointer; transition: background 0.15s, border-color 0.15s; }
 #hud .tt-chip:hover { background: rgba(216,185,74,0.18); border-color: rgba(216,185,74,0.5); }
 #hud .tt-chip.cur { background: rgba(216,185,74,0.16); border-color: #d8b94a; cursor: default; }
 #hud .tt-emoji { font-size: 22px; line-height: 1; flex: none; }
@@ -1683,8 +1683,12 @@ export class Hud {
 
   initTravel(items: { id: string; name: string; sub: string }[], onPick: (id: string) => void) {
     // town switcher row — current town highlighted, the others navigate on tap
-    const ttRow = document.querySelector('#hud .tt-row');
+    const ttRow = document.querySelector('#hud .tt-row') as HTMLElement | null;
     if (ttRow && TOWNS.length > 1) {
+      // balanced rows: 2-3 towns share one line, 4 makes a 2×2, 5-6 make rows of 3 —
+      // not the old flex-wrap, where a lone fourth town stretched across its own row
+      const rows = Math.ceil(TOWNS.length / 3);
+      ttRow.style.gridTemplateColumns = `repeat(${Math.ceil(TOWNS.length / rows)}, 1fr)`;
       const here = ((window as unknown as { __townPath?: string }).__townPath || location.pathname).replace(/\/+$/, '');
       const cur = TOWNS.filter((t) => t.path !== '/').sort((a, b) => b.path.length - a.path.length)
         .find((t) => { const p = t.path.replace(/\/+$/, ''); return here === p || here.startsWith(p + '/'); })
