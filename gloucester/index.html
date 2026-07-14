@@ -6,25 +6,25 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Clipper Town" />
-  <meta name="theme-color" content="#2a1419" />
-  <title>Clipper Town — explore Newburyport, MA</title>
-  <meta name="description" content="A cozy, all-ages adventure on the exact map of Newburyport, Massachusetts. Walk the real streets, find your own house, and dig up the town’s true history." />
+  <meta name="apple-mobile-web-app-title" content="Gloucester" />
+  <meta name="theme-color" content="#123a40" />
+  <title>Gloucester — walk the real map of Gloucester, MA in 3D</title>
+  <meta name="description" content="A cozy, all-ages 3D walk through the exact map of Gloucester, Massachusetts. Wander the real streets, the working harbor, and the Boulevard — and find your own house." />
   <!-- Social link previews (Open Graph + Twitter Card). Absolute URLs so the card unfurls. -->
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Clipper Town" />
-  <meta property="og:title" content="Clipper Town — explore Newburyport, MA" />
-  <meta property="og:description" content="A cozy, all-ages adventure on the real map of Newburyport. Walk the streets, find your own house, and dig up the town’s true history." />
-  <meta property="og:url" content="https://clippertown.io/" />
-  <meta property="og:image" content="https://clippertown.io/og-image.png" />
+  <meta property="og:site_name" content="Gloucester in 3D" />
+  <meta property="og:title" content="Gloucester — walk the real map of Gloucester, MA in 3D" />
+  <meta property="og:description" content="A cozy, all-ages 3D walk through the real map of Gloucester. Wander the streets, the harbor, and the Boulevard — and find your own house." />
+  <meta property="og:url" content="https://clippertown.io/gloucester/" />
+  <meta property="og:image" content="https://clippertown.io/gloucester/og-image.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:type" content="image/png" />
-  <meta property="og:image:alt" content="A voxel clipper ship sailing past Newburyport’s brick downtown and church steeple" />
+  <meta property="og:image:type" content="image/jpeg" />
+  <meta property="og:image:alt" content="A 3D voxel view of Gloucester, Massachusetts" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Clipper Town — explore Newburyport, MA" />
-  <meta name="twitter:description" content="Walk the real map of Newburyport — find your own street." />
-  <meta name="twitter:image" content="https://clippertown.io/og-image.png" />
+  <meta name="twitter:title" content="Gloucester — walk the real map of Gloucester, MA in 3D" />
+  <meta name="twitter:description" content="Walk the real map of Gloucester — find your own street." />
+  <meta name="twitter:image" content="https://clippertown.io/gloucester/og-image.jpg" />
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
   <link rel="icon" type="image/png" sizes="48x48" href="./favicon-48.png" />
@@ -37,8 +37,8 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #2a1419;
-      background: linear-gradient(180deg, #361b23, #1b0e13);
+      background: #123a40;
+      background: linear-gradient(180deg, #1a4a52, #0b262b);
       touch-action: none;
       -webkit-user-select: none;
       user-select: none;
@@ -66,7 +66,7 @@
     }
     #loading .title { font-size: 34px; letter-spacing: 3px; animation: loadrise 0.8s cubic-bezier(0.22,1,0.36,1) both; }
     #loading .rule { width: 0; height: 2px; border-radius: 2px;
-      background: linear-gradient(90deg, transparent, #d8b94a, transparent);
+      background: linear-gradient(90deg, transparent, #e0b23a, transparent);
       animation: loadrule 0.9s 0.25s cubic-bezier(0.22,1,0.36,1) both; }
     #loading .sub { font-size: 13px; letter-spacing: 2px; opacity: 0.7;
       font-family: -apple-system, system-ui, sans-serif; animation: loadpulse 1.9s 0.6s ease-in-out infinite; }
@@ -78,15 +78,41 @@
       #loading .rule { width: 220px; }
     }
   </style>
-  <script>window.__townPath = "/";</script>
-  <script type="module" crossorigin src="./assets/index-DKpvFW2Y.js"></script>
+  <script>
+    // Gloucester shares its origin with the root town, so it would share
+    // localStorage too. Namespace all saved state behind the town prefix
+    // (GLOBAL keys pass through — rider name & co. ride between towns).
+    (function () {
+      try {
+        window.__townPath = "/gloucester/";
+        var P = "gloucester:", real = window.localStorage;
+        var GLOBAL = ["nbpt-race-name","nbpt-ghost","nbpt-board-url"];
+        var key = function (k) { return GLOBAL.indexOf(k) >= 0 ? k : P + k; };
+        var pref = function () { return Object.keys(real).filter(function (k) { return k.indexOf(P) === 0; }); };
+        var shim = {
+          getItem: function (k) { return real.getItem(key(k)); },
+          setItem: function (k, v) { real.setItem(key(k), String(v)); },
+          removeItem: function (k) { real.removeItem(key(k)); },
+          clear: function () { pref().forEach(function (k) { real.removeItem(k); }); },
+          key: function (i) { var k = pref()[i]; return k ? k.slice(P.length) : null; },
+          get length() { return pref().length; }
+        };
+        Object.defineProperty(window, 'localStorage', { configurable: true, get: function () { return shim; } });
+        shim.setItem("nbpt-bike", "1");
+        shim.setItem("nbpt-kayak", "1");
+        shim.setItem("nbpt-seasons-rewarded", "1");
+        if (!shim.getItem("nbpt-season")) shim.setItem("nbpt-season", "summer");
+      } catch (e) { /* fall back to shared storage if the browser won't let us shadow it */ }
+    })();
+  </script>
+  <script type="module" crossorigin src="./assets/index-Brsx6T1w.js"></script>
 </head>
 <body>
   <div id="game"></div>
   <div id="loading">
-    <div class="title">CLIPPER TOWN</div>
+    <div class="title">GLOUCESTER</div>
     <div class="rule"></div>
-    <div class="sub">Exploring Newburyport, Massachusetts</div>
+    <div class="sub">Exploring Gloucester, Massachusetts</div>
   </div>
   <!-- GoatCounter analytics (privacy-friendly). Kept in source so every build keeps it —
        it was previously added only on the deploy branch and got wiped by each deploy. -->
