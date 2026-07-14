@@ -2282,11 +2282,11 @@ function heroFront(b: Building, index: WorldIndex, opts?: { minLen?: number; roa
 }
 
 // glazed lighthouse lantern: gallery deck, dark lantern room, cap + finial
-function lanternTop(plain: Bucket, cx: number, cz: number, y: number, r: number) {
+function lanternTop(plain: Bucket, cx: number, cz: number, y: number, r: number, capHex = '#15181c') {
   flatRoof(plain, octRing(cx, cz, r + 1.6), y, '#23262a');           // gallery deck
   walls(plain, octRing(cx, cz, r + 1.4), y - 1.2, y, '#23262a', 0);
   walls(plain, octRing(cx, cz, r), y, y + 7, '#1d2024', 0);          // lantern glass
-  tmp.set('#15181c');
+  tmp.set(capHex);
   cone(plain, cx, y + 7, cz, r + 1.2, 4.5, tmp.clone());
   plain.box(cx, cz, 0.3, 0.3, y + 11, y + 15, '#15181c');
 }
@@ -2533,6 +2533,252 @@ function buildBank(buckets: Bucket[], b: Building, g: number, index: WorldIndex)
 // Rear Range Light (1873) — square brick tower off Water Street, "pyramidal in
 // form": a tapering chimney-like shaft (53 ft with the 1901 extension), its
 // river-facing side painted white as a daymark, black iron lantern + gallery
+// ---------- GLOUCESTER heroes (docs/research/gloucester.md — photo-verified) ----------
+
+// parametric light tower: Cape Ann has five (Eastern Point, Ten Pound, Annisquam,
+// and the Thacher twins — both OSM ways carry the same name, so one entry lights both)
+function lightTower(buckets: Bucket[], b: Building, g: number,
+  o: { h: number; r: number; body: string; cap?: string; taper?: boolean }) {
+  const [cx, cz] = centroidOf(b.p);
+  const p = buckets[PLAIN];
+  if (o.taper !== false) {
+    walls(p, octRing(cx, cz, o.r), g - 4, g + o.h * 0.42, o.body, 0);
+    walls(p, octRing(cx, cz, o.r * 0.82), g + o.h * 0.42, g + o.h * 0.76, o.body, 0);
+    walls(p, octRing(cx, cz, o.r * 0.68), g + o.h * 0.76, g + o.h, o.body, 0);
+  } else {
+    walls(p, octRing(cx, cz, o.r), g - 4, g + o.h, o.body, 0);
+  }
+  lanternTop(p, cx, cz, g + o.h, Math.max(2.8, o.r * 0.55), o.cap);
+}
+
+// Hammond Castle (1926-29) — mixed-tone granite rubble, cut-stone Gothic openings,
+// square tower with a pyramidal slate cap, buff stucco court, drawbridge chains.
+function buildHammondCastle(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const p = buckets[PLAIN];
+  walls(buckets[BRICK], b.p, g - 10, g + 52, '#8d867b');                 // granite rubble body (brick grain reads as coursing)
+  walls(p, expandRing(b.p, 0.4), g + 49, g + 52, '#79736a', 0);          // parapet band
+  flatRoof(p, b.p, g + 52, '#5b6066');                                   // slate-dark roof deck
+  archWindows(p, b.p, g + 16, 24, 16, 5);                                // tall pointed Gothic windows
+  // buff stucco solarium court rises above one half of the bar (rotBox takes HALF-extents)
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  rotBox(p, obb.cx - ca * obb.hl * 0.45, obb.cz - sa * obb.hl * 0.45, obb.hl * 0.38, obb.hw * 0.85, g + 52, g + 66, obb.ang, '#cdbd9f');
+  rotBox(p, obb.cx - ca * obb.hl * 0.45, obb.cz - sa * obb.hl * 0.45, obb.hl * 0.4, obb.hw * 0.9, g + 66, g + 69, obb.ang, '#6d727a');
+  // the great square tower at the seaward end, pyramidal slate cap + turret
+  const tx = obb.cx + ca * obb.hl * 0.62, tz = obb.cz + sa * obb.hl * 0.62;
+  rotBox(buckets[BRICK], tx, tz, 18, 18, g - 6, g + 95, obb.ang, '#847d72');
+  rotBox(p, tx, tz, 19.5, 19.5, g + 92, g + 95, obb.ang, '#79736a');
+  tmp.set('#4e535a');
+  cone(p, tx, g + 95, tz, 24, 18, tmp.clone());
+  const rx = obb.cx - ca * obb.hl * 0.7, rz = obb.cz - sa * obb.hl * 0.7;
+  walls(p, octRing(rx, rz, 6), g, g + 64, '#847d72', 0);                 // round turret
+  tmp.set('#4e535a'); cone(p, rx, g + 64, rz, 7, 10, tmp.clone());
+  // gatehouse: pointed-arch door, drawbridge deck + iron chains
+  const f = heroFront(b, index, {});
+  tmp.set('#d9d2c2');
+  p.quad(f.x - f.tx * 6 + f.nx * 0.6, g, f.z - f.tz * 6 + f.nz * 0.6, f.x + f.tx * 6 + f.nx * 0.6, g, f.z + f.tz * 6 + f.nz * 0.6,
+    f.x + f.tx * 6 + f.nx * 0.6, g + 20, f.z + f.tz * 6 + f.nz * 0.6, f.x - f.tx * 6 + f.nx * 0.6, g + 20, f.z - f.tz * 6 + f.nz * 0.6,
+    f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b);                                 // pale cut-stone surround
+  tmp.set('#3a3026');
+  p.quad(f.x - f.tx * 4 + f.nx * 0.9, g, f.z - f.tz * 4 + f.nz * 0.9, f.x + f.tx * 4 + f.nx * 0.9, g, f.z + f.tz * 4 + f.nz * 0.9,
+    f.x + f.tx * 4 + f.nx * 0.9, g + 16, f.z + f.tz * 4 + f.nz * 0.9, f.x - f.tx * 4 + f.nx * 0.9, g + 16, f.z - f.tz * 4 + f.nz * 0.9,
+    f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b);                                 // dark wood door
+  rotBox(p, f.x + f.nx * 8, f.z + f.nz * 8, 6.5, 5, g - 0.5, g + 1, Math.atan2(f.tz, f.tx), '#4c4034');   // drawbridge deck
+  for (const s of [-1, 1]) {                                             // chains angling up the wall
+    rotBox(p, f.x + f.tx * 5.5 * s + f.nx * 5, f.z + f.tz * 5.5 * s + f.nz * 5, 0.3, 4.8, g + 8, g + 9, Math.atan2(f.nz, f.nx), '#2c2c30');
+  }
+}
+
+// Our Lady of Good Voyage (1915) — cream stucco, chocolate trim, twin towers with
+// royal-blue onion domes + gold crosses, the schooner-holding Madonna between them.
+function buildGoodVoyage(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const p = buckets[PLAIN];
+  const obb = obbOf(b.p);
+  walls(p, b.p, g - 4, g + 34, '#e9ddc4', 0);                            // cream stucco nave
+  walls(p, expandRing(b.p, 0.3), g + 31, g + 34, '#5d4a38', 0);          // chocolate cornice
+  gableRoof(buckets[SHINGLE], p, b.p, obb, g + 34, 10, 2, '#b6b3aa', '#5d4a38');   // pale gray shingle
+  archWindows(p, b.p, g + 10, 16, 14, 3.5);
+  const f = heroFront(b, index, {});
+  const ang = Math.atan2(f.tz, f.tx);
+  for (const s of [-1, 1]) {                                             // twin square towers
+    const txx = f.x + f.tx * 11 * s, tzz = f.z + f.tz * 11 * s;
+    rotBox(p, txx, tzz, 8, 8, g - 2, g + 56, ang, '#e9ddc4');
+    rotBox(p, txx, tzz, 8.6, 8.6, g + 40, g + 43, ang, '#5d4a38');       // belt course
+    rotBox(p, txx, tzz, 7, 7, g + 56, g + 62, ang, '#4c4038');           // open belfry (dark)
+    tmp.set('#2b4f9e');                                                  // royal-blue onion dome
+    cone(p, txx, g + 62, tzz, 6.4, 4, tmp.clone());
+    cone(p, txx, g + 65, tzz, 4.2, 8, tmp.clone());
+    p.box(txx, tzz, 0.6, 0.6, g + 73, g + 77, '#c9a227');                // gold cross
+    rotBox(p, txx, tzz, 2.4, 0.6, g + 75, g + 75.6, ang, '#c9a227');
+  }
+  rotBox(p, f.x, f.z, 10, 3, g + 38, g + 46, ang, '#e9ddc4');            // scrolled center gable
+  p.box(f.x + f.nx * 1.2, f.z + f.nz * 1.2, 2.6, 2.6, g + 46, g + 58, '#f4f1e8');   // the Madonna (white, holding her schooner)
+  p.box(f.x + f.nx * 3.4, f.z + f.nz * 3.4, 3.2, 1, g + 51, g + 52.4, '#f4f1e8');
+  for (const s of [-1, 0, 1]) {                                          // three blue doors
+    tmp.set('#2b4f9e');
+    p.quad(f.x + f.tx * (7 * s - 2.2) + f.nx * 0.8, g, f.z + f.tz * (7 * s - 2.2) + f.nz * 0.8,
+      f.x + f.tx * (7 * s + 2.2) + f.nx * 0.8, g, f.z + f.tz * (7 * s + 2.2) + f.nz * 0.8,
+      f.x + f.tx * (7 * s + 2.2) + f.nx * 0.8, g + 9, f.z + f.tz * (7 * s + 2.2) + f.nz * 0.8,
+      f.x + f.tx * (7 * s - 2.2) + f.nx * 0.8, g + 9, f.z + f.tz * (7 * s - 2.2) + f.nz * 0.8,
+      f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b);
+  }
+}
+
+// Gloucester City Hall (1870, Second Empire) — red brick + cream trim, slate corner
+// pavilions, central clock tower with a DULL BROWN oxidized copper dome (not verdigris).
+function buildGloucesterCityHall(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const p = buckets[PLAIN];
+  const obb = obbOf(b.p);
+  walls(p, b.p, g - 6, g + 2, '#8f8b82', 0);                             // granite basement
+  walls(buckets[BRICK], b.p, g + 2, g + 46, '#9c4d3c');
+  walls(p, expandRing(b.p, 0.3), g + 43, g + 46, '#e8ddc0', 0);          // cream bracketed cornice
+  facades(p, b.p, g + 46, 2, 1870, false, true, false, g, 40);
+  mansardRoof(buckets[SHINGLE], p, obb, g + 46, 2, '#565b63');
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  for (const sl of [-1, 1]) for (const sw of [-1, 1]) {                  // corner pavilions
+    const px2 = obb.cx + ca * obb.hl * 0.82 * sl - sa * obb.hw * 0.82 * sw;
+    const pz2 = obb.cz + sa * obb.hl * 0.82 * sl + ca * obb.hw * 0.82 * sw;
+    tmp.set('#565b63');
+    cone(p, px2, g + 46 + 8, pz2, 7, 9, tmp.clone());
+    rotBox(buckets[BRICK], px2, pz2, 10, 10, g + 44, g + 54, obb.ang, '#9c4d3c');
+  }
+  const f = heroFront(b, index, {});
+  const ang = Math.atan2(f.tz, f.tx);
+  const txx = f.x - f.nx * 2, tzz = f.z - f.nz * 2;
+  rotBox(buckets[BRICK], txx, tzz, 12, 12, g + 46, g + 80, ang, '#9c4d3c');   // tower: brick stages
+  rotBox(p, txx, tzz, 10.5, 10.5, g + 80, g + 102, ang, '#e8ddc0');           // cream wood stages
+  for (const s of [0, 1, 2, 3]) {                                             // white clock faces
+    const fa = ang + s * Math.PI / 2;
+    p.box(txx + Math.cos(fa) * 5.6, tzz + Math.sin(fa) * 5.6, 0.4, 3.6, g + 90, g + 97.2, '#f6f3ea');
+  }
+  rotBox(p, txx, tzz, 11.5, 11.5, g + 102, g + 104, ang, '#e8ddc0');
+  tmp.set('#6b4f3a');                                                        // oxidized-brown copper dome — the trap
+  cone(p, txx, g + 104, tzz, 8, 12, tmp.clone());
+  p.box(txx, tzz, 0.4, 0.4, g + 116, g + 121, '#2c2c30');                    // weathervane
+  porticoFront(p, f, g, 14, '#e8ddc0');
+}
+
+// Motif No. 1 (1884, rebuilt 1978) — deliberately weather-beaten dark barn red,
+// silver-gray shingle roofs, and the famous buoy-covered north wall.
+function buildMotif(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const p = buckets[PLAIN];
+  walls(buckets[CLAP], b.p, g - 6, g + 26, '#6e2f28');                   // weathered barn red
+  gableRoof(buckets[SHINGLE], p, b.p, obb, g + 26, 9, 2, '#9a958c', '#6e2f28');
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  buckets[BRICK].box(obb.cx, obb.cz, 2.4, 2.4, g + 26, g + 34, '#8a4a3c');    // little ridge chimney
+  // the buoy wall: colored lobster buoys hung on the north face
+  const nx = -sa, nz2 = ca;   // OBB normal
+  const north = nz2 < 0 ? 1 : -1;
+  const cols = ['#f2efe6', '#e8b93a', '#b23a2e', '#2b4f9e', '#f2efe6', '#e8762e', '#b23a2e', '#2b4f9e', '#e8b93a', '#f2efe6', '#b23a2e', '#2b4f9e'];
+  for (let i = 0; i < cols.length; i++) {
+    const l0 = -obb.hl * 0.7 + (i / (cols.length - 1)) * obb.hl * 1.3;
+    const bx = obb.cx + ca * l0 + nx * north * (obb.hw + 0.8);
+    const bz = obb.cz + sa * l0 + nz2 * north * (obb.hw + 0.8);
+    p.box(bx, bz, 1.1, 1.1, g + 12 + (i % 3) * 5, g + 15 + (i % 3) * 5, cols[i]);
+  }
+}
+
+// Tarr & Wonson Paint Manufactory — weathered barn-red WOOD (not brick), tall brick
+// chimney, granite-and-pile base at the water; the ghost lettering is polish-tier.
+function buildPaintFactory(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const p = buckets[PLAIN];
+  walls(p, b.p, g - 10, g + 2, '#8f8b82', 0);                            // granite base out of the water
+  walls(buckets[CLAP], b.p, g + 2, g + 30, '#8a3b30');                   // weathered red boards
+  gableRoof(buckets[SHINGLE], p, b.p, obb, g + 30, 9, 2, '#4c4f54', '#8a3b30');
+  facades(p, b.p, g + 30, 2, 1863, false, false, false, g, 30);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  buckets[BRICK].box(obb.cx + ca * obb.hl * 0.4, obb.cz + sa * obb.hl * 0.4, 3, 3, g, g + 58, '#8a4a3c');   // the chimney stack
+}
+
+// Beauport (Sleeper-McCann, 1908-34) — olive-brown shingle over fieldstone, a round
+// stone tower with conical cap, and a forest of red-brick chimneys on the shore.
+function buildBeauport(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const p = buckets[PLAIN];
+  walls(p, b.p, g - 8, g + 8, '#8a857c', 0);                             // rubble fieldstone base
+  walls(buckets[SHINGLE], b.p, g + 8, g + 30, '#5d5544');                // olive-brown shingle
+  gableRoof(buckets[SHINGLE], p, b.p, obb, g + 30, 10, 2, '#6b6355', '#4c463a');
+  facades(p, b.p, g + 30, 2, 1908, false, false, false, g, 30);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const tx = obb.cx + ca * obb.hl * 0.6, tz = obb.cz + sa * obb.hl * 0.6;
+  walls(p, octRing(tx, tz, 7), g, g + 34, '#8a857c', 0);                 // the round fieldstone tower
+  tmp.set('#6b6355'); cone(p, tx, g + 34, tz, 8, 10, tmp.clone());
+  for (const s of [-0.5, 0, 0.55]) {                                     // clustered brick chimneys
+    buckets[BRICK].box(obb.cx + ca * obb.hl * s, obb.cz + sa * obb.hl * s, 2.6, 2.6, g + 30, g + 46, '#8a4a3c');
+  }
+}
+
+// tiny shared cream portico for hero fronts
+function porticoFront(p: Bucket, f: { x: number; z: number; tx: number; tz: number; nx: number; nz: number }, g: number, h: number, hex: string) {
+  for (const s of [-1, 1]) p.box(f.x + f.tx * 4.5 * s + f.nx * 5, f.z + f.tz * 4.5 * s + f.nz * 5, 1.1, 1.1, g, g + h, hex);
+  rotBox(p, f.x + f.nx * 4.6, f.z + f.nz * 4.6, 7, 3.4, g + h, g + h + 2.6, Math.atan2(f.tz, f.tx), hex);
+}
+
+// ---------- Gloucester monuments (name-keyed POINT heroes — no footprint) ----------
+
+// the Man at the Wheel (1925) — sea-green fisherman braced at his wheel on an
+// inscribed granite block, ringed by chain posts, facing out over the harbor
+function buildManAtWheel(buckets: Bucket[], x: number, z: number, g: number) {
+  const p = buckets[PLAIN];
+  p.box(x, z, 9, 9, g, g + 2, '#9b968c');                                // plinth slab
+  p.box(x, z, 6, 6, g + 2, g + 12, '#b5b0a6');                           // rough granite block
+  const v = '#5f8a6e';                                                   // verdigris bronze
+  p.box(x, z, 3.4, 2.2, g + 12, g + 13.4, v);                            // sloping deck
+  p.box(x - 0.9, z, 1.1, 1.1, g + 13.4, g + 17.4, v);                    // braced legs
+  p.box(x + 0.9, z, 1.1, 1.1, g + 13.4, g + 17.2, v);
+  p.box(x, z, 2.4, 1.6, g + 17.2, g + 21.4, v);                          // oilskin torso
+  p.box(x, z, 1.3, 1.3, g + 21.4, g + 23, v);                            // sou'wester head
+  p.box(x + 1.6, z, 2.6, 0.5, g + 18.6, g + 19.1, v);                    // arms to the wheel
+  walls(p, octRing(x + 2.6, z, 1.9), g + 16.2, g + 16.9, v, 0);          // the ship's wheel (flat octagon disc)
+  p.box(x + 2.6, z, 0.4, 0.4, g + 13.4, g + 16.4, v);
+  for (let i = 0; i < 8; i++) {                                          // chain-post ring
+    const a = (i / 8) * Math.PI * 2;
+    p.box(x + Math.cos(a) * 10, z + Math.sin(a) * 10, 0.7, 0.7, g, g + 3.4, '#2c2c30');
+  }
+}
+
+// the Fishermen's Wives Memorial (2001) — bronze mother + children on a granite boulder
+function buildWivesMemorial(buckets: Bucket[], x: number, z: number, g: number) {
+  const p = buckets[PLAIN];
+  p.box(x, z, 7.5, 6.5, g, g + 5, '#a8a29a');                            // the 20-ton boulder
+  p.box(x, z, 5.5, 4.5, g + 5, g + 7, '#9b968c');
+  const v = '#4f6b5c';
+  p.box(x - 0.6, z, 1.7, 1.4, g + 7, g + 14, v);                         // the mother, skirt blown back
+  p.box(x - 0.6, z, 1, 1, g + 14, g + 15.4, v);
+  p.box(x - 1.7, z + 0.6, 0.9, 0.9, g + 11.5, g + 12.6, v);              // the infant on her arm
+  p.box(x + 1.3, z + 0.3, 1, 0.9, g + 7, g + 11.4, v);                   // the walking boy
+  p.box(x + 1.3, z + 0.3, 0.7, 0.7, g + 11.4, g + 12.4, v);
+}
+
+// Tablet Rock, Stage Fort (1907) — the founding boulder with its green bronze tablet
+function buildTabletRock(buckets: Bucket[], x: number, z: number, g: number) {
+  const p = buckets[PLAIN];
+  p.box(x, z, 16, 12, g, g + 8, '#a89f90');                              // the granite outcrop
+  p.box(x, z - 1, 12, 9, g + 8, g + 14, '#9b9284');
+  tmp.set('#5f8a6e');
+  p.quad(x - 5, g + 3, -(z - 6.2), x + 5, g + 3, -(z - 6.2), x + 5, g + 11, -(z - 6.2), x - 5, g + 11, -(z - 6.2),
+    0, 0, -1, tmp.r, tmp.g, tmp.b);                                      // the 1623 tablet, south face
+}
+
+// Coast Guard Aviation Monument — granite marker on the Boulevard facing Ten Pound Island
+function buildCGMonument(buckets: Bucket[], x: number, z: number, g: number) {
+  const p = buckets[PLAIN];
+  p.box(x, z, 5, 3, g, g + 1.6, '#9b968c');
+  p.box(x, z, 3.6, 1.8, g + 1.6, g + 9, '#b5b0a6');
+  tmp.set('#5f8a6e');
+  p.quad(x - 1.4, g + 3, -(z - 1), x + 1.4, g + 3, -(z - 1), x + 1.4, g + 7.4, -(z - 1), x - 1.4, g + 7.4, -(z - 1),
+    0, 0, -1, tmp.r, tmp.g, tmp.b);
+}
+
+const POI_HEROES: Record<string, (buckets: Bucket[], x: number, z: number, g: number) => void> = {
+  "Fishermens' Monument": buildManAtWheel,          // OSM's odd apostrophe — keep it
+  "Fishermen's Wives Memorial": buildWivesMemorial,
+  'Tablet Rock': buildTabletRock,
+  'Coast Guard Aviation Monument': buildCGMonument,
+};
+
 function buildRearRange(buckets: Bucket[], b: Building, g: number) {
   const [cx, cz] = centroidOf(b.p);
   // white daymark on the north (river) face of a tier — ships line up on it
@@ -4581,6 +4827,19 @@ const HEROES: Record<string, HeroBuilder> = {
   'Garrison Inn Boutique Hotel': buildGarrisonInn,
   'Institution For Savings': buildBank,
   'Institution for Savings': buildBank,
+  // — Gloucester (docs/research/gloucester.md; OSM-name quirks kept verbatim) —
+  'Hammond Castle Museum': (bk, b, g, i) => buildHammondCastle(bk, b, g, i),
+  'Our Lady of Good Voyages Church': (bk, b, g, i) => buildGoodVoyage(bk, b, g, i),   // OSM's extra "s"
+  'Gloucester City Hall': (bk, b, g, i) => buildGloucesterCityHall(bk, b, g, i),
+  'Motif No. 1': (bk, b, g, i) => buildMotif(bk, b, g, i),
+  'The Paint Factory': (bk, b, g, i) => buildPaintFactory(bk, b, g, i),
+  'Beauport': (bk, b, g, i) => buildBeauport(bk, b, g, i),
+  'Sargent House Museum': (bk, b, g, i) => gambrelHouse(bk, b, g, i, { wall: '#c1913f', material: 'clap', roof: '#7d766a', trim: '#f6f3ea', storeys: 2.5, dormers: 3, chimney: 'ridge2', entrance: 'pediment' }),   // ochre Georgian, two tall chimneys, weathered gambrel
+  'Cape Ann Museum': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#8f9b8a', material: 'clap', trim: '#f6f3ea', roof: '#4a4e54', storeys: 3, roofKind: 'hip', entrance: 'fan', chimney: 'ends2' }),   // the sage-green Davis House
+  'Eastern Point Light': (bk, b, g) => lightTower(bk, b, g, { h: 66, r: 7, body: '#f6f3ea', cap: '#a83226' }),        // white brick cone, RED cap
+  'Ten Pound Island Light': (bk, b, g) => lightTower(bk, b, g, { h: 74, r: 6.4, body: '#f6f3ea' }),                   // white cast iron, black lantern; keeper's house is GONE
+  'Annisquam Harbor Light': (bk, b, g) => lightTower(bk, b, g, { h: 86, r: 6.8, body: '#f6f3ea', taper: false }),     // white cylinder
+  'Cape Ann Light (Twin Lights)': (bk, b, g) => lightTower(bk, b, g, { h: 230, r: 10, body: '#9a938a', cap: '#6fa08c' }),   // BOTH Thacher twins: unpainted granite, verdigris tops
   'Rear Range Light': buildRearRange,
   'Front Range Light': buildFrontRange,
   'Newburyport Harbor (Plum Island) Light': buildPILight,
@@ -5664,6 +5923,8 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   }
   for (const poi of world.pois) {
     if (poi.x < ox || poi.x >= ox + CHUNK || poi.y < oy || poi.y >= oy + CHUNK) continue;
+    const ph = POI_HEROES[poi.n || ''];
+    if (ph) { ph(buckets, poi.x, poi.y, index.heightAtPx(poi.x, poi.y)); continue; }   // named monuments (Man at the Wheel &c.)
     if (poi.k === 'windsock') {
       const g = index.heightAtPx(poi.x, poi.y);
       const a = ((hash32(Math.round(poi.x), 7) % 100) / 100) * Math.PI * 2;

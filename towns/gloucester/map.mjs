@@ -43,7 +43,7 @@ const GLOUCESTER_LM = [
   ['library', 'Sawyer Free Library', 'The city’s book haven since 1830', -807, 1146, 340],
   ['holy-cow', 'Holy Cow Ice Cream', 'Award-winning scoops two blocks off Main St', -866, -1209, 300],
   ['burnhams-field', 'Burnham’s Field', 'Downtown’s ballfield, courts + playground', 203, -1964, 450],
-  ['good-voyage', 'Our Lady of Good Voyage', 'The fishermen’s church — Mary holds a boat', 2770, -1724, 340],
+  ['good-voyage', 'Our Lady of Good Voyage', 'The fishermen’s church — Mary holds a boat', 3150, -1690, 340],
   ['mbta', 'Gloucester Station', 'Trains to Boston since 1847', -3387, -1369, 400],
   ['newell-stadium', 'Newell Stadium', 'Fishermen football — Turkey Day since 1964', -8060, 2959, 450],
   ['piatt-andrew', 'A. Piatt Andrew Bridge', 'Route 128’s great arch over the Annisquam', -4929, -7598, 450],
@@ -90,7 +90,13 @@ export const levelFixes = [];
 // Names OSM carries on POI nodes but not on the footprints — stamped onto the
 // containing building so HEROES/search bind. Anchors = the POI node coords
 // (verified inside the footprint at build time: watch for NAME_FIX missed).
-export const nameFixes = [];
+export const nameFixes = [
+  { x: -465, y: 812, n: 'Gloucester City Hall' },     // townhall POI node; building way unnamed
+  { x: 249, y: 875, n: 'Cape Ann Museum' },           // museum POI node → the Davis House footprint
+  { x: 1278, y: 21164, n: 'Beauport' },               // OSM POI ("Beauport Museum") sits in the garden; anchor = the 40-vertex house cluster
+  { x: 30930, y: -39330, n: 'Motif No. 1' },          // attraction node on Bradley Wharf; shack way unnamed
+  { x: 2280, y: 6628, n: 'The Paint Factory' },       // Tarr & Wonson manufactory — unnamed in OSM entirely
+];
 
 // Real-world verified distances guard the projection — add pairs once two
 // points are independently verified (never computed from the same formula).
