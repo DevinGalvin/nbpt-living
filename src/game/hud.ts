@@ -1718,12 +1718,14 @@ export class Hud {
         [/mansion|manor/, '🏛'],     // before /garden/: "Ropes Mansion — house & garden"
         [/stadium|football/, '🏈'],  // before /light /: "football under Friday lights" isn't a lighthouse
         [/clam box|fried clam|clambake/, '🍤'],   // tight on purpose: Joppa Park's "Clam country" stays a park
-        [/rockery|boulder/, '🪨'], [/diner\b/, '🥧'],
+        [/whale/, '🐋'],                          // Gloucester: whale-watch wharves (and Whale's Jaw earns it too)
+        [/rockery|boulder/, '🪨'], [/diner\b/, '🥧'], [/factory/, '🏭'],
+        [/most-painted|painting village|art colony/, '🎨'],   // Rocky Neck + Motif #1; plain "paintings" stays a museum
         [/ice cream|creamery/, '🍦'], [/roast beef/, '🥪'], [/theatre|theater|cinema|movie/, '🎭'],
         [/library/, '📚'], [/\bshoe\b/, '👞'],   // "The Shoe" = Beverly's Cummings Center
         [/flying field/, '✈️'],                  // before ⚾: the 1910 Burgess Flying Field isn't a ballfield
         [/little league|\bfield\b/, '⚾'],       // singular only: "Fields" stays farm-country
-        [/frog|pond/, '🐸'], [/light(house)?\b|light /, '🗼'], [/airport|airfield|runway/, '✈️'],
+        [/frog|pond/, '🐸'], [/light(house)?\b|light /, '🗼'], [/airport|airfield|runway|aviation/, '✈️'],
         [/sled|march's hill/, '🛷'], [/skat/, '⛸'], [/playground|fountain/, '🛝'],
         [/burying|cemetery|graveyard/, '🪦'], [/bridge/, '🌉'], [/station|depot/, '🚂'],
         [/candy|sweets|fudge|chocolate/, '🍬'],   // after depot: Prides Crossing's "green depot that sells fudge" stays 🚂
@@ -1732,7 +1734,7 @@ export class Hud {
         [/beach|island|dune|sand/, '🏖'],   // before /farm/: "the Farms' mile-long beach" is a beach
         [/beverly farms|the farms\b|cottage/, '🏘'],   // villages, not farmland ("Appleton Farms" stays 🚜)
         [/farm|pasture|orchard|\bfields\b/, '🚜'], [/flats|marsh|bird/, '🦆'],   // \b: "ballfields" is a park, not a farm
-        [/boardwalk|waterfront|wharf|dock|harbor|landing/, '⚓'],
+        [/boardwalk|waterfront|wharf|dock|harbor|landing|fish pier/, '⚓'],   // "fish pier" not bare "pier": Salem Willows' arcade pier stays a park
         [/woods|forest|park|garden|common|green\b|allée|maudslay|willow|gallows|refuge|sanctuar/, '🌳'], [/trail|rail/, '🚲'],
         [/reservoir|\blake\b|river/, '🌊'], [/statue|garrison/, '🗽'], [/church|chapel|meeting/, '⛪'],   // \b: Fish FLAKE Hill is not a lake
         [/school|academy/, '🏫'], [/court/, '⚖️'], [/museum|house|hall|athen/, '🏛'],

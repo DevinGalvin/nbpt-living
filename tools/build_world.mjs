@@ -557,7 +557,18 @@ for (const el of raw.elements) {
     const islands = [], opens = [];
     for (const c of chains) {
       const dx = c[0] - c[c.length - 2], dy = c[1] - c[c.length - 1];
-      if (c.length >= 8 && dx * dx + dy * dy <= joinTol * joinTol) islands.push(c); else opens.push(c);
+      const gap2 = dx * dx + dy * dy;
+      if (c.length >= 8 && gap2 <= joinTol * joinTol) { islands.push(c); continue; }
+      // near-loop rescue: a long chain that ALMOST closes is a ring with a small
+      // survey gap, not an open coast — close it. (Gloucester: Norman's Woe's ring
+      // misses itself by 127px, 7px over joinTol; left open, its mid-map endpoints
+      // snap to the bbox edge and the sweep drowns Magnolia.)
+      if (c.length >= 8 && gap2 <= (3 * joinTol) * (3 * joinTol)) { islands.push(c); console.warn(`coast: closing near-loop (${c.length / 2} pts, ${Math.round(Math.sqrt(gap2))}px gap)`); continue; }
+      // degenerate stubs can never close and would snap mid-map endpoints onto the
+      // bbox edge, spawning a phantom full-frame sea ring (Gloucester: a 2-pt
+      // fragment in Ipswich Bay flooded everything that isn't a closed island).
+      if (c.length < 6) { console.warn(`coast: dropping degenerate ${c.length / 2}-pt open fragment at (${Math.round(c[0])},${Math.round(c[1])})`); continue; }
+      opens.push(c);
     }
     return { islands, opens };
   };
@@ -625,9 +636,31 @@ for (const el of raw.elements) {
     if (areaM2 >= 300) { world.polys.push({ k: 'island', p: simplify(ring), z: 8 }); bump('island'); }
   }
 
-  // assemble sea polygons; flip rotation if downtown (ORIGIN) lands inside (means we traced land)
+  // assemble sea polygons. Rotation is disambiguated with OSM's own invariant —
+  // coastline ways run with land on the LEFT, water on the RIGHT — by probing just
+  // right-of-travel at three points along the longest open chain: those probes must
+  // land inside the sea. (The old check — "downtown must stay outside the ring" —
+  // breaks when downtown itself sits on a closed coast loop: Gloucester's Cape Ann
+  // is an island, so the origin is inside the true sea ring's OUTER boundary and
+  // only the island hole keeps it dry; the check then flips to the wrong rotation.)
+  const waterRightProbes = (chain, dist = 60) => {
+    const out = [];
+    for (const f of [0.25, 0.5, 0.75]) {
+      const i = Math.min(chain.length - 4, Math.max(0, 2 * Math.floor((chain.length / 2) * f)));
+      const x0 = chain[i], y0 = chain[i + 1], x1 = chain[i + 2], y1 = chain[i + 3];
+      const dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy) || 1;
+      // px y grows SOUTH, so right-of-travel (geographic) = (-dy, dx)/L
+      out.push([(x0 + x1) / 2 - (dy / L) * dist, (y0 + y1) / 2 + (dx / L) * dist]);
+    }
+    return out;
+  };
+  const seaScore = (rings, probes) => probes.filter((p) => rings.some((r) => pointInRing(p[0], p[1], r))).length;
   let seaRings = assembleWater(coastOpens, 1);
-  if (seaRings.some((r) => pointInRing(0, 0, r))) seaRings = assembleWater(coastOpens, -1);
+  if (coastOpens.length) {
+    const probes = waterRightProbes(coastOpens.reduce((a, b) => (a.length >= b.length ? a : b)));
+    const alt = assembleWater(coastOpens, -1);
+    if (seaScore(alt, probes) > seaScore(seaRings, probes)) seaRings = alt;
+  } else if (seaRings.some((r) => pointInRing(0, 0, r))) seaRings = assembleWater(coastOpens, -1);
 
   let oceanOK = false;
   for (const ring of seaRings) {

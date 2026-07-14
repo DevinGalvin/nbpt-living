@@ -20,6 +20,12 @@
       "port": 5269
     },
     {
+      "name": "gloucester",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:gloucester", "--", "--port", "5279", "--strictPort"],
+      "port": 5279
+    },
+    {
       "name": "beverly-local",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:beverly", "--", "--port", "5249", "--strictPort"],
