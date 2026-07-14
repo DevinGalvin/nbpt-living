@@ -26,6 +26,18 @@
       "port": 5279
     },
     {
+      "name": "gloucester-beach",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:gloucester", "--", "--port", "5289", "--strictPort"],
+      "port": 5289
+    },
+    {
+      "name": "ipswich-beach",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:ipswich", "--", "--port", "5291", "--strictPort"],
+      "port": 5291
+    },
+    {
       "name": "beverly-local",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:beverly", "--", "--port", "5249", "--strictPort"],

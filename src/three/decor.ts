@@ -5127,6 +5127,119 @@ function snowman(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: n
   buckets[PLAIN].box(sx + f.tx * 4.6, sz + f.tz * 4.6, 2.6, 0.3, g + 9.8, g + 10.4, '#5e4630');
 }
 
+// ---------- beach life (summer): umbrella camps, towels, beachgoers on the swimming
+// beaches people travel to. Scaled against the 36px kid — a parasol you can stand
+// under, a towel you could lie on — not real meters. ----------
+const SKIN_TONES = ['#f0c8a0', '#e8b48c', '#d09a6a', '#a06a42', '#6f4527'];
+const SWIMWEAR = ['#e0523f', '#3f7fc4', '#e8b53c', '#52a06b', '#c84a6b', '#7a52c4', '#ff8c42', '#2a9d8f'];
+const TOWEL_HUES = ['#e06a5a', '#4a90c2', '#ecd06f', '#6cb087', '#d889a8', '#f2f2ee'];
+const UMB_HUES = ['#d8543f', '#3f7fc4', '#e0b53c', '#52a06b', '#c84a6b'];
+const HAIR_HUES = ['#2a2320', '#4a3520', '#7a5a30', '#c8a86a', '#8a8a8a'];
+
+// a blocky beachgoer facing `ang`: standing, sitting, or lying flat (sunbathing)
+function beachgoer(bk: Bucket, x: number, z: number, g: number, ang: number, rng: () => number,
+                   pose: 'stand' | 'sit' | 'lie', kid = false) {
+  const s = kid ? 0.66 : 1;
+  const skin = pick(SKIN_TONES, Math.round(x * 3 + z));
+  const suit = pick(SWIMWEAR, Math.round(x + z * 7));
+  const hair = pick(HAIR_HUES, Math.round(x * 7 + z * 3));
+  const onePiece = rng() < 0.45;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  if (pose === 'lie') {
+    // sunbathing along ang: body flat, head at the +ang end, feet at the other
+    rotBox(bk, x, z, 6.5 * s, 2.1 * s, g + 0.4, g + 2.6 * s, ang, onePiece ? suit : skin);
+    rotBox(bk, x - ca * 2.5 * s, z - sa * 2.5 * s, 2.6 * s, 2.2 * s, g + 0.4, g + 2.8 * s, ang, suit);
+    rotBox(bk, x + ca * 8.4 * s, z + sa * 8.4 * s, 1.9 * s, 1.9 * s, g + 0.4, g + 3 * s, ang, skin);   // head
+    rotBox(bk, x - ca * 8.2 * s, z - sa * 8.2 * s, 1.4 * s, 1.6 * s, g + 0.4, g + 1.8 * s, ang, skin); // feet
+    return;
+  }
+  if (pose === 'sit') {
+    rotBox(bk, x + ca * 3 * s, z + sa * 3 * s, 2.8 * s, 1.5 * s, g + 0.3, g + 2 * s, ang, skin);       // legs out front
+    rotBox(bk, x, z, 2.3 * s, 1.9 * s, g, g + 7.5 * s, ang, onePiece ? suit : skin);
+    if (!onePiece) rotBox(bk, x, z, 2.4 * s, 2 * s, g, g + 3 * s, ang, suit);
+    bk.box(x, z, 1.7 * s, 1.7 * s, g + 7.5 * s, g + 11.6 * s, skin);
+    bk.box(x, z, 1.8 * s, 1.8 * s, g + 10.9 * s, g + 12.2 * s, hair);
+    return;
+  }
+  // standing — legs, suit, chest, side arms, head; the odd sun hat
+  for (const sd of [-1, 1]) bk.box(x - sa * sd * 1.3 * s, z + ca * sd * 1.3 * s, 0.9 * s, 0.9 * s, g, g + 10 * s, skin);
+  rotBox(bk, x, z, 2.7 * s, 1.9 * s, g + 9.5 * s, g + 13.5 * s, ang, suit);
+  rotBox(bk, x, z, 2.6 * s, 1.8 * s, g + 13.5 * s, g + 20 * s, ang, onePiece ? suit : skin);
+  for (const sd of [-1, 1]) bk.box(x - sa * sd * 3.4 * s, z + ca * sd * 3.4 * s, 0.75 * s, 0.75 * s, g + 12 * s, g + 19.5 * s, skin);
+  bk.box(x, z, 1.8 * s, 1.8 * s, g + 20 * s, g + 25.2 * s, skin);
+  bk.box(x, z, 1.9 * s, 1.9 * s, g + 24.4 * s, g + 26 * s, hair);
+  if (!kid && rng() < 0.3) {
+    bk.box(x, z, 3.2 * s, 3.2 * s, g + 25.4 * s, g + 26.2 * s, '#e8d9a8');   // sun-hat brim
+    bk.box(x, z, 1.9 * s, 1.9 * s, g + 26.2 * s, g + 27.6 * s, '#e8d9a8');
+  }
+}
+
+// a little dog along for the beach day
+function beachDog(bk: Bucket, x: number, z: number, g: number, ang: number) {
+  const c = pick(['#c89058', '#6b4a2f', '#2e2a26', '#e8e2d4'], Math.round(x + z * 3));
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  rotBox(bk, x, z, 3, 1.4, g + 1.8, g + 4.6, ang, c);                                            // body
+  rotBox(bk, x + ca * 3.6, z + sa * 3.6, 1.3, 1.2, g + 3.4, g + 6.2, ang, c);                    // head
+  for (const s of [-1, 1]) {
+    rotBox(bk, x + ca * 2 - sa * s * 1.1, z + sa * 2 + ca * s * 1.1, 0.45, 0.45, g, g + 2, ang, c);
+    rotBox(bk, x - ca * 2 - sa * s * 1.1, z - sa * 2 + ca * s * 1.1, 0.45, 0.45, g, g + 2, ang, c);
+  }
+  rotBox(bk, x - ca * 3.5, z - sa * 3.5, 0.9, 0.3, g + 4.4, g + 6, ang, c);                      // tail up
+}
+
+// a kid-built sandcastle: packed base, drip towers, a square keep
+function sandcastle(bk: Bucket, x: number, z: number, g: number, rng: () => number) {
+  const wet = '#d9c48e';
+  rotBox(bk, x, z, 3.4, 3.4, g, g + 1.6, rng() * Math.PI, wet);
+  tmp.set(wet);
+  cone(bk, x - 1.6, g + 1.6, z - 1.4, 1.5, 3.4, tmp.clone());
+  cone(bk, x + 1.7, g + 1.6, z + 1.5, 1.2, 2.6, tmp.clone());
+  bk.box(x + 1.4, z - 1.6, 0.8, 0.8, g + 1.6, g + 3.4, wet);
+}
+
+// one family's camp: parasol, towels with sunbathers, someone standing watch,
+// the odd sandcastle / beach ball / cooler. `wet` keeps offset pieces (a towel
+// flung 2m from the pole) from landing past the tide line.
+function beachCamp(bk: Bucket, x: number, z: number, g: number, rng: () => number,
+                   wet: (x: number, z: number) => boolean) {
+  const hasUmb = rng() < 0.78;
+  if (hasUmb) {
+    bk.box(x, z, 0.5, 0.5, g, g + 25, '#ece8dc');
+    tmp.set(pick(UMB_HUES, Math.round(x + z)));
+    cone(bk, x, g + 23.5, z, 13, 9.5, tmp.clone());
+  }
+  const towels = 1 + Math.floor(rng() * 2);
+  for (let i = 0; i < towels; i++) {
+    const ta = rng() * Math.PI * 2;
+    const td = hasUmb ? 9 + rng() * 8 : rng() * 6;
+    const tx = x + Math.cos(ta) * td, tz = z + Math.sin(ta) * td;
+    const tang = rng() * Math.PI * 2;
+    const w = rng();                       // drawn before the wet-skip so camps stay put
+    if (wet(tx, tz)) continue;
+    flatQuad(bk, tx, tz, 14, 6, g + 0.45, tang, pick(TOWEL_HUES, Math.round(tx * 3 + tz)));
+    if (w < 0.45) beachgoer(bk, tx, tz, g, tang, rng, 'lie');
+    else if (w < 0.75) beachgoer(bk, tx, tz, g, tang + Math.PI / 2, rng, 'sit');
+  }
+  if (rng() < 0.55) {
+    const px2 = x + (rng() - 0.5) * 22, pz2 = z + (rng() - 0.5) * 22;
+    if (!wet(px2, pz2)) beachgoer(bk, px2, pz2, g, rng() * Math.PI * 2, rng, 'stand', rng() < 0.4);
+  }
+  if (rng() < 0.3) {
+    const sx = x + (rng() - 0.5) * 26, sz = z + (rng() - 0.5) * 26;
+    if (!wet(sx, sz)) sandcastle(bk, sx, sz, g, rng);
+  }
+  if (rng() < 0.3) {
+    tmp.set(pick(['#e0523f', '#3f7fc4', '#e8b53c', '#f2f2ee'], Math.round(x * 5 + z)));
+    octoCanopy(bk, x + (rng() - 0.5) * 20, g + 1.6, z + (rng() - 0.5) * 20, 1.8, tmp.clone());   // beach ball
+  }
+  if (rng() < 0.35) {
+    const cx2 = x + (rng() - 0.5) * 14, cz2 = z + (rng() - 0.5) * 14;
+    const cang = rng() * Math.PI;
+    rotBox(bk, cx2, cz2, 2.4, 1.6, g, g + 2.6, cang, pick(['#d8543f', '#3f7fc4', '#4a4f55'], Math.round(cx2)));
+    rotBox(bk, cx2, cz2, 2.5, 1.7, g + 2.6, g + 3.2, cang, '#f0f0ec');                            // cooler lid
+  }
+}
+
 // a park bench: slatted wood seat + back on cast-iron end frames. `ang` is the
 // bench's long axis; the backrest sits on the +perp(ang) side and the sitter
 // faces the opposite way.
@@ -6165,29 +6278,36 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     car(buckets[PLAIN], x, z, ang, pick(STYLE.building.cars, dr.seed), gc);
   }
 
-  // dune grass on sand + beach kit (umbrellas, towels) on the ocean side
+  // dune grass on sand + the living beach kit on the destination beaches
   for (const pi of bucket.polys) {
     const poly = world.polys[pi];
     if (poly.k !== 'sand' && poly.k !== 'island') continue;
-    scatterInPoly(poly, pi + 313, 80, 0.5, ox, oy, (x, z, rng) => {
+    const beach = poly.k === 'sand' && index.isBeachPoly(pi);
+    // dune grass: thick on wild dunes and back-shore sand, sparse tufts on the
+    // groomed swimming beaches — towels want open sand
+    scatterInPoly(poly, pi + 313, 80, beach ? 0.14 : 0.5, ox, oy, (x, z, rng) => {
       const gg = index.heightAtPx(x, z);
       const g = new THREE.Color('#b4ae72').multiplyScalar(0.85 + rng() * 0.3);
       const h = 7 + rng() * 5;
       buckets[PLAIN].quad(x - 4, gg, z, x + 4, gg, z, x + 2.5, gg + h, z, x - 2.5, gg + h, z, 0, 0, 1, g.r, g.g, g.b);
       buckets[PLAIN].quad(x, gg, z - 4, x, gg, z + 4, x, gg + h, z + 2.5, x, gg + h, z - 2.5, 1, 0, 0, g.r * 0.9, g.g * 0.9, g.b * 0.9);
     }, 240);
-    if (poly.k === 'sand') {
-      scatterInPoly(poly, pi + 717, 170, 0.22, ox, oy, (x, z, rng) => {
-        if (x < BEACH_X) return;
-        const gg = index.heightAtPx(x, z);
-        const umb = pick(['#d8543f', '#3f7fc4', '#e0b53c', '#52a06b', '#c84a6b'], Math.round(x + z));
-        walls(buckets[PLAIN], [x - 0.9, z - 0.9, x + 0.9, z - 0.9, x + 0.9, z + 0.9, x - 0.9, z + 0.9], gg, gg + 15, '#ece8dc', 0);
-        tmp.set(umb);
-        cone(buckets[PLAIN], x, gg + 14, z, 11.5, 6.5, tmp.clone());
-        if (rng() < 0.7) {
-          flatQuad(buckets[PLAIN], x + 14 + rng() * 6, z + (rng() - 0.5) * 16, 9.5, 4.5, gg + 0.5, rng() * Math.PI, pick(['#e06a5a', '#4a90c2', '#ecd06f', '#6cb087', '#d889a8'], Math.round(z + x * 3)));
-        }
-      }, 12);
+    // a proper beach day is a summer thing: umbrella camps + strollers in summer,
+    // bare sand in spring/fall, snow-quiet in winter
+    if (poly.k !== 'sand' || SEASON !== 'summer') continue;
+    scatterInPoly(poly, pi + 717, beach ? 120 : 170, beach ? 0.62 : 0.22, ox, oy, (x, z, rng) => {
+      if (!beach && x < BEACH_X) return;   // NBPT: unnamed barrier sand east of Plum Island's line still gets a thin kit
+      if (index.isWaterAt(x, z)) return;   // strand polys dip under the tide line
+      beachCamp(buckets[PLAIN], x, z, index.heightAtPx(x, z), rng, (wx, wz) => index.isWaterAt(wx, wz));
+    }, beach ? 24 : 12);
+    if (beach) {
+      // strollers between the camps — a beach people travel to is people walking it
+      scatterInPoly(poly, pi + 919, 230, 0.4, ox, oy, (x, z, rng) => {
+        if (index.isWaterAt(x, z)) return;
+        const g = index.heightAtPx(x, z);
+        beachgoer(buckets[PLAIN], x, z, g, rng() * Math.PI * 2, rng, 'stand', rng() < 0.35);
+        if (rng() < 0.4) beachDog(buckets[PLAIN], x + 6 + rng() * 5, z + (rng() - 0.5) * 10, g, rng() * Math.PI * 2);
+      }, 8);
     }
   }
 

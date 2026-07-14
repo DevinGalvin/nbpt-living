@@ -735,15 +735,43 @@ export class WorldIndex {
     return out;
   }
 
-  // ballfields, courts, lots, plazas: kept clear of scattered trees
+  // ballfields, courts, lots, plazas — and mapped sand — kept clear of scattered
+  // trees. Sand matters: beaches sit under overlapping wood/reserve polys (dune
+  // forests, Trustees reservations) whose tree scatter would otherwise forest the
+  // open strand; sand paints above them (Z_ORDER), so the visible ground is sand.
   private onClearedGround(x: number, y: number, bucket: Bucket): boolean {
     for (const pi of bucket.polys) {
       const poly = this.world.polys[pi];
       if (poly.k !== 'pitch' && poly.k !== 'playground' && poly.k !== 'parking'
-        && poly.k !== 'plaza' && poly.k !== 'pool' && poly.k !== 'pier') continue;
+        && poly.k !== 'plaza' && poly.k !== 'pool' && poly.k !== 'pier' && poly.k !== 'sand') continue;
       if (pointInPoly(x, y, poly)) return true;
     }
     return false;
+  }
+
+  // destination beaches — the ones people travel to. A sand poly qualifies if it is
+  // named "… Beach", or (when unnamed) a beach-named landmark/label/POI sits on or
+  // beside it: OSM often names the beach as a point while the strand itself is an
+  // anonymous natural=sand (Good Harbor, Wingaersheek's west half, Pavilion Beach).
+  // Named non-beach sand (Sand Knolls, Ipswich Bar, river flats) stays wild.
+  private beachSet: Set<number> | null = null;
+  isBeachPoly(pi: number): boolean {
+    if (!this.beachSet) {
+      const set = (this.beachSet = new Set<number>());
+      const BEACHY = /\bbeach\b/i;
+      const pts: [number, number][] = [];
+      for (const lm of this.world.landmarks || []) if (BEACHY.test(lm.name)) pts.push([lm.x, lm.y]);
+      for (const lb of this.world.labels || []) if (BEACHY.test(lb.t)) pts.push([lb.x, lb.y]);
+      for (const poi of this.world.pois || []) if (BEACHY.test(poi.n)) pts.push([poi.x, poi.y]);
+      this.world.polys.forEach((poly, i) => {
+        if (poly.k !== 'sand') return;
+        if (poly.n) { if (BEACHY.test(poly.n)) set.add(i); return; }
+        for (const [px, py] of pts) {
+          if (pointInPoly(px, py, poly) || distToPolylineSq(px, py, poly.p) < 300 * 300) { set.add(i); return; }
+        }
+      });
+    }
+    return this.beachSet.has(pi);
   }
 
   // inside any road's paved surface (small margin past the curb)
