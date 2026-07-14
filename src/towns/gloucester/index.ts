@@ -22,27 +22,31 @@ export const TOWN: TownPack = {
 
   spawn: cfg.spawn as SpawnAnchor,   // downtown heart landmark (see town.json) — research pass settles the exact spot
 
-  // ✈️ scenic flight — candidate site: TEN POUND ISLAND, the first US Coast
-  // Guard air station (seaplanes, 1925). VERIFY the history + coords with the
-  // research pass before ship; coords below are lat/lon-estimated placeholders.
+  // ✈️ scenic flight from TEN POUND ISLAND — the first successful US Coast
+  // Guard air station: "Base 7", 1925, one borrowed Vought UO-1 seaplane and a
+  // canvas hangar, flying Prohibition rum-runner patrols (the first-ever
+  // aircraft chase of a rum-runner, June 20, 1925). Closed 1935 — replaced by
+  // CG Air Station Salem, this game's Salem flight site: the two towns'
+  // aviation stories are one continuous arc. Verified: history.uscg.mil,
+  // cgaviationhistory.org (see docs/research/gloucester-landmarks.md B2).
   flight: {
-    runwayStart: { x: 0, z: 4000 },           // VERIFY: Ten Pound Island, Gloucester Harbor
-    runwayHdg: 3.1416,                         // VERIFY: depart south, out over the harbor mouth
-    airport: { x: 0, z: 4000, r: 1400 },       // VERIFY
-    liftoffMsg: '✈️ Lifting off from Ten Pound Island — steer to bank over the harbor',
-    promoBody: 'Scenic flights are open to everyone. Head to Ten Pound Island — the old Coast Guard seaplane station in the middle of the harbor — and tap ✈️ FLY to soar over the fleet, the Boulevard, and Cape Ann. You can’t crash, promise.',
+    runwayStart: { x: -2330, z: 11668 },      // the old seaplane ramp, Ten Pound Island
+    runwayHdg: 0.05,                           // depart south past Eastern Point, out the harbor mouth
+    airport: { x: -2330, z: 11668, r: 1400 },
+    liftoffMsg: '✈️ Lifting off from Ten Pound Island — first flown for the Coast Guard in 1925',
+    promoBody: 'Scenic flights are open to everyone. Head to Ten Pound Island — where Coast Guard aviation began with one seaplane and a canvas hangar in 1925 — and tap ✈️ FLY to soar over the fleet, the Boulevard, and all of Cape Ann. You can’t crash, promise.',
     promoCta: 'Take me to Ten Pound Island',
   },
 
   beachX: Infinity,      // Good Harbor / Wingaersheek are mapped sand — no recolor zone
-  sledLane: null,        // set once the real sledding hill is terrain-verified (research)
-  trainPlatform: null,   // VERIFY: Gloucester + West Gloucester commuter-rail stops after the world builds
-  holidayTree: null,     // VERIFY: downtown — set with a built centroid
+  sledLane: null,        // Stage Fort's hill is open lawn — no tree clearing needed
+  trainPlatform: { x: -3387, z: -1369 },   // Gloucester station (Rockport Line, 1847)
+  holidayTree: { x: -2146, z: 3599 },      // St. Peter's Square — the Fiesta heart
 
   attractions: {
-    frogPond: null,      // VERIFY: the skating pond (research + terrain check)
-    sledHill: null,      // set with terrain-verified top/dir/run
-    graveyard: null,     // VERIFY: a colonial burying ground centroid — fall mist
+    frogPond: { x: 4798, z: 21710 },      // Niles Pond, Eastern Point — skating + kids' ice sailing
+    sledHill: { top: { x: -10305, z: 7998 }, dir: { x: 0.89, z: 0.45 }, run: 900 },   // Stage Fort Park's big lawn — THE snow-day hill
+    graveyard: { x: -7726, z: -2204 },    // First Parish Burial Ground (1600s), Centennial Ave — fall mist
   },
 
   // classic bright New England fall (Gloucester is a harbor town, not a Halloween town)
@@ -54,14 +58,14 @@ export const TOWN: TownPack = {
     duskStart: false,
   },
   halloween: 'classic',
-  halloweenDisplay: { x: 0, z: 0 },   // VERIFY: downtown by Main Street
+  halloweenDisplay: { x: -900, z: 500 },   // downtown by Main St / Dale Ave — VERIFY open spot in preview
 
   courses: COURSES,
   raceTown: 'gloucester',
   devCourse: 'homecoming',
   racePromo: {
-    course: 'homecoming',
-    body: 'Real races on real streets! Three courses run through Gloucester — beat the clock, top the town leaderboard, and race the leader’s ghost. Any route counts — shortcuts welcome.',
+    course: 'boulevard',
+    body: 'Real races on real streets! Three courses run through Gloucester — dash the Boulevard past the Man at the Wheel to Stage Fort, run the hills to Good Harbor Beach, or ride five miles home from Bearskin Neck. Beat the clock, top the town leaderboard, and race the leader’s ghost. Any route counts — shortcuts welcome.',
   },
 
   // GLOUCESTER palette: deep harbor-teal chrome + warm gold accent
