@@ -30,9 +30,9 @@ const GLOUCESTER_LM = [
   ['man-at-the-wheel', 'Man at the Wheel', 'The 1925 bronze statue for lost fishermen', -5487, 4319, 400],
   ['fishermens-wives', 'Fishermen’s Wives Memorial', 'Statue of the families who watched and waited', -8408, 5065, 340],
   ['cg-monument', 'Coast Guard Aviation Monument', 'Where Coast Guard aviation was born', -4234, 4310, 300],
-  ['blynman-cut', 'Blynman Bridge', 'Drawbridge up! Boats honking here since 1643', -8664, 5021, 340],
+  ['blynman-cut', 'Blynman Bridge', 'Drawbridge up! Boats honking here since 1643', -7474, 4571, 340],   // the actual bascule span over the Cut (OSM way 51832109) — old point sat across the canal (7/14 audit)
   ['pavilion-beach', 'Pavilion Beach', 'Fiesta beach — seine boats race off the sand', -2884, 4909, 450],
-  ['greasy-pole', 'The Greasy Pole', 'Inch down the greased pole over the harbor', -3328, 5785, 300],
+  ['greasy-pole', 'The Greasy Pole', 'Walk the fiesta pole out over the harbor', -2875, 4892, 260],   // = the gangway's shore end on Pavilion Beach; the mapped platform (way 675462690) sits 120 m out along it
   ['st-peters-square', 'St. Peter’s Square', 'Fiesta central — St. Peter watches the fleet', -2146, 3599, 340],
   ['maritime', 'Maritime Gloucester', 'Touch tanks on the working waterfront', 2035, 3448, 340],
   ['seven-seas', 'Seven Seas Wharf', 'Whale boats leave here for Stellwagen Bank', -578, 3004, 340],
@@ -53,7 +53,7 @@ const GLOUCESTER_LM = [
   ['hammond-castle', 'Hammond Castle', 'A real castle built by a mad-genius inventor', -20387, 26660, 450],
   // East Gloucester & the outer harbor
   ['rocky-neck', 'Rocky Neck', 'One of America’s oldest painting villages', 2744, 8309, 450],
-  ['paint-factory', 'The Paint Factory', 'The red harbor landmark that beat the barnacles', 2292, 6699, 340],
+  ['paint-factory', 'The Paint Factory', 'The red harbor landmark that beat the barnacles', 914, 7711, 340],   // Tarr & Wonson at the END of Horton St (OSM way 213327969) — old point was a neighbor building 215 m NE (7/14 audit)
   ['beauport', 'Beauport', 'A designer’s 40-room house of secret corners', 1359, 21319, 340],
   ['niles-pond', 'Niles Pond', 'Skate — or ice-sail — when the black ice comes', 4301, 20509, 450],
   ['eastern-point', 'Eastern Point Light', 'Walk the half-mile breakwater to the light', -1628, 30891, 450],
@@ -83,7 +83,55 @@ export const curatedPois = [];
 export const curatedPoisHand = {};
 export const manualBuildings = [];
 
-export function manualFeatures({ world }) {}
+// The Greasy Pole (St. Peter's Fiesta) — OSM maps the real platform (way 675462690,
+// man_made=pier, ~110 m off Pavilion Beach) but nothing else: no way to reach it, no
+// pole, and Pavilion Beach's sand isn't mapped at all. Hand-add the missing pieces:
+//  - stamp s:'greasy' on the mapped platform (always walkable, never floats out
+//    for winter, rendered by the bespoke builder in decor.ts — keep in sync)
+//  - a walkable gangway strip shore→platform + the walk-out pole strip (s:'greasy')
+//  - Pavilion Beach as named sand (the fiesta beach: summer beach life + label)
+//  - drop the duplicate "Greasy Pole" attraction POI node (it marks the viewing
+//    spot on the beach; the landmark + platform are the real thing)
+// Geometry constants are dual-maintained with buildGreasyPole() in decor.ts.
+export function manualFeatures({ world }) {
+  const C = { x: -3334, y: 5786 };            // platform centroid (mapped pier way)
+  const v = { x: 0.4565, y: -0.8896 };        // platform → beach (inland, unit)
+  const t = { x: 0.8896, y: 0.4565 };         // shore tangent (unit)
+  const at = (a, b) => ({ x: C.x + v.x * a + t.x * b, y: C.y + v.y * a + t.y * b });
+  const strip = (a0, a1, hw) => {
+    const p0 = at(a0, 0), p1 = at(a1, 0);
+    return [
+      Math.round(p0.x + t.x * hw), Math.round(p0.y + t.y * hw),
+      Math.round(p1.x + t.x * hw), Math.round(p1.y + t.y * hw),
+      Math.round(p1.x - t.x * hw), Math.round(p1.y - t.y * hw),
+      Math.round(p0.x - t.x * hw), Math.round(p0.y - t.y * hw),
+    ];
+  };
+  // idempotent: clear anything a previous run added, re-stamp the mapped platform
+  world.polys = world.polys.filter((p) => !(p.s === 'greasy' && !p.n) && !(p.k === 'sand' && p.n === 'Pavilion Beach'));
+  world.labels = (world.labels || []).filter((l) => l.t !== 'Pavilion Beach');
+  world.pois = (world.pois || []).filter((p) => !(p.n === 'Greasy Pole' && p.k === 'attraction'));
+  for (const p of world.polys) if (p.k === 'pier' && p.n === 'Greasy Pole') p.s = 'greasy';
+  // strips OVERLAP the platform footprint (edge ≈ ±20 along v) — a few px of gap
+  // between coplanar deck colliders reads as an invisible wall mid-stride. Widths
+  // clear the kid's ±5px collision probes with margin, or he wedge-crawls.
+  world.polys.push(
+    { k: 'pier', p: strip(10, 1005, 9), z: 9, s: 'greasy' },     // gangway: shore → platform
+    { k: 'pier', p: strip(-8, -122, 9), z: 9, s: 'greasy' },     // the pole: walk it out over the harbor
+  );
+  // Pavilion Beach sand — hugs the real waterline (seaward overlap hides under the
+  // ocean poly, z 7 > sand 5), named so the beach-life pass dresses it in summer
+  const S = { x: -2880 + v.x * 10, y: 4902 + v.y * 10 };
+  world.polys.push({
+    k: 'sand', z: 5, n: 'Pavilion Beach', p: [
+      Math.round(S.x + t.x * 300 + v.x * 55), Math.round(S.y + t.y * 300 + v.y * 55),
+      Math.round(S.x + t.x * 300 - v.x * 55), Math.round(S.y + t.y * 300 - v.y * 55),
+      Math.round(S.x - t.x * 300 - v.x * 55), Math.round(S.y - t.y * 300 - v.y * 55),
+      Math.round(S.x - t.x * 300 + v.x * 55), Math.round(S.y - t.y * 300 + v.y * 55),
+    ],
+  });
+  world.labels.push({ x: Math.round(S.x), y: Math.round(S.y), t: 'Pavilion Beach', k: 'area', s: 0 });
+}
 
 export const levelFixes = [];
 
@@ -95,7 +143,7 @@ export const nameFixes = [
   { x: 249, y: 875, n: 'Cape Ann Museum' },           // museum POI node → the Davis House footprint
   { x: 1278, y: 21164, n: 'Beauport' },               // OSM POI ("Beauport Museum") sits in the garden; anchor = the 40-vertex house cluster
   { x: 30930, y: -39330, n: 'Motif No. 1' },          // attraction node on Bradley Wharf; shack way unnamed
-  { x: 2280, y: 6628, n: 'The Paint Factory' },       // Tarr & Wonson manufactory — unnamed in OSM entirely
+  { x: 914, y: 7711, n: 'The Paint Factory' },        // Tarr & Wonson manufactory (end of Horton St) — unnamed in OSM; old anchor hit the neighbor building at 23 Horton (7/14 audit)
 ];
 
 // Real-world verified distances guard the projection — add pairs once two

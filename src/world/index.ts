@@ -1304,13 +1304,24 @@ export class WorldIndex {
       ctx.fill('evenodd');
     }
     drawKind(['island', 'sand', 'stone', 'plaza'], '#000000');
-    // piers un-block the water they cross — except floats that are out for the winter
+    // piers un-block the water they cross — except floats that are out for the
+    // winter (the Greasy Pole structure is a fixture: walkable in every season)
     for (const pi of bucket.polys) {
       const poly = w.polys[pi];
-      if (poly.k !== 'pier' || floatOutForWinter(poly.p)) continue;
+      if (poly.k !== 'pier' || (poly.s !== 'greasy' && floatOutForWinter(poly.p))) continue;
       ctx.fillStyle = '#000000';
       tracePoly(ctx, poly);
       ctx.fill('evenodd');
+      if (poly.s === 'greasy') {
+        // narrow diagonal strips rasterize to a pinched 1-cell corridor at 8px
+        // cells — the kid's ±5px side probes wedge on the antialiased edges. Widen
+        // the OPEN corridor in the mask only; the deckHeightAt footing check still
+        // uses the exact strip, so you can't actually stand off the planks.
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 22;
+        tracePoly(ctx, poly);
+        ctx.stroke();
+      }
     }
     drawKind(['wetland'], '#0000ff');
     // real barriers block (roads/paths drawn after re-open the gaps at gates)
@@ -1380,7 +1391,8 @@ export class WorldIndex {
       }
       for (const pi of b.polys) {
         const poly = this.world.polys[pi];
-        if (poly.k === 'pier' && !floatOutForWinter(poly.p)) d.piers.push(poly);
+        // s:'greasy' = the Greasy Pole structure: a fixture, never floats out for winter
+        if (poly.k === 'pier' && (poly.s === 'greasy' || !floatOutForWinter(poly.p))) d.piers.push(poly);
       }
       this.deckCache.set(key, d);
     }
@@ -2100,7 +2112,7 @@ export class WorldIndex {
   pierAt(x: number, y: number): boolean {
     if (!this.pierBB) {
       this.pierBB = [];
-      for (const poly of this.world.polys) if (poly.k === 'pier' && !floatOutForWinter(poly.p)) this.pierBB.push({ poly, bb: bboxOf(poly.p) });
+      for (const poly of this.world.polys) if (poly.k === 'pier' && (poly.s === 'greasy' || !floatOutForWinter(poly.p))) this.pierBB.push({ poly, bb: bboxOf(poly.p) });
     }
     const ckx = Math.floor(x / CHUNK), cky = Math.floor(y / CHUNK);
     const key = ckx + ',' + cky;

@@ -19,7 +19,7 @@ export const storefrontCorridors = [];
 // quirky — ordered as a loose downtown→shore→farms→north tour.
 const BEVERLY_LM = [
   // downtown & civic
-  ['ellis-square', 'Ellis Square', "Downtown's little 1921 crossroads park", 1115, 6043, 340],
+  ['ellis-square', 'Ellis Square', "Downtown's little 1921 crossroads park", 1189, 7980, 340],   // Cabot at Church St per Historic Beverly — old point was 240 m up Cabot (7/14 audit)
   ['cabot-theatre', 'The Cabot', '1920 movie palace of record-setting magic', 636, 5848, 340],
   ['library', 'Beverly Public Library', 'A marble-and-brick book palace, 1913', 2165, 6324, 340],
   ['city-hall', 'Beverly City Hall', "A merchant's 1783 mansion runs the city", 969, 9097, 340],
@@ -31,7 +31,7 @@ const BEVERLY_LM = [
   // the working waterfront & bridges
   ['glover-wharf', 'Glover Wharf', "Where America's first navy ship set sail, 1775", -1962, 15058, 450],
   ['essex-bridge', 'Veterans Memorial Bridge', 'The big bridge over to Salem', -4532, 18182, 500],
-  ['hall-whitaker', 'Hall-Whitaker Bridge', 'The little drawbridge being rebuilt', -9103, 4254, 400],
+  ['hall-whitaker', 'Hall-Whitaker Bridge', 'The little drawbridge being rebuilt', -5019, 7412, 400],   // the actual Bridge St drawbridge (OSM way 191859873) — old point was 640 m off in Ryal Side (7/14 audit)
   ['beverly-depot', 'Beverly Depot', '1897 depot — trains AND steak', -3713, 9509, 400],
   ['cummings-center', 'Cummings Center', "'The Shoe' — a concrete giant full of windows", -4473, -750, 550],
   ['obear-park', 'Obear Park', 'Riverside playground on the Ryal Side', -13552, 10279, 500],
@@ -58,7 +58,7 @@ const BEVERLY_LM = [
   ['norwood-pond', 'Norwood Pond', 'Fishing pond with 400-year-old stone walls', 6662, -22823, 600],
   ['nicks', "Nick's Famous Roast Beef", 'North Shore roast beef, since 1975', -2729, -21918, 300],
   ['moraine-farm', 'Moraine Farm', 'Olmsted practiced for Biltmore here', -9626, -23657, 700],
-  ['wenham-lake', 'Wenham Lake', "The lake that iced Queen Victoria's drinks", -11702, -28643, 700],
+  ['wenham-lake', 'Wenham Lake', "The lake that iced Queen Victoria's drinks", -9428, -28660, 700],   // west shore waterline — old point sat 195 m inland in the Moraine Farm woods (7/14 audit)
   ['airport', 'Beverly Regional Airport', 'Watch the little planes take off!', -23681, -23284, 900],
   // across the harbor
   ['salem-willows', 'Salem Willows', 'Across the harbor: arcade & popcorn land', 6262, 20198, 700],

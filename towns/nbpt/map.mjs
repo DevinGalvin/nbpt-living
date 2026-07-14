@@ -52,7 +52,7 @@ const LM = [
   ['pi-light', 'Plum Island Light', 'Guiding ships since 1788', 42.81523, -70.81894, 90],
   ['pi-point', 'Plum Island Point', 'Where the river meets the sea', 42.8165, -70.818, 110],
   ['joppa-flats', 'Joppa Flats Education Center', 'Mass Audubon', 42.7989, -70.8455, 70],
-  ['tannery', 'The Tannery', 'Marketplace in the old mill', 42.8095, -70.8635, 70],
+  ['tannery', 'The Tannery', 'Marketplace in the old mill', 42.8101, -70.866, 70],   // 50 Water St courtyard — old point sat a block east of the mill complex (7/14 audit)
   // the west end & river country (coords from the mapped features themselves)
   ['maudslay', 'Maudslay State Park', 'Gardens of the old Moseley estate', 42.82643, -70.92816, 140],
   ['moseley-woods', 'Moseley Woods', 'Pines over the Merrimack', 42.83284, -70.9093, 80],

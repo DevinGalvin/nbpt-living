@@ -449,7 +449,8 @@ export class Game {
     this.hud.initSearch(
       (q) => this.searchPlaces(q),
       (r) => this.hud.fadeThrough(() => {
-        this.travelToXY(r.x, r.y);
+        // search results arrive like landmarks: standing back, facing the place
+        this.travelToPlace(r.x, r.y);
         // magic words credit their secret once you arrive
         const egg = (r as { egg?: string }).egg;
         if (egg) this.eggs?.creditSearch(egg);
@@ -2255,20 +2256,45 @@ export class Game {
   travelTo(id: string) {
     const lm = this.world.landmarks.find((l) => l.id === id);
     if (!lm) return;
-    // arrive LOOKING AT the place: drop back from the center and face it —
-    // landing in the middle of the thing you traveled to reads as nowhere
-    const d = Math.min(Math.max(lm.r * 0.55, 130), 320);
-    for (const a of [0.5, 0.75, 0.25, 1, 0, 1.25, 1.75, 1.5]) {
-      const ang = a * Math.PI;
-      const spot = this.findFree(lm.x + Math.sin(ang) * d, lm.y + Math.cos(ang) * d);
-      // findFree may march back toward the center (water, buildings) — only
-      // accept a vantage that still stands off and can see the spot
-      if (Math.hypot(spot.x - lm.x, spot.y - lm.y) >= d * 0.45) {
-        this.travelToXY(spot.x, spot.y, { x: lm.x, y: lm.y });
+    this.travelToPlace(lm.x, lm.y, lm.r);
+  }
+
+  // shared arrival for landmarks AND search results: arrive LOOKING AT the place —
+  // drop back from the center and face it, so the player recognizes where they are.
+  // Landing in the middle of the thing you traveled to reads as nowhere.
+  travelToPlace(x: number, y: number, r = 240) {
+    const d = Math.min(Math.max(r * 0.55, 130), 320);
+    // rings walk outward so an offshore landmark (the Greasy Pole platform, a
+    // lighthouse island) lands you on ITS nearest shore, facing it — findFree's
+    // last-resort march used to carry you clear across the harbor to spawn
+    for (const ringScale of [1, 2, 3.2, 4.8, 6.5]) {
+      const R = d * ringScale;
+      if (R > 1250 && ringScale > 1) break;
+      for (const a of [0.5, 0.75, 0.25, 1, 0, 1.25, 1.75, 1.5]) {
+        const ang = a * Math.PI;
+        const spot = this.findFree(x + Math.sin(ang) * R, y + Math.cos(ang) * R);
+        // findFree may march the vantage around (water, buildings) — only accept
+        // one that still stands off and hasn't been carried far away
+        const dist = Math.hypot(spot.x - x, spot.y - y);
+        if (dist < d * 0.5 || dist > R + 260) continue;
+        // and the view must be OPEN: a big-footprint hero used to land you
+        // nose-to-brick (findFree pulls ring spots in against the wall). Solid
+        // ground blocking the first ~8 m of the sightline rejects the vantage;
+        // water ahead is fine — offshore landmarks are meant to be looked at.
+        const ux = (x - spot.x) / dist, uy = (y - spot.y) / dist;
+        let walled = false;
+        for (const dd of [22, 42, 62]) {
+          const qx = spot.x + ux * dd, qy = spot.y + uy * dd;
+          if (this.index.isBlocked(qx, qy) && !this.index.isWaterAt(qx, qy)) { walled = true; break; }
+        }
+        if (walled) continue;
+        this.travelToXY(spot.x, spot.y, { x, y });
         return;
       }
     }
-    this.travelToXY(lm.x, lm.y);
+    // no vantage at all (the point sits far out over open water): land on
+    // whatever shore findFree picks, but still face the place so the view reads
+    this.travelToXY(x, y, { x, y });
   }
 
   travelToXY(x: number, y: number, lookAt?: { x: number; y: number }) {
@@ -2285,7 +2311,7 @@ export class Game {
     this.kid.setPos(this.px, this.pz);
     this.kid.root.position.y = this.kidY;
     this.dog.root.position.set(this.px - 22, this.kidY, this.pz + 16);
-    if (lookAt) {
+    if (lookAt && Math.hypot(lookAt.x - this.px, lookAt.y - this.pz) > 4) {
       // face the destination and put the chase cam behind — you SEE the place
       const az = Math.atan2(lookAt.x - this.px, lookAt.y - this.pz);
       this.kid.face(az);

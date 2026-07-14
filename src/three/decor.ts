@@ -5240,6 +5240,60 @@ function beachCamp(bk: Bucket, x: number, z: number, g: number, rng: () => numbe
   }
 }
 
+// ---------- the Greasy Pole (Gloucester, St. Peter's Fiesta) ----------
+// The real platform is mapped in OSM ~110 m off Pavilion Beach; the walkable
+// gangway/pole strips live in world data (towns/gloucester/map.mjs — geometry
+// constants dual-maintained with manualFeatures there). This draws everything:
+// gangway on pilings, the flag-dressed platform, and the greased pole with the
+// red fiesta flag at the tip.
+function buildGreasyPole(buckets: Bucket[], poly: Poly) {
+  const bk = buckets[PLAIN], pk = buckets[PLANK];
+  const [cx, cz] = centroidOf(poly.p);
+  const v = { x: 0.4565, y: -0.8896 };   // platform → beach (inland, unit)
+  const t = { x: 0.8896, y: 0.4565 };    // shore tangent (unit)
+  const at = (a: number, b: number) => ({ x: cx + v.x * a + t.x * b, y: cz + v.y * a + t.y * b });
+  const angV = Math.atan2(v.y, v.x);
+  const deck = PIER_DECK_Y + 1.5;        // walk height (deckHeightAt piers = 5.5)
+  // platform: plank box on the mapped footprint + corner piles carrying the rails
+  walls(pk, poly.p, 0, deck, '#9a7a4e', 0);
+  flatRoofPlank(pk, poly.p, deck);
+  for (const sa of [-1, 1]) for (const sb of [-1, 1]) {
+    const p = at(sa * 16, sb * 16);
+    bk.box(p.x, p.y, 1.1, 1.1, -3, deck + 4.5, '#5e4a30');
+  }
+  // side rails + Italian tricolore bunting (fiesta dress) on the two shore-tangent sides
+  for (const sb of [-1, 1]) {
+    const m = at(0, sb * 16);
+    rotBox(bk, m.x, m.y, 15, 0.45, deck + 3.4, deck + 4.3, angV, '#5e4a30');
+    const flags = ['#009246', '#f4f5f0', '#ce2b37'];
+    for (let i = 0; i < 3; i++) {
+      const f = at((i - 1) * 9, sb * 16.4);
+      rotBox(bk, f.x, f.y, 3.4, 0.18, deck + 0.6, deck + 3.4, angV, flags[i]);
+    }
+  }
+  // gangway: long plank run shore → platform, pilings every ~80 px, low curbs
+  const g0 = 12, g1 = 1005;
+  const gc = at((g0 + g1) / 2, 0);
+  rotBox(bk, gc.x, gc.y, (g1 - g0) / 2, 5.5, deck - 0.9, deck, angV, '#a2825a');
+  for (const sb of [-1, 1]) rotBox(bk, gc.x + t.x * sb * 5, gc.y + t.y * sb * 5, (g1 - g0) / 2, 0.5, deck, deck + 0.8, angV, '#7a5f3c');
+  for (let a = g0 + 30; a < g1; a += 80) {
+    for (const sb of [-1, 1]) {
+      const p = at(a, sb * 4.2);
+      bk.box(p.x, p.y, 0.9, 0.9, -2.5, deck - 0.5, '#5e4a30');
+    }
+  }
+  // the pole itself: a greased spar cantilevered seaward off the platform edge,
+  // the red fiesta flag nailed at the tip
+  const pc = at(-72, 0);
+  rotBox(bk, pc.x, pc.y, 46, 1.3, deck - 1.2, deck + 0.4, angV, '#c9a86b');
+  const tip = at(-118, 0);
+  bk.box(tip.x, tip.y, 0.4, 0.4, deck + 0.4, deck + 9, '#8a6a3c');            // flag staff at the tip
+  tmp.set('#ce2b37');
+  const f0 = at(-118, 0.4), f1 = at(-118, 8.4);
+  bk.quad(f0.x, deck + 8.6, f0.y, f1.x, deck + 8.6, f1.y, f1.x, deck + 4.6, f1.y, f0.x, deck + 4.6, f0.y,
+    v.x, 0, v.y, tmp.r, tmp.g, tmp.b);                                        // the red flag — grab it!
+}
+
 // a park bench: slatted wood seat + back on cast-iron end frames. `ang` is the
 // bench's long axis; the backrest sits on the +perp(ang) side and the sitter
 // faces the opposite way.
@@ -5736,6 +5790,12 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const [mx, my] = centroidOf(poly.p);
     if (Math.floor(mx / CHUNK) !== ckx || Math.floor(my / CHUNK) !== cky) continue;
     if (poly.k === 'pier') {
+      if (poly.s === 'greasy') {
+        // the Greasy Pole structure: bespoke visuals, anchored on the NAMED platform
+        // poly (the gangway/pole strips are walkable colliders only — see map.mjs)
+        if (poly.n) buildGreasyPole(buckets, poly);
+        continue;
+      }
       if (floatOutForWinter(poly.p)) continue;   // the marina pulls its floats for winter
       // Pier POLYS are the full-width (solid finger) dock surface; OSM often ALSO maps a
       // centerline 'pierline' through them, and that line's deck renders at PIER_DECK_Y too
@@ -5944,8 +6004,9 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   for (const pi of bucket.polys) {
     const poly = world.polys[pi];
     // EVERY pier moors boats now, not just OSM mooring-tagged ones — a marina's
-    // whole float grid sat empty (Devin: "tons of boats docked at all the docks")
-    if (poly.k !== 'pier' || !MOOR_FILL || floatOutForWinter(poly.p)) continue;
+    // whole float grid sat empty (Devin: "tons of boats docked at all the docks").
+    // The Greasy Pole gangway/platform is a fiesta structure, not a marina — no boats.
+    if (poly.k !== 'pier' || poly.s === 'greasy' || !MOOR_FILL || floatOutForWinter(poly.p)) continue;
     const ring = poly.p.concat(poly.p.slice(0, 2));
     let placed = 0;
     walkLineD(ring, 74, (x, z, tx, tz) => {
