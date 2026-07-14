@@ -1495,12 +1495,15 @@ export class Game {
     const gifts: [number, number, number][] = [[20, 5, 7], [-17, 10, 6], [10, -19, 8], [-13, -15, 5.5], [26, -9, 6.5], [-3, 22, 7]];
     for (let i = 0; i < gifts.length; i++) {
       const [gx, gz, sz] = gifts[i];
+      // each gift sits on its own terrain height — on a sloped green (Ipswich's
+      // Five Corners island) group-level ground would leave downhill boxes floating
+      const dy = this.index.heightAtPx(x + gx, z + gz) - gy;
       const gift = new THREE.Mesh(new THREE.BoxGeometry(sz * 2, sz * 1.5, sz * 2), new THREE.MeshLambertMaterial({ color: wraps[i] }));
-      gift.position.set(gx, sz * 0.75, gz);
+      gift.position.set(gx, dy + sz * 0.75, gz);
       gift.castShadow = true;
       g.add(gift);
       const ribbon = new THREE.Mesh(new THREE.BoxGeometry(sz * 2.06, sz * 0.4, sz * 0.66), new THREE.MeshLambertMaterial({ color: '#f6f0dc' }));
-      ribbon.position.set(gx, sz * 1.45, gz);
+      ribbon.position.set(gx, dy + sz * 1.45, gz);
       g.add(ribbon);
     }
     g.position.set(x, gy, z);
