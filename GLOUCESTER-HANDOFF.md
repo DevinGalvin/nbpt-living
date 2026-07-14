@@ -82,6 +82,13 @@ same evening Ipswich shipped, via the docs/TOWNS.md checklist. Dev server:
 - **`rotBox`/`box` take HALF-extents.** Sizing them as full extents renders
   2× overlays — the first Hammond pass wore a giant black slab (its stucco
   court, doubled). The monuments got lucky; the castle didn't.
+- **THE KID IS 36px TALL — calibrate monuments against HIM, not real meters.**
+  The character is stylized-large vs compressed architecture (a 2.5-storey
+  house ≈ 55px). A statue sized from real-world feet reads as a toy: the Man
+  at the Wheel first shipped kid-height and Devin caught it ("you know how
+  important this statue is to locals?"). Rule of thumb now baked in: a major
+  memorial ≈ 1.5–1.6× the kid (base ≈ kid height, figure ≈ another kid);
+  the generic `landmarkStatue` was raised to 43px for every town.
 - **OSM name traps** (all handled, verbatim keys in decor.ts): `Our Lady of
   Good Voyages Church` (extra s), `Fishermens' Monument` (odd apostrophe),
   `Cape Ann Light (Twin Lights)` on BOTH towers (a feature: one HEROES entry

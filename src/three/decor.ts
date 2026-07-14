@@ -1707,13 +1707,15 @@ function marquee(buckets: Bucket[], world: WorldData, index: WorldIndex,
 // Reads as "a statue stands here" at exploration scale; it's a silhouette, not the
 // specific likeness. Works in any town that maps its monuments.
 function landmarkStatue(plain: Bucket, cx: number, cz: number, g: number) {
+  // scaled against the 36px kid (a statue must top the player or it reads as a
+  // toy — the Man at the Wheel taught us; the kid model is stylized-large)
   const GRANITE = '#9c968b', GRANITE_D = '#857f74', BRONZE = '#4a4334';
-  plain.box(cx, cz, 4.0, 4.0, g, g + 12, GRANITE);          // pedestal
-  plain.box(cx, cz, 4.6, 4.6, g + 12, g + 14, GRANITE_D);   // cap lip
-  plain.box(cx, cz, 3.0, 3.0, g + 14, g + 16, GRANITE);     // figure block
-  plain.box(cx, cz, 1.4, 1.1, g + 16, g + 24, BRONZE);      // legs + torso
-  plain.box(cx, cz, 2.1, 1.3, g + 24, g + 28, BRONZE);      // shoulders
-  plain.box(cx, cz, 1.0, 1.0, g + 28, g + 31, BRONZE);      // head
+  plain.box(cx, cz, 5.0, 5.0, g, g + 16, GRANITE);          // pedestal
+  plain.box(cx, cz, 5.7, 5.7, g + 16, g + 18.5, GRANITE_D); // cap lip
+  plain.box(cx, cz, 3.6, 3.6, g + 18.5, g + 21, GRANITE);   // figure block
+  plain.box(cx, cz, 2.0, 1.6, g + 21, g + 33, BRONZE);      // legs + torso
+  plain.box(cx, cz, 3.0, 1.9, g + 33, g + 38.5, BRONZE);    // shoulders
+  plain.box(cx, cz, 1.5, 1.5, g + 38.5, g + 43, BRONZE);    // head
 }
 
 // A granite obelisk on a stepped base — the archetype for war/civic memorials
@@ -2718,57 +2720,71 @@ function porticoFront(p: Bucket, f: { x: number; z: number; tx: number; tz: numb
 
 // ---------- Gloucester monuments (name-keyed POINT heroes — no footprint) ----------
 
-// the Man at the Wheel (1925) — sea-green fisherman braced at his wheel on an
-// inscribed granite block, ringed by chain posts, facing out over the harbor
+// the Man at the Wheel (1925) — the symbol of the city: an 8-ft sea-green
+// fisherman braced at his wheel on a big inscribed granite block, ~14 ft of
+// monument all told. Scaled to LOOM over a kid (real memorial ≈ 3× a child;
+// the first pass rendered kid-height and a resident-in-chief objected).
 function buildManAtWheel(buckets: Bucket[], x: number, z: number, g: number) {
+  // scale truth: the KID is 36px tall (stylized-large) — the memorial must
+  // clear him twice over. Base ≈ kid height, the fisherman another kid above.
   const p = buckets[PLAIN];
-  p.box(x, z, 9, 9, g, g + 2, '#9b968c');                                // plinth slab
-  p.box(x, z, 6, 6, g + 2, g + 12, '#b5b0a6');                           // rough granite block
-  const v = '#5f8a6e';                                                   // verdigris bronze
-  p.box(x, z, 3.4, 2.2, g + 12, g + 13.4, v);                            // sloping deck
-  p.box(x - 0.9, z, 1.1, 1.1, g + 13.4, g + 17.4, v);                    // braced legs
-  p.box(x + 0.9, z, 1.1, 1.1, g + 13.4, g + 17.2, v);
-  p.box(x, z, 2.4, 1.6, g + 17.2, g + 21.4, v);                          // oilskin torso
-  p.box(x, z, 1.3, 1.3, g + 21.4, g + 23, v);                            // sou'wester head
-  p.box(x + 1.6, z, 2.6, 0.5, g + 18.6, g + 19.1, v);                    // arms to the wheel
-  walls(p, octRing(x + 2.6, z, 1.9), g + 16.2, g + 16.9, v, 0);          // the ship's wheel (flat octagon disc)
-  p.box(x + 2.6, z, 0.4, 0.4, g + 13.4, g + 16.4, v);
-  for (let i = 0; i < 8; i++) {                                          // chain-post ring
-    const a = (i / 8) * Math.PI * 2;
-    p.box(x + Math.cos(a) * 10, z + Math.sin(a) * 10, 0.7, 0.7, g, g + 3.4, '#2c2c30');
+  p.box(x, z, 18, 18, g, g + 1.6, '#9b968c');                            // cobble plaza pad
+  p.box(x, z, 13, 13, g + 1.6, g + 4, '#a8a29a');                        // plinth step
+  p.box(x, z, 10, 10, g + 4, g + 28, '#b5b0a6');                         // the rough granite block
+  p.box(x, z - 10.1, 8.5, 0.3, g + 9, g + 20, '#c9c4ba');                // smooth inscription panel ("THEY THAT GO DOWN…"), boulevard face
+  const v = '#5f8a6e';                                                   // verdigris bronze — he gazes SOUTH, out over the harbor
+  p.box(x, z, 7.5, 5, g + 28, g + 31, v);                                // sloping deck
+  p.box(x - 2.4, z, 2.4, 2.4, g + 31, g + 41.5, v);                      // braced legs, feet wide
+  p.box(x + 2.5, z, 2.4, 2.4, g + 31, g + 41, v);
+  p.box(x, z, 5, 3.4, g + 41, g + 51.5, v);                              // oilskin torso, leaning in
+  p.box(x, z + 0.6, 3, 3, g + 51.5, g + 56, v);                          // head in the sou'wester
+  p.box(x, z + 1.8, 3.8, 1.4, g + 55.6, g + 56.6, v);                    // the sou'wester brim
+  p.box(x + 4.2, z + 1.8, 4.8, 1.1, g + 44.5, g + 45.8, v);              // arms reaching to the wheel
+  p.box(x - 4.2, z + 1.8, 4.8, 1.1, g + 44, g + 45.3, v);
+  walls(p, octRing(x, z + 5, 6.6), g + 36.5, g + 38, v, 0);              // the great ship's wheel
+  walls(p, octRing(x, z + 5, 3.2), g + 40, g + 41.2, v, 0);              // inner rim
+  p.box(x, z + 5, 1, 1, g + 31, g + 40, v);                              // wheel post
+  for (let i = 0; i < 10; i++) {                                         // chain-post ring around the plaza
+    const a = (i / 10) * Math.PI * 2;
+    p.box(x + Math.cos(a) * 22, z + Math.sin(a) * 22, 1.2, 1.2, g, g + 7, '#2c2c30');
   }
 }
 
-// the Fishermen's Wives Memorial (2001) — bronze mother + children on a granite boulder
+// the Fishermen's Wives Memorial (2001) — 12 ft total: bronze mother with an
+// infant and a walking boy on a rough 20-ton granite boulder
 function buildWivesMemorial(buckets: Bucket[], x: number, z: number, g: number) {
   const p = buckets[PLAIN];
-  p.box(x, z, 7.5, 6.5, g, g + 5, '#a8a29a');                            // the 20-ton boulder
-  p.box(x, z, 5.5, 4.5, g + 5, g + 7, '#9b968c');
+  p.box(x, z, 15, 12, g, g + 1.5, '#a8a29a');                            // paver pad
+  p.box(x, z, 13, 11, g + 1.5, g + 12, '#a8a29a');                       // the 20-ton boulder
+  p.box(x, z + 0.5, 9.5, 8, g + 12, g + 18.5, '#9b968c');                // boulder crown
   const v = '#4f6b5c';
-  p.box(x - 0.6, z, 1.7, 1.4, g + 7, g + 14, v);                         // the mother, skirt blown back
-  p.box(x - 0.6, z, 1, 1, g + 14, g + 15.4, v);
-  p.box(x - 1.7, z + 0.6, 0.9, 0.9, g + 11.5, g + 12.6, v);              // the infant on her arm
-  p.box(x + 1.3, z + 0.3, 1, 0.9, g + 7, g + 11.4, v);                   // the walking boy
-  p.box(x + 1.3, z + 0.3, 0.7, 0.7, g + 11.4, g + 12.4, v);
+  p.box(x - 1.4, z, 3.6, 3, g + 18.5, g + 34, v);                        // the mother, skirt blown back
+  p.box(x - 1.4, z, 2.1, 2.1, g + 34, g + 37.5, v);                      // her head, gazing seaward
+  p.box(x - 4.4, z + 1.4, 2.1, 2, g + 29, g + 32, v);                    // the infant cradled on her arm
+  p.box(x + 3.2, z + 0.7, 2.3, 2, g + 18.5, g + 28, v);                  // the walking boy
+  p.box(x + 3.2, z + 0.7, 1.6, 1.6, g + 28, g + 30.5, v);
 }
 
-// Tablet Rock, Stage Fort (1907) — the founding boulder with its green bronze tablet
+// Tablet Rock, Stage Fort (1907) — a house-sized granite outcrop bearing the
+// giant green bronze founding tablet ("…THE MASSACHUSETTS BAY COLONY…1623")
 function buildTabletRock(buckets: Bucket[], x: number, z: number, g: number) {
   const p = buckets[PLAIN];
-  p.box(x, z, 16, 12, g, g + 8, '#a89f90');                              // the granite outcrop
-  p.box(x, z - 1, 12, 9, g + 8, g + 14, '#9b9284');
+  p.box(x, z, 26, 20, g, g + 16, '#a89f90');                             // the outcrop
+  p.box(x - 2, z - 2, 20, 14, g + 16, g + 30, '#9b9284');                // upper mass
+  p.box(x + 7, z + 3, 10, 9, g + 30, g + 38, '#a89f90');                 // summit knob
   tmp.set('#5f8a6e');
-  p.quad(x - 5, g + 3, -(z - 6.2), x + 5, g + 3, -(z - 6.2), x + 5, g + 11, -(z - 6.2), x - 5, g + 11, -(z - 6.2),
-    0, 0, -1, tmp.r, tmp.g, tmp.b);                                      // the 1623 tablet, south face
+  p.quad(x - 11, g + 4, -(z - 20.2), x + 11, g + 4, -(z - 20.2), x + 11, g + 22, -(z - 20.2), x - 11, g + 22, -(z - 20.2),
+    0, 0, -1, tmp.r, tmp.g, tmp.b);                                      // the giant 1907 tablet, south face
 }
 
-// Coast Guard Aviation Monument — granite marker on the Boulevard facing Ten Pound Island
+// Coast Guard Aviation Monument — a real-scale granite marker (this one is
+// genuinely modest in life) with its green dedication plaque
 function buildCGMonument(buckets: Bucket[], x: number, z: number, g: number) {
   const p = buckets[PLAIN];
-  p.box(x, z, 5, 3, g, g + 1.6, '#9b968c');
-  p.box(x, z, 3.6, 1.8, g + 1.6, g + 9, '#b5b0a6');
+  p.box(x, z, 7, 4.6, g, g + 2.4, '#9b968c');
+  p.box(x, z, 5, 2.8, g + 2.4, g + 17, '#b5b0a6');                       // chest-high on the kid — the real marker IS modest
   tmp.set('#5f8a6e');
-  p.quad(x - 1.4, g + 3, -(z - 1), x + 1.4, g + 3, -(z - 1), x + 1.4, g + 7.4, -(z - 1), x - 1.4, g + 7.4, -(z - 1),
+  p.quad(x - 3, g + 5, -(z - 1.5), x + 3, g + 5, -(z - 1.5), x + 3, g + 14.5, -(z - 1.5), x - 3, g + 14.5, -(z - 1.5),
     0, 0, -1, tmp.r, tmp.g, tmp.b);
 }
 
