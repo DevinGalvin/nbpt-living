@@ -130,8 +130,19 @@ function flatRoof(bk: Bucket, ring: number[], h: number, hex: string) {
 // gabled shingle roof CLIPPED TO THE REAL FOOTPRINT (small overhang), split at
 // the ridge; the walls of the footprint rise to meet it (gable ends included).
 // No more roof slabs sailing past notched corners.
+// How much of its oriented bounding box a footprint actually fills. OBB roofs
+// (gable/hip/mansard) span the whole box — on an L/U-shaped or campus footprint
+// that drapes a giant slab across courtyards and lawns (Cape Ann Museum's
+// 17-vertex campus wore one over half a block). Below this fill, only a
+// ring-hugging flat roof is safe.
+const OBB_ROOF_MIN_FILL = 0.62;
+function obbFill(ring: number[], obb: OBB): number {
+  return (ringAreaM2(ring) * 64) / Math.max(1, 4 * obb.hl * obb.hw);
+}
+
 function gableRoof(shin: Bucket, clap: Bucket, ring: number[], obb: OBB, eaveH: number, ridgeH: number, ov: number,
                    roofHex: string, wallHex: string) {
+  if (obbFill(ring, obb) < OBB_ROOF_MIN_FILL) { flatRoof(shin, ring, eaveH + 1, roofHex); return; }   // concave footprint — never drape the box
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
   const W = obb.hw + ov;
   tmp.set(roofHex);
@@ -3793,7 +3804,10 @@ function federalHouse(buckets: Bucket[], b: Building, g: number, index: WorldInd
   if (SEASON === 'fall') stringLights(buckets[GLOW], b.p, eaveH - 1.5, HALLOWEEN_BULBS);   // festive eave lights (glow at night, like the neighbours)
   else if (SEASON === 'winter') stringLights(buckets[GLOW], b.p, eaveH - 1.5);
 
-  const ov = 1.3, rk = o.roofKind ?? 'hip', hipRise = storeys >= 3 ? 12 : 9;
+  // concave/campus footprints force flat: an OBB gable or hip here would drape
+  // a slab over the courtyard (see obbFill above — the Cape Ann Museum lesson)
+  const okObbRoof = (ringAreaM2(b.p) * 64) / Math.max(1, 4 * L * W) >= OBB_ROOF_MIN_FILL;
+  const ov = 1.3, rk = okObbRoof ? (o.roofKind ?? 'hip') : 'flat', hipRise = storeys >= 3 ? 12 : 9;
   let roofTopY = eaveH + 2;
   if (rk === 'flat') flatRoof(buckets[PLAIN], b.p, eaveH + 1.5, o.roof);
   else if (rk === 'gable') {
