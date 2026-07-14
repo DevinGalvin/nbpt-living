@@ -37,7 +37,7 @@ export const TOWN: TownPack = {
   beachX: Infinity,      // Crane Beach and the Neck beaches are mapped sand — no recolor zone
   sledLane: null,        // the Grand Allée is a mapped meadow — already tree-free
   trainPlatform: { x: 85, z: 2586 },      // Ipswich MBTA station (Newburyport/Rockport line, 1839)
-  holidayTree: { x: 2610, z: -1200 },     // Five Corners — the North Main fork island, where the town tree really stands (moved off Meeting House Green per resident feedback)
+  holidayTree: { x: 2380, z: -1030 },     // Five Corners — the WESTERN island (between the two tertiary N Main strands, NOT the wedge east of them); resident-pinpointed spot
 
   attractions: {
     frogPond: { x: 28497, z: -22102 },    // Clark Pond, Great Neck — dammed 1897, THE skating pond
