@@ -4,11 +4,52 @@ A cozy, all-ages Zelda-like set on the **exact maps of real towns** — Newburyp
 `/`, Salem at `/salem/`, Beverly at `/beverly/`, and Ipswich at `/ipswich/`, one
 codebase. Three.js + TypeScript + Vite. Live at **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE (July 13, 2026 — IPSWICH DAY): read ✦ IPSWICH DAY below
-> first**, then the post-launch polish session, then Beverly Day / multi-town
-> notes for background.
+> **⚡ FRESHEST STATE (July 13, 2026 — TWO-TOWN DAY): Ipswich AND Gloucester
+> both went from empty folder to LIVE in one session. Read ✦ TWO-TOWN DAY
+> below first**, then the post-launch polish session, then Beverly Day /
+> multi-town notes for background.
 
-## ✦ IPSWICH DAY (July 13, 2026) — state + what's in flight
+## ✦ TWO-TOWN DAY (July 13, 2026) — state + what's in flight
+
+**Gloucester is LIVE at clippertown.io/gloucester/** — fifth town, built and
+deployed the same evening Ipswich shipped (merge `4b873d0`, live build
+`9edb67c`, verified: live `__build` + clean-profile spawn at the Man at the
+Wheel). All of Cape Ann in one frame — Rockport, Motif No. 1, Bearskin Neck,
+and the Thacher twins ride along as in-frame nods. Town status, ranked polish
+(race full-ride e2e is #1), and the new gotchas (rotBox/box take
+HALF-extents; OSM name traps; Wikipedia coords ≠ building footprints) live in
+**GLOUCESTER-HANDOFF.md**; research in `docs/research/gloucester.md`
+(29-entry photo-verified hero dossier) + `gloucester-landmarks.md` (57
+candidates, all cited — incl. 15 cross-confirmed Dogtown Babson boulders, a
+ready-made treasure-hunt mechanic).
+
+**Gloucester highlights:** spawn = the Man at the Wheel (modeled, with the
+Fishermen's Wives, Tablet Rock + CG Aviation Monument, via a new name-keyed
+`POI_HEROES` monument tier in decor.ts); ✈️ flight from **Ten Pound Island —
+the first successful US Coast Guard air station (1925, verified)**, whose
+1935 successor is the Salem flight site (Ipswich 1910 → Gloucester 1925 →
+Salem 1935 = one continuous aviation arc); races Boulevard Dash 0.9mi / Good
+Harbor Run 2.1mi / **Rockport Homecoming 5.0mi** (longest epic yet); heroes
+incl. Hammond Castle, Our Lady of Good Voyage's twin blue onion domes,
+Motif No. 1 ('78 replica), the Paint Factory (red WOOD, not brick), and a
+parametric `lightTower` driving all five lighthouses.
+
+**⚙️ ENGINE: the coastline sweep is hardened** (`tools/build_world.mjs`) —
+Cape Ann is an ISLAND (the 1643 Cut), which blinded the old "origin stays
+dry" rotation check and let two OSM defects (a 2-pt coastline stub + Norman's
+Woe's 127px ring gap) drown Magnolia and Hammond Castle. The sweep now closes
+near-loops, drops degenerate stubs (both warn), and picks rotation from OSM's
+water-on-the-RIGHT invariant. NBPT + Ipswich oceans rebuild byte-identical.
+
+**⚠️ Concurrent-session deploy pattern (used tonight, keep it):** another
+session's uncommitted edits sat on paths its own pushed commit touched,
+silently blocking a normal merge (the ff-abort hid behind `2>/dev/null`).
+Resolution: plumbing merge — `git merge-tree --write-tree A B` →
+`git commit-tree` → `git update-ref` → push — merges and ships WITHOUT
+touching the working tree. Then `git restore --staged <files>` clears the
+stale index. Never sweep another session's dirty files.
+
+### Earlier the same day — IPSWICH
 
 **Ipswich is LIVE at clippertown.io/ipswich/** — fourth town, built end-to-end
 in one session on branch `ipswich`, merged to `source` on Devin's greenlight
@@ -38,13 +79,13 @@ the ranked polish list live in **IPSWICH-HANDOFF.md**; research in
   Salem Jun 25 · Beverly Jul 6 · Ipswich Jul 13. Idea parked: a one-line
   "Map data: OpenStreetMap, <month year>" in the ⚙️ card.
 - **Launch calendar**: Beverly r/beverlyma post Sat 7/18 (prep in memory);
-  Ipswich launch unscheduled (after Beverly; modmail-first playbook).
-- **GLOUCESTER STARTED** on branch `gloucester` — next town per the ranking
-  (biggest remaining community, Hammond Castle-tier heroes, completes Cape Ann
-  contiguity with Ipswich's Essex frame). Bbox = all of Cape Ann incl. Rockport
-  + Thacher Island as in-frame nods. If the session ended mid-build: check the
-  branch, `GLOUCESTER-HANDOFF.md` if present, and re-run the docs/TOWNS.md
-  checklist from wherever it stopped.
+  Ipswich + Gloucester launches unscheduled (after Beverly; modmail-first
+  playbook). NOTE: Reddit residents found Ipswich on day one with NO launch
+  post — the ghost-garage comment thread is already doing soft marketing.
+- **Next towns** (standing ranking): Marblehead (pairs with Salem's frame),
+  then Amesbury+Salisbury (completes the NBPT cluster; Salisbury Beach).
+  The playbook: docs/TOWNS.md + the two research agents + this file's town
+  handoffs — Ipswich and Gloucester each went folder→live in one session.
 
 > **Prior state (post-launch polish session): everything below shipped to
 > `source` and was LIVE at `b88e7fb`. Read ✦ POST-LAUNCH POLISH SESSION next**,
