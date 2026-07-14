@@ -137,6 +137,15 @@ Everything ships engine-wide (all three towns) unless noted.
   (`wedgeDir`) — can only slide along a wall, never buzz across it; rests if
   truly boxed in. Covers foot/bike/kayak/boat. (`src/game/Game.ts` movement.)
   (`75fe208`, the tsconfig baseUrl removal between these, was another session.)
+- `b3ecc3a` **Never trapped under a bridge deck.** Reported on Ipswich ("just in
+  a bridge, head poking through, can't move at all"). Engine bug, not town-
+  specific: movement `free()` treats being under a low deck as blocked, but
+  neither `findFree()` (spawn/fast-travel placement) nor the per-frame safety-net
+  `stuck()` checked `underDeckBlockedAt` — so you could spawn wedged in a span
+  and never get ejected (worsened by the new "rest when boxed in" movement).
+  Added the check to both; `free()`/`stuck()` now agree. Verified Ipswich spawns
+  free at Five Corners. (`src/game/Game.ts` — `findFree` clear + safety-net
+  `stuck`.) Rebased onto source after Ipswich + Gloucester landed as towns #4/#5.
 
 **Reusable headless verification tooling (used all session, worth keeping):**
 Chromium is pre-installed at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`;
