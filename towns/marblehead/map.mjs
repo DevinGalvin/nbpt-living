@@ -24,6 +24,14 @@ export const storefrontCorridors = [];
 // are deliberately ABSENT — they aren't named in OSM, so there's no honest
 // centroid to point at; add them via manualBuildings or an OSM edit, not a guess.
 //
+// TWO TRAPS this roster hit, both worth knowing before adding more:
+//   1. A crescent-shaped poly's CENTROID can fall outside it. Devereux and
+//      Preston Beach both centroided into the open ocean. Beach/shore entries
+//      below use a pole-of-inaccessibility style interior point instead, and
+//      every landmark is point-in-poly checked against the feature it names.
+//   2. OSM spells the sand poly "Devereaux Beach" but the adjacent grass
+//      "Devereux Beach" — two different features. This points at the SAND.
+//
 // Ordered as a loose tour: Old Town → the hills → harbor → the Neck → causeway
 // beaches → the woods.
 const LM = [
@@ -55,11 +63,11 @@ const LM = [
   ['garmet-beach', 'Garmet Beach', 'A pocket of sand on the Neck’s ocean side', 15169, 2456, 400],
   // ── the causeway & the south shore ──
   ['riverhead-beach', 'Riverhead Beach', 'The sand beside the causeway out to the Neck', 1930, 7408, 500],
-  ['devereux-beach', 'Devereux Beach', 'The town beach under the causeway', 4202, 8057, 560],
+  ['devereux-beach', 'Devereux Beach', 'The town beach under the causeway', 1039, 8504, 560],
   ['goldthwait', 'Goldthwait Reservation', 'Open shore grass along the ocean', -1131, 8970, 620],
   ['seaside-park', 'Seaside Park', 'Ballfields, tennis and the skate park', 976, 5316, 620],
   ['hammond-park', 'Hammond Park', 'A neighbourhood green off West Shore', 3825, 3260, 420],
-  ['preston-beach', 'Preston Beach', 'The long sand at the Swampscott line', -13995, 19348, 620],
+  ['preston-beach', 'Preston Beach', 'The long sand at the Swampscott line', -14569, 19869, 620],
   // ── woods & ponds ──
   ['steer-swamp', 'Steer Swamp', 'Wild trails and boulders right behind town', 4428, -11731, 800],
   ['wyman-woods', 'Wyman Woods', 'Pines and paths on the west side', -13861, 3480, 750],
