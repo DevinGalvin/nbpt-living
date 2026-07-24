@@ -7,10 +7,11 @@ import salem from '../../towns/salem/town.json';
 import beverly from '../../towns/beverly/town.json';
 import ipswich from '../../towns/ipswich/town.json';
 import gloucester from '../../towns/gloucester/town.json';
+import marblehead from '../../towns/marblehead/town.json';
 
 export type TownEntry = { name: string; emoji: string; path: string; tag: string };
 
 const entry = (t: { name: string; emoji: string; path: string; tag: string }): TownEntry =>
   ({ name: t.name, emoji: t.emoji, path: t.path, tag: t.tag });
 
-export const TOWNS: TownEntry[] = [entry(nbpt), entry(salem), entry(beverly), entry(ipswich), entry(gloucester)];
+export const TOWNS: TownEntry[] = [entry(nbpt), entry(salem), entry(beverly), entry(ipswich), entry(gloucester), entry(marblehead)];

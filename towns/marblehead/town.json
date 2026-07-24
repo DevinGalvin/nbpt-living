@@ -1,0 +1,40 @@
+{
+  "id": "marblehead",
+  "name": "Marblehead",
+  "worldName": "Marblehead, MA",
+  "title": "Marblehead",
+  "tag": "Birthplace of the American Navy",
+  "emoji": "🧭",
+  "path": "/marblehead/",
+  "savePrefix": "marblehead:",
+  "pxPerMeter": 8,
+  "origin": { "lat": 42.5005, "lon": -70.858 },
+  "bbox": { "s": 42.47, "w": -70.905, "n": 42.525, "e": -70.815 },
+  "spawn": { "landmark": "crocker-park", "dx": 0, "dz": 0 },
+  "branding": {
+    "htmlTitle": "Marblehead — walk the real map of Marblehead, MA in 3D",
+    "appleTitle": "Marblehead",
+    "themeColor": "#12233f",
+    "bgTop": "#1b3358",
+    "bgBottom": "#0a1626",
+    "ruleColor": "#e0b23a",
+    "description": "A cozy, all-ages 3D walk through the exact map of Marblehead, Massachusetts. Wander Old Town's crooked lanes, the harbor full of sailboats, and out to the Neck — and find your own house.",
+    "ogSiteName": "Marblehead in 3D",
+    "ogDescription": "A cozy, all-ages 3D walk through the real map of Marblehead. Wander Old Town, the harbor, and the Neck — and find your own house.",
+    "ogUrl": "https://clippertown.io/marblehead/",
+    "ogImage": "https://clippertown.io/marblehead/og-image.jpg",
+    "ogImageType": "image/jpeg",
+    "ogImageAlt": "A 3D voxel view of Marblehead, Massachusetts",
+    "twitterDescription": "Walk the real map of Marblehead — find your own street.",
+    "loadingTitle": "MARBLEHEAD",
+    "loadingSub": "Exploring Marblehead, Massachusetts"
+  },
+  "storageSeeds": {
+    "nbpt-bike": "1",
+    "nbpt-kayak": "1",
+    "nbpt-seasons-rewarded": "1"
+  },
+  "storageSeedIfUnset": {
+    "nbpt-season": "summer"
+  }
+}
