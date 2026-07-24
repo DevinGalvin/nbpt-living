@@ -1,0 +1,84 @@
+name: Build town world
+
+# The whole map pipeline for a town, run on a GitHub runner. Cloud Claude
+# sessions (and phones) can't reach Overpass — the proxy denies it — so this is
+# how a NEW TOWN gets its world baked without a laptop: it fetches boundaries +
+# OSM, builds world.json, fetches terrain into heights.bin, and pushes just
+# those artifacts to the `map-data` branch. Pull them from there into
+# towns/<id>/public/ and ship to `source` as usual.
+#
+# Companion to fetch-data.yml (which does boundaries only, for towns that are
+# already built). Trigger by hand from the Actions tab, or via the API.
+
+on:
+  workflow_dispatch:
+    inputs:
+      towns:
+        description: "Space-separated town ids to build (e.g. 'marblehead')"
+        required: true
+      ref:
+        description: "Branch to build from — must contain towns/<id>/{town.json,map.mjs}"
+        required: false
+        default: "source"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-town-world
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the ref being built
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Fetch boundaries, OSM, build world, fetch terrain
+        run: |
+          set -euo pipefail
+          for t in ${{ github.event.inputs.towns }}; do
+            echo "::group::$t"
+            TOWN=$t node tools/fetch_boundaries.mjs || echo "boundaries failed for $t (borders will be skipped)"
+            TOWN=$t npm run fetch-osm
+            TOWN=$t npm run build-world
+            TOWN=$t npm run fetch-terrain
+            echo "::endgroup::"
+          done
+
+      - name: Report what was built
+        run: |
+          for t in ${{ github.event.inputs.towns }}; do
+            ls -lh "towns/$t/public/world.json" "towns/$t/public/heights.bin" || true
+          done
+
+      - name: Push the baked payload to the map-data branch
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B map-data
+          for t in ${{ github.event.inputs.towns }}; do
+            # world.json + heights.bin are the payload; boundaries are small and
+            # worth carrying. The raw overpass.json is NOT pushed — it's tens of
+            # MB of intermediate that nothing downstream reads.
+            git add -f "towns/$t/public/world.json" "towns/$t/public/heights.bin" || true
+            git add -f "data/$t/raw/boundaries.json" || true
+          done
+          if git diff --cached --quiet; then
+            echo "No new data."
+            exit 0
+          fi
+          git commit -m "map-data: baked world for ${{ github.event.inputs.towns }} (from ${{ github.event.inputs.ref }})"
+          git push -f origin map-data
