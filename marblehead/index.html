@@ -6,25 +6,25 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Beverly" />
-  <meta name="theme-color" content="#16301f" />
-  <title>Beverly — walk the real map of Beverly, MA in 3D</title>
-  <meta name="description" content="A cozy, all-ages 3D walk through the exact map of Beverly, Massachusetts. Wander the real streets, the harbor, and Lynch Park — and find your own house." />
+  <meta name="apple-mobile-web-app-title" content="Marblehead" />
+  <meta name="theme-color" content="#12233f" />
+  <title>Marblehead — walk the real map of Marblehead, MA in 3D</title>
+  <meta name="description" content="A cozy, all-ages 3D walk through the exact map of Marblehead, Massachusetts. Wander Old Town's crooked lanes, the harbor full of sailboats, and out to the Neck — and find your own house." />
   <!-- Social link previews (Open Graph + Twitter Card). Absolute URLs so the card unfurls. -->
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Beverly in 3D" />
-  <meta property="og:title" content="Beverly — walk the real map of Beverly, MA in 3D" />
-  <meta property="og:description" content="A cozy, all-ages 3D walk through the real map of Beverly. Wander the streets, the harbor, and Lynch Park — and find your own house." />
-  <meta property="og:url" content="https://clippertown.io/beverly/" />
-  <meta property="og:image" content="https://clippertown.io/beverly/og-image.jpg" />
+  <meta property="og:site_name" content="Marblehead in 3D" />
+  <meta property="og:title" content="Marblehead — walk the real map of Marblehead, MA in 3D" />
+  <meta property="og:description" content="A cozy, all-ages 3D walk through the real map of Marblehead. Wander Old Town, the harbor, and the Neck — and find your own house." />
+  <meta property="og:url" content="https://clippertown.io/marblehead/" />
+  <meta property="og:image" content="https://clippertown.io/marblehead/og-image.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:type" content="image/jpeg" />
-  <meta property="og:image:alt" content="A 3D voxel view of Beverly, Massachusetts" />
+  <meta property="og:image:alt" content="A 3D voxel view of Marblehead, Massachusetts" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Beverly — walk the real map of Beverly, MA in 3D" />
-  <meta name="twitter:description" content="Walk the real map of Beverly — find your own street." />
-  <meta name="twitter:image" content="https://clippertown.io/beverly/og-image.jpg" />
+  <meta name="twitter:title" content="Marblehead — walk the real map of Marblehead, MA in 3D" />
+  <meta name="twitter:description" content="Walk the real map of Marblehead — find your own street." />
+  <meta name="twitter:image" content="https://clippertown.io/marblehead/og-image.jpg" />
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
   <link rel="icon" type="image/png" sizes="48x48" href="./favicon-48.png" />
@@ -37,8 +37,8 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #16301f;
-      background: linear-gradient(180deg, #1e4029, #0e2015);
+      background: #12233f;
+      background: linear-gradient(180deg, #1b3358, #0a1626);
       touch-action: none;
       -webkit-user-select: none;
       user-select: none;
@@ -79,13 +79,13 @@
     }
   </style>
   <script>
-    // Beverly shares its origin with the root town, so it would share
+    // Marblehead shares its origin with the root town, so it would share
     // localStorage too. Namespace all saved state behind the town prefix
     // (GLOBAL keys pass through — rider name & co. ride between towns).
     (function () {
       try {
-        window.__townPath = "/beverly/";
-        var P = "beverly:", real = window.localStorage;
+        window.__townPath = "/marblehead/";
+        var P = "marblehead:", real = window.localStorage;
         var GLOBAL = ["nbpt-race-name","nbpt-ghost","nbpt-board-url"];
         var key = function (k) { return GLOBAL.indexOf(k) >= 0 ? k : P + k; };
         var pref = function () { return Object.keys(real).filter(function (k) { return k.indexOf(P) === 0; }); };
@@ -105,14 +105,14 @@
       } catch (e) { /* fall back to shared storage if the browser won't let us shadow it */ }
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-CAEgI9W9.js"></script>
+  <script type="module" crossorigin src="./assets/index-koiSmj7h.js"></script>
 </head>
 <body>
   <div id="game"></div>
   <div id="loading">
-    <div class="title">BEVERLY</div>
+    <div class="title">MARBLEHEAD</div>
     <div class="rule"></div>
-    <div class="sub">Exploring Beverly, Massachusetts</div>
+    <div class="sub">Exploring Marblehead, Massachusetts</div>
   </div>
   <!-- GoatCounter analytics (privacy-friendly). Kept in source so every build keeps it —
        it was previously added only on the deploy branch and got wiped by each deploy. -->
