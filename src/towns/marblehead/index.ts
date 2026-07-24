@@ -5,11 +5,9 @@
 // src/towns/beverly/index.ts; let the two subreddits sort it out). World-only
 // sandbox (no story spine), its own race ladder.
 //
-// ⚠️ Every gameplay anchor below marked VERIFY was projected from lat/lon with
-// the town's own origin, NOT read off a built world.json — Marblehead's world
-// hasn't been baked yet. Confirm each on the built map (on land, right feature)
-// before ship; Old Town's lanes are tight enough that "close" can still be the
-// wrong roof.
+// Gameplay anchors below are world-px read out of the BUILT world.json and
+// point-in-polygon checked against the real municipal boundary — not estimated.
+// (The first lat/lon-estimated pass missed by up to 1.5 km; see map.mjs.)
 import type { TownPack, SpawnAnchor } from '../types';
 import { COURSES } from './courses';
 import cfg from '../../../towns/marblehead/town.json';
@@ -32,9 +30,9 @@ export const TOWN: TownPack = {
   // this shore. (Ipswich's flight honours the same Burgess line at Moulton's
   // Farm.) Board on the sand and climb north over the harbor and the Neck.
   flight: {
-    runwayStart: { x: 8404, z: 9065 },        // VERIFY — Devereux Beach sand
-    runwayHdg: -1.571,                        // depart due north, up over the harbor
-    airport: { x: 8404, z: 9065, r: 1400 },   // VERIFY — the whole beach + causeway approach
+    runwayStart: { x: 4202, z: 8057 },        // Devereux Beach (real poly centroid)
+    runwayHdg: 3.1416,                        // depart due north — up over the causeway, harbor and Old Town
+    airport: { x: 4202, z: 8057, r: 1500 },   // the beach + the causeway approach
     liftoffMsg: '✈️ Lifting off Devereux Beach — Burgess flew from this shore in 1910',
     promoBody: 'Scenic flights are open to everyone. Walk out onto Devereux Beach — where the Burgess Company, America’s first licensed aircraft builder, tested its seaplanes in 1910 — and tap ✈️ FLY to soar over the harbor, Old Town and the Neck. You can’t crash, promise.',
     promoCta: 'Take me to the beach',
@@ -43,12 +41,12 @@ export const TOWN: TownPack = {
   beachX: Infinity,                       // Devereux, Riverhead and the Neck beaches are mapped sand — no recolor zone
   sledLane: null,                         // no curated sledding lane yet
   trainPlatform: null,                    // TRUE: Marblehead has no commuter rail — the old branch is the Rail Trail now
-  holidayTree: { x: 657, z: -1689 },      // VERIFY — Market Square, by the Old Town House
+  holidayTree: { x: 3422, z: -1619 },     // Washington Square — the green below Abbot Hall
 
   attractions: {
-    frogPond: { x: -1838, z: -3022 },     // VERIFY — Redd's Pond: model sailboats in summer, THE skating pond in winter
-    sledHill: null,                       // VERIFY later — Old Burial Hill is steep but it's a graveyard; find a real one
-    graveyard: { x: -2495, z: -2488 },    // VERIFY — Old Burial Hill (1638), fall mist
+    frogPond: { x: 6881, z: -8564 },      // Redd's Pond — model sailboats in summer, THE skating pond in winter
+    sledHill: null,                       // none curated — Old Burial Hill is the steep one, but it's a graveyard
+    graveyard: { x: 7648, z: -9080 },     // Old Burial Hill (1638) — fall mist
   },
 
   // classic bright New England fall — Marblehead is a harbor town, not a Halloween town
@@ -60,7 +58,7 @@ export const TOWN: TownPack = {
     duskStart: false,
   },
   halloween: 'classic',
-  halloweenDisplay: { x: 657, z: -1689 },   // VERIFY — Market Square
+  halloweenDisplay: { x: 3422, z: -1619 },   // Washington Square, below Abbot Hall
 
   courses: COURSES,
   raceTown: 'marblehead',

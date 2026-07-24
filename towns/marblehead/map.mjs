@@ -1,44 +1,73 @@
 // Marblehead — map-pipeline curation. Everything town-specific that
 // tools/build_world.mjs and tools/fetch_terrain.mjs consume lives here.
 // The engine logic stays in tools/; this file is pure data + tiny hooks.
-//
-// ⚠️ FIRST-BUILD SEED. Every landmark below is authored from lat/lon and has
-// NOT yet been checked against a built world.json. Marblehead's Old Town is the
-// tightest street grid in the set (crooked colonial lanes, 1-2 px between
-// buildings), so a coordinate that is "close" can still land on the wrong roof.
-// After the first `TOWN=marblehead npm run map`, re-seat each one on the real
-// feature centroid from world.json and convert to world px — the way Salem and
-// Gloucester did it — then widen the roster (see docs/TOWNS.md step 4).
 
 export const dropOsm = [];
 
 // Marblehead's retail is a thin ribbon (Washington/State/Pleasant) rather than a
-// dense block, so let the data-driven commercial test carry it on the first
-// pass; add a hand-drawn core box only if the built world reads too sparse.
+// dense block, so the data-driven commercial test carries it — no hand-drawn
+// core box needed.
 export const downtownCore = null;
 
 export const storefrontCorridors = [];
 
-// ---------- curated landmarks (SEED — verify against world.json, see above) ----------
-// id, name, sub, lat, lon, radius(m)
+// ---------- curated landmarks ----------
+// Coords are WORLD PIXELS read straight out of the built world.json — park/beach
+// poly centroids, building centroids, and OSM historic points — so each lands
+// exactly on the feature (the Salem/Gloucester convention).
+//
+// Every entry below was additionally point-in-polygon tested against the real
+// Marblehead municipal boundary from data/marblehead/raw/boundaries.json: this
+// town's bbox reaches well into Salem and Swampscott for framing, and an earlier
+// lat/lon-estimated pass put Old Burial Hill ~1.5 km out to sea. Nothing here is
+// eyeballed. Two famous houses (the Jeremiah Lee Mansion, the Old Town House)
+// are deliberately ABSENT — they aren't named in OSM, so there's no honest
+// centroid to point at; add them via manualBuildings or an OSM edit, not a guess.
+//
+// Ordered as a loose tour: Old Town → the hills → harbor → the Neck → causeway
+// beaches → the woods.
 const LM = [
-  ['crocker-park', 'Crocker Park', 'The harbor overlook the whole town gathers on', 42.5044, -70.8544, 70],
-  ['abbot-hall', 'Abbot Hall', "The Spirit of '76 hangs upstairs", 42.4999, -70.8578, 55],
-  ['old-town-house', 'Old Town House', 'Market Square’s 1727 meeting hall', 42.5024, -70.857, 45],
-  ['fort-sewall', 'Fort Sewall', 'Earthwork fort guarding the harbor mouth since 1644', 42.5064, -70.8497, 80],
-  ['old-burial-hill', 'Old Burial Hill', 'The 1638 graveyard on the hill over town', 42.5033, -70.8618, 70],
-  ['redds-pond', "Redd's Pond", 'Model sailboats in summer, skates in winter', 42.5039, -70.8608, 50],
-  ['lee-mansion', 'Jeremiah Lee Mansion', "A merchant's Georgian mansion, 1768", 42.4996, -70.86, 45],
-  ['state-street-landing', 'State Street Landing', 'Where the harbor meets Old Town', 42.5041, -70.8503, 55],
-  ['marblehead-light', 'Marblehead Light', 'The iron tower at the tip of the Neck, 1896', 42.5054, -70.8329, 80],
-  ['riverhead-beach', 'Riverhead Beach', 'The sand beside the causeway out to the Neck', 42.4966, -70.8434, 70],
-  ['devereux-beach', 'Devereux Beach', 'The town beach under the causeway', 42.4903, -70.8452, 80],
+  // ── Old Town ──
+  ['crocker-park', 'Crocker Park', 'The harbor overlook the whole town gathers on', 6074, -2009, 480],
+  ['abbot-hall', 'Abbot Hall', "The Spirit of '76 hangs upstairs", 3705, -1863, 380],
+  ['washington-square', 'Washington Square', 'The little green below Abbot Hall', 3422, -1619, 340],
+  ['memorial-park', 'Memorial Park', 'Downtown’s green by the water', 1513, -1536, 360],
+  ['st-michaels', "St. Michael's Church", 'Episcopal since 1714 — the bell rang for independence', 4668, -3538, 340],
+  ['old-north-church', 'Old North Church', 'The 1635 congregation on Washington Street', 6533, -5785, 340],
+  ['gar-museum', 'G.A.R. Museum', 'A Civil War veterans’ hall, kept as they left it', 5499, -4270, 320],
+  ['shubies', 'Shubie’s', 'The market everyone in town has a sandwich order at', 2254, 17, 300],
+  // ── the hills & the old ground ──
+  ['old-burial-hill', 'Old Burial Hill', 'The 1638 graveyard on the hill over town', 7648, -9080, 620],
+  ['redds-pond', "Redd's Pond", 'Model sailboats in summer, skates in winter', 6881, -8564, 420],
+  ['fountain-park', 'Fountain Park', 'Ballfields under Old Burial Hill', 8381, -9049, 480],
+  ['green-street-cemetery', 'Green Street Cemetery', 'A quiet old burying ground in town', 1678, -4835, 360],
+  ['waterside-cemetery', 'Waterside Cemetery', 'The big garden cemetery on the water', -5894, -10036, 700],
+  // ── harbor ──
+  ['fort-sewall', 'Fort Sewall', 'Earthwork fort guarding the harbor mouth since 1644', 11017, -7083, 560],
+  ['marblehead-boatyard', 'Marblehead Boatyard', 'Where the harbor’s boats are hauled and painted', 7655, -3453, 340],
+  ['gas-house-beach', 'Gas House Beach', 'The little harbor beach kids launch from', 8674, -8330, 400],
+  ['grace-oliver-beach', "Grace Oliver's Beach", 'Quiet sand on the Salem side', 7735, -12670, 450],
+  ['stramskis-beach', "Stramski's Beach", 'Tide pools and a boat ramp', -5319, -12305, 420],
+  // ── the Neck ──
+  ['chandler-hovey', 'Chandler-Hovey Park', 'Marblehead Light at the tip of the Neck', 16223, -4369, 620],
+  ['castle-rock', 'Castle Rock', 'Climb the ledge for the open Atlantic', 15662, 966, 480],
+  ['neck-sanctuary', 'Marblehead Neck Sanctuary', 'Audubon woods and a heron pond on the Neck', 11737, 7154, 750],
+  ['garmet-beach', 'Garmet Beach', 'A pocket of sand on the Neck’s ocean side', 15169, 2456, 400],
+  // ── the causeway & the south shore ──
+  ['riverhead-beach', 'Riverhead Beach', 'The sand beside the causeway out to the Neck', 1930, 7408, 500],
+  ['devereux-beach', 'Devereux Beach', 'The town beach under the causeway', 4202, 8057, 560],
+  ['goldthwait', 'Goldthwait Reservation', 'Open shore grass along the ocean', -1131, 8970, 620],
+  ['seaside-park', 'Seaside Park', 'Ballfields, tennis and the skate park', 976, 5316, 620],
+  ['hammond-park', 'Hammond Park', 'A neighbourhood green off West Shore', 3825, 3260, 420],
+  ['preston-beach', 'Preston Beach', 'The long sand at the Swampscott line', -13995, 19348, 620],
+  // ── woods & ponds ──
+  ['steer-swamp', 'Steer Swamp', 'Wild trails and boulders right behind town', 4428, -11731, 800],
+  ['wyman-woods', 'Wyman Woods', 'Pines and paths on the west side', -13861, 3480, 750],
+  ['ware-pond', 'Ware Pond', 'A still pond in the west-side conservation land', -16166, 15757, 620],
+  ['gerry-playground', 'Gerry Playground', 'Swings and a ball field in the north end', -3969, -11720, 450],
 ];
-export function landmarks({ px, PX_PER_M }) {
-  return LM.map(([id, name, sub, lat, lon, rM]) => {
-    const [x, y] = px(lat, lon);
-    return { id, name, sub, x, y, r: Math.round(rM * PX_PER_M) };
-  });
+export function landmarks() {
+  return LM.map(([id, name, sub, x, y, r]) => ({ id, name, sub, x, y, r }));
 }
 
 export const curatedPois = [];
@@ -47,8 +76,8 @@ export const manualBuildings = [];
 export const levelFixes = [];
 
 // No independently-known real-world distances curated yet. Add verified pairs
-// once two landmarks are confirmed on the built map — they guard the projection,
-// so never compute them from the same formula they're meant to check.
+// here once you have two — they guard the projection, so never compute them
+// from the same formula they're meant to check.
 export const qaDistances = [];
 
 export const qaElevationSpots = [
