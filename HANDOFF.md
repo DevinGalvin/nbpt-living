@@ -6,11 +6,12 @@ Ipswich `/ipswich/`, Gloucester `/gloucester/`, Marblehead `/marblehead/`,
 Manchester-by-the-Sea `/manchester/` and Rockport `/rockport/`.
 Three.js + TypeScript + Vite. Live at **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE: MANCHESTER + ROCKPORT are live (towns #7/#8) and the
-> coastal chain is closed. Read ✦ MANCHESTER + ROCKPORT first. Marblehead (#6) at `/marblehead/`, and the
-> map pipeline now runs in CI — a cloud session can build a town end-to-end for
-> the first time. Read ✦ MARBLEHEAD below first**, then Two-Town Day, then the
-> post-launch polish session.
+> **⚡ FRESHEST STATE: MANCHESTER + ROCKPORT are live (towns #7 and #8) and the
+> coastal chain is closed. Read ✦ MANCHESTER + ROCKPORT first** — it has the
+> reusable four-step town-building workflow and the verification bar. Then read
+> ✦ MARBLEHEAD (town #6, and where the map pipeline moved into CI, which is what
+> makes a cloud session able to build a town end to end), then Two-Town Day, then
+> the post-launch polish session.
 
 ## ✦ MANCHESTER + ROCKPORT (towns #7 and #8) — the coast is closed
 
@@ -55,6 +56,23 @@ so there is no honest point to place. Don't guess one.
 **Open items (both towns):** race ladders empty (roads are baked, so
 make_course can trace them any time — remember to check for double-backs) · no
 hero buildings · Manchester's borderLore is thin.
+
+**What's next — the current ranking.** The old ranking optimised for build cost
+(which town's bbox we already had). That's obsolete: **the CI pipeline means
+build cost is roughly flat for *any* town**, so optimise for reach instead.
+
+- **Lynn** — the recommendation. ~105k people and ~15,900 students in Lynn
+  Public Schools, an order of magnitude more reach than anything shipped so far,
+  and it borders Swampscott/Salem so the fast-travel map stays contiguous. It is
+  visually flatter than Cape Ann, so lean on the waterfront, the Lynn Woods
+  reservation and Lynn Beach for landmarks.
+- **Danvers** (~28k) — runner-up, and the Salem Village half of the witch story,
+  which pairs with a town already live.
+- Amesbury + Salisbury still complete the NBPT cluster, but they are small.
+
+Also worth noting for whoever picks the next town: Gloucester schools reached
+out about a possible collaboration, so Cape Ann coverage has a use beyond
+player count.
 
 ## ✦ MARBLEHEAD + the map pipeline moves to CI
 
@@ -129,9 +147,8 @@ Swampscott / Lynn / Beverly · the Jeremiah Lee Mansion and Old Town House are
 still absent (unnamed in OSM — needs an OSM edit or a manualBuildings entry,
 NOT a guessed coordinate) · no launch post written yet.
 
-**Next towns** (standing ranking, unchanged): Rockport (cheapest — Gloucester's
-bbox already covers most of it), then Amesbury+Salisbury to complete the NBPT
-cluster. Peabody/Lynn are the big-population plays but visually flat.
+*(The "next towns" ranking that used to sit here named Rockport — it shipped.
+The current recommendation is at the end of ✦ MANCHESTER + ROCKPORT.)*
 
 > **Prior state (July 13, 2026 — TWO-TOWN DAY): Ipswich AND Gloucester
 > both went from empty folder to LIVE in one session. Read ✦ TWO-TOWN DAY
