@@ -73,9 +73,27 @@ mid-stride** — helmet, pack, rifle — on a **pale granite pedestal**, set aga
 a **low granite wall carrying two bronze relief panels**, with a flagpole beside
 it. POI monument tier (`POI_HEROES`), no footprint.
 
+### 8. Mary Baker Eddy House / Squire Bagley homestead — PHOTO-VERIFIED (HIGH)
+277 Main St; OSM names neither the way nor a POI, so the landmark is placed from
+the built address layer and the footprint gets a nameFix. Ref: Commons
+`Mary Baker Eddy Historic House - Amesbury, Massachusetts.JPG`.
+Genuinely odd for New England and worth getting right: **dusty PINK clapboard**
+with **deep maroon-brown trim** on every casing and corner board, **dark green
+shutters** on the front, a gray shingle **GAMBREL** roof, a red-brick chimney,
+and a **maroon picket fence** at the sidewalk. The pink is the whole point.
+
+### REAL BUT UNMAPPED — deliberately not placed
+**St James Episcopal Church** (79 Main St) — photo-verified as a superb
+fieldstone Gothic with a crenellated bell tower and RED doors (Commons
+`St James Episcopal Church, Amesbury MA.jpg`), but OSM has neither a named way
+nor the address, so there is no honest coordinate. Worth an OSM edit.
+**Amesbury Sports Park** and the **Chain Bridge** — same story.
+
 ### UNVERIFIED — no bespoke model
-Amesbury Public Library, Old Amesbury Town Hall, the Wilman Building (Stage Two
-Cinema Pub), Nicolas Costello Transportation Center, Cider Hill's Farm Store,
+Amesbury Public Library (searched Commons, Wikipedia and the library's own site
+— no exterior photo), Old Amesbury Town Hall, the Wilman Building (Stage Two
+Cinema Pub), Nicolas Costello Transportation Center, Cider Hill's Farm Store
+(the Commons Unsplash shots are the corn maze and pumpkin field, not the store),
 the Lower Millyard mill block, Market Street Baptist, Union Congregational,
 the Captain's Well, Golgotha Boulder.
 
@@ -92,11 +110,23 @@ eaves cornices, **corner pilasters**, tall 12-over-12 sash with **BLACK
 shutters**, an **arched fanlight window** over the entry, and a small
 **pedimented entry hood on brackets** lettered TOWN HALL, over brick steps.
 
+### 2. Chubby's Diner — TYPE-VERIFIED (MEDIUM-HIGH)
+72 Main St, address-layer confirmed against the footprint (12 px apart). It is a
+**Jerry O'Mahony lunch car built in 1941** — that is a documented fact about this
+exact building, and it is what the model asserts. The *look* of the type is
+photo-verified from Commons `Pats Diner, Salisbury MA`: a barrel-vaulted
+stainless roof, white porcelain panels with **RED trim bands and posts**, and a
+white roof sign board lettered in red. **This is type-verified, not
+photo-verified for this building** — flagged as such deliberately.
+It stopped serving in 2005, so the landmark card now describes the dining car
+rather than promising a breakfast; the old caption said "Breakfast in a genuine
+diner", which would have sent a kid to a closed door.
+
 ### UNVERIFIED — no bespoke model
 Salisbury Public Library, Blue Ocean Music Hall (nameFixed so search finds it;
-it is a modern 5-storey hall on the sand and no free photo was obtained), Star of
-the Sea Chapel, the Interpretive Center, the Camp Store, Lena's Seafood,
-Chubby's Diner, the Maria Miles Visitors Center.
+a modern hall on the sand, no free photo), Star of the Sea Chapel, the
+Interpretive Center, the Camp Store, Lena's Seafood, the Maria Miles Visitors
+Center.
 
 ---
 
@@ -124,4 +154,15 @@ Chubby's Diner, the Maria Miles Visitors Center.
    own distinguishing hex values proves the builder ran AND that its detail
    landed — every hero in this pass was confirmed that way (City Hall 3/3,
    Whittier 3/3, All Saints 2/2, Bartlett 3/3, Lowell's 3/3, Powder House 2/2,
-   the Doughboy 3/3, Salisbury Town Hall 4/4). Screenshot once, to taste.
+   the Doughboy 3/3, Salisbury Town Hall 4/4, and in the second wave the Eddy
+   House 3/3 and Chubby's 3/3). Screenshot once, to taste.
+6. **"In the frame" is not "in the town".** The second landmark wave started from
+   a POI sweep of the built world and half the best candidates — Markey's Lobster
+   Pool, the Newburyport waterfront, Seabrook's schools, Merrimac's town hall —
+   sit outside the municipal line the frame overruns. `landmark_candidates`
+   boundary-checks named FEATURES, but a raw POI sweep does not, so the wave got
+   its own point-in-boundary check against `data/<town>/raw/boundaries.json`
+   (stitching the relation's outer ways into rings first — they arrive unordered
+   and some reversed).
+7. **Check whether the place is still open before promising it.** Chubby's closed
+   in 2005; the first caption invited a kid to breakfast there.

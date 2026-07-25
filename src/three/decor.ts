@@ -3150,6 +3150,58 @@ function amesburyPowderHouse(buckets: Bucket[], b: Building, g: number) {
 // is the stone, and brickTex's own red is what makes it read as brick.
 // (see HEROES: the key is passed through with a near-white tint)
 
+// The Mary Baker Eddy House / Squire Bagley homestead (277 Main St, Amesbury) —
+// PHOTO-VERIFIED and genuinely odd for New England: **dusty PINK clapboard** with
+// deep maroon-brown trim on every casing and corner board, dark green shutters on
+// the front, a gray shingle GAMBREL roof, a red-brick chimney, and a maroon
+// picket fence at the street. The pink is the whole point — don't "correct" it.
+function maryBakerEddyHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const p = buckets[PLAIN], obb = obbOf(b.p);
+  const PINK = '#d8b3a6', TRIM = '#5c3129', GREEN = '#22402c';
+  gambrelHouse(buckets, b, g, index, {
+    wall: PINK, material: 'clap', roof: '#8a857c', trim: TRIM,
+    storeys: 2, dormers: 0, chimney: 'ridge2', entrance: 'pediment', shutter: GREEN,
+  });
+  facades(p, b.p, g + 36, 2, 1870, true, true, false, g, 60, TRIM, GREEN);
+  // the maroon picket fence along the street side
+  const f = obbFront(b, index);
+  const n = 14, W = Math.min(f.half, 24);
+  for (let i = 0; i <= n; i++) {
+    const t = -1 + (2 * i) / n;
+    p.box(f.x + f.tx * W * t + f.nx * 11, f.z + f.tz * W * t + f.nz * 11, 0.5, 0.5, g, g + 7, TRIM);
+  }
+  rotBox(p, f.x + f.nx * 11, f.z + f.nz * 11, W, 0.4, g + 5.6, g + 6.6, f.ang, TRIM);
+}
+
+// A classic New England LUNCH CAR diner — the barrel-vaulted stainless box that
+// arrived on a truck. Chubby's (72 Main St, Salisbury) is a Jerry O'Mahony car
+// built in 1941; the type is photo-verified from Commons' Pat's Diner, Salisbury.
+// White porcelain panels, RED trim bands and posts, a silver barrel roof, and a
+// white roof sign board lettered in red.
+function dinerCar(buckets: Bucket[], b: Building, g: number, index: WorldIndex, name: string) {
+  const p = buckets[PLAIN], obb = obbOf(b.p);
+  const WHITE = '#f2efe8', RED = '#b8342c', STEEL = '#b9bcc0', GLASS = '#3c4a52';
+  const eaveH = g + 20;
+  walls(p, b.p, g - 3, g + 6, RED, 0);                                   // red skirt
+  walls(p, b.p, g + 6, eaveH, WHITE, 0);                                 // porcelain panels
+  walls(p, expandRing(b.p, 0.5), g + 12, g + 16.5, GLASS, 0);            // the window band
+  walls(p, expandRing(b.p, 0.7), g + 16.5, g + 18, RED, 0);              // red band over the glass
+  walls(p, expandRing(b.p, 0.7), g + 10.5, g + 12, RED, 0);              // red band under it
+  // the barrel-vaulted stainless roof
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  for (let i = 0; i < 5; i++) {
+    const t = (i + 0.5) / 5, hw = obb.hw * Math.sin(Math.PI * t) * 0.34 + obb.hw * 0.62;
+    rotBox(p, obb.cx, obb.cz, obb.hl + 1, hw, eaveH + i * 1.5, eaveH + (i + 1) * 1.5, obb.ang, STEEL);
+  }
+  // the roof sign board, lettered in red, across the street face
+  const f = obbFront(b, index), W = Math.min(f.half, 22);
+  rotBox(p, f.x + f.nx * 1.5, f.z + f.nz * 1.5, 0.7, W * 0.85, eaveH + 8, eaveH + 16, f.ang, WHITE);
+  rotBox(p, f.x + f.nx * 1.9, f.z + f.nz * 1.9, 0.5, W * 0.66, eaveH + 10.5, eaveH + 13.5, f.ang, RED);
+  for (const s of [-1, 1]) p.box(f.x + f.tx * W * 0.8 * s + f.nx * 1.5, f.z + f.tz * W * 0.8 * s + f.nz * 1.5, 0.6, 0.6, eaveH, eaveH + 8, WHITE);
+  // red corner posts down the street face
+  for (const s of [-1, -0.33, 0.33, 1]) p.box(f.x + f.tx * W * s + f.nx * 0.8, f.z + f.tz * W * s + f.nz * 0.8, 0.8, 0.8, g, eaveH, RED);
+}
+
 // Salisbury Town Hall — the 1834 East Parish Meeting House. PHOTO-VERIFIED:
 // white clapboard Greek Revival, gable-FRONT, with a round OCULUS in the
 // pediment, modillion blocks along the cornices, corner pilasters, black
@@ -5457,8 +5509,10 @@ const HEROES: Record<string, HeroBuilder> = {
   'The Powder House': (bk, b, g) => amesburyPowderHouse(bk, b, g),
   'All Saints Anglican Cathedral': (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#fdfaf6' }),   // red-brick Gothic: brickTex's own red + a crenellated tower is exactly this church
   'Old Amesbury Town Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#f2ece0', material: 'clap', trim: '#fdfbf2', roof: '#5c5954', storeys: 2, roofKind: 'gable', entrance: 'pediment', chimney: 'ends2' }),   // massing + palette only — facade UNVERIFIED
+  'Mary Baker Eddy House': maryBakerEddyHouse,
   // — Salisbury —
   'Salisbury Town Hall': salisburyTownHall,
+  "Chubby's Diner": (bk, b, g, i) => dinerCar(bk, b, g, i, "Chubby's"),   // a real 1941 Jerry O'Mahony lunch car at 72 Main St
   'Rear Range Light': buildRearRange,
   'Front Range Light': buildFrontRange,
   'Newburyport Harbor (Plum Island) Light': buildPILight,

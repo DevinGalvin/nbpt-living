@@ -64,6 +64,19 @@ const AMESBURY_LM = [
   ['whittier-hill', 'Whittier Hill Reservation', 'Woods on the hill named for the poet', -10121, -274, 500],
   ['battis-farm', 'Battis Farm', 'Old farm fields kept wild', -9547, -11808, 600],
   ['lake-attitash', 'Lake Attitash', 'The big lake on the Merrimac line', -32808, 11857, 800],   // SHORE point (14 m off the water, 27 m from a road) — the poly's interior point is the lake surface
+  // ── second wave (7/25): every point boundary-checked against the real town
+  // line, not just the frame — the frame overruns into Merrimac, Salisbury and
+  // Newburyport, and several tempting POIs turned out to be in those. ──
+  ['riverwalk', 'Amesbury Riverwalk', 'The old rail bed, now a walking trail', 3803, 1956, 500],
+  ['riverwalk-lanes', 'Riverwalk Lanes', 'Candlepin bowling right downtown', -366, -692, 320],
+  ['gametime-lanes', 'Gametime Lanes', 'Bowling, arcade and pizza out on the Elm St side', -14697, 14218, 400],
+  ['flatbread', 'Flatbread Company', 'Wood-fired pizza in the old mill', -698, -127, 300],
+  ['market-st-baptist', 'Market Street Baptist Church', 'The steeple over Market Square', 418, -595, 320],
+  ['eddy-house', 'Mary Baker Eddy House', 'The pink gambrel where she wrote, 1870', 1320, 12207, 320],   // 277 Main St, from the built address layer — OSM names neither way nor POI
+  ['powow-trail', 'Powow Trail', 'Follow the river the whole town is named for', -7873, -9113, 550],
+  ['fire-station', 'Amesbury Fire Department', 'The trucks live here', -2311, 1906, 320],
+  ['horace-mann', 'Horace Mann School', 'One of the town’s elementary schools', 4933, -870, 400],
+  ['amesbury-high', 'Amesbury Innovation High School', 'The high school downtown', -3136, 1508, 380],
 ];
 export function landmarks() {
   return AMESBURY_LM.map(([id, name, sub, x, y, r]) => ({ id, name, sub, x, y, r }));
@@ -79,6 +92,7 @@ export const levelFixes = [];
 export const nameFixes = [
   { x: -3396, y: 2053, n: 'Whittier Home' },     // 86 Friend St, from the built address layer — OSM names neither the way nor a POI
   { x: 938, y: 11226, n: 'Bartlett Museum' },    // museum POI node; the way is unnamed
+  { x: 1320, y: 12207, n: 'Mary Baker Eddy House' },   // 277 Main St from the address layer — OSM names neither the way nor a POI
 ];
 
 // Real-world verified distances guard the projection — add pairs once two

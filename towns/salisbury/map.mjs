@@ -62,8 +62,19 @@ const SALISBURY_LM = [
   // the built world, so a fast-travel would drop the player in the river.
   // ── Route 1 and the state line ──
   ['lenas', "Lena's Seafood", 'Fried clams on the Route 1 strip', -17760, -22535, 320],
-  ['chubbys', "Chubby's Diner", 'Breakfast in a genuine diner', -17219, -23823, 300],
+  ['chubbys', "Chubby's Diner", 'A real 1941 dining car, shipped here on a truck', -17219, -23823, 300],   // 72 Main St (address-layer confirmed). A Jerry O'Mahony car, built 1941; it stopped serving in 2005, so the card describes the BUILDING, not a breakfast you can order
   ['welcome-center', 'Massachusetts Welcome Center', 'The first stop in the state, off I-95', -15854, -33520, 450],
+  // ── second wave (7/25): all boundary-checked against the real town line. The
+  // frame reaches into Newburyport and Seabrook and a lot of the best-looking
+  // POIs (Markey's, the Newburyport waterfront, Seabrook's schools) are in those. ──
+  ['ghost-trail', 'Salisbury Ghost Trail', 'A rail trail with a name like that', -23601, -4112, 550],
+  ['marsh-trail', 'Old Eastern Marsh Trail', 'Ride straight out across the salt marsh', -4145, 4986, 550],
+  ['hodgies', 'Hodgies Too', 'The ice cream stop on Route 110', -16735, -22966, 300],
+  ['cosmos', 'Cosmos', 'Breakfast, lunch and dinner on Route 110', -16710, -23266, 300],
+  ['groundswell', 'Groundswell Surf Cafe', 'Coffee before the first wave', 28685, -689, 300],
+  ['seaglass', 'Seaglass Oceanside', 'Dinner with the whole beach out the window', 28849, -1180, 300],
+  ['fire-station', 'Salisbury Fire Department', 'The trucks live here', -1827, -3615, 320],
+  ['hungry-traveller', 'The Hungry Traveller', 'The roadside stop out on Route 1', 11076, 2684, 300],
 ];
 export function landmarks() {
   return SALISBURY_LM.map(([id, name, sub, x, y, r]) => ({ id, name, sub, x, y, r }));
