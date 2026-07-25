@@ -61,12 +61,27 @@ Crocker Park (not water/blocked/under-deck), **all 32 landmarks fast-travelled �
 0 invalid landings, 0 beyond 900px**, both town guards green across six towns,
 `TOWN=marblehead vite build` + tsc clean, own og-image (1200×630, HUD hidden).
 
-**Open items:** race ladder unauthored · no hero buildings (`HEROES` in
-decor.ts — Abbot Hall is the obvious first) · `borderLore` only covers Salem /
-Swampscott / Lynn / Beverly · og-image is a decent harbor frame but a
-golden-hour recapture would be better for the launch post · Devereux/Preston
-beach landmark centroids sit on the wet side of their polys (fast-travel handles
-it; cosmetic only).
+**Closed since:** race ladder authored (3 courses, verified starting in-game) ·
+the two beach landmarks that centroided into the ocean are fixed · the dated
+captions are now SOURCED, not recalled · og-image checked against three other
+vantages and kept (the light doesn't warm between 0.72 and 0.82, so a
+"golden-hour" recapture isn't available — don't re-litigate it).
+
+**Two traps this town taught, both now documented in `towns/marblehead/map.mjs`
+and `src/towns/marblehead/courses.ts` — they will bite the next town too:**
+1. **A crescent poly's centroid can fall outside it.** Devereux and Preston
+   Beach both centroided into open ocean. Point-in-poly check every landmark
+   against the feature it names, not just against the town boundary.
+2. **Park/beach centroids snap to cul-de-sacs.** make_course.mjs then routes
+   *into the dead end and back out* — one homecoming draft had 17 repeated route
+   points. Put course vias on real through-streets and count repeats before
+   shipping.
+
+**Open items:** no hero buildings (`HEROES` in decor.ts — Abbot Hall is the
+obvious first, it's the town's silhouette) · `borderLore` only covers Salem /
+Swampscott / Lynn / Beverly · the Jeremiah Lee Mansion and Old Town House are
+still absent (unnamed in OSM — needs an OSM edit or a manualBuildings entry,
+NOT a guessed coordinate) · no launch post written yet.
 
 **Next towns** (standing ranking, unchanged): Rockport (cheapest — Gloucester's
 bbox already covers most of it), then Amesbury+Salisbury to complete the NBPT
