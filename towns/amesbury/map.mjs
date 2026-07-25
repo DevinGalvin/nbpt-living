@@ -49,7 +49,7 @@ const AMESBURY_LM = [
   ['whittier-home', 'Whittier Home', 'The poet who wrote here helped end slavery', -3396, 2053, 320],   // 86 Friend St, from the built address layer (OSM doesn't name the house)
   ['bartlett-museum', 'Bartlett Museum', "The old school full of the town's attic", 938, 11226, 340],
   ['lowells-boat-shop', "Lowell's Boat Shop", 'America’s oldest boat shop — the dory was born here', 10423, 13877, 340],
-  ['powder-house', 'The Powder House', 'A little brick igloo that held the gunpowder', 10646, 1724, 300],
+  ['powder-house', 'The Powder House', 'A whitewashed stone dome that held the gunpowder', 10646, 1724, 300],
   ['golgotha-boulder', 'Golgotha Boulder', 'A giant rock with a grim old name', 3873, 9666, 340],
   ['captains-well', "The Captain's Well", 'The well from Whittier’s poem, still here', -119, 8649, 300],
   ['doughboy', 'The Doughboy', 'The World War I soldier on the green', -137, 8462, 300],
@@ -73,7 +73,13 @@ export const curatedPois = [];
 export const curatedPoisHand = {};
 export const manualBuildings = [];
 export const levelFixes = [];
-export const nameFixes = [];
+// Names OSM carries on POI nodes (or nowhere) but not on the footprints —
+// stamped onto the containing building so HEROES/search bind. Anchors verified
+// inside the footprint; watch for NAME_FIX missed at build time.
+export const nameFixes = [
+  { x: -3396, y: 2053, n: 'Whittier Home' },     // 86 Friend St, from the built address layer — OSM names neither the way nor a POI
+  { x: 938, y: 11226, n: 'Bartlett Museum' },    // museum POI node; the way is unnamed
+];
 
 // Real-world verified distances guard the projection — add pairs once two
 // points are independently verified (never computed from the same formula).

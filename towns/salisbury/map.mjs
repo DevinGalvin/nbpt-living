@@ -73,7 +73,15 @@ export const curatedPois = [];
 export const curatedPoisHand = {};
 export const manualBuildings = [];
 export const levelFixes = [];
-export const nameFixes = [];
+// Names OSM carries on POI nodes but not on the footprints — stamped onto the
+// containing building so HEROES/search bind.
+export const nameFixes = [
+  { x: 28758, y: -1578, n: 'Blue Ocean Music Hall' },   // theatre POI node on the sand; the way is unnamed
+  // Star of the Sea Chapel: NOT nameFixed. Its POI node sits 18-25 m from three
+  // unnamed houses and there is no way to tell which one is the chapel without
+  // guessing — and a wrong stamp would label a resident's house as a chapel.
+  // The landmark still fast-travels; it just gets no hero.
+];
 
 // Real-world verified distances guard the projection — add pairs once two
 // points are independently verified (never computed from the same formula).

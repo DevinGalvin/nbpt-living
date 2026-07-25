@@ -2987,6 +2987,215 @@ function manchesterTownHall(buckets: Bucket[], b: Building, g: number, index: Wo
   rotBox(p, f.x + f.nx * 3.4, f.z + f.nz * 3.4, 5.2, 3.2, g - 2, g + 0.8, fa, '#a8a49a');   // granite steps
 }
 
+// ---------- Amesbury + Salisbury heroes (docs/research/amesbury-salisbury.md) ----------
+
+// A flat round-arched opening lying ON a facade plane: a rectangular shaft with
+// a TRUE semicircular head drawn as a triangle fan. Stepping little boxes around
+// the curve (the first attempt) reads as a staircase at play distance — the
+// whole point of a Romanesque front is the clean half-circle.
+// (cx,cz) is the springing-line centre; (tx,tz) runs along the wall, (nx,nz) is
+// the outward normal, hw is the half-width = the arch radius.
+function roundArch(p: Bucket, cx: number, cz: number, tx: number, tz: number,
+                   nx: number, nz: number, hw: number, y0: number, yTop: number, hex: string) {
+  tmp.set(hex);
+  const r = tmp.r, gg = tmp.g, bb = tmp.b;
+  p.quad(cx - tx * hw, y0, cz - tz * hw, cx + tx * hw, y0, cz + tz * hw,
+    cx + tx * hw, yTop, cz + tz * hw, cx - tx * hw, yTop, cz - tz * hw, nx, 0, nz, r, gg, bb);
+  const N = 12;
+  for (let i = 0; i < N; i++) {
+    const a0 = Math.PI * i / N, a1 = Math.PI * (i + 1) / N;
+    p.triUV(cx, yTop, cz,
+      cx + tx * Math.cos(a0) * hw, yTop + Math.sin(a0) * hw, cz + tz * Math.cos(a0) * hw,
+      cx + tx * Math.cos(a1) * hw, yTop + Math.sin(a1) * hw, cz + tz * Math.cos(a1) * hw,
+      nx, 0, nz, r, gg, bb, 0, 0, 0, 0, 0, 0);
+  }
+}
+
+// Amesbury Town Hall — PHOTO-VERIFIED. OSM says "Amesbury City Hall" (the town
+// became a city in 1996) but the building's own sign says TOWN HALL. Deep
+// red-orange brick, flat roof behind a corbelled parapet, and a front of THREE
+// GREAT ARCHES: two enormous round-arched windows flanking an arched entry, with
+// the black-and-gold sign board over the door.
+function amesburyTownHall(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const p = buckets[PLAIN];
+  const BRICK_HEX = '#fdfaf6';      // near-white TINT — brickTex already carries the red
+  const STONE = '#d9d4c6', SASH = '#f4f1e8';
+  const eaveH = g + 46;
+  walls(buckets[BRICK], b.p, g - 4, eaveH, BRICK_HEX);
+  walls(buckets[BRICK], expandRing(b.p, 0.6), eaveH - 4, eaveH, BRICK_HEX, 1);   // corbelled parapet course
+  walls(p, expandRing(b.p, 0.9), eaveH, eaveH + 1.4, STONE, 0);
+  flatRoof(p, b.p, eaveH + 1.4, '#4c4a47');
+  facades(p, b.p, eaveH, 2, 1890, false, false, false, g, 70);
+  const f = obbFront(b, index), fa = f.ang, W = Math.min(f.half, 30);
+  // THE THREE GREAT ARCHES across the front: two big windows flanking the entry
+  for (const [t, half, y0, y1, fill] of [[-1, 0.30, 14, 32, SASH], [1, 0.30, 14, 32, SASH], [0, 0.21, 0, 24, '#2b2f36']] as const) {
+    const ax = f.x + f.tx * W * 0.62 * t, az = f.z + f.tz * W * 0.62 * t;
+    const hw = W * half;
+    // pale stone surround, then the glass/door recessed a hair further out
+    roundArch(p, ax + f.nx * 0.5, az + f.nz * 0.5, f.tx, f.tz, f.nx, f.nz, hw + 1.4, g + y0, g + y1, STONE);
+    roundArch(p, ax + f.nx * 0.9, az + f.nz * 0.9, f.tx, f.tz, f.nx, f.nz, hw, g + y0 + 1, g + y1, fill);
+  }
+  // the black-and-gold AMESBURY TOWN HALL sign board over the entry arch
+  rotBox(p, f.x + f.nx * 1.2, f.z + f.nz * 1.2, 0.6, W * 0.26, g + 27, g + 33, fa, '#1c1d20');
+  rotBox(p, f.x + f.nx * 1.6, f.z + f.nz * 1.6, 0.5, W * 0.20, g + 29, g + 31.4, fa, '#c8a24a');   // gold lettering band
+  rotBox(p, f.x + f.nx * 3, f.z + f.nz * 3, 4.4, 2.6, g - 2, g + 1, fa, '#a8a49a');    // granite steps
+  const obb = obbOf(b.p);                                              // one end chimney
+  buckets[BRICK].box(obb.cx - Math.cos(obb.ang) * obb.hl * 0.82, obb.cz - Math.sin(obb.ang) * obb.hl * 0.82,
+    2.2, 2.2, eaveH, eaveH + 12, BRICK_HEX, 1);
+}
+
+// Josiah Bartlett Museum (1870) — PHOTO-VERIFIED Italianate: pale cream
+// clapboard, a low hipped roof on WIDE bracketed eaves, RED window casings and a
+// red water table, and a round-arched paired window over a bracketed porch.
+// The paired eave brackets are the tell — without them it is a hip-roofed box.
+function bartlettMuseum(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const p = buckets[PLAIN], obb = obbOf(b.p);
+  const CREAM = '#ded6bc', RED = '#8e2f28', TRIM = '#f2ece0';
+  const eaveH = g + 40;
+  clad(buckets[CLAP], b.p, g - 2, eaveH, CREAM);
+  walls(p, expandRing(b.p, 0.5), g + 0.5, g + 4, RED, 0);                // the red water table
+  walls(p, expandRing(b.p, 1.8), eaveH - 1.5, eaveH + 1.2, TRIM, 0);     // the deep overhanging eave
+  walls(p, expandRing(b.p, 0.8), eaveH - 3.4, eaveH - 1.5, RED, 0);      // red cornice band under it
+  // paired scroll brackets under the eave, all the way round
+  const v = ringToVec2(b.p);
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i], b2 = v[(i + 1) % v.length];
+    const ex = b2.x - a.x, ey = b2.y - a.y, len = Math.hypot(ex, ey);
+    for (let d = 6; d < len - 4; d += 13) {
+      for (const off of [-1.4, 1.4]) {
+        const t = (d + off) / len;
+        p.box(a.x + ex * t, a.y + ey * t, 1, 1, eaveH - 6, eaveH - 1.4, TRIM);
+      }
+    }
+  }
+  hipRoof(buckets[SHINGLE], obb, eaveH + 1.2, 7, 2, '#4e4b46', false);
+  facades(p, b.p, eaveH, 2, 1870, true, false, false, g, 60, '#5b3a24', RED);
+  const f = obbFront(b, index), fa = f.ang;
+  // the arched paired window over a bracketed entry porch
+  rotBox(p, f.x + f.nx * 0.5, f.z + f.nz * 0.5, 0.5, 3.4, g + 24, g + 36, fa, RED);
+  rotBox(p, f.x + f.nx * 0.8, f.z + f.nz * 0.8, 0.5, 2.6, g + 25, g + 35, fa, '#38414a');
+  for (const s of [-1, 1]) p.box(f.x + f.tx * 3.4 * s + f.nx * 4, f.z + f.tz * 3.4 * s + f.nz * 4, 1.1, 1.1, g, g + 17, TRIM);
+  rotBox(p, f.x + f.nx * 4, f.z + f.nz * 4, 4.6, 3.2, g + 17, g + 19.4, fa, TRIM);
+  buckets[BRICK].box(obb.cx, obb.cz, 2, 2, eaveH + 6, eaveH + 16, '#8a4a3c');
+}
+
+// The Whittier Home (86 Friend St, a National Historic Landmark) — PHOTO-VERIFIED:
+// white clapboard, DARK GREEN shutters everywhere, two front gable dormers plus a
+// shed dormer, two red-brick chimneys, and a small columned entry porch under a
+// black WHITTIER HOME sign board.
+function whittierHome(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const p = buckets[PLAIN], obb = obbOf(b.p);
+  const WHITE = '#f7f4ea', GREEN = '#22402c', ROOF = '#6a6660';
+  const eaveH = g + 40;
+  clad(buckets[CLAP], b.p, g - 2, eaveH, WHITE);
+  gableRoof(buckets[SHINGLE], buckets[CLAP], b.p, obb, eaveH, 13, 2.5, ROOF, WHITE);
+  houseTrim(p, b.p, eaveH, g - 2);
+  facades(p, b.p, eaveH, 2, 1836, true, true, false, g, 60, GREEN, GREEN);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const f = obbFront(b, index), fa = f.ang;
+  // two gable dormers on the front slope
+  for (const s of [-1, 1]) {
+    const dx = f.x + f.tx * Math.min(f.half, 22) * 0.5 * s - f.nx * 5;
+    const dz = f.z + f.tz * Math.min(f.half, 22) * 0.5 * s - f.nz * 5;
+    rotBox(p, dx, dz, 3.4, 3, eaveH - 1, eaveH + 9, fa, WHITE);
+    rotBox(p, dx + f.nx * 2.4, dz + f.nz * 2.4, 0.4, 1.6, eaveH + 1, eaveH + 7.5, fa, '#38414a');
+    tmp.set(ROOF);
+    cone(p, dx, eaveH + 9, dz, 3.9, 3.4, tmp.clone());
+  }
+  for (const s of [-1, 1]) buckets[BRICK].box(obb.cx + ca * obb.hl * 0.66 * s, obb.cz + sa * obb.hl * 0.66 * s, 2.1, 2.1, eaveH + 4, eaveH + 17, '#8a4a3c', 1);
+  // the entry porch + its black sign board
+  for (const s of [-1, 1]) p.box(f.x + f.tx * 3.2 * s + f.nx * 3.6, f.z + f.tz * 3.2 * s + f.nz * 3.6, 0.9, 0.9, g, g + 15, WHITE);
+  rotBox(p, f.x + f.nx * 3.6, f.z + f.nz * 3.6, 4.4, 3, g + 15, g + 17, fa, WHITE);
+  rotBox(p, f.x + f.nx * 0.6, f.z + f.nz * 0.6, 0.5, 3, g + 17.4, g + 21, fa, '#1c1d20');
+}
+
+// Lowell's Boat Shop (1793) — PHOTO-VERIFIED from across the Merrimack: a barn-RED
+// clapboard cluster right at the waterline, a taller block plus a lower wing, and
+// DENSE regular rows of white-trimmed windows (the shop floors are lit from both
+// sides, so it carries far more glass than a house).
+function lowellsBoatShop(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const p = buckets[PLAIN], obb = obbOf(b.p);
+  const RED = '#a8402f', TRIM = '#f2efe6';
+  const eaveH = g + 40;
+  clad(buckets[CLAP], b.p, g - 12, eaveH, RED);                          // walls run down to the water
+  gableRoof(buckets[SHINGLE], buckets[CLAP], b.p, obb, eaveH, 11, 2, '#6e6a63', RED);
+  walls(p, expandRing(b.p, 0.4), eaveH - 1.4, eaveH + 0.4, TRIM, 0);
+  facades(p, b.p, eaveH, 3, 1793, true, false, false, g, 400, '#5b3a24');   // dense glass — 3 rows, big budget
+  // timber ways and pilings down into the river on the water side
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang), nx = -sa, nz = ca;
+  const side = index.isWaterAt(obb.cx + nx * (obb.hw + 70), obb.cz + nz * (obb.hw + 70)) ? 1 : -1;
+  for (let i = -2; i <= 2; i++) {
+    const l0 = i * obb.hl * 0.36;
+    p.box(obb.cx + ca * l0 + nx * side * (obb.hw + 9), obb.cz + sa * l0 + nz * side * (obb.hw + 9), 1.3, 1.3, g - 18, g + 2, '#6b5a48');
+  }
+}
+
+// The Powder House — PHOTO-VERIFIED (HABS, 1935). NOT a brick igloo: a round
+// whitewashed parged masonry cylinder with a domed top, alone on the hill.
+function amesburyPowderHouse(buckets: Bucket[], b: Building, g: number) {
+  const p = buckets[PLAIN];
+  const [cx, cz] = centroidOf(b.p);
+  const PALE = '#ddd8cb';
+  const r = Math.max(6, Math.min(11, Math.sqrt(ringAreaPx2(b.p) / Math.PI)));
+  walls(p, octRing(cx, cz, r), g - 3, g + 22, PALE, 0);
+  tmp.set(PALE);
+  cone(p, cx, g + 22, cz, r, r * 1.15, tmp.clone());                     // the dome
+  p.box(cx, cz, 1.6, 0.4, g + 1, g + 9, '#4a3f33');                      // the little plank door
+}
+
+// All Saints Anglican Cathedral (Amesbury) — PHOTO-VERIFIED red-brick Gothic:
+// a steep gable front with a big traceried pointed window, three pointed doors,
+// and a square brick tower with a stepped parapet. salemChurch already builds
+// exactly this silhouette for Salem's granite Gothic churches — the only change
+// is the stone, and brickTex's own red is what makes it read as brick.
+// (see HEROES: the key is passed through with a near-white tint)
+
+// Salisbury Town Hall — the 1834 East Parish Meeting House. PHOTO-VERIFIED:
+// white clapboard Greek Revival, gable-FRONT, with a round OCULUS in the
+// pediment, modillion blocks along the cornices, corner pilasters, black
+// shutters, and a small bracketed entry hood lettered TOWN HALL.
+function salisburyTownHall(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const p = buckets[PLAIN], obb = obbOf(b.p);
+  const WHITE = '#f7f4ea', TRIM = '#fdfbf2', BLACK = '#1f2124';
+  const eaveH = g + 44;
+  clad(buckets[CLAP], b.p, g - 2, eaveH, WHITE);
+  const f = obbFront(b, index), fa = f.ang, W = Math.min(f.half, 26);
+  // corner pilasters
+  for (const s of [-1, 1]) {
+    p.box(f.x + f.tx * W * s + f.nx * 0.6, f.z + f.tz * W * s + f.nz * 0.6, 1.6, 1.6, g - 2, eaveH + 1, TRIM);
+  }
+  walls(p, expandRing(b.p, 0.7), eaveH - 2, eaveH + 0.6, TRIM, 0);       // cornice
+  // modillion blocks under the cornice
+  const v = ringToVec2(b.p);
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i], b2 = v[(i + 1) % v.length];
+    const ex = b2.x - a.x, ey = b2.y - a.y, len = Math.hypot(ex, ey);
+    for (let d = 5; d < len - 3; d += 7) { const t = d / len; p.box(a.x + ex * t, a.y + ey * t, 0.9, 0.9, eaveH - 5, eaveH - 2, TRIM); }
+  }
+  gableRoof(buckets[SHINGLE], buckets[CLAP], b.p, obb, eaveH + 0.6, 15, 2, '#5c5954', WHITE);
+  facades(p, b.p, eaveH, 2, 1834, false, true, false, g, 60, undefined, BLACK);
+  // the pediment across the gable front, with its round oculus
+  tmp.set(TRIM);
+  p.triUV(f.x - f.tx * W + f.nx * 0.9, eaveH + 0.6, f.z - f.tz * W + f.nz * 0.9,
+    f.x + f.tx * W + f.nx * 0.9, eaveH + 0.6, f.z + f.tz * W + f.nz * 0.9,
+    f.x + f.nx * 0.9, eaveH + 15, f.z + f.nz * 0.9, f.nx, 0.3, f.nz, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0);
+  for (let i = 0; i < 8; i++) {                                          // the oculus
+    const a = (i / 8) * Math.PI * 2;
+    p.box(f.x + f.tx * Math.cos(a) * 3.2 + f.nx * 1.4, f.z + f.tz * Math.cos(a) * 3.2 + f.nz * 1.4,
+      1, 1, eaveH + 5.6 + Math.sin(a) * 3.2, eaveH + 6.6 + Math.sin(a) * 3.2, '#38414a');
+  }
+  // arched fanlight over the door, then the little bracketed TOWN HALL hood
+  rotBox(p, f.x + f.nx * 0.6, f.z + f.nz * 0.6, 0.5, 2.6, g + 24, g + 34, fa, TRIM);
+  rotBox(p, f.x + f.nx * 0.9, f.z + f.nz * 0.9, 0.4, 2, g + 25, g + 33, fa, '#38414a');
+  rotBox(p, f.x + f.nx * 0.5, f.z + f.nz * 0.5, 0.5, 2.6, g, g + 15, fa, BLACK);
+  rotBox(p, f.x + f.nx * 2.2, f.z + f.nz * 2.2, 3.6, 2, g + 15, g + 17, fa, TRIM);
+  tmp.set(TRIM);
+  p.triUV(f.x - f.tx * 3.6 + f.nx * 2.2, eaveH * 0 + g + 17, f.z - f.tz * 3.6 + f.nz * 2.2,
+    f.x + f.tx * 3.6 + f.nx * 2.2, g + 17, f.z + f.tz * 3.6 + f.nz * 2.2,
+    f.x + f.nx * 2.2, g + 21, f.z + f.nz * 2.2, f.nx, 0.3, f.nz, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0);
+  rotBox(p, f.x + f.nx * 3.4, f.z + f.nz * 3.4, 4.2, 2.6, g - 2, g + 0.8, fa, '#9c5040');   // brick steps
+}
+
 // Manchester-by-the-Sea Public Library (1887) — PHOTO-VERIFIED Richardsonian
 // Romanesque: rough variegated BROWNSTONE, steep slate roofs, a square tower with
 // an open arched belfry under a lead-gray dome with a green copper finial, a clock
@@ -3130,11 +3339,35 @@ function buildCGMonument(buckets: Bucket[], x: number, z: number, g: number) {
     0, 0, -1, tmp.r, tmp.g, tmp.b);
 }
 
+// The Doughboy (Amesbury) — PHOTO-VERIFIED: a bronze WWI infantryman mid-stride,
+// helmet and pack and rifle, on a pale granite pedestal set against a low granite
+// wall carrying two bronze relief panels, with a flagpole beside it.
+function buildDoughboy(buckets: Bucket[], x: number, z: number, g: number) {
+  const p = buckets[PLAIN];
+  const GRAN = '#b6b1a7', BRONZE = '#6b5a3c';
+  p.box(x, z, 15, 9, g, g + 1.4, '#a8a49a');                             // paved apron
+  p.box(x + 7, z, 9, 2.2, g + 1.4, g + 13, GRAN);                        // the low wall behind him
+  for (const s of [-1, 1]) p.box(x + 5 + s * 4.2, z - 2.4, 3, 0.4, g + 4.5, g + 10.5, BRONZE);   // the two relief panels
+  p.box(x - 5, z, 4.5, 4.5, g + 1.4, g + 12, GRAN);                      // his pedestal
+  p.box(x - 5, z, 3.2, 3.2, g + 12, g + 13.4, '#c6c1b7');               // pedestal cap
+  // the striding soldier — one leg forward, pack on his back, rifle across
+  p.box(x - 6.2, z + 0.6, 1.5, 1.5, g + 13.4, g + 21, BRONZE);           // trailing leg
+  p.box(x - 3.9, z - 0.6, 1.5, 1.5, g + 13.4, g + 20, BRONZE);           // leading leg
+  p.box(x - 5, z, 3, 2.2, g + 20, g + 28.5, BRONZE);                     // torso, leaning forward
+  p.box(x - 6.6, z, 1.6, 1.6, g + 21, g + 26, BRONZE);                   // the pack
+  p.box(x - 5, z, 1.9, 1.9, g + 28.5, g + 31.5, BRONZE);                 // head
+  p.box(x - 5, z, 2.9, 2.9, g + 31, g + 32, BRONZE);                     // the flat helmet brim
+  p.box(x - 3.4, z, 3.6, 0.7, g + 24, g + 25, BRONZE);                   // rifle across the body
+  p.box(x + 1, z + 5, 0.5, 0.5, g + 1.4, g + 34, '#e0dcd2');            // flagpole
+  buckets[GLOW].box(x + 4, z + 5, 3, 0.2, g + 27, g + 32, '#b03030', 0);
+}
+
 const POI_HEROES: Record<string, (buckets: Bucket[], x: number, z: number, g: number) => void> = {
   "Fishermens' Monument": buildManAtWheel,          // OSM's odd apostrophe — keep it
   "Fishermen's Wives Memorial": buildWivesMemorial,
   'Tablet Rock': buildTabletRock,
   'Coast Guard Aviation Monument': buildCGMonument,
+  'Doughboy Statue': buildDoughboy,                 // Amesbury
 };
 
 function buildRearRange(buckets: Bucket[], b: Building, g: number) {
@@ -5216,6 +5449,16 @@ const HEROES: Record<string, HeroBuilder> = {
   'Manchester-By-The-Sea Public Library': manchesterLibrary,
   'First Parish Church (Manchester)': (bk, b, g, i) => meetinghouse(bk, b, g, i, { clock: 'gold', balustrade: true, belfry: 'octagon', cap: 'dome', capHex: '#6f9c88' }),   // 1809: white, GOLD clock face, octagonal columned belfry, green copper dome
   'Trask House Museum': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#f7f4ea', material: 'clap', trim: '#fdfbf2', roof: '#5e5a55', storeys: 2, roofKind: 'hip', balustrade: 'fret', entrance: 'fan', chimney: 'interior4', shutter: '#1b1c1e', door: '#1b1c1e' }),   // 1823 Federal: white, BLACK shutters, white roof balustrade
+  // — Amesbury (docs/research/amesbury-salisbury.md) —
+  'Amesbury City Hall': amesburyTownHall,          // OSM's name; the building's own sign says TOWN HALL
+  'Bartlett Museum': bartlettMuseum,
+  'Whittier Home': whittierHome,
+  "Lowell's Boat Shop": lowellsBoatShop,
+  'The Powder House': (bk, b, g) => amesburyPowderHouse(bk, b, g),
+  'All Saints Anglican Cathedral': (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#fdfaf6' }),   // red-brick Gothic: brickTex's own red + a crenellated tower is exactly this church
+  'Old Amesbury Town Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#f2ece0', material: 'clap', trim: '#fdfbf2', roof: '#5c5954', storeys: 2, roofKind: 'gable', entrance: 'pediment', chimney: 'ends2' }),   // massing + palette only — facade UNVERIFIED
+  // — Salisbury —
+  'Salisbury Town Hall': salisburyTownHall,
   'Rear Range Light': buildRearRange,
   'Front Range Light': buildFrontRange,
   'Newburyport Harbor (Plum Island) Light': buildPILight,
