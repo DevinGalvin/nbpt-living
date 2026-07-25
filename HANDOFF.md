@@ -1,14 +1,60 @@
 # Clipper Town — Handoff
 
-A cozy, all-ages Zelda-like set on the **exact maps of real towns** — Newburyport at
-`/`, Salem at `/salem/`, Beverly at `/beverly/`, Ipswich at `/ipswich/`,
-Gloucester at `/gloucester/` and Marblehead at `/marblehead/`, one codebase.
+A cozy, all-ages Zelda-like set on the **exact maps of real towns** — eight of
+them, one codebase: Newburyport `/`, Salem `/salem/`, Beverly `/beverly/`,
+Ipswich `/ipswich/`, Gloucester `/gloucester/`, Marblehead `/marblehead/`,
+Manchester-by-the-Sea `/manchester/` and Rockport `/rockport/`.
 Three.js + TypeScript + Vite. Live at **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE: MARBLEHEAD (town #6) is LIVE at `/marblehead/`, and the
+> **⚡ FRESHEST STATE: MANCHESTER + ROCKPORT are live (towns #7/#8) and the
+> coastal chain is closed. Read ✦ MANCHESTER + ROCKPORT first. Marblehead (#6) at `/marblehead/`, and the
 > map pipeline now runs in CI — a cloud session can build a town end-to-end for
 > the first time. Read ✦ MARBLEHEAD below first**, then Two-Town Day, then the
 > post-launch polish session.
+
+## ✦ MANCHESTER + ROCKPORT (towns #7 and #8) — the coast is closed
+
+**Live at `31b030a`.** Both authored, baked and shipped in one session. Cape Ann
+is complete and the coastal chain now has no gaps: Newburyport → Ipswich →
+Gloucester → Rockport → Manchester → Beverly → Salem → Marblehead.
+
+**New tool — use it for every future town: `tools/landmark_candidates.mjs`.**
+`TOWN=<id> node tools/landmark_candidates.mjs [--all] [--min <m2>]` reads the
+BUILT world.json and prints named features that are genuinely inside the town,
+each with a coordinate genuinely on the feature. It encodes both traps Marblehead
+paid for (boundary check, interior points). The payoff was immediate: Manchester
+and Rockport had **zero** water-landmarks and zero bad fast-travel landings on
+the first pass, where Marblehead needed two rounds of fixes.
+
+**The workflow that now works, end to end, from a cloud session:**
+1. Author `towns/<id>/{town.json,map.mjs}` with `landmarks()` returning `[]`.
+   (No pack, no registry yet — the map pipeline only needs those two files.)
+2. Bake: `actions_run_trigger → build-world.yml, ref: source,
+   inputs {towns: "<id> <id2>", ref: "<feature-branch>"}` — it takes several
+   town ids at once. Pull with `git fetch origin map-data && git checkout
+   FETCH_HEAD -- towns/<id>/public/...`.
+3. Curate from `landmark_candidates.mjs`, machine-check every coordinate back
+   against its output, write the pack/registry/scripts/manifest.
+4. Re-bake (landmarks live in world.json), verify, og-image, ship.
+
+**Verification bar that caught real bugs — keep it:** boot with no page errors ·
+spawn not water/blocked/under-deck · every landmark fast-travelled for invalid
+or >900px landings · every landmark point-in-poly'd for water · both town guards
+· tsc + per-town vite build. Screenshot with `nbpt.travel(<landmarkId>)` rather
+than `go()` — fast-travel arrives *facing* the landmark, which is why the
+Singing Beach og-image works and a `go()` framing gave an empty field.
+
+**Town notes.** Manchester: spawn Singing Beach, 23 landmarks, tag "Where the
+Sand Sings" 🏖. Rockport: spawn Dock Square, 30 landmarks, tag "The Artists'
+Colony" 🎨 — Bearskin Neck and Dock Square exist in OSM only as STREETS so they
+use real street midpoints (documented in map.mjs); Thacher Island's Twin Lights
+and Straitsmouth Light are all mapped. Both have `trainPlatform: null` — the
+MBTA Rockport line genuinely stops at both, but OSM doesn't name the stations,
+so there is no honest point to place. Don't guess one.
+
+**Open items (both towns):** race ladders empty (roads are baked, so
+make_course can trace them any time — remember to check for double-backs) · no
+hero buildings · Manchester's borderLore is thin.
 
 ## ✦ MARBLEHEAD + the map pipeline moves to CI
 
