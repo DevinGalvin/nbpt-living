@@ -1,0 +1,40 @@
+{
+  "id": "manchester",
+  "name": "Manchester-by-the-Sea",
+  "worldName": "Manchester-by-the-Sea, MA",
+  "title": "Manchester-by-the-Sea",
+  "tag": "Where the Sand Sings",
+  "emoji": "🏖",
+  "path": "/manchester/",
+  "savePrefix": "manchester:",
+  "pxPerMeter": 8,
+  "origin": { "lat": 42.576, "lon": -70.769 },
+  "bbox": { "s": 42.535, "w": -70.83, "n": 42.62, "e": -70.71 },
+  "spawn": { "landmark": "singing-beach", "dx": 0, "dz": 0 },
+  "branding": {
+    "htmlTitle": "Manchester-by-the-Sea — walk the real map in 3D",
+    "appleTitle": "Manchester",
+    "themeColor": "#123a35",
+    "bgTop": "#1a4f47",
+    "bgBottom": "#0a221f",
+    "ruleColor": "#e0b23a",
+    "description": "A cozy, all-ages 3D walk through the exact map of Manchester-by-the-Sea, Massachusetts. Wander the harbor, the town centre, and out to Singing Beach — and find your own house.",
+    "ogSiteName": "Manchester-by-the-Sea in 3D",
+    "ogDescription": "A cozy, all-ages 3D walk through the real map of Manchester-by-the-Sea. The harbor, the town, and Singing Beach — find your own street.",
+    "ogUrl": "https://clippertown.io/manchester/",
+    "ogImage": "https://clippertown.io/manchester/og-image.jpg",
+    "ogImageType": "image/jpeg",
+    "ogImageAlt": "A 3D voxel view of Manchester-by-the-Sea, Massachusetts",
+    "twitterDescription": "Walk the real map of Manchester-by-the-Sea — find your own street.",
+    "loadingTitle": "MANCHESTER-BY-THE-SEA",
+    "loadingSub": "Exploring Manchester-by-the-Sea, Massachusetts"
+  },
+  "storageSeeds": {
+    "nbpt-bike": "1",
+    "nbpt-kayak": "1",
+    "nbpt-seasons-rewarded": "1"
+  },
+  "storageSeedIfUnset": {
+    "nbpt-season": "summer"
+  }
+}

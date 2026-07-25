@@ -1823,6 +1823,7 @@ export class Game {
       const stuck = (x: number, z: number) =>
         this.index.isBlocked(x, z)
         || (this.index.isWaterAt(x, z) && this.index.deckHeightAt(x, z) <= WATER_Y && !this.index.frozenWaterAt(x, z))   // adrift on open water → back to shore (frozen ice is fine)
+        || this.index.underDeckBlockedAt(x, z, this.kidY)   // WEDGED UNDER A BRIDGE DECK — movement free() treats it as blocked, so it must count as stuck or the ring never ejects you (you'd freeze inside the span, head poking through). Devin: "somehow just in a bridge, i cant move at all."
         || !!(this.life && this.life.obstacleAt(x, z));
       if (stuck(nx, nz)) {
         let freed = false;
@@ -2393,7 +2394,8 @@ export class Game {
       !this.index.isWaterAt(px, py) &&   // never land a fast-travel in the water (Joppa Flats dropped you in the river)
       !this.index.isBlocked(px, py) &&
       !this.index.isBlocked(px + 16, py) && !this.index.isBlocked(px - 16, py) &&
-      !this.index.isBlocked(px, py + 16) && !this.index.isBlocked(px, py - 16);
+      !this.index.isBlocked(px, py + 16) && !this.index.isBlocked(px, py - 16) &&
+      !this.index.underDeckBlockedAt(px, py, this.kidY);   // and never wedged UNDER a bridge deck (spawn/fast-travel embedded the kid in the span)
     if (clear(x, y)) return { x, y };
     for (let r = 8; r < 900; r += 8) {
       for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {

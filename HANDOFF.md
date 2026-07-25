@@ -1,12 +1,158 @@
 # Clipper Town — Handoff
 
-A cozy, all-ages Zelda-like set on the **exact maps of real towns** — Newburyport at
-`/`, Salem at `/salem/`, Beverly at `/beverly/`, and Ipswich at `/ipswich/`, one
-codebase. Three.js + TypeScript + Vite. Live at **https://clippertown.io**.
+A cozy, all-ages Zelda-like set on the **exact maps of real towns** — eight of
+them, one codebase: Newburyport `/`, Salem `/salem/`, Beverly `/beverly/`,
+Ipswich `/ipswich/`, Gloucester `/gloucester/`, Marblehead `/marblehead/`,
+Manchester-by-the-Sea `/manchester/` and Rockport `/rockport/`.
+Three.js + TypeScript + Vite. Live at **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE (July 13, 2026 — TWO-TOWN DAY): Ipswich AND Gloucester
+> **⚡ FRESHEST STATE: MANCHESTER + ROCKPORT are live (towns #7 and #8) and the
+> coastal chain is closed. Read ✦ MANCHESTER + ROCKPORT first** — it has the
+> reusable four-step town-building workflow and the verification bar. Then read
+> ✦ MARBLEHEAD (town #6, and where the map pipeline moved into CI, which is what
+> makes a cloud session able to build a town end to end), then Two-Town Day, then
+> the post-launch polish session.
+
+## ✦ MANCHESTER + ROCKPORT (towns #7 and #8) — the coast is closed
+
+**Live at `31b030a`.** Both authored, baked and shipped in one session. Cape Ann
+is complete and the coastal chain now has no gaps: Newburyport → Ipswich →
+Gloucester → Rockport → Manchester → Beverly → Salem → Marblehead.
+
+**New tool — use it for every future town: `tools/landmark_candidates.mjs`.**
+`TOWN=<id> node tools/landmark_candidates.mjs [--all] [--min <m2>]` reads the
+BUILT world.json and prints named features that are genuinely inside the town,
+each with a coordinate genuinely on the feature. It encodes both traps Marblehead
+paid for (boundary check, interior points). The payoff was immediate: Manchester
+and Rockport had **zero** water-landmarks and zero bad fast-travel landings on
+the first pass, where Marblehead needed two rounds of fixes.
+
+**The workflow that now works, end to end, from a cloud session:**
+1. Author `towns/<id>/{town.json,map.mjs}` with `landmarks()` returning `[]`.
+   (No pack, no registry yet — the map pipeline only needs those two files.)
+2. Bake: `actions_run_trigger → build-world.yml, ref: source,
+   inputs {towns: "<id> <id2>", ref: "<feature-branch>"}` — it takes several
+   town ids at once. Pull with `git fetch origin map-data && git checkout
+   FETCH_HEAD -- towns/<id>/public/...`.
+3. Curate from `landmark_candidates.mjs`, machine-check every coordinate back
+   against its output, write the pack/registry/scripts/manifest.
+4. Re-bake (landmarks live in world.json), verify, og-image, ship.
+
+**Verification bar that caught real bugs — keep it:** boot with no page errors ·
+spawn not water/blocked/under-deck · every landmark fast-travelled for invalid
+or >900px landings · every landmark point-in-poly'd for water · both town guards
+· tsc + per-town vite build. Screenshot with `nbpt.travel(<landmarkId>)` rather
+than `go()` — fast-travel arrives *facing* the landmark, which is why the
+Singing Beach og-image works and a `go()` framing gave an empty field.
+
+**Town notes.** Manchester: spawn Singing Beach, 23 landmarks, tag "Where the
+Sand Sings" 🏖. Rockport: spawn Dock Square, 30 landmarks, tag "The Artists'
+Colony" 🎨 — Bearskin Neck and Dock Square exist in OSM only as STREETS so they
+use real street midpoints (documented in map.mjs); Thacher Island's Twin Lights
+and Straitsmouth Light are all mapped. Both have `trainPlatform: null` — the
+MBTA Rockport line genuinely stops at both, but OSM doesn't name the stations,
+so there is no honest point to place. Don't guess one.
+
+**Open items (both towns):** race ladders empty (roads are baked, so
+make_course can trace them any time — remember to check for double-backs) · no
+hero buildings · Manchester's borderLore is thin.
+
+**What's next — the current ranking.** The old ranking optimised for build cost
+(which town's bbox we already had). That's obsolete: **the CI pipeline means
+build cost is roughly flat for *any* town**, so optimise for reach instead.
+
+- **Lynn** — the recommendation. ~105k people and ~15,900 students in Lynn
+  Public Schools, an order of magnitude more reach than anything shipped so far,
+  and it borders Swampscott/Salem so the fast-travel map stays contiguous. It is
+  visually flatter than Cape Ann, so lean on the waterfront, the Lynn Woods
+  reservation and Lynn Beach for landmarks.
+- **Danvers** (~28k) — runner-up, and the Salem Village half of the witch story,
+  which pairs with a town already live.
+- Amesbury + Salisbury still complete the NBPT cluster, but they are small.
+
+Also worth noting for whoever picks the next town: Gloucester schools reached
+out about a possible collaboration, so Cape Ann coverage has a use beyond
+player count.
+
+## ✦ MARBLEHEAD + the map pipeline moves to CI
+
+**Live at `a539af6`.** Sixth town, taken from empty folder to shipped in one
+cloud session — which had never been possible before, because:
+
+**Overpass is blocked from cloud sessions.** All four mirrors return 403 at the
+agent proxy (`connect_rejected`, policy denial), so `npm run fetch-osm` — and
+therefore any new town's world.json — could only ever be baked on a laptop.
+`fetch-data.yml` only ever covered *boundaries*. New workflow
+**`.github/workflows/build-world.yml`** closes it: it runs
+fetch-boundaries → fetch-osm → build-world → fetch-terrain on a GitHub runner
+and pushes just the baked payload (`world.json`, `heights.bin`,
+`boundaries.json`) to the `map-data` branch; the raw overpass.json is
+deliberately not pushed (tens of MB, nothing reads it). It takes a **`ref`**
+input so it can build a town that only exists on a feature branch — which is
+the normal case (see the ordering trap below). Trigger:
+`actions_run_trigger → build-world.yml, ref: source, inputs {towns, ref}`;
+then `git fetch origin map-data && git checkout FETCH_HEAD -- <paths>`.
+
+**Ordering trap worth knowing:** `check_town_spawn.mjs` walks *every* folder in
+`towns/`, so a town folder without a built world.json fails `build:all` for all
+six towns. A new town therefore CANNOT sit on `source` half-built — author it on
+a feature branch, bake via CI, and land config + world in one piece.
+
+**The verification lesson (this is the important one).** The first pass authored
+landmarks from lat/lon by knowledge, marked VERIFY per the Ipswich convention.
+The bake proved them badly wrong: **Old Burial Hill was ~1.5 km out to sea**,
+Riverhead Beach ~1 km off, Crocker Park ~500 m; only Marblehead Light was close.
+The projection was fine — the guesses weren't. The roster was rebuilt from
+world.json centroids and, because this bbox reaches deep into Salem and
+Swampscott for framing, **point-in-polygon tested against the real municipal
+boundary** from boundaries.json — "in the bbox" is emphatically not "in
+Marblehead" (the bbox contains Salem's entire witch-museum district). Two famous
+houses (Jeremiah Lee Mansion, Old Town House) are deliberately absent: they
+aren't named in OSM, so there is no honest centroid. Don't add them by guess.
+
+**Marblehead specifics:** heart spawn = Crocker Park (harbor overlook in Old
+Town); 32 landmarks; `trainPlatform: null` is CORRECT (no commuter rail — the
+old branch is the Rail Trail); flight boards on Devereux Beach, hooked to the
+real Burgess Company, which built America's first licensed aircraft *in
+Marblehead* (the same line Ipswich's Moulton's Farm flight honours); tag is
+"Birthplace of the American Navy", which Beverly's pack disputes on purpose —
+free launch-post fodder for the two subreddits. Empty race ladder (courses must
+be traced on the built road graph; the three obvious ones are listed in
+`src/towns/marblehead/courses.ts`).
+
+**Verified before shipping:** boots clean (no page errors), spawn on land at
+Crocker Park (not water/blocked/under-deck), **all 32 landmarks fast-travelled —
+0 invalid landings, 0 beyond 900px**, both town guards green across six towns,
+`TOWN=marblehead vite build` + tsc clean, own og-image (1200×630, HUD hidden).
+
+**Closed since:** race ladder authored (3 courses, verified starting in-game) ·
+the two beach landmarks that centroided into the ocean are fixed · the dated
+captions are now SOURCED, not recalled · og-image checked against three other
+vantages and kept (the light doesn't warm between 0.72 and 0.82, so a
+"golden-hour" recapture isn't available — don't re-litigate it).
+
+**Two traps this town taught, both now documented in `towns/marblehead/map.mjs`
+and `src/towns/marblehead/courses.ts` — they will bite the next town too:**
+1. **A crescent poly's centroid can fall outside it.** Devereux and Preston
+   Beach both centroided into open ocean. Point-in-poly check every landmark
+   against the feature it names, not just against the town boundary.
+2. **Park/beach centroids snap to cul-de-sacs.** make_course.mjs then routes
+   *into the dead end and back out* — one homecoming draft had 17 repeated route
+   points. Put course vias on real through-streets and count repeats before
+   shipping.
+
+**Open items:** no hero buildings (`HEROES` in decor.ts — Abbot Hall is the
+obvious first, it's the town's silhouette) · `borderLore` only covers Salem /
+Swampscott / Lynn / Beverly · the Jeremiah Lee Mansion and Old Town House are
+still absent (unnamed in OSM — needs an OSM edit or a manualBuildings entry,
+NOT a guessed coordinate) · no launch post written yet.
+
+*(The "next towns" ranking that used to sit here named Rockport — it shipped.
+The current recommendation is at the end of ✦ MANCHESTER + ROCKPORT.)*
+
+> **Prior state (July 13, 2026 — TWO-TOWN DAY): Ipswich AND Gloucester
 > both went from empty folder to LIVE in one session. Read ✦ TWO-TOWN DAY
-> below first**, then the post-launch polish session, then Beverly Day /
+> next**, then the post-launch polish session, then Beverly Day /
 > multi-town notes for background.
 
 ## ✦ TWO-TOWN DAY (July 13, 2026) — state + what's in flight
@@ -137,6 +283,15 @@ Everything ships engine-wide (all three towns) unless noted.
   (`wedgeDir`) — can only slide along a wall, never buzz across it; rests if
   truly boxed in. Covers foot/bike/kayak/boat. (`src/game/Game.ts` movement.)
   (`75fe208`, the tsconfig baseUrl removal between these, was another session.)
+- `b3ecc3a` **Never trapped under a bridge deck.** Reported on Ipswich ("just in
+  a bridge, head poking through, can't move at all"). Engine bug, not town-
+  specific: movement `free()` treats being under a low deck as blocked, but
+  neither `findFree()` (spawn/fast-travel placement) nor the per-frame safety-net
+  `stuck()` checked `underDeckBlockedAt` — so you could spawn wedged in a span
+  and never get ejected (worsened by the new "rest when boxed in" movement).
+  Added the check to both; `free()`/`stuck()` now agree. Verified Ipswich spawns
+  free at Five Corners. (`src/game/Game.ts` — `findFree` clear + safety-net
+  `stuck`.) Rebased onto source after Ipswich + Gloucester landed as towns #4/#5.
 
 **Reusable headless verification tooling (used all session, worth keeping):**
 Chromium is pre-installed at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`;
