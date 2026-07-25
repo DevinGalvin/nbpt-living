@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Clipper Town \u2014 an all-ages adventure on the exact maps of real towns (Newburyport, Salem, \u2026)",
+  "description": "Clipper Town — an all-ages adventure on the exact maps of real towns (Newburyport, Salem, …)",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -17,7 +17,7 @@
     "dev:salem": "TOWN=salem vite",
     "build:salem": "tsc --noEmit && TOWN=salem vite build",
     "check:towns": "node tools/check_town_assets.mjs && node tools/check_town_spawn.mjs",
-    "build:all": "node tools/check_town_assets.mjs && node tools/check_town_spawn.mjs && npm run share && TOWN=salem vite build && rm -rf dist/salem && mv dist-salem dist/salem && TOWN=beverly vite build && rm -rf dist/beverly && mv dist-beverly dist/beverly && TOWN=ipswich vite build && rm -rf dist/ipswich && mv dist-ipswich dist/ipswich && TOWN=gloucester vite build && rm -rf dist/gloucester && mv dist-gloucester dist/gloucester && TOWN=marblehead vite build && rm -rf dist/marblehead && mv dist-marblehead dist/marblehead && TOWN=manchester vite build && rm -rf dist/manchester && mv dist-manchester dist/manchester && TOWN=rockport vite build && rm -rf dist/rockport && mv dist-rockport dist/rockport",
+    "build:all": "node tools/check_town_assets.mjs && node tools/check_town_spawn.mjs && npm run share && TOWN=salem vite build && rm -rf dist/salem && mv dist-salem dist/salem && TOWN=beverly vite build && rm -rf dist/beverly && mv dist-beverly dist/beverly && TOWN=ipswich vite build && rm -rf dist/ipswich && mv dist-ipswich dist/ipswich && TOWN=gloucester vite build && rm -rf dist/gloucester && mv dist-gloucester dist/gloucester && TOWN=marblehead vite build && rm -rf dist/marblehead && mv dist-marblehead dist/marblehead && TOWN=manchester vite build && rm -rf dist/manchester && mv dist-manchester dist/manchester && TOWN=rockport vite build && rm -rf dist/rockport && mv dist-rockport dist/rockport && TOWN=amesbury vite build && rm -rf dist/amesbury && mv dist-amesbury dist/amesbury && TOWN=salisbury vite build && rm -rf dist/salisbury && mv dist-salisbury dist/salisbury",
     "dev:beverly": "TOWN=beverly vite",
     "build:beverly": "tsc --noEmit && TOWN=beverly vite build",
     "dev:ipswich": "TOWN=ipswich vite",
@@ -29,7 +29,11 @@
     "dev:manchester": "TOWN=manchester vite",
     "build:manchester": "tsc --noEmit && TOWN=manchester vite build",
     "dev:rockport": "TOWN=rockport vite",
-    "build:rockport": "tsc --noEmit && TOWN=rockport vite build"
+    "build:rockport": "tsc --noEmit && TOWN=rockport vite build",
+    "dev:amesbury": "TOWN=amesbury vite",
+    "build:amesbury": "tsc --noEmit && TOWN=amesbury vite build",
+    "dev:salisbury": "TOWN=salisbury vite",
+    "build:salisbury": "tsc --noEmit && TOWN=salisbury vite build"
   },
   "dependencies": {
     "three": "^0.166.1"

@@ -198,6 +198,32 @@
         "--strictPort"
       ],
       "port": 5299
+    },
+    {
+      "name": "amesbury",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:amesbury",
+        "--",
+        "--port",
+        "5301",
+        "--strictPort"
+      ],
+      "port": 5301
+    },
+    {
+      "name": "salisbury",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:salisbury",
+        "--",
+        "--port",
+        "5303",
+        "--strictPort"
+      ],
+      "port": 5303
     }
   ]
 }

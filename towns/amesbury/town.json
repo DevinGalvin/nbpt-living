@@ -1,0 +1,40 @@
+{
+  "id": "amesbury",
+  "name": "Amesbury",
+  "worldName": "Amesbury, MA",
+  "title": "Amesbury",
+  "tag": "Carriage Town",
+  "emoji": "🛞",
+  "path": "/amesbury/",
+  "savePrefix": "amesbury:",
+  "pxPerMeter": 8,
+  "origin": { "lat": 42.858, "lon": -70.9301 },
+  "bbox": { "s": 42.815, "w": -71.01, "n": 42.892, "e": -70.885 },
+  "spawn": { "landmark": "market-square", "dx": 0, "dz": 0 },
+  "branding": {
+    "htmlTitle": "Amesbury — walk the real map of Amesbury, MA in 3D",
+    "appleTitle": "Amesbury",
+    "themeColor": "#3a2416",
+    "bgTop": "#4a3020",
+    "bgBottom": "#22150c",
+    "ruleColor": "#e0a23a",
+    "description": "A cozy, all-ages 3D walk through the exact map of Amesbury, Massachusetts. Wander the Lower Millyard, Lake Gardner and the Powow — and find your own house.",
+    "ogSiteName": "Amesbury in 3D",
+    "ogDescription": "A cozy, all-ages 3D walk through the real map of Amesbury. The Millyard, the Powow, Lake Gardner — find your own street.",
+    "ogUrl": "https://clippertown.io/amesbury/",
+    "ogImage": "https://clippertown.io/amesbury/og-image.jpg",
+    "ogImageType": "image/jpeg",
+    "ogImageAlt": "A 3D voxel view of Amesbury, Massachusetts",
+    "twitterDescription": "Walk the real map of Amesbury — find your own street.",
+    "loadingTitle": "AMESBURY",
+    "loadingSub": "Exploring Amesbury, Massachusetts"
+  },
+  "storageSeeds": {
+    "nbpt-bike": "1",
+    "nbpt-kayak": "1",
+    "nbpt-seasons-rewarded": "1"
+  },
+  "storageSeedIfUnset": {
+    "nbpt-season": "summer"
+  }
+}

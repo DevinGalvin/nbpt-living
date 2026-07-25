@@ -1,0 +1,40 @@
+{
+  "id": "salisbury",
+  "name": "Salisbury",
+  "worldName": "Salisbury, MA",
+  "title": "Salisbury",
+  "tag": "Where the Merrimack Meets the Sea",
+  "emoji": "🎡",
+  "path": "/salisbury/",
+  "savePrefix": "salisbury:",
+  "pxPerMeter": 8,
+  "origin": { "lat": 42.8419, "lon": -70.8602 },
+  "bbox": { "s": 42.805, "w": -70.925, "n": 42.89, "e": -70.78 },
+  "spawn": { "landmark": "beach-center", "dx": 0, "dz": 0 },
+  "branding": {
+    "htmlTitle": "Salisbury — walk the real map of Salisbury, MA in 3D",
+    "appleTitle": "Salisbury",
+    "themeColor": "#123449",
+    "bgTop": "#1a4763",
+    "bgBottom": "#0a1f2c",
+    "ruleColor": "#e8b13a",
+    "description": "A cozy, all-ages 3D walk through the exact map of Salisbury, Massachusetts. Walk the boardwalk, the beach and the mouth of the Merrimack — and find your own house.",
+    "ogSiteName": "Salisbury in 3D",
+    "ogDescription": "A cozy, all-ages 3D walk through the real map of Salisbury. The boardwalk, the beach and the river's mouth — find your own street.",
+    "ogUrl": "https://clippertown.io/salisbury/",
+    "ogImage": "https://clippertown.io/salisbury/og-image.jpg",
+    "ogImageType": "image/jpeg",
+    "ogImageAlt": "A 3D voxel view of Salisbury Beach, Massachusetts",
+    "twitterDescription": "Walk the real map of Salisbury — find your own street.",
+    "loadingTitle": "SALISBURY",
+    "loadingSub": "Exploring Salisbury, Massachusetts"
+  },
+  "storageSeeds": {
+    "nbpt-bike": "1",
+    "nbpt-kayak": "1",
+    "nbpt-seasons-rewarded": "1"
+  },
+  "storageSeedIfUnset": {
+    "nbpt-season": "summer"
+  }
+}

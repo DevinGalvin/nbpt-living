@@ -1,17 +1,71 @@
 # Clipper Town — Handoff
 
-A cozy, all-ages Zelda-like set on the **exact maps of real towns** — eight of
+A cozy, all-ages Zelda-like set on the **exact maps of real towns** — ten of
 them, one codebase: Newburyport `/`, Salem `/salem/`, Beverly `/beverly/`,
 Ipswich `/ipswich/`, Gloucester `/gloucester/`, Marblehead `/marblehead/`,
-Manchester-by-the-Sea `/manchester/` and Rockport `/rockport/`.
+Manchester-by-the-Sea `/manchester/`, Rockport `/rockport/`,
+Amesbury `/amesbury/` and Salisbury `/salisbury/`.
 Three.js + TypeScript + Vite. Live at **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE: MANCHESTER + ROCKPORT are live (towns #7 and #8) and the
-> coastal chain is closed. Read ✦ MANCHESTER + ROCKPORT first** — it has the
+> **⚡ FRESHEST STATE: AMESBURY + SALISBURY are live (towns #9 and #10) — the
+> flagship's own two neighbours, so Newburyport is now surrounded. Read
+> ✦ AMESBURY + SALISBURY first.** Then ✦ MANCHESTER + ROCKPORT, which has the
 > reusable four-step town-building workflow and the verification bar. Then read
 > ✦ MARBLEHEAD (town #6, and where the map pipeline moved into CI, which is what
 > makes a cloud session able to build a town end to end), then Two-Town Day, then
 > the post-launch polish session.
+
+## ✦ AMESBURY + SALISBURY (towns #9 and #10) — Newburyport is surrounded
+
+**Built and shipped in one session, entirely LOCALLY** — no CI bake needed. The
+handoff said cloud sessions can't reach Overpass; a session on Devin's Mac can,
+so the whole pipeline (`fetch_osm` → `build_world` → `fetch_terrain` →
+`fetch_heights` → `fetch_boundaries` → rebuild) ran end to end in minutes.
+`OSM_TILES=2x2` for both; one tile 429'd and the fetcher failed over to a mirror
+on its own.
+
+**Amesbury** — spawn Market Square, **34 landmarks**, tag "Carriage Town" 🛞.
+12,570 buildings, 9,309 addresses. The Powow drops through the Lower Millyard to
+the Merrimack, which is the whole reason the town is where it is. Flight lifts
+off the open fields at **Woodsom Farm** — deliberately NOT Meadowbrook Airport,
+which is in frame but which the boundary check puts in Merrimac, not Amesbury.
+`rails: 0` — the branch line stops one town south, so `trainPlatform: null`.
+
+**Salisbury** — spawn **Salisbury Beach Center**, **30 landmarks**, tag "Where
+the Merrimack Meets the Sea" 🎡. 14,719 buildings, 10,110 addresses. The named
+`Salisbury Beach` sand means the beach-life pass fires for free: the spawn view
+is umbrella camps, beachgoers and the ocean. Flight departs north straight up
+four miles of barrier beach.
+
+**Three traps this pair paid for — check these on the next town:**
+1. **`travelToPlace(x, y, r)` takes COORDINATES, not a landmark object.** Passing
+   the object silently sets the player position to the string
+   `"[object Object]132"` and every later probe reads null. If a landing audit
+   returns all-nulls, this is why.
+2. **A "safe interior point" can still be under water.** `landmark_candidates`
+   returns a point inside the *feature*, but the Merrimack's water polygon is
+   drawn over Deer Island entirely and over the Millyard Park label — so the
+   first picks for both were open river. Point-in-poly every landmark against
+   the water polys before you trust the roster.
+3. **Marsh islands are not landmarks.** Carr, Ram, Eagle and Barnes Islands are
+   real, mapped and named — and every one of them is open water or trailless
+   marsh, so fast-travel would drop the player in the river. Cut, and replaced
+   with reachable Route 1 spots. Being real is not the same as being visitable.
+
+**og-image capture, without any screenshot plumbing:** frame the shot with
+`nbpt.travel(<id>)` (fast-travel arrives *facing* the landmark), hide the HUD
+with a `#hud>*{display:none!important}` style, then in one eval force
+`renderer.render()`, draw the WebGL canvas into a 1200×630 2D canvas and return
+`toDataURL('image/jpeg', 0.86)`. The return is too big for the tool, so it lands
+in a tool-results file — decode that with python. **Force the render in the same
+eval as the read**, or you get a blank buffer.
+
+**Open items (both towns):** race ladders empty (roads are baked, so
+`make_course` can trace them any time) · no hero buildings · Amesbury's
+`sledHill` at Woodsom Farm has a plausible but un-surveyed direction/run · the
+Whittier Home is placed from the address layer (86 Friend St) because OSM
+doesn't name the house — worth an OSM edit · Amesbury Sports Park and the Chain
+Bridge are both unmapped in OSM and were deliberately NOT guessed.
 
 ## ✦ MANCHESTER + ROCKPORT (towns #7 and #8) — the coast is closed
 
