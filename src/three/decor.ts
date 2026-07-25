@@ -26,6 +26,7 @@ const SLED_LANE = TOWN.sledLane;
 
 const TEX_SCALE = 16; // 1 texture repeat = 16 world px = 2 m
 const BEACH_X = TOWN.beachX; // east of here = barrier-beach zone (shake cottages, umbrellas); Infinity = none
+const SHINGLE_ZONES = TOWN.shingleZones ?? [];   // weathered-shingle village districts (Rockport, Manchester)
 
 const tmp = new THREE.Color();
 
@@ -489,7 +490,7 @@ function pickHouseRoof(obb: OBB, seed: number): 'gable' | 'hip' | 'pyramid' | 'm
 // `g` = ground height at the building, `eaveH` = ABSOLUTE eave height.
 function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
                  seed: number, withDoor: boolean, withShutters: boolean, storefront: boolean, g: number,
-                 maxWinOverride?: number, forceDoor?: string) {
+                 maxWinOverride?: number, forceDoor?: string, forceShutter?: string) {
   const v = ringToVec2(ring);
   const rng = mulberry32(hash32(seed, 31, 7));
   let longest = -1, longestLen = 0;
@@ -500,7 +501,7 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
     lens.push(len);
     if (len > longestLen) { longestLen = len; longest = i; }
   }
-  const shutterHex = pick(STYLE.building.shutters, seed);
+  const shutterHex = forceShutter ?? pick(STYLE.building.shutters, seed);
   const awningHex = pick(STYLE.building.awnings, seed);
   // The window budget scales with the building, not a constant: every wall gets
   // glass at a steady rhythm regardless of footprint size, so a school reads
@@ -2045,11 +2046,11 @@ function buildNHS(buckets: Bucket[], b: Building, g: number, index: WorldIndex) 
 // ---------- shared hero helpers ----------
 
 // the footprint edge that faces the nearest street: anchor for porticos/steeples
-function frontSegment(b: Building, index: WorldIndex): { x: number; z: number; tx: number; tz: number; nx: number; nz: number } {
+function frontSegment(b: Building, index: WorldIndex): { x: number; z: number; tx: number; tz: number; nx: number; nz: number; len: number } {
   const [cx, cz] = centroidOf(b.p);
   const key = Math.floor(cx / CHUNK) + ',' + Math.floor(cz / CHUNK);
   const roads = index.bucket(key).roads;
-  let best = { x: cx, z: cz, tx: 1, tz: 0, nx: 0, nz: 1, d: Infinity };
+  let best = { x: cx, z: cz, tx: 1, tz: 0, nx: 0, nz: 1, len: 0, d: Infinity };
   for (let i = 0; i + 1 < b.p.length; i += 2) {
     const x0 = b.p[i], z0 = b.p[i + 1];
     const x1 = b.p[(i + 2) % b.p.length], z1 = b.p[(i + 3) % b.p.length];
@@ -2064,7 +2065,7 @@ function frontSegment(b: Building, index: WorldIndex): { x: number; z: number; t
       if (d < best.d) {
         let nx = -(z1 - z0) / len, nz = (x1 - x0) / len;
         if ((mx - cx) * nx + (mz - cz) * nz < 0) { nx = -nx; nz = -nz; }
-        best = { x: mx, z: mz, tx: (x1 - x0) / len, tz: (z1 - z0) / len, nx, nz, d };
+        best = { x: mx, z: mz, tx: (x1 - x0) / len, tz: (z1 - z0) / len, nx, nz, len, d };
       }
     }
   }
@@ -2671,25 +2672,355 @@ function buildGloucesterCityHall(buckets: Bucket[], b: Building, g: number, inde
   porticoFront(p, f, g, 14, '#e8ddc0');
 }
 
-// Motif No. 1 (1884, rebuilt 1978) — deliberately weather-beaten dark barn red,
-// silver-gray shingle roofs, and the famous buoy-covered north wall.
+// Motif No. 1 (1884, rebuilt to an exact replica in 1978) — "the most-painted
+// building in America". PHOTO-VERIFIED, docs/research/rockport-manchester.md:
+// the silhouette is TWO volumes, not one — a taller gable-FRONT block at the
+// harbor end (brick ridge chimney, white gable window, big red double doors)
+// and a lower side-gable wing running inland, whose seaward wall carries the
+// famous hanging lobster buoys. Vertical board siding in a medium barn red that
+// still reads *red* after wallDarken; weathered silver-gray shingle roofs.
+const MOTIF_RED = '#c65039';        // reads red in game; #6e2f28 rendered near-black
+const MOTIF_ROOF = '#b0b3b2';       // weathered silver-gray wood shingle (cool, not tan — the shingle texture warms it)
 function buildMotif(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   const obb = obbOf(b.p);
   const p = buckets[PLAIN];
-  walls(buckets[CLAP], b.p, g - 6, g + 26, '#6e2f28');                   // weathered barn red
-  gableRoof(buckets[SHINGLE], p, b.p, obb, g + 26, 9, 2, '#9a958c', '#6e2f28');
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
-  buckets[BRICK].box(obb.cx, obb.cz, 2.4, 2.4, g + 26, g + 34, '#8a4a3c');    // little ridge chimney
-  // the buoy wall: colored lobster buoys hung on the north face
-  const nx = -sa, nz2 = ca;   // OBB normal
-  const north = nz2 < 0 ? 1 : -1;
-  const cols = ['#f2efe6', '#e8b93a', '#b23a2e', '#2b4f9e', '#f2efe6', '#e8762e', '#b23a2e', '#2b4f9e', '#e8b93a', '#f2efe6', '#b23a2e', '#2b4f9e'];
-  for (let i = 0; i < cols.length; i++) {
-    const l0 = -obb.hl * 0.7 + (i / (cols.length - 1)) * obb.hl * 1.3;
-    const bx = obb.cx + ca * l0 + nx * north * (obb.hw + 0.8);
-    const bz = obb.cz + sa * l0 + nz2 * north * (obb.hw + 0.8);
-    p.box(bx, bz, 1.1, 1.1, g + 12 + (i % 3) * 5, g + 15 + (i % 3) * 5, cols[i]);
+  // Which end is the harbor? Probe open water off both ends of the long axis —
+  // the gable front faces the water on Bradley Wharf, whichever way OSM wound it.
+  const probe = (s: number) => {
+    let wet = 0;
+    for (let d = 30; d <= 150; d += 20) {
+      if (index.isWaterAt(obb.cx + ca * (obb.hl + d) * s, obb.cz + sa * (obb.hl + d) * s)) wet++;
+    }
+    return wet;
+  };
+  const sea = probe(1) >= probe(-1) ? 1 : -1;      // +1 = the +l end faces open water
+  const frontL = obb.hl * 0.34;                     // the tall block takes the seaward third
+
+  // the long low wing (whole footprint) — its ridge sits below the front block's.
+  // PLAIN, not CLAP: the real siding is vertical BOARD, and the clapboard texture
+  // knocks ~20% off the value, which is half of why the old build read black.
+  walls(buckets[PLAIN], b.p, g - 8, g + 20, MOTIF_RED, 0);
+  gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, g + 20, 8, 2.5, MOTIF_ROOF, MOTIF_RED);
+
+  // the taller gable-front block at the harbor end
+  const fx = obb.cx + ca * (obb.hl - frontL) * sea, fz = obb.cz + sa * (obb.hl - frontL) * sea;
+  const front: OBB = { cx: fx, cz: fz, ang: obb.ang, hl: frontL, hw: obb.hw };
+  const fRing = [
+    fx + ca * frontL - sa * obb.hw, fz + sa * frontL + ca * obb.hw,
+    fx + ca * frontL + sa * obb.hw, fz + sa * frontL - ca * obb.hw,
+    fx - ca * frontL + sa * obb.hw, fz - sa * frontL - ca * obb.hw,
+    fx - ca * frontL - sa * obb.hw, fz - sa * frontL + ca * obb.hw,
+  ];
+  walls(buckets[PLAIN], fRing, g - 8, g + 31, MOTIF_RED, 0);
+  gableRoof(buckets[SHINGLE], buckets[PLAIN], fRing, front, g + 31, 11, 2.5, MOTIF_ROOF, MOTIF_RED);
+  buckets[BRICK].box(fx - ca * frontL * 0.5 * sea, fz - sa * frontL * 0.5 * sea, 2, 2, g + 31, g + 42, '#8a4a3c');
+
+  // the seaward gable face: white multipane window up high, red double doors below
+  // (rotBox so the trim lies FLAT on the rotated wall — an axis-aligned box would
+  // stick out of a 43°-skewed facade as a lump)
+  const gx = fx + ca * (frontL + 0.5) * sea, gz = fz + sa * (frontL + 0.5) * sea;
+  rotBox(p, gx, gz, 0.5, 3.4, g + 22, g + 29, obb.ang, '#f2efe6');       // the loft window
+  rotBox(p, gx, gz, 0.5, 2.6, g + 23, g + 28, obb.ang, '#3c4a52');       // its dark panes
+  rotBox(p, gx, gz, 0.5, 5.4, g - 2, g + 15, obb.ang, '#8e3226');        // the big red cargo doors
+  rotBox(p, gx, gz, 0.6, 5.8, g + 15, g + 16.2, obb.ang, '#f2efe6');     // white door head
+
+  // THE BUOY WALL — vertical clusters of lobster buoys on the long seaward face
+  // of the wing. Mostly white/cream with orange, red, yellow and a little blue.
+  const nx = -sa, nz = ca;
+  const side = index.isWaterAt(obb.cx + nx * (obb.hw + 60), obb.cz + nz * (obb.hw + 60)) ? 1 : -1;
+  const BUOYS = ['#f4f1e8', '#e8762e', '#f4f1e8', '#b23a2e', '#e8b93a', '#f4f1e8', '#2b4f9e', '#f4f1e8', '#e8762e', '#f4f1e8', '#b23a2e', '#e8b93a', '#f4f1e8', '#e8762e'];
+  const N = 22;                                                          // dozens of them, hung small and dense
+  for (let i = 0; i < N; i++) {
+    const l0 = -obb.hl * 0.92 + (i / (N - 1)) * obb.hl * 1.16;           // stop short of the front block
+    const bx = obb.cx + ca * l0 + nx * side * (obb.hw + 0.9);
+    const bz = obb.cz + sa * l0 + nz * side * (obb.hw + 0.9);
+    const y = g + 2 + (i % 3) * 4.5;
+    p.box(bx, bz, 1.15, 1.15, y, y + 3, BUOYS[i % BUOYS.length]);        // the float
+    p.box(bx, bz, 0.35, 0.35, y + 3, y + 5.2, '#5a4a38');                // its wooden spindle
   }
+
+  // Bradley Wharf: weathered timber fender piles along the water edge — short
+  // stubs standing just proud of the granite, not a picket line of black posts
+  for (let i = -3; i <= 3; i++) {
+    const l0 = i * obb.hl * 0.3;
+    p.box(obb.cx + ca * l0 + nx * side * (obb.hw + 8), obb.cz + sa * l0 + nz * side * (obb.hw + 8),
+      1.3, 1.3, g - 16, g - 1, '#8a7358');
+  }
+}
+
+// ---------- shared New England meetinghouse (Rockport + Manchester) ----------
+
+// The white-clapboard gable-front meetinghouse with a stacked tower is THE North
+// Shore silhouette, and the towns differ only in what each stage is: the Old
+// Sloop tops out in a ROUND columned lantern under a green copper dome, First
+// Parish Manchester in an OCTAGONAL one, Rockport's Universalist in a dark
+// Gothic spire. One parametric builder, three photo-verified recipes.
+type MeetingOpts = {
+  wall?: string; trim?: string; roof?: string;
+  clock?: 'black' | 'gold' | null;      // clock stage face color (null = no clock stage)
+  balustrade?: boolean;                 // open railed stage above the clock
+  belfry?: 'round' | 'octagon' | 'square' | null;
+  cap: 'dome' | 'spire';
+  capHex?: string;                      // green copper dome / dark shingled spire
+  towerH?: number;                      // shaft top above ground (px)
+};
+function meetinghouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: MeetingOpts) {
+  const wall = o.wall ?? '#f7f4ea', trim = o.trim ?? '#fdfbf2';
+  const p = buckets[PLAIN];
+  const obb = obbOf(b.p);
+  walls(buckets[CLAP], b.p, g - 6, g + 34, wall);
+  complexGable(buckets[SHINGLE], buckets[CLAP], b.p, g + 34, o.roof ?? '#54514c', wall);
+  houseTrim(p, b.p, g + 34, g - 6);
+  facades(p, b.p, g + 34, 2, Math.round(obb.cx * 7 + obb.cz * 13), true, false, false, g, 60, '#1e2124');
+  buckets[BRICK].box(obb.cx - Math.cos(obb.ang) * obb.hl * 0.8, obb.cz - Math.sin(obb.ang) * obb.hl * 0.8,
+    2, 2, g + 34, g + 48, '#8a5240');                                    // rear chimney
+
+  // the tower rises from the front gable end, inset into the roof
+  const f = frontSegment(b, index);
+  const tx = f.x - f.nx * 9, tz = f.z - f.nz * 9;
+  const s1 = 6.4;
+  // the shaft must clear the ridge with room to spare — these steeples are sea
+  // marks, and a tower that only just tops the roof reads as a cupola
+  let y = g + (o.towerH ?? 74);
+  walls(buckets[CLAP], [tx - s1, tz - s1, tx + s1, tz - s1, tx + s1, tz + s1, tx - s1, tz + s1], g - 2, y, wall);
+  p.box(tx, tz, s1 + 0.4, s1 + 0.4, y - 2, y, trim);                     // shaft cornice
+
+  if (o.clock) {                                                          // square clock stage
+    p.box(tx, tz, s1 - 0.5, s1 - 0.5, y, y + 15, wall);
+    const face = o.clock === 'black' ? '#22242a' : '#c9a340';
+    const hand = o.clock === 'black' ? '#e8e2cc' : '#22242a';
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      p.box(tx + dx * (s1 + 0.1), tz + dz * (s1 + 0.1), dx ? 0.4 : 4.2, dz ? 0.4 : 4.2, y + 3.5, y + 12, face);
+      p.box(tx + dx * (s1 + 0.5), tz + dz * (s1 + 0.5), dx ? 0.3 : 0.5, dz ? 0.3 : 0.5, y + 7.4, y + 10.6, hand);   // the hands, thin
+      p.box(tx + dx * (s1 + 0.5), tz + dz * (s1 + 0.5), dx ? 0.3 : 1.7, dz ? 0.3 : 1.7, y + 7.4, y + 8, hand);
+    }
+    p.box(tx, tz, s1 + 0.6, s1 + 0.6, y + 15, y + 16.6, trim);           // cornice over the clock
+    y += 16.6;
+  }
+  if (o.balustrade) {                                                     // open railed stage with corner urns
+    const r = s1 + 0.2;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+      p.box(tx + dx * r, tz + dz * r, dx ? 0.4 : r, dz ? 0.4 : r, y, y + 4.6, trim);
+    }
+    for (const [dx, dz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) {
+      p.box(tx + dx * r, tz + dz * r, 0.9, 0.9, y, y + 7.5, trim);       // urn posts
+    }
+    y += 4.6;
+  }
+  if (o.belfry) {                                                         // the open columned lantern
+    const belR = 5.6, h = 14;
+    const ring = o.belfry === 'square'
+      ? [tx - belR, tz - belR, tx + belR, tz - belR, tx + belR, tz + belR, tx - belR, tz + belR]
+      : octRing(tx, tz, belR);
+    walls(p, ring, y, y + 1.6, trim, 0);                                  // lantern floor
+    const n = o.belfry === 'round' ? 8 : o.belfry === 'octagon' ? 8 : 4;
+    for (let i = 0; i < n; i++) {                                         // columns + dark open bays between
+      const a = (i / n) * Math.PI * 2;
+      p.box(tx + Math.cos(a) * belR, tz + Math.sin(a) * belR, 1, 1, y, y + h, trim);
+      const am = ((i + 0.5) / n) * Math.PI * 2;
+      p.box(tx + Math.cos(am) * (belR - 0.5), tz + Math.sin(am) * (belR - 0.5), 1.9, 1.9, y + 1.6, y + h - 2, '#2e3138');
+    }
+    walls(p, o.belfry === 'square' ? ring : octRing(tx, tz, belR + 0.9), y + h, y + h + 2, trim, 0);   // lantern cornice
+    y += h + 2;
+  }
+  if (o.cap === 'dome') {                                                 // green copper dome + finial
+    tmp.set(o.capHex ?? '#8cc4a8');                                       // bright verdigris — it darkens in shade
+    walls(p, octRing(tx, tz, 5.4), y, y + 2.4, o.capHex ?? '#8cc4a8', 0); // the dome's straight collar
+    cone(p, tx, y + 2.4, tz, 5.4, 9, tmp.clone());
+    p.box(tx, tz, 0.4, 0.4, y + 10, y + 22, '#d8d4c8');
+    p.box(tx, tz, 2.2, 0.25, y + 18, y + 21, '#d8d4c8');                  // weathervane arrow
+  } else {                                                                // tapered spire
+    tmp.set(o.capHex ?? '#eceadf');
+    cone(p, tx, y, tz, 5.8, 38, tmp.clone());
+    p.box(tx, tz, 0.4, 0.4, y + 36, y + 48, '#d8d4c8');
+  }
+}
+
+// ---------- Rockport heroes (docs/research/rockport-manchester.md) ----------
+
+// Rockport Public Library (17 School St) — the 1864 Annisquam Cotton Mill block,
+// school in 1904, library since 1993: rough gray ASHLAR GRANITE, two storeys over
+// a granite base, wide bracketed eaves, tall white multipane windows, a flagpole.
+function rockportLibrary(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const granite = '#9b9992', p = buckets[PLAIN];
+  const obb = obbOf(b.p);
+  // PLAIN, not BRICK: brickTex bakes real red brick INTO the texture, so a gray
+  // tint over it comes out muddy red — granite has to be untextured (buildCustomHouse
+  // does the same). Only genuinely-red-brick buildings belong in the BRICK bucket.
+  walls(p, b.p, g - 6, g + 6, '#84837d', 0);                              // heavier base course
+  walls(p, b.p, g + 6, g + 44, granite, 0);
+  walls(p, expandRing(b.p, 1.6), g + 41, g + 44, '#e6e2d6', 0);           // the wide overhanging eave
+  for (let i = 0; i < b.p.length; i += 2) {                               // eave brackets
+    p.box(b.p[i], b.p[i + 1], 1.1, 1.1, g + 36, g + 41, '#e6e2d6');
+  }
+  gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, g + 44, 8, 3.5, '#5a5854', granite);
+  facades(p, b.p, g + 44, 2, 5171, true, false, false, g, 90, '#5b3a24');
+  const f = frontSegment(b, index);
+  p.box(f.x + f.nx * 8, f.z + f.nz * 8, 0.5, 0.5, g, g + 34, '#e6e2d6');  // flagpole
+  buckets[GLOW].box(f.x + f.nx * 8 + 3, f.z + f.nz * 8, 3, 0.2, g + 27, g + 32, '#b03030', 0);
+}
+
+// Rockport Carnegie Library (1907, 18 Jewett St) — locally quarried BI-COLOR
+// granite, Greek Revival, terrazzo floor under a dome. A library until 1993,
+// a private house since. Verified by description only: block + dome, no finer.
+function carnegieLibrary(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const p = buckets[PLAIN], obb = obbOf(b.p);
+  walls(p, b.p, g - 5, g + 8, '#8d8a80', 0);                              // the darker granite course
+  walls(p, b.p, g + 8, g + 30, '#adaa9d', 0);                             // the lighter one — "bi-color"
+  walls(p, expandRing(b.p, 0.8), g + 27, g + 30.5, '#d8d4c6', 0);         // Greek Revival entablature
+  flatRoof(p, b.p, g + 30.5, '#6a6862');
+  facades(p, b.p, g + 30, 1, 907, true, false, false, g, 40, '#5b3a24');
+  tmp.set('#b8b4a6');
+  cone(p, obb.cx, g + 30.5, obb.cz, Math.min(obb.hw * 0.7, 11), 9, tmp.clone());   // the low dome
+  const f = frontSegment(b, index);                                       // two columns at the door
+  for (const s of [-1, 1]) p.box(f.x + f.tx * 3.4 * s + f.nx * 3, f.z + f.tz * 3.4 * s + f.nz * 3, 1.1, 1.1, g, g + 15, '#d8d4c6');
+  rotBox(p, f.x + f.nx * 3, f.z + f.nz * 3, 4.6, 3, g + 15, g + 17, Math.atan2(f.tz, f.tx), '#d8d4c6');
+}
+
+// Shalin Liu Performance Center (2010) — a 335-seat hall behind a replica of the
+// 1860s Second Empire street facade. PHOTO-VERIFIED: cream storefront base under a
+// big RED-ORANGE awning, a gray-mauve clapboard middle storey with cream pilasters
+// and red-orange French doors on white balconets, then a gray slate MANSARD with
+// three arch-hooded dormers. (OSM spells it "Perfomance" — see HEROES.)
+function shalinLiu(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const p = buckets[PLAIN], obb = obbOf(b.p);
+  const MAUVE = '#8b8189', CREAM = '#f2ece0', DOOR = '#d8492a', SLATE = '#4a5560';
+  const f = obbFront(b, index);
+  const fa = f.ang;
+  walls(buckets[PLAIN], b.p, g - 4, g + 20, CREAM, 0);                    // glassy storefront base
+  walls(buckets[CLAP], b.p, g + 20, g + 44, MAUVE);                       // the mauve middle storey
+  facades(p, b.p, g + 20, 1, 2010, false, false, true, g, 40);
+  // pilasters at the corners of the front + between bays
+  for (const t of [-1, -0.34, 0.34, 1]) {
+    p.box(f.x + f.tx * Math.min(f.half, 30) * 0.92 * t + f.nx * 0.5, f.z + f.tz * Math.min(f.half, 30) * 0.92 * t + f.nz * 0.5, 1.4, 1.4, g + 19, g + 45, CREAM);
+  }
+  // the three French doors + white balconets on the middle storey
+  for (const t of [-0.62, 0, 0.62]) {
+    const bx = f.x + f.tx * Math.min(f.half, 30) * 0.6 * (t / 0.62) + f.nx * 0.5, bz = f.z + f.tz * Math.min(f.half, 30) * 0.6 * (t / 0.62) + f.nz * 0.5;
+    rotBox(p, bx, bz, 2.1, 0.4, g + 24, g + 40, fa, DOOR);
+    rotBox(p, bx + f.nx * 1.1, bz + f.nz * 1.1, 2.6, 0.6, g + 24, g + 27, fa, CREAM);
+  }
+  // THE AWNING — red-orange, full width, right under the middle storey
+  rotBox(p, f.x + f.nx * 2.2, f.z + f.nz * 2.2, Math.min(f.half, 30) * 0.96, 2.4, g + 17.5, g + 20, fa, DOOR);
+  // the slate mansard, with three arch-hooded dormers on the front slope
+  mansardRoof(buckets[SHINGLE], p, obb, g + 45, 2, SLATE);
+  walls(p, expandRing(b.p, 0.7), g + 44, g + 45.6, CREAM, 0);             // bracketed cornice
+  for (const t of [-0.62, 0, 0.62]) {
+    const dx = f.x + f.tx * Math.min(f.half, 30) * 0.6 * (t / 0.62) + f.nx * 0.5, dz = f.z + f.tz * Math.min(f.half, 30) * 0.6 * (t / 0.62) + f.nz * 0.5;
+    rotBox(p, dx, dz, 2.9, 1.2, g + 47, g + 60, fa, CREAM);               // dormer surround
+    rotBox(p, dx + f.nx * 0.5, dz + f.nz * 0.5, 2.1, 0.5, g + 48, g + 58, fa, DOOR);   // its red door
+    tmp.set(CREAM);
+    cone(p, dx, g + 60, dz, 3.1, 2.6, tmp.clone());                       // the arched hood
+  }
+}
+
+// ---------- Manchester-by-the-Sea heroes (docs/research/rockport-manchester.md) ----------
+
+// A front derived from the building's OWN oriented box rather than from whichever
+// wall segment happens to face a road. heroFront/frontSegment fall back to the
+// CENTROID when no long road-facing segment is found — which buries a portico or
+// a pediment inside the building. This picks the OBB face whose outward normal
+// best matches the road-facing normal, so a temple front always lands on a real
+// facade, at that facade's real half-width.
+function obbFront(b: Building, index: WorldIndex):
+    { x: number; z: number; tx: number; tz: number; nx: number; nz: number; half: number; ang: number } {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const fs = frontSegment(b, index);
+  // the four OBB faces: ±length ends (half = hw) and ±width sides (half = hl)
+  const faces = [
+    { nx: ca, nz: sa, ex: obb.hl, half: obb.hw, tx: -sa, tz: ca },
+    { nx: -ca, nz: -sa, ex: obb.hl, half: obb.hw, tx: sa, tz: -ca },
+    { nx: -sa, nz: ca, ex: obb.hw, half: obb.hl, tx: ca, tz: sa },
+    { nx: sa, nz: -ca, ex: obb.hw, half: obb.hl, tx: -ca, tz: -sa },
+  ];
+  let best = faces[0], bestDot = -Infinity;
+  for (const f of faces) {
+    const d = f.nx * fs.nx + f.nz * fs.nz;
+    if (d > bestDot) { bestDot = d; best = f; }
+  }
+  // Anchor on the REAL road-facing wall when one was found (fs.len > 0) — on an
+  // L-shaped footprint the OBB face can float in the notch, which would hang the
+  // portico in mid-air. Keep the OBB's axes so the trim stays square to the box.
+  const onWall = fs.len > 0;
+  const proj = onWall ? (fs.x - obb.cx) * best.tx + (fs.z - obb.cz) * best.tz : 0;
+  return {
+    x: obb.cx + best.nx * best.ex + best.tx * proj,
+    z: obb.cz + best.nz * best.ex + best.tz * proj,
+    tx: best.tx, tz: best.tz, nx: best.nx, nz: best.nz,
+    half: onWall ? Math.min(best.half, fs.len / 2) : best.half,
+    ang: Math.atan2(best.tz, best.tx),
+  };
+}
+
+// Manchester-by-the-Sea Town Hall (1868) — PHOTO-VERIFIED Greek Revival temple
+// front: WHITEWASHED BRICK (cream-white with the red brick ghosting through),
+// four massive square brick piers under a big pediment with a semicircular
+// fanlight, dark GREEN double doors, granite steps.
+function manchesterTownHall(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const p = buckets[PLAIN], obb = obbOf(b.p);
+  const LIME = '#f0e9dc', TRIM = '#f7f2e6', GREEN = '#1f3a2e';
+  const eaveH = g + 44;
+  walls(p, b.p, g - 4, eaveH, LIME, 0);                                   // whitewashed brick — PLAIN, or brickTex's baked red shows straight through
+  walls(p, expandRing(b.p, 0.5), eaveH - 2, eaveH + 0.4, TRIM, 0);        // entablature
+  gableRoof(buckets[SHINGLE], p, b.p, obb, eaveH, 12, 3.5, '#6f6c66', LIME);
+  facades(p, b.p, eaveH, 2, 1868, false, false, false, g, 60);
+  const f = obbFront(b, index), fa = f.ang, W = Math.min(f.half, 26);
+  // the four colossal piers, standing proud of the wall under the pediment
+  for (const t of [-1, -0.34, 0.34, 1]) {
+    const px = f.x + f.tx * W * 0.82 * t + f.nx * 5, pz = f.z + f.tz * W * 0.82 * t + f.nz * 5;
+    p.box(px, pz, 2.4, 2.4, g, eaveH - 2, LIME);
+  }
+  rotBox(p, f.x + f.nx * 5, f.z + f.nz * 5, W * 0.95, 2.8, eaveH - 2, eaveH + 1.6, fa, TRIM);   // architrave
+  // the front pediment + its semicircular fanlight
+  tmp.set(TRIM);
+  p.triUV(f.x - f.tx * W + f.nx * 5.2, eaveH + 1.6, f.z - f.tz * W + f.nz * 5.2,
+    f.x + f.tx * W + f.nx * 5.2, eaveH + 1.6, f.z + f.tz * W + f.nz * 5.2,
+    f.x + f.nx * 5.2, eaveH + 17, f.z + f.nz * 5.2, f.nx, 0.3, f.nz, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0);
+  for (let i = 0; i < 5; i++) {                                           // fanlight in the tympanum
+    const a = Math.PI * (i + 0.5) / 5;
+    p.box(f.x + f.tx * Math.cos(a) * 4 + f.nx * 5.6, f.z + f.tz * Math.cos(a) * 4 + f.nz * 5.6,
+      1, 1, eaveH + 4, eaveH + 4 + Math.sin(a) * 4.5, '#3c4a52');
+  }
+  rotBox(p, f.x + f.nx * 0.5, f.z + f.nz * 0.5, 3.4, 0.5, g, g + 16, fa, GREEN);        // green double doors
+  rotBox(p, f.x + f.nx * 3.4, f.z + f.nz * 3.4, 5.2, 3.2, g - 2, g + 0.8, fa, '#a8a49a');   // granite steps
+}
+
+// Manchester-by-the-Sea Public Library (1887) — PHOTO-VERIFIED Richardsonian
+// Romanesque: rough variegated BROWNSTONE, steep slate roofs, a square tower with
+// an open arched belfry under a lead-gray dome with a green copper finial, a clock
+// face on the tower, and a big round-arch entry.
+function manchesterLibrary(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const p = buckets[PLAIN], obb = obbOf(b.p);
+  // brickTex's own bricks are a warm rust (~166,81,61) — for BROWNSTONE that grain is
+  // exactly right, so the tint stays near-white and lets the texture do the color.
+  const STONE = '#efe4d2', STONE2 = '#fdf6e8', SLATE = '#5c6068';
+  walls(buckets[BRICK], b.p, g - 5, g + 12, STONE);                       // the darker lower courses
+  walls(buckets[BRICK], b.p, g + 12, g + 32, STONE2);                     // warmer buff above
+  gableRoof(buckets[SHINGLE], buckets[BRICK], b.p, obb, g + 32, 16, 3, SLATE, STONE2);
+  facades(p, b.p, g + 32, 2, 1887, false, false, false, g, 60, '#5b3a24');
+  const f = obbFront(b, index), fa = f.ang;
+  // the big round-arch entry
+  rotBox(p, f.x + f.nx * 0.5, f.z + f.nz * 0.5, 4, 0.5, g, g + 16, fa, '#8a5a34');
+  tmp.set(STONE2);
+  cone(p, f.x + f.nx * 0.5, g + 16, f.z + f.nz * 0.5, 4.4, 4, tmp.clone());
+  // the square tower, offset toward one end of the front
+  const tx = f.x + f.tx * Math.min(f.half, 22) * 0.62 - f.nx * 4, tz = f.z + f.tz * Math.min(f.half, 22) * 0.62 - f.nz * 4;
+  const tR = 6.5, tTop = g + 58;
+  walls(buckets[BRICK], [tx - tR, tz - tR, tx + tR, tz - tR, tx + tR, tz + tR, tx - tR, tz + tR], g - 5, tTop, STONE2, 1);
+  p.box(tx + f.nx * (tR + 0.2), tz + f.nz * (tR + 0.2), 3.2, 3.2, g + 40, g + 47, '#e4ded0');   // the clock face
+  p.box(tx + f.nx * (tR + 0.5), tz + f.nz * (tR + 0.5), 1.3, 1.3, g + 42.5, g + 46, '#33363c');
+  // open arched belfry stage
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    p.box(tx + Math.cos(a) * tR, tz + Math.sin(a) * tR, 1.5, 1.5, tTop, tTop + 12, STONE2);
+    const am = ((i + 0.5) / 4) * Math.PI * 2;
+    p.box(tx + Math.cos(am) * (tR - 0.6), tz + Math.sin(am) * (tR - 0.6), 2.6, 2.6, tTop + 1, tTop + 10, '#2a2d33');
+  }
+  tmp.set('#7b7f85');                                                     // the lead-gray dome
+  cone(p, tx, tTop + 12, tz, tR + 0.8, 9, tmp.clone());
+  p.box(tx, tz, 1, 1, tTop + 20, tTop + 26, '#6f9c88');                   // green copper finial
 }
 
 // Tarr & Wonson Paint Manufactory — weathered barn-red WOOD (not brick), tall brick
@@ -3781,7 +4112,7 @@ type FederalOpts = {
   storeys?: number; roofKind?: 'hip' | 'gable' | 'flat'; balustrade?: 'plain' | 'fret';
   stringcourses?: boolean; chimney?: 'ends2' | 'interior4' | 'none'; bays?: number;
   entrance?: 'pediment' | 'fan' | 'portico' | 'colossal' | 'canopy'; palladian?: 'single' | 'row';
-  cupola?: boolean; flag?: boolean; shutter?: string;
+  cupola?: boolean; flag?: boolean; shutter?: string; door?: string;
 };
 function federalHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: FederalOpts) {
   const obb = obbOf(b.p);
@@ -3825,7 +4156,9 @@ function federalHouse(buckets: Bucket[], b: Building, g: number, index: WorldInd
   else if (o.chimney === 'interior4') for (const sx of [1, -1] as const) for (const sz of [1, -1] as const) chim(sx * L * 0.5, sz * W * 0.38);
 
   // windows + doors via the shared facade renderer (framed glass, lit-at-night panes, real doors)
-  facades(buckets[PLAIN], b.p, eaveH, floors, Math.round(obb.cx * 11 + obb.cz * 3), true, !!o.shutter, false, g);
+  // o.shutter is the REAL shutter color from the photo — pass it through rather than
+  // letting the generic palette pick (Heard House green, Trask black, RAA&M red)
+  facades(buckets[PLAIN], b.p, eaveH, floors, Math.round(obb.cx * 11 + obb.cz * 3), true, !!o.shutter, false, g, undefined, o.door, o.shutter);
 
   // grand entrance frame on the front (the door itself is drawn by facades)
   const ent = o.entrance ?? 'fan';
@@ -4870,6 +5203,19 @@ const HEROES: Record<string, HeroBuilder> = {
   'Ten Pound Island Light': (bk, b, g) => lightTower(bk, b, g, { h: 74, r: 6.4, body: '#f6f3ea' }),                   // white cast iron, black lantern; keeper's house is GONE
   'Annisquam Harbor Light': (bk, b, g) => lightTower(bk, b, g, { h: 86, r: 6.8, body: '#f6f3ea', taper: false }),     // white cylinder
   'Cape Ann Light (Twin Lights)': (bk, b, g) => lightTower(bk, b, g, { h: 230, r: 10, body: '#9a938a', cap: '#6fa08c' }),   // BOTH Thacher twins: unpainted granite, verdigris tops
+  // — Rockport, in Gloucester's frame (docs/research/rockport-manchester.md) —
+  'First United Church of Christ Congregational': (bk, b, g, i) => meetinghouse(bk, b, g, i, { clock: 'black', balustrade: true, belfry: 'round', cap: 'dome', capHex: '#6f9c88' }),   // "the Old Sloop", 1804: white, BLACK clock faces, round lantern under a green copper dome
+  'First Universalist Church': (bk, b, g, i) => meetinghouse(bk, b, g, i, { clock: null, balustrade: false, belfry: 'square', cap: 'spire', capHex: '#3b4a44', towerH: 64 }),   // white Gothic Revival: pointed louvered belfry, dark green-trimmed spire
+  'Rockport Art Association': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#f7f4ea', material: 'clap', trim: '#fdfbf2', roof: '#6b6660', storeys: 2.5, roofKind: 'gable', entrance: 'pediment', chimney: 'ends2', shutter: '#b0342c', door: '#b0342c' }),   // the 1787 Old Tavern: white clapboard, RED shutters + RED door
+  'Rockport Public Library': rockportLibrary,
+  'Rockport Carnegie Library': carnegieLibrary,
+  'Shalin Liu Perfomance Center': shalinLiu,     // OSM's typo — keep verbatim or the hero never binds
+  'Straitsmouth Island Light': (bk, b, g) => lightTower(bk, b, g, { h: 44, r: 6, body: '#f6f3ea' }),   // short white tower, black lantern
+  // — Manchester-by-the-Sea, in Beverly's frame —
+  'Manchester-by-the-Sea Town Hall': manchesterTownHall,
+  'Manchester-By-The-Sea Public Library': manchesterLibrary,
+  'First Parish Church (Manchester)': (bk, b, g, i) => meetinghouse(bk, b, g, i, { clock: 'gold', balustrade: true, belfry: 'octagon', cap: 'dome', capHex: '#6f9c88' }),   // 1809: white, GOLD clock face, octagonal columned belfry, green copper dome
+  'Trask House Museum': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#f7f4ea', material: 'clap', trim: '#fdfbf2', roof: '#5e5a55', storeys: 2, roofKind: 'hip', balustrade: 'fret', entrance: 'fan', chimney: 'interior4', shutter: '#1b1c1e', door: '#1b1c1e' }),   // 1823 Federal: white, BLACK shutters, white roof balustrade
   'Rear Range Light': buildRearRange,
   'Front Range Light': buildFrontRange,
   'Newburyport Harbor (Plum Island) Light': buildPILight,
@@ -5500,16 +5846,21 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     // in the full house palette, with a minority of weathered/stained cedar-shake
     // cottages (it used to be all brown shake)
     const beachShake = beach && hash32(seed, 67, 5) % 100 < 38;
+    // weathered-shingle village districts (Rockport, Manchester): the fishing
+    // villages inside a flagship town's frame are gray cedar shingle first,
+    // painted clapboard second — see TOWN.shingleZones
+    const villageShake = !beach && (b.k === 'house' || b.k === 'shed') && SHINGLE_ZONES.some(
+      (z) => (bcx - z.x) ** 2 + (bcz - z.z) ** 2 < z.r * z.r && hash32(seed, 71, 13) % 100 < (z.p ?? 0.7) * 100);
     // 13 Fox Run Drive — a navy house with a red door (a hello to its owner)
     const isFoxRun = b.k === 'house' && Math.abs(bcx + 18750) < 9 && Math.abs(bcz - 2774) < 9;
     const wallHex = isFoxRun ? '#2a3a57'
-      : beachShake ? pick(STYLE.building.wallsShake, seed)
+      : beachShake || villageShake ? pick(STYLE.building.wallsShake, seed)
       : beach ? pick(STYLE.building.wallsHouse, seed)
       : wallHexFor(b, seed);
     const isBrick = b.k === 'commercial' || b.k === 'civic';
     const wallBucket = isBrick ? buckets[BRICK]
       : b.k === 'industrial' ? buckets[PLAIN]
-      : beachShake ? buckets[SHINGLE]       // weathered cedar-shake cottages
+      : beachShake || villageShake ? buckets[SHINGLE]   // weathered cedar-shake cottages + shingled villages
       : buckets[CLAP];                       // painted clapboard — most of the island, like town
     walls(wallBucket, b.p, base, eaveAbs, wallHex);
 
@@ -5533,7 +5884,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const roofShape = b.k === 'house' && fill >= 0.9 ? pickHouseRoof(obb, seed) : 'gable';
       if (roofShape === 'mansard') mansardRoof(buckets[SHINGLE], buckets[PLAIN], obb, eaveAbs, 2, roofHex);
       else if (roofShape !== 'gable') hipRoof(buckets[SHINGLE], obb, eaveAbs, ridgeH, 2, roofHex, roofShape === 'pyramid');
-      else complexGable(buckets[SHINGLE], beachShake ? buckets[SHINGLE] : buckets[CLAP], b.p, eaveAbs, roofHex, wallHex, 0, b.k !== 'shed');
+      else complexGable(buckets[SHINGLE], beachShake || villageShake ? buckets[SHINGLE] : buckets[CLAP], b.p, eaveAbs, roofHex, wallHex, 0, b.k !== 'shed');
       if (b.k === 'house') {
         houseTrim(buckets[PLAIN], b.p, eaveAbs, base);
         if (rng() < 0.7 && obb.hl > 18) {

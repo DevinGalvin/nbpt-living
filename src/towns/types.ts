@@ -47,6 +47,13 @@ export interface TownPack {
 
   // geography knobs the renderer/collision read (world-px)
   beachX: number;                                                  // east of this = barrier-beach sand zone (Infinity = none)
+  // Weathered-cedar-SHINGLE districts: circles where the houses are shingled, not
+  // painted clapboard. Neighbor villages inside a flagship town's frame (Rockport
+  // inside Gloucester, Manchester inside Beverly) were being painted from the
+  // Newburyport painted-clapboard palette, which made them read as rows of pale
+  // institutional blocks instead of gray fishing-village shacks. `p` = share of
+  // houses shingled, 0..1 (the rest keep the painted palette — real villages mix).
+  shingleZones?: { x: number; z: number; r: number; p?: number }[];
   sledLane: { x: number; z0: number; z1: number; halfW: number } | null;   // decor: kept clear of trees for sledding
   trainPlatform: Vec2 | null;                                      // decor: commuter-rail platform set piece
   holidayTree: Vec2 | null;                                        // winter: the town tree (null = none)

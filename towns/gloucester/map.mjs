@@ -144,6 +144,7 @@ export const nameFixes = [
   { x: 1278, y: 21164, n: 'Beauport' },               // OSM POI ("Beauport Museum") sits in the garden; anchor = the 40-vertex house cluster
   { x: 30930, y: -39330, n: 'Motif No. 1' },          // attraction node on Bradley Wharf; shack way unnamed
   { x: 914, y: 7711, n: 'The Paint Factory' },        // Tarr & Wonson manufactory (end of Horton St) — unnamed in OSM; old anchor hit the neighbor building at 23 Horton (7/14 audit)
+  { x: 29000, y: -37760, n: 'Rockport Public Library' },   // library POI node at 17 School St (the 1864 granite mill block); way unnamed. NOT the Carnegie — that one IS named, 137 m west at 18 Jewett (7/25 audit)
 ];
 
 // Real-world verified distances guard the projection — add pairs once two

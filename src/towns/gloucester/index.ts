@@ -39,6 +39,13 @@ export const TOWN: TownPack = {
   },
 
   beachX: Infinity,      // Good Harbor / Wingaersheek are mapped sand — no recolor zone
+  // Rockport reads gray cedar SHINGLE first (Commons harbor + Bearskin Neck
+  // photos, docs/research/rockport-manchester.md) — the painted-clapboard
+  // palette made the village a row of pale institutional blocks.
+  shingleZones: [
+    { x: 28800, z: -38900, r: 3400, p: 0.72 },   // the harbor village: Bearskin Neck, Dock Sq, Front/Back Beach
+    { x: 24500, z: -55000, r: 3000, p: 0.6 },    // Pigeon Cove
+  ],
   sledLane: null,        // Stage Fort's hill is open lawn — no tree clearing needed
   trainPlatform: { x: -3387, z: -1369 },   // Gloucester station (Rockport Line, 1847)
   holidayTree: { x: -2146, z: 3599 },      // St. Peter's Square — the Fiesta heart

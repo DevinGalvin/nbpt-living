@@ -62,6 +62,23 @@ const BEVERLY_LM = [
   ['airport', 'Beverly Regional Airport', 'Watch the little planes take off!', -23681, -23284, 900],
   // across the harbor
   ['salem-willows', 'Salem Willows', 'Across the harbor: arcade & popcorn land', 6262, 20198, 700],
+  // Manchester-by-the-Sea — the whole village, harbor and Singing Beach ride in
+  // this frame (bbox east edge is lon −70.755) but carried NO landmarks until the
+  // 7/25 accuracy pass. Coords: built-world POI/label centroids where OSM names
+  // the feature, else Nominatim/Overpass lat-lon through the town projection.
+  ['man-village', 'Manchester Village', "Beach Street's shops, two blocks from the sand", 72448, -14248, 450],
+  ['man-town-hall', 'Manchester Town Hall', 'A little Greek temple runs the town', 70754, -14995, 340],
+  ['man-library', 'Manchester Library', 'A brownstone castle full of books, 1887', 71392, -15097, 340],
+  ['man-church', 'First Parish Church', "1809 white steeple with a gold clock", 70960, -15192, 340],
+  ['man-trask', 'Trask House', "The town's story in a sea captain's house", 71557, -15403, 300],
+  ['man-station', 'Manchester Station', 'Step off the train, walk to the beach', 73430, -14412, 400],
+  ['singing-beach', 'Singing Beach', 'The sand really squeaks when you walk on it', 77674, -8830, 800],
+  ['man-harbor', 'Manchester Harbor', 'Moorings, boatyard sheds and the drawbridge', 69741, -12304, 500],
+  ['tucks-point', "Tuck's Point", 'A round Victorian pavilion out over the water', 66181, -8640, 450],
+  ['masconomo', 'Masconomo Park', 'Harbor-side green with a bandstand and swings', 72859, -12386, 450],
+  ['capt-dusty-man', "Captain Dusty's (Manchester)", 'The beach-day ice cream line on Beach St', 72838, -13305, 300],
+  ['crowell-chapel', 'Crowell Chapel', 'A tiny stone chapel among the gravestones', 72544, -21510, 340],
+  ['cathedral-pines', 'Cathedral Pines', 'Tall pines you walk through like a hall', 74663, -29579, 700],
 ];
 export function landmarks() {
   return BEVERLY_LM.map(([id, name, sub, x, y, r]) => ({ id, name, sub, x, y, r }));
@@ -99,7 +116,15 @@ export const nameFixes = [
   { x: 3781, y: 7917, n: 'Hale Farm' },          // POI node is in the yard; anchor = footprint centroid
   { x: 39, y: 10768, n: 'Cabot House' },        // OSM POI says "John Canot House" (sic)
   { x: 15791, y: 10220, n: 'Hospital Point Light' },   // the k:'light' tower footprint (station fully mapped)
-  { x: -9737, y: -5681, n: 'Beverly Golf & Tennis Clubhouse' }   // 134 McKay addr → the 58k px² long footprint
+  { x: -9737, y: -5681, n: 'Beverly Golf & Tennis Clubhouse' },   // 134 McKay addr → the 58k px² long footprint
+  // Manchester-by-the-Sea: OSM names almost nothing here on the building WAYS —
+  // town hall, library, church, museum are all POI nodes only (7/25 pass).
+  { x: 70754, y: -14995, n: 'Manchester-by-the-Sea Town Hall' },
+  { x: 71392, y: -15097, n: 'Manchester-By-The-Sea Public Library' },   // OSM's Title Case — keep verbatim, HEROES keys on it
+  // stamped with the town in the name because Beverly ALREADY has a "First Parish
+  // Church" (its own hero) in the same world — a bare name would collide
+  { x: 70995, y: -15096, n: 'First Parish Church (Manchester)' },   // POI node sits in the yard 13 m off — anchor = the Central St footprint centroid (reverse-geocode confirmed)
+  { x: 71557, y: -15403, n: 'Trask House Museum' }
 ];
 
 // Real-world verified distances guard the projection — add pairs once two

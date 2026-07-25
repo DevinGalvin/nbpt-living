@@ -33,6 +33,10 @@ export const TOWN: TownPack = {
   },
 
   beachX: Infinity,      // Beverly's beaches are mapped sand — no recolor zone
+  // Manchester-by-the-Sea's village + shore: shingle-and-white, not the painted
+  // clapboard palette (docs/research/rockport-manchester.md). Lighter mix than
+  // Rockport — Manchester keeps more white clapboard.
+  shingleZones: [{ x: 72000, z: -13000, r: 7000, p: 0.5 }],
   sledLane: null,        // Lynch Park's hill is the real one — needs terrain-verified geometry (handoff)
   trainPlatform: { x: -3580, z: 9509 },   // the Newburyport/Rockport line beside Beverly Depot
   holidayTree: { x: 1115, z: 6043 },      // Ellis Square, downtown's little crossroads park
