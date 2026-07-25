@@ -35,6 +35,9 @@ export const TOWN: TownPack = {
   },
 
   beachX: Infinity,                       // Singing, Black and White Beach are mapped sand — no recolor zone
+  // Manchester is shingle-and-white rather than the painted-clapboard palette —
+  // a lighter mix than Rockport's, which keeps more white clapboard in the mix.
+  shingleZones: [{ x: -1200, z: 3600, r: 8000, p: 0.5 }],   // village + harbor + Singing Beach
   sledLane: null,
   trainPlatform: null,                    // the Rockport line runs through and Manchester HAS a stop — but OSM doesn't name it here, so there's no honest point to place. Add via manualBuildings or an OSM edit.
   holidayTree: { x: -280, z: 3490 },      // Masconomo Park — the green between downtown and the harbor

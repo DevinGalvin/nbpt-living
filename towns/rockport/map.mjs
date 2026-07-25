@@ -63,6 +63,18 @@ export const curatedPois = [];
 export const curatedPoisHand = {};
 export const manualBuildings = [];
 export const levelFixes = [];
+
+// Names OSM carries on POI nodes but not on the footprints — stamped onto the
+// containing building so HEROES/search bind. Without these two the town's most
+// photographed building renders as an anonymous shed. Anchors = the POI node
+// coords, each verified inside its footprint (tools/patch_names.mjs).
+// The other Rockport heroes (Old Sloop, First Universalist, Art Association,
+// Carnegie, Shalin Liu, Straitsmouth) are named on the ways already.
+export const nameFixes = [
+  { x: 3359, y: -2894, n: 'Motif No. 1' },              // OSM's attraction node says "Motif #1"; the shack's way is unnamed
+  { x: 1431, y: -1324, n: 'Rockport Public Library' },  // 17 School St, the 1864 granite mill block (NOT the Carnegie, which IS named)
+];
+
 export const qaDistances = [];
 
 export const qaElevationSpots = [

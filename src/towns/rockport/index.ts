@@ -34,6 +34,14 @@ export const TOWN: TownPack = {
   },
 
   beachX: Infinity,                       // Front, Old Garden, Cape Hedge and Pebble are mapped sand — no recolor zone
+  // Rockport reads weathered gray cedar SHINGLE first, painted clapboard second
+  // (Commons harbor + Bearskin Neck photos, docs/research/rockport-manchester.md).
+  // Without this the village is painted from Newburyport's clapboard palette and
+  // Bearskin Neck comes out a row of pale institutional blocks.
+  shingleZones: [
+    { x: 2000, z: -3000, r: 4200, p: 0.72 },     // the harbor village: Dock Sq, Bearskin Neck, Front/Back Beach
+    { x: -5800, z: -14600, r: 3200, p: 0.6 },   // Pigeon Cove
+  ],
   sledLane: null,
   trainPlatform: null,                    // Rockport is the END of the MBTA Rockport line — but OSM doesn't name the station here, so there's no honest point to place. Add via manualBuildings or an OSM edit.
   holidayTree: { x: 2053, z: -2288 },     // Dock Square

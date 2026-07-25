@@ -52,6 +52,21 @@ export const curatedPois = [];
 export const curatedPoisHand = {};
 export const manualBuildings = [];
 export const levelFixes = [];
+
+// OSM names almost nothing in Manchester on the building WAYS — the town hall,
+// library, church and museum are all POI nodes only, so without these the four
+// photo-verified heroes never bind and the village centre is anonymous boxes.
+// Anchors verified against their footprints (tools/patch_names.mjs).
+export const nameFixes = [
+  { x: -2170, y: 1001, n: 'Manchester-by-the-Sea Town Hall' },
+  { x: -1533, y: 899, n: 'Manchester-By-The-Sea Public Library' },   // OSM's Title Case — HEROES keys on it verbatim
+  // the church POI sits in the yard, 103 px outside the footprint — anchor is
+  // the Central St building centroid instead. Kept distinct from Beverly's own
+  // "First Parish Church" hero, which shares the engine's name-keyed table.
+  { x: -1930, y: 901, n: 'First Parish Church (Manchester)' },
+  { x: -1368, y: 593, n: 'Trask House Museum' },
+];
+
 export const qaDistances = [];
 
 export const qaElevationSpots = [
