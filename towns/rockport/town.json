@@ -1,0 +1,40 @@
+{
+  "id": "rockport",
+  "name": "Rockport",
+  "worldName": "Rockport, MA",
+  "title": "Rockport",
+  "tag": "The Artists' Colony",
+  "emoji": "🎨",
+  "path": "/rockport/",
+  "savePrefix": "rockport:",
+  "pxPerMeter": 8,
+  "origin": { "lat": 42.656, "lon": -70.62 },
+  "bbox": { "s": 42.62, "w": -70.68, "n": 42.7, "e": -70.55 },
+  "spawn": { "landmark": "dock-square", "dx": 0, "dz": 0 },
+  "branding": {
+    "htmlTitle": "Rockport — walk the real map of Rockport, MA in 3D",
+    "appleTitle": "Rockport",
+    "themeColor": "#3a1f22",
+    "bgTop": "#542c30",
+    "bgBottom": "#241315",
+    "ruleColor": "#e0b23a",
+    "description": "A cozy, all-ages 3D walk through the exact map of Rockport, Massachusetts. Wander Bearskin Neck, the harbor past Motif No. 1, and out to Halibut Point — and find your own house.",
+    "ogSiteName": "Rockport in 3D",
+    "ogDescription": "A cozy, all-ages 3D walk through the real map of Rockport. Bearskin Neck, Motif No. 1 and Halibut Point — find your own street.",
+    "ogUrl": "https://clippertown.io/rockport/",
+    "ogImage": "https://clippertown.io/rockport/og-image.jpg",
+    "ogImageType": "image/jpeg",
+    "ogImageAlt": "A 3D voxel view of Rockport, Massachusetts",
+    "twitterDescription": "Walk the real map of Rockport — find your own street.",
+    "loadingTitle": "ROCKPORT",
+    "loadingSub": "Exploring Rockport, Massachusetts"
+  },
+  "storageSeeds": {
+    "nbpt-bike": "1",
+    "nbpt-kayak": "1",
+    "nbpt-seasons-rewarded": "1"
+  },
+  "storageSeedIfUnset": {
+    "nbpt-season": "summer"
+  }
+}
