@@ -62,23 +62,16 @@ const BEVERLY_LM = [
   ['airport', 'Beverly Regional Airport', 'Watch the little planes take off!', -23681, -23284, 900],
   // across the harbor
   ['salem-willows', 'Salem Willows', 'Across the harbor: arcade & popcorn land', 6262, 20198, 700],
-  // Manchester-by-the-Sea — the whole village, harbor and Singing Beach ride in
-  // this frame (bbox east edge is lon −70.755) but carried NO landmarks until the
-  // 7/25 accuracy pass. Coords: built-world POI/label centroids where OSM names
-  // the feature, else Nominatim/Overpass lat-lon through the town projection.
+  // Manchester-by-the-Sea NODS. The village, harbor and Singing Beach all ride in
+  // this frame (bbox east edge is lon −70.755), and it carried nothing at all until
+  // the 7/25 accuracy pass put a full 13-spot roster here. Manchester has since
+  // become its own town, so this trims back to the same pattern Gloucester uses for
+  // Rockport: a few nods at the edge of the map, with the real roster next door.
+  // Anyone who travels out here can hop towns from the 🗺 switcher.
   ['man-village', 'Manchester Village', "Beach Street's shops, two blocks from the sand", 72448, -14248, 450],
-  ['man-town-hall', 'Manchester Town Hall', 'A little Greek temple runs the town', 70754, -14995, 340],
-  ['man-library', 'Manchester Library', 'A brownstone castle full of books, 1887', 71392, -15097, 340],
-  ['man-church', 'First Parish Church', "1809 white steeple with a gold clock", 70960, -15192, 340],
-  ['man-trask', 'Trask House', "The town's story in a sea captain's house", 71557, -15403, 300],
-  ['man-station', 'Manchester Station', 'Step off the train, walk to the beach', 73430, -14412, 400],
   ['singing-beach', 'Singing Beach', 'The sand really squeaks when you walk on it', 77674, -8830, 800],
   ['man-harbor', 'Manchester Harbor', 'Moorings, boatyard sheds and the drawbridge', 69741, -12304, 500],
   ['tucks-point', "Tuck's Point", 'A round Victorian pavilion out over the water', 66181, -8640, 450],
-  ['masconomo', 'Masconomo Park', 'Harbor-side green with a bandstand and swings', 72859, -12386, 450],
-  ['capt-dusty-man', "Captain Dusty's (Manchester)", 'The beach-day ice cream line on Beach St', 72838, -13305, 300],
-  ['crowell-chapel', 'Crowell Chapel', 'A tiny stone chapel among the gravestones', 72544, -21510, 340],
-  ['cathedral-pines', 'Cathedral Pines', 'Tall pines you walk through like a hall', 74663, -29579, 700],
 ];
 export function landmarks() {
   return BEVERLY_LM.map(([id, name, sub, x, y, r]) => ({ id, name, sub, x, y, r }));
