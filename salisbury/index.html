@@ -6,25 +6,25 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Manchester" />
-  <meta name="theme-color" content="#123a35" />
-  <title>Manchester-by-the-Sea — walk the real map in 3D</title>
-  <meta name="description" content="A cozy, all-ages 3D walk through the exact map of Manchester-by-the-Sea, Massachusetts. Wander the harbor, the town centre, and out to Singing Beach — and find your own house." />
+  <meta name="apple-mobile-web-app-title" content="Salisbury" />
+  <meta name="theme-color" content="#123449" />
+  <title>Salisbury — walk the real map of Salisbury, MA in 3D</title>
+  <meta name="description" content="A cozy, all-ages 3D walk through the exact map of Salisbury, Massachusetts. Walk the boardwalk, the beach and the mouth of the Merrimack — and find your own house." />
   <!-- Social link previews (Open Graph + Twitter Card). Absolute URLs so the card unfurls. -->
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Manchester-by-the-Sea in 3D" />
-  <meta property="og:title" content="Manchester-by-the-Sea — walk the real map in 3D" />
-  <meta property="og:description" content="A cozy, all-ages 3D walk through the real map of Manchester-by-the-Sea. The harbor, the town, and Singing Beach — find your own street." />
-  <meta property="og:url" content="https://clippertown.io/manchester/" />
-  <meta property="og:image" content="https://clippertown.io/manchester/og-image.jpg" />
+  <meta property="og:site_name" content="Salisbury in 3D" />
+  <meta property="og:title" content="Salisbury — walk the real map of Salisbury, MA in 3D" />
+  <meta property="og:description" content="A cozy, all-ages 3D walk through the real map of Salisbury. The boardwalk, the beach and the river's mouth — find your own street." />
+  <meta property="og:url" content="https://clippertown.io/salisbury/" />
+  <meta property="og:image" content="https://clippertown.io/salisbury/og-image.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:type" content="image/jpeg" />
-  <meta property="og:image:alt" content="A 3D voxel view of Manchester-by-the-Sea, Massachusetts" />
+  <meta property="og:image:alt" content="A 3D voxel view of Salisbury Beach, Massachusetts" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Manchester-by-the-Sea — walk the real map in 3D" />
-  <meta name="twitter:description" content="Walk the real map of Manchester-by-the-Sea — find your own street." />
-  <meta name="twitter:image" content="https://clippertown.io/manchester/og-image.jpg" />
+  <meta name="twitter:title" content="Salisbury — walk the real map of Salisbury, MA in 3D" />
+  <meta name="twitter:description" content="Walk the real map of Salisbury — find your own street." />
+  <meta name="twitter:image" content="https://clippertown.io/salisbury/og-image.jpg" />
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
   <link rel="icon" type="image/png" sizes="48x48" href="./favicon-48.png" />
@@ -37,8 +37,8 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #123a35;
-      background: linear-gradient(180deg, #1a4f47, #0a221f);
+      background: #123449;
+      background: linear-gradient(180deg, #1a4763, #0a1f2c);
       touch-action: none;
       -webkit-user-select: none;
       user-select: none;
@@ -66,7 +66,7 @@
     }
     #loading .title { font-size: 34px; letter-spacing: 3px; animation: loadrise 0.8s cubic-bezier(0.22,1,0.36,1) both; }
     #loading .rule { width: 0; height: 2px; border-radius: 2px;
-      background: linear-gradient(90deg, transparent, #e0b23a, transparent);
+      background: linear-gradient(90deg, transparent, #e8b13a, transparent);
       animation: loadrule 0.9s 0.25s cubic-bezier(0.22,1,0.36,1) both; }
     #loading .sub { font-size: 13px; letter-spacing: 2px; opacity: 0.7;
       font-family: -apple-system, system-ui, sans-serif; animation: loadpulse 1.9s 0.6s ease-in-out infinite; }
@@ -79,13 +79,13 @@
     }
   </style>
   <script>
-    // Manchester-by-the-Sea shares its origin with the root town, so it would share
+    // Salisbury shares its origin with the root town, so it would share
     // localStorage too. Namespace all saved state behind the town prefix
     // (GLOBAL keys pass through — rider name & co. ride between towns).
     (function () {
       try {
-        window.__townPath = "/manchester/";
-        var P = "manchester:", real = window.localStorage;
+        window.__townPath = "/salisbury/";
+        var P = "salisbury:", real = window.localStorage;
         var GLOBAL = ["nbpt-race-name","nbpt-ghost","nbpt-board-url"];
         var key = function (k) { return GLOBAL.indexOf(k) >= 0 ? k : P + k; };
         var pref = function () { return Object.keys(real).filter(function (k) { return k.indexOf(P) === 0; }); };
@@ -105,14 +105,14 @@
       } catch (e) { /* fall back to shared storage if the browser won't let us shadow it */ }
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-B4b41OaW.js"></script>
+  <script type="module" crossorigin src="./assets/index-4HlbdhAC.js"></script>
 </head>
 <body>
   <div id="game"></div>
   <div id="loading">
-    <div class="title">MANCHESTER-BY-THE-SEA</div>
+    <div class="title">SALISBURY</div>
     <div class="rule"></div>
-    <div class="sub">Exploring Manchester-by-the-Sea, Massachusetts</div>
+    <div class="sub">Exploring Salisbury, Massachusetts</div>
   </div>
   <!-- GoatCounter analytics (privacy-friendly). Kept in source so every build keeps it —
        it was previously added only on the deploy branch and got wiped by each deploy. -->
