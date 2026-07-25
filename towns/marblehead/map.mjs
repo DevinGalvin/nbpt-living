@@ -32,6 +32,13 @@ export const storefrontCorridors = [];
 //   2. OSM spells the sand poly "Devereaux Beach" but the adjacent grass
 //      "Devereux Beach" — two different features. This points at the SAND.
 //
+// The dated claims in the captions below are SOURCED, not recalled: Old Burial
+// Hill 1638 and its ~600 Revolutionary graves, St. Michael's 1714 (New England's
+// oldest Episcopal church on its original site) and the bell rung till it
+// cracked in 1776, Fort Sewall 1644 and the 1814 Old Ironsides escape, Old North
+// organized 1635 (present meeting house 1825). If you add more, check them —
+// locals will.
+//
 // Ordered as a loose tour: Old Town → the hills → harbor → the Neck → causeway
 // beaches → the woods.
 const LM = [
@@ -40,18 +47,18 @@ const LM = [
   ['abbot-hall', 'Abbot Hall', "The Spirit of '76 hangs upstairs", 3705, -1863, 380],
   ['washington-square', 'Washington Square', 'The little green below Abbot Hall', 3422, -1619, 340],
   ['memorial-park', 'Memorial Park', 'Downtown’s green by the water', 1513, -1536, 360],
-  ['st-michaels', "St. Michael's Church", 'Episcopal since 1714 — the bell rang for independence', 4668, -3538, 340],
-  ['old-north-church', 'Old North Church', 'The 1635 congregation on Washington Street', 6533, -5785, 340],
+  ['st-michaels', "St. Michael's Church", 'New England’s oldest Episcopal church, 1714 — they rang the bell for independence till it cracked', 4668, -3538, 340],
+  ['old-north-church', 'Old North Church', 'A congregation since 1635, in an 1825 meeting house', 6533, -5785, 340],
   ['gar-museum', 'G.A.R. Museum', 'A Civil War veterans’ hall, kept as they left it', 5499, -4270, 320],
   ['shubies', 'Shubie’s', 'The market everyone in town has a sandwich order at', 2254, 17, 300],
   // ── the hills & the old ground ──
-  ['old-burial-hill', 'Old Burial Hill', 'The 1638 graveyard on the hill over town', 7648, -9080, 620],
+  ['old-burial-hill', 'Old Burial Hill', 'The 1638 graveyard on the hill — some 600 Revolutionary soldiers lie here', 7648, -9080, 620],
   ['redds-pond', "Redd's Pond", 'Model sailboats in summer, skates in winter', 6881, -8564, 420],
   ['fountain-park', 'Fountain Park', 'Ballfields under Old Burial Hill', 8381, -9049, 480],
   ['green-street-cemetery', 'Green Street Cemetery', 'A quiet old burying ground in town', 1678, -4835, 360],
   ['waterside-cemetery', 'Waterside Cemetery', 'The big garden cemetery on the water', -5894, -10036, 700],
   // ── harbor ──
-  ['fort-sewall', 'Fort Sewall', 'Earthwork fort guarding the harbor mouth since 1644', 11017, -7083, 560],
+  ['fort-sewall', 'Fort Sewall', 'Earthwork fort, 1644 — its guns covered Old Ironsides’ escape in 1814', 11017, -7083, 560],
   ['marblehead-boatyard', 'Marblehead Boatyard', 'Where the harbor’s boats are hauled and painted', 7655, -3453, 340],
   ['gas-house-beach', 'Gas House Beach', 'The little harbor beach kids launch from', 8674, -8330, 400],
   ['grace-oliver-beach', "Grace Oliver's Beach", 'Quiet sand on the Salem side', 7735, -12670, 450],
