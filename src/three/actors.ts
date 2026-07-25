@@ -97,17 +97,32 @@ export class Kid {
   constructor() {
     const JEANS = '#3b4d6b', SLEEVE = '#a23730', SKIN = '#eec39a', HAIR = '#4a3320';
 
+    // Legs. Same hip height and same total kid height as before — the Man at the
+    // Wheel and every other monument was scaled against this kid's 36 px, so the
+    // OVERALL size is fixed. What changes is the distribution: a knee that actually
+    // joins (a filled joint, like the dog's), and a real sneaker instead of one
+    // white brick — sole, midsole stripe and a rounded toe.
     const mkLeg = (sx: number): [THREE.Group, THREE.Group] => {
       const thigh = new THREE.Group();
       thigh.position.set(sx * 3.2, 13, 0);
-      const thighMesh = cap(2.3, 3.2, JEANS, true);
+      const thighMesh = cap(2.3, 4.4, JEANS, true);     // longer: reaches past the knee pivot
+      const knee = sph(2.05, JEANS, 1, 0.95, 1); knee.position.y = -6.8;
       const shin = new THREE.Group();
       shin.position.set(0, -6.8, 0);
-      const shinMesh = cap(2, 2.6, JEANS, true);
-      const shoe = rbox(4.6, 3, 6.6, 1.2, '#f0ece2');
-      shoe.position.set(0, -4.8, 1.1);
-      shin.add(shinMesh, shoe);
-      thigh.add(thighMesh, shin);
+      const shinMesh = cap(1.95, 3.2, JEANS, true);
+      const cuffJ = new THREE.Mesh(new THREE.CylinderGeometry(2.05, 1.95, 0.9, 14), mat('#33445e'));
+      cuffJ.position.y = -5.2;                          // jean hem over the shoe
+      const shoe = new THREE.Group(); shoe.position.set(0, -5.6, 1.0);
+      const upperS = rbox(4.2, 2.0, 6.0, 1.0, '#f2efe6');       // canvas upper
+      upperS.position.y = 0.55;
+      const toeCap = sph(1.9, '#f7f5ee', 1.05, 0.7, 0.9); toeCap.position.set(0, 0.35, 2.5);
+      const sole = rbox(4.5, 1.0, 6.4, 0.45, '#d9d4c6');        // rubber sole, proud of the upper
+      sole.position.y = -0.7;
+      const stripe = rbox(4.35, 0.5, 6.2, 0.24, '#b03a32');     // a red midsole flash
+      stripe.position.y = -0.15;
+      shoe.add(sole, stripe, upperS, toeCap);
+      shin.add(shinMesh, cuffJ, shoe);
+      thigh.add(thighMesh, knee, shin);
       return [thigh, shin];
     };
     [this.thighL, this.shinL] = mkLeg(-1);
@@ -120,7 +135,7 @@ export class Kid {
     const body = cap(4.4, 5.4, '#b03a32');
     body.scale.set(1.14, 1.06, 0.82);
     body.position.y = 18.6;
-    const chest = sph(4.2, '#b03a32', 1.16, 0.92, 0.82);
+    const chest = sph(4.2, '#b03a32', 1.08, 0.92, 0.82);
     chest.position.set(0, 22.2, 0.2);
     const hood = sph(2.9, HOOD_DK, 1.55, 0.66, 1);
     hood.position.set(0, 24.8, -3.7);
@@ -132,40 +147,61 @@ export class Kid {
     collar.position.set(0, 24.0, 0);
     // shoulder caps blend the sleeves into the torso (no gap at the arm root) — kept
     // small so the kid stays slight, not buff
-    const shoulder = (sx: number) => { const s = sph(1.95, SLEEVE, 1, 0.95, 1); s.position.set(sx * 5.2, 23.4, 0); return s; };
+    const shoulder = (sx: number) => { const s = sph(1.8, SLEEVE, 0.95, 0.95, 1); s.position.set(sx * 5.0, 23.4, 0); return s; };
 
     // head on a neck pivot so it can stay level and glance around; eased down from the
     // old chibi ratio (slightly smaller skull + the real neck below) so the kid reads
     // less like a big-headed toy and more like a person
-    this.headGrp.position.y = 28.0;
-    this.headGrp.scale.setScalar(0.92);
-    const head = sph(5.0, SKIN, 1, 0.98, 0.95);
+    this.headGrp.position.y = 28.4;
+    this.headGrp.scale.setScalar(0.84);            // was 0.92 — a smaller skull on the
+    // same neck reads years older and much less chibi. Total height stays ~36 px
+    // because the head group also moved up 0.4; the monuments' scale reference holds.
+    const head = sph(5.0, SKIN, 1, 1.0, 0.95);
     head.position.y = 3;
-    const hair = sph(5.25, HAIR, 1.03, 0.72, 1.01);
-    hair.position.y = 4.7;
-    const bangs = rbox(8.4, 2, 1.6, 0.7, HAIR);
-    bangs.position.set(0, 5.4, 4);
-    this.eyeL = sph(0.85, '#23201c');
-    this.eyeR = sph(0.85, '#23201c');
-    this.eyeL.position.set(-2.05, 3.2, 4.4);
-    this.eyeR.position.set(2.05, 3.2, 4.4);
+    const jaw = sph(3.5, SKIN, 0.94, 0.78, 0.95);  // a chin/jaw so the head isn't a ball
+    jaw.position.set(0, 0.5, 0.5);
+    // HAIR — the old version was one smooth flattened sphere: a plastic helmet with a
+    // hard rim against the skin. Now it's a cap plus a swept fringe, a side part, side
+    // tufts over the ears and a nape tuft, so the silhouette breaks up and reads as hair.
+    const hair = sph(5.3, HAIR, 1.02, 0.7, 1.02);
+    hair.position.y = 5.5;
+    // the fringe sits ON the forehead, ABOVE the brows. The first pass put it at
+    // y4.5 with a half-height of 1.85 — it spanned straight down across the eyes at
+    // y3.05 and buried the whole face in a dark visor.
+    const fringe = sph(4.3, HAIR, 1.06, 0.34, 0.62);
+    fringe.position.set(0.55, 5.6, 3.1); fringe.rotation.z = -0.16;
+    const part = sph(2.0, HAIR, 0.7, 0.4, 0.9);          // the tuft the part throws up
+    part.position.set(-2.2, 7.0, 1.4); part.rotation.z = 0.4;
+    const sideTuft = (sx: number) => { const s = sph(1.5, HAIR, 0.6, 1.15, 0.95); s.position.set(sx * 4.5, 3.5, 0.6); return s; };
+    const nape = sph(3.2, HAIR, 1.0, 0.72, 0.62); nape.position.set(0, 2.4, -3.9);
+    const ear = (sx: number) => { const e = sph(0.95, SKIN, 0.45, 1.15, 0.85); e.position.set(sx * 4.75, 2.6, 0.2); return e; };
+    // eyes: smaller and set INTO the face under a lid, not glossy beads stuck on it
+    this.eyeL = sph(0.66, '#2c2622');
+    this.eyeR = sph(0.66, '#2c2622');
+    this.eyeL.position.set(-1.95, 3.05, 4.35);
+    this.eyeR.position.set(1.95, 3.05, 4.35);
     // catchlights — tiny white glints that make the eyes feel alive (blink with them)
-    for (const e of [this.eyeL, this.eyeR]) { const g = sph(0.3, '#ffffff'); g.position.set(-0.28, 0.34, 0.58); e.add(g); }
+    for (const e of [this.eyeL, this.eyeR]) { const g = sph(0.23, '#ffffff'); g.position.set(-0.24, 0.28, 0.5); e.add(g); }
+    const lid = (sx: number) => { const l = sph(0.86, SKIN, 1, 0.5, 0.75); l.position.set(sx * 1.95, 3.62, 4.3); return l; };
     // a friendly face: soft brows, a button nose, a little smile, rosy cheeks
-    const brow = (sx: number) => { const b = rbox(2.2, 0.62, 0.6, 0.26, HAIR); b.position.set(sx * 2.05, 4.55, 4.2); b.rotation.z = sx * 0.1; return b; };
-    const knose = sph(0.62, '#e3a878', 1, 0.82, 1); knose.position.set(0, 2.35, 5.0);
-    const smile = new THREE.Mesh(new THREE.TorusGeometry(1.05, 0.22, 6, 12, Math.PI), mat('#8a4b40'));
-    smile.rotation.z = Math.PI; smile.position.set(0, 1.25, 4.55);
-    const cheek = (sx: number) => { const c = sph(0.95, '#e89a86', 1, 0.66, 0.45); c.position.set(sx * 3.15, 1.85, 4.05); const m = c.material as THREE.MeshStandardMaterial; m.transparent = true; m.opacity = 0.6; return c; };
-    this.headGrp.add(head, hair, bangs, this.eyeL, this.eyeR, brow(-1), brow(1), knose, smile, cheek(-1), cheek(1));
+    const brow = (sx: number) => { const b = rbox(1.95, 0.5, 0.55, 0.22, HAIR); b.position.set(sx * 1.95, 4.35, 4.25); b.rotation.z = sx * 0.12; return b; };
+    const knose = sph(0.58, '#e3a878', 1, 0.86, 1); knose.position.set(0, 2.3, 4.95);
+    const smile = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.2, 6, 12, Math.PI), mat('#8a4b40'));
+    smile.rotation.z = Math.PI; smile.position.set(0, 1.2, 4.5);
+    const cheek = (sx: number) => { const c = sph(0.9, '#e89a86', 1, 0.62, 0.42); c.position.set(sx * 3.05, 1.8, 4.0); const m = c.material as THREE.MeshStandardMaterial; m.transparent = true; m.opacity = 0.55; return c; };
+    this.headGrp.add(head, jaw, hair, fringe, part, sideTuft(-1), sideTuft(1), nape,
+      ear(-1), ear(1), this.eyeL, this.eyeR, lid(-1), lid(1),
+      brow(-1), brow(1), knose, smile, cheek(-1), cheek(1));
 
     const mkArm = (sx: number): [THREE.Group, THREE.Group] => {
       const upper = new THREE.Group();
       upper.position.set(sx * 5.5, 24, 0);
-      const upperMesh = cap(1.55, 3.4, SLEEVE, true);
+      const upperMesh = cap(1.55, 4.4, SLEEVE, true);   // reaches past the elbow pivot
+      const elbow = sph(1.42, SLEEVE, 1, 0.95, 1); elbow.position.y = -6.8;
+      upper.add(elbow);
       const fore = new THREE.Group();
       fore.position.set(0, -6.8, 0);
-      const foreMesh = cap(1.4, 3.0, SLEEVE, true);
+      const foreMesh = cap(1.4, 3.4, SLEEVE, true);
       const cuff = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.42, 1.0, 14), mat('#8f2f28'));
       cuff.position.set(0, -5.7, 0);
       // a real little hand: rounded palm + a thumb + closed fingers, not a bare ball
@@ -441,6 +477,11 @@ export class Dog {
     const c = new THREE.Color(fur);
     const darker = '#' + c.clone().multiplyScalar(0.84).getHexString();
     const darkest = '#' + c.clone().multiplyScalar(0.72).getHexString();
+    // COUNTERSHADING — dark along the back, pale under the chin, chest, belly and
+    // legs. Every real dog has it, and it does more for "this is an animal" than any
+    // amount of extra geometry: a uniformly-coloured body always reads as a plush toy.
+    const lightest = '#' + c.clone().lerp(new THREE.Color('#ffffff'), 0.42).getHexString();
+    const backDk = '#' + c.clone().multiplyScalar(0.78).getHexString();
 
     // trunk pivot sits at the rear hips: (0, 8, -6.5) in heading space
     this.trunk.position.set(0, 8, -6.5);
@@ -459,6 +500,13 @@ export class Dog {
     withers.position.set(0, 4.6, 8.2);
     const haunch = (sx: number) => { const h = sph(2.7, fur, 0.92, 1.0, 1.1); h.position.set(sx * 2.7, 3.2, -2.0); return h; };
     const shoulder = (sx: number) => { const s = sph(2.3, fur, 0.9, 1.0, 1.05); s.position.set(sx * 2.9, 2.6, 9.0); return s; };
+    // the countershading itself: a dark saddle down the spine, a pale belly and bib
+    const saddle = capZ(3.5, 8.0, backDk);
+    saddle.position.set(0, 4.4, 6.5); saddle.scale.set(1.0, 0.5, 1);
+    const belly = capZ(3.2, 7.4, lightest);
+    belly.position.set(0, 0.9, 6.6); belly.scale.set(0.94, 0.5, 1);
+    const bib = sph(2.5, lightest, 0.85, 1.0, 0.7);
+    bib.position.set(0, 1.1, 12.2);
 
     // head on a neck pivot (looks at the kid, sniffs the ground)
     this.headGroup.position.set(0, 6, 14.5);
@@ -468,30 +516,43 @@ export class Dog {
     skull.position.set(0, 3.2, 1.4);
     const muzzleBridge = capZ(1.35, 1.4, fur);        // forehead-to-snout bridge (a real stop)
     muzzleBridge.position.set(0, 1.0, 4.7);
-    const snout = capZ(1.85, 2.6, darker);
-    snout.position.set(0, -0.2, 6.7);
-    const nose = sph(0.95, '#2b2420', 1.1, 0.9, 0.9);
-    nose.position.set(0, 0.3, 8.8);
-    const eyeL = sph(0.72, '#23201c');
-    const eyeR = sph(0.72, '#23201c');
-    eyeL.position.set(-1.95, 2.7, 5.5);
-    eyeR.position.set(1.95, 2.7, 5.5);
-    for (const e of [eyeL, eyeR]) { const g = sph(0.24, '#ffffff'); g.position.set(-0.2, 0.28, 0.5); e.add(g); }
+    // muzzle in the SAME fur as the head — the old darker snout drew a hard seam across
+    // the face. Countershading does the shaping instead: a pale chin/underjaw below.
+    const snout = capZ(1.72, 3.8, fur);
+    snout.position.set(0, -0.3, 7.2);
+    const underjaw = capZ(1.2, 3.2, lightest);
+    underjaw.position.set(0, -1.3, 7.3);
+    const nose = sph(0.9, '#2b2420', 1.12, 0.9, 0.85);
+    nose.position.set(0, 0.3, 9.8);
+    // eyes: smaller, SET INTO the skull rather than stuck on it, under a brow ridge and
+    // a lid. Big glossy spheres on the surface were the single most toy-like thing here.
+    const eyeL = sph(0.56, '#2a2320');
+    const eyeR = sph(0.56, '#2a2320');
+    eyeL.position.set(-1.9, 2.6, 5.25);
+    eyeR.position.set(1.9, 2.6, 5.25);
+    for (const e of [eyeL, eyeR]) { const g = sph(0.19, '#ffffff'); g.position.set(-0.16, 0.24, 0.42); e.add(g); }
+    const lid = (sx: number) => { const l = sph(0.72, fur, 1, 0.5, 0.8); l.position.set(sx * 1.9, 3.16, 5.15); return l; };
+    const browSpot = (sx: number) => { const b = sph(0.42, lightest, 1.2, 0.5, 0.8); b.position.set(sx * 1.85, 3.6, 4.5); return b; };
     // a happy lolling tongue hanging from the mouth
-    const tongue = rbox(1.4, 0.45, 2.3, 0.4, '#e07f88');
-    tongue.position.set(0, -1.5, 7.8); tongue.rotation.x = 0.55;
+    const tongue = rbox(1.3, 0.42, 2.2, 0.38, '#e07f88');
+    tongue.position.set(0, -1.65, 7.9); tongue.rotation.x = 0.55;
+    // ears: proper retriever flaps — big, soft, hung from the side of the skull and
+    // falling PAST the jaw. The old ones were thumbnail-sized tabs on top of the head.
     const mkEar = (sx: number): THREE.Group => {
       const grp = new THREE.Group();
-      grp.position.set(sx * 3.3, 5.4, 1.5);
-      const flap = sph(1.95, darkest, 0.5, 1.25, 0.78);
-      flap.position.y = -1.9;
-      grp.add(flap);
-      grp.rotation.z = sx * 0.22;
+      grp.position.set(sx * 3.05, 4.9, 2.2);
+      const flap = sph(2.5, darkest, 0.42, 1.5, 0.9);
+      flap.position.set(sx * 0.25, -2.7, -0.2);
+      const tip = sph(1.5, darkest, 0.42, 1.0, 0.85);
+      tip.position.set(sx * 0.4, -5.1, -0.4);
+      grp.add(flap, tip);
+      grp.rotation.z = sx * 0.2;
       return grp;
     };
     this.earL = mkEar(-1);
     this.earR = mkEar(1);
-    this.headGroup.add(head, skull, muzzleBridge, snout, nose, eyeL, eyeR, this.earL, this.earR, tongue);
+    this.headGroup.add(head, skull, muzzleBridge, snout, underjaw, nose, eyeL, eyeR,
+      lid(-1), lid(1), browSpot(-1), browSpot(1), this.earL, this.earR, tongue);
 
     // tail: two soft segments for a whippy wag
     this.tail = new THREE.Group();
@@ -508,12 +569,19 @@ export class Dog {
     const collar = new THREE.Mesh(new THREE.TorusGeometry(3.7, 0.55, 8, 18), mat('#b5402f'));
     collar.position.set(0, 4.0, 12.7); collar.scale.set(1.05, 0.9, 1);
     const tag = sph(0.7, '#e8c44f'); tag.position.set(0, 0.9, 13.1);
-    this.trunk.add(body, chest, rump, neck, withers, haunch(-1), haunch(1), shoulder(-1), shoulder(1), this.headGroup, this.tail, collar, tag);
+    this.trunk.add(body, chest, rump, neck, withers, saddle, belly, bib,
+      haunch(-1), haunch(1), shoulder(-1), shoulder(1), this.headGroup, this.tail, collar, tag);
 
     // legs stay under the heading so the trunk can pitch without lifting paws. Each leg
     // is two segments: an upper that swings from the shoulder/hip + a lower shank that
     // folds at the knee/hock on the recovery, so the gait articulates instead of swinging
     // stiff pegs. Rear legs are a touch sturdier than the front.
+    //
+    // THE JOINTS ARE THE WHOLE GAME. The first build hung a capsule from the hip, then
+    // parked the shank 1.6 px below where the upper ended — so every leg read as a
+    // stack of loose balloons with daylight between them, which is what made the dog
+    // look inflatable rather than alive. Now the upper reaches PAST the knee pivot and
+    // a joint sphere sits on the pivot itself, so the limb is one continuous taper.
     const legPos: [number, number, boolean][] = [
       [-3.2, 7.0, true], [3.2, 7.0, true],     // front (LF, RF)
       [-3.4, -6.4, false], [3.4, -6.4, false], // rear (LR, RR)
@@ -521,14 +589,25 @@ export class Dog {
     for (const [lx, lz, front] of legPos) {
       const leg = new THREE.Group();
       leg.position.set(lx, 8, lz);
-      const upper = cap(front ? 1.55 : 1.7, 1.7, darker, true);
+      const rU = front ? 1.5 : 1.68;
+      // upper: long enough that its bottom tip overshoots the knee pivot at -4.0
+      const upper = cap(rU, 3.0, fur, true);
+      // shoulder/haunch cap, filling the top of the limb into the body
+      const capTop = sph(rU * 1.12, fur, 1, 0.95, 1);
+      const knee = sph(front ? 1.35 : 1.5, fur, 1, 1.02, 1);   // sits ON the pivot
+      knee.position.y = -4.0;
       const shin = new THREE.Group();
       shin.position.set(0, -4.0, 0);
-      const shinMesh = cap(front ? 1.3 : 1.4, 1.5, darker, true);
-      const paw = rbox(2.8, 1.9, 3.7, 0.95, fur);
-      paw.position.set(0, -3.2, 0.8);
-      shin.add(shinMesh, paw);
-      leg.add(upper, shin);
+      const rS = front ? 1.22 : 1.34;
+      const shinMesh = cap(rS, 2.4, fur, true);
+      const ankle = sph(rS * 1.05, fur); ankle.position.y = -3.5;
+      // paw: a rounded pad plus three toes, so it stops being a brick
+      const paw = new THREE.Group(); paw.position.set(0, -3.6, 0.55);
+      const pad = rbox(2.5, 1.5, 3.0, 0.7, fur);
+      for (const tx of [-0.72, 0, 0.72]) { const toe = sph(0.55, fur, 1, 0.8, 1.25); toe.position.set(tx, -0.28, 1.55); paw.add(toe); }
+      paw.add(pad);
+      shin.add(shinMesh, ankle, paw);
+      leg.add(capTop, upper, knee, shin);
       this.legs.push(leg);
       this.shins.push(shin);
       this.heading.add(leg);
