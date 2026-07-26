@@ -5736,6 +5736,52 @@ function monumentLodge(buckets: Bucket[], b: Building, g: number) {
   }
 }
 
+// The Battle of Bunker Hill Museum — the old Charlestown Branch Library (1913) on
+// the corner of Monument Square, Classical Revival, and its façade still carries
+// the carved inscriptions FREE FOR ALL and CHARLESTOWN BRANCH. A flat-roofed brick
+// block on a stone base with a tall window order and an inscribed frieze.
+// Long-axis aware: OSM's footprint here has its long side in `hw`.
+function classicalLibrary(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const long = obb.hl >= obb.hw;
+  const ang = long ? obb.ang : obb.ang + Math.PI / 2;
+  const L = long ? obb.hl : obb.hw, W = long ? obb.hw : obb.hl;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const BRICKC = '#9d5340', STONE = '#e2dccb';
+  const baseY = g + 12, eaveH = g + 58;
+  walls(buckets[PLAIN], expandRing(b.p, 1.1), g - 4, baseY, '#cdc7b8', 0);      // rusticated stone base
+  walls(buckets[BRICK], b.p, baseY, eaveH, BRICKC);
+  walls(buckets[PLAIN], expandRing(b.p, 1.4), eaveH, eaveH + 9, STONE, 0);      // the frieze
+  walls(buckets[PLAIN], expandRing(b.p, 2.2), eaveH + 9, eaveH + 13, STONE, 0); // cornice
+  flatRoof(buckets[PLAIN], expandRing(b.p, 2.2), eaveH + 13, '#54585f');
+  // tall windows, and the inscription strip cut into the frieze above them
+  tmp.set('#31353b');
+  const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  for (const s of [1, -1] as const) {
+    for (let lx = -L + 22; lx <= L - 22; lx += 30) {
+      const q = (l: number, y: number, off: number): [number, number, number] =>
+        [obb.cx + l * ca - s * (W + off) * sa, y, obb.cz + l * sa + s * (W + off) * ca];
+      const p0 = q(lx - 8, baseY + 8, 0.7), p1 = q(lx + 8, baseY + 8, 0.7);
+      const p2 = q(lx + 8, eaveH - 8, 0.7), p3 = q(lx - 8, eaveH - 8, 0.7);
+      buckets[GLOW].quad(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2],
+        -sa * s, 0, ca * s, wr, wg, wb);
+    }
+    // the carved inscription, centred on the frieze of each long face
+    const q = (l: number, y: number): [number, number, number] =>
+      [obb.cx + l * ca - s * (W + 1.9) * sa, y, obb.cz + l * sa + s * (W + 1.9) * ca];
+    const i0 = q(-L * 0.62, eaveH + 3), i1 = q(L * 0.62, eaveH + 3);
+    const i2 = q(L * 0.62, eaveH + 6.4), i3 = q(-L * 0.62, eaveH + 6.4);
+    tmp.set('#8a8272');
+    buckets[PLAIN].quad(i0[0], i0[1], i0[2], i1[0], i1[1], i1[2], i2[0], i2[1], i2[2], i3[0], i3[1], i3[2],
+      -sa * s, 0, ca * s, tmp.r, tmp.g, tmp.b);
+  }
+  // the entrance goes on whichever long face actually looks at the street
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const ex = obb.cx - front * (W + 1) * sa, ez = obb.cz + front * (W + 1) * ca;
+  roundArch(buckets[PLAIN], ex, ez, ca, sa, -sa * front, ca * front, 9, g - 2, baseY + 20, '#2e2a26');
+}
+
 // Muster House (1852) — the Navy Yard's brick OCTAGON, where the yard's workmen
 // mustered for the day. OSM traces it with eight vertices, so the footprint is
 // already the octagon; the shallow pyramidal roof is a taperBand up to a small
@@ -5821,6 +5867,7 @@ const HEROES: Record<string, HeroBuilder> = {
   'Muster House': musterHouse,
   'USS Cassin Young': destroyer,
   'Schrafft Center': schrafftCenter,
+  'The Battle of Bunker Hill Museum': classicalLibrary,
   'Bunker Hill Pavilion': monumentLodge,       // OSM's name for the Monument Lodge
   // Building 105, the Chain Forge — where the yard drop-forged anchor chain, and
   // later the die-lock chain the whole fleet used. A big brick shop under a
