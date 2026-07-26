@@ -7,24 +7,24 @@ Manchester-by-the-Sea `/manchester/`, Rockport `/rockport/`,
 Amesbury `/amesbury/`, Salisbury `/salisbury/` and Charlestown `/charlestown/`.
 Three.js + TypeScript + Vite. Live at **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE: ten towns live at `cd8816b`. CHARLESTOWN (#11) IS BUILT
-> AND COMMITTED at `3c60bb7` BUT NOT PUSHED** — pushing `source` auto-deploys, so
-> it is waiting on Devin. `npm run build:all` passes for all eleven.
+> **⚡ FRESHEST STATE: ELEVEN towns live. Charlestown (#11) shipped at `9461222`
+> and its polish pass — the 3-course race ladder and six more heroes — is
+> committed at `b020053`.** `npm run build:all` passes for all eleven.
 > **Read ✦ CHARLESTOWN first** — it carries two engine fixes that affect every
-> town and the polish list of what is still open (races are NOT authored).
+> town, plus what the polish pass learned and what is still open.
 > Then ✦ AMESBURY + SALISBURY. Then ✦ MANCHESTER + ROCKPORT, which has the
 > reusable four-step town-building workflow and the verification bar. Then read
 > ✦ MARBLEHEAD (town #6, and where the map pipeline moved into CI, which is what
 > makes a cloud session able to build a town end to end), then Two-Town Day, then
 > the post-launch polish session.
 
-## ✦ CHARLESTOWN (town #11) — BUILT, committed `3c60bb7`, NOT pushed
+## ✦ CHARLESTOWN (town #11) — LIVE at `/charlestown/`
 
-**Built 7/26/2026 in one session.** 4,885 buildings, a **1.7 MB** world.json, 63
-fast-travel landmarks, terrain + Overture heights, 44 welcome signs, its own
-og-image, flight off the Navy Yard apron. Spawn = the Bunker Hill Monument with
-`dz: 210` so the kid lands on the lawn facing it (clean-profile verified).
-`story: false`. **Races are NOT authored** — empty `COURSES`, as Salisbury shipped.
+**Built 7/26/2026 in one session, shipped `9461222`, polished `b020053`.** 4,885
+buildings, a **1.7 MB** world.json, 63 fast-travel landmarks, terrain + Overture
+heights, 44 welcome signs, its own og-image, flight off the Navy Yard apron, and
+a 3-course race ladder. Spawn = the Bunker Hill Monument with `dz: 210` so the
+kid lands on the lawn facing it (clean-profile verified). `story: false`.
 
 **Heroes:** Bunker Hill Monument (539 px = 221 ft; 30 ft → 15 ft 4 in taper,
 pyramidion, chamber windows, arched door), USS Constitution (real rig — her
@@ -75,17 +75,40 @@ Commandant's House, Timber Shed, Hemp House.
   `OSM_TILES`, then query `data/<town>/raw/overpass.json` locally** rather than
   asking Overpass twenty small questions.
 
+### Polish pass — DONE (`b020053`)
+
+**Races authored and verified end to end**, all three on the real road graph, and
+every start and gate machine-checked to be on road, dry and unobstructed:
+Bunker Hill Climb (1.1 mi, Old Ironsides → up Main Street → the Monument),
+Navy Yard Run (2.3 mi, Sullivan Square → Menino Park at the far tip), and
+Townie Homecoming (3.5 mi, a full lap ending with the hill).
+Watch for one thing when authoring more: a via that sits on a spur makes the
+Dijkstra path go in and come straight back out — the first cut of the epic
+retraced ~10 route points at Sullivan Square. Check for repeated vertices in the
+emitted route before accepting it.
+
+**Six more heroes.** USS Cassin Young was the worst offender — a Fletcher-class
+destroyer rendering as a 5.5-storey HOUSE at Pier 1 — now a proper destroyer off
+her real 115 m × 12 m footprint. Plus the Schrafft Center (brick mass, industrial
+window grid, the clock tower and sign band), the Chain Forge (ridge monitor), the
+Monument Lodge in granite, Timber Shed and Hemp House.
+Two gotchas worth keeping: **OSM splits the Schrafft plant into TWO named
+footprints**, so a hero keyed by name runs twice — the tower is gated on
+`ringAreaM2 > 5000` because the real building has one. And a hero's first draft
+of a tower read as a roof penthouse; a landmark tower needs to clear the parapet
+by roughly its own building's height, not by a storey.
+
 ### Still open (ranked)
 
-1. **Races** — a 3-course ladder is obvious here: the hill, the Navy Yard, a loop
-   of the whole peninsula. `tools/make_course.mjs`.
-2. **More heroes** — the Schrafft Center's clock tower (the old candy factory),
-   Chain Forge, USS Cassin Young as a WWII destroyer rather than a generic hull,
-   the Battle of Bunker Hill Museum, First Church, the Monument Lodge in granite.
+1. **A launch post** (r/Charlestown or r/boston) once Devin is happy.
+2. **A few heroes left** — the Battle of Bunker Hill Museum, First Church
+   (currently the generic `k:'church'` treatment, which is decent), Round Corner
+   House, the Carpenter Shop and Paint Shop. Note the museum, First Church and
+   several yard buildings have their long axis in `hw`, so `federalHouse` and
+   `warehouse` will lay them sideways — use `yardShed` or handle the axis.
 3. **`borderLore` copy review** — Charlestown's neighbours are Boston
    neighbourhoods plus four cities, so the lines read differently from a town line.
-4. A launch post (r/Charlestown or r/boston) once Devin is happy.
-5. Monument Square's 54 trees are **real surveyed OSM positions** (19% pine, per
+4. Monument Square's 54 trees are **real surveyed OSM positions** (19% pine, per
    the shared style). The "conifer farm" look is the shared deciduous builder's
    three stacked canopy blobs — not a Charlestown bug. Don't fix it per-town.
 
