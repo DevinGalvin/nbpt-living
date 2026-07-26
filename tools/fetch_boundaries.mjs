@@ -4,6 +4,23 @@
 // with FULL geometry (their rings extend beyond the bbox; clipped fragments
 // don't stitch reliably, full rings do). Saves data/<town>/raw/boundaries.json.
 //
+// NEIGHBOURHOODS: some towns in the set are not municipalities. Charlestown is a
+// Boston neighbourhood — OSM relation 4033666, tagged boundary=place +
+// place=suburb (from the BPDA neighbourhood boundaries), with no admin_level at
+// all. A town opts into the place layer in its town.json:
+//
+//   "boundaries": { "includePlaces": true, "exclude": ["Boston"] }
+//
+// `includePlaces` also fetches boundary=place suburbs/neighbourhoods in frame,
+// and emits them BEFORE the administrative relations, because the runtime's
+// "which town am I in" test takes the first ring that contains the player — the
+// more specific boundary has to win. `exclude` drops relations by name: for a
+// neighbourhood town the containing city is not a border-crossing entity (you
+// are always inside Boston, and its city line runs along the same Somerville
+// and Everett borders, which would double every welcome sign).
+// Without this, towns/<id>/map.mjs's landmark roster has no boundary to check
+// against and tools/landmark_candidates.mjs hard-fails.
+//
 // Run: node tools/fetch_boundaries.mjs   (or TOWN=salem …)
 // NOTE: needs open internet (Overpass) — runs in CI via .github/workflows/fetch-data.yml.
 //
@@ -14,10 +31,14 @@ import { loadTown } from './lib/town.mjs';
 
 const T = await loadTown();
 const bbox = [T.BBOX.s, T.BBOX.w, T.BBOX.n, T.BBOX.e].join(',');
+const B = T.cfg.boundaries || {};
+const EXCLUDE = new Set(B.exclude || []);
 
 const query = `
 [out:json][timeout:180][maxsize:536870912];
-relation["boundary"="administrative"]["admin_level"="8"](${bbox});
+(
+  relation["boundary"="administrative"]["admin_level"="8"](${bbox});
+${B.includePlaces ? `  relation["boundary"="place"]["place"~"^(suburb|neighbourhood|quarter|borough)$"](${bbox});\n` : ''});
 out geom;
 `;
 
@@ -42,7 +63,22 @@ for (const ep of ENDPOINTS) {
 }
 if (!json) { console.error('All Overpass endpoints failed.'); process.exit(1); }
 
-const names = (json.elements || []).map((r) => r.tags?.name).filter(Boolean).sort();
+// Drop excluded names, then order specific-before-general: boundary=place
+// (neighbourhoods) ahead of admin_level=8 (municipalities), so the runtime's
+// first-ring-wins town test resolves to the neighbourhood a player is standing in.
+const isPlace = (r) => r.tags?.boundary === 'place';
+const dropped = [];
+const kept = (json.elements || []).filter((r) => {
+  const n = r.tags?.name;
+  if (n && EXCLUDE.has(n)) { dropped.push(n); return false; }
+  return true;
+});
+kept.sort((a, b) => (isPlace(a) ? 0 : 1) - (isPlace(b) ? 0 : 1));
+json.elements = kept;
+
+const label = (r) => `${r.tags?.name}${isPlace(r) ? ` (${r.tags.place})` : ''}`;
+const names = kept.filter((r) => r.tags?.name).map(label);
 await mkdir(T.rawDir, { recursive: true });
 await writeFile(new URL('boundaries.json', T.rawDir), JSON.stringify(json));
-console.log(`Saved data/${T.id}/raw/boundaries.json — ${names.length} municipalities: ${names.join(', ')}`);
+console.log(`Saved data/${T.id}/raw/boundaries.json — ${names.length} boundaries: ${names.join(', ')}`);
+if (dropped.length) console.log(`  excluded by town.json: ${dropped.join(', ')}`);

@@ -224,6 +224,19 @@
         "--strictPort"
       ],
       "port": 5303
+    },
+    {
+      "name": "charlestown",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:charlestown",
+        "--",
+        "--port",
+        "5305",
+        "--strictPort"
+      ],
+      "port": 5305
     }
   ]
 }

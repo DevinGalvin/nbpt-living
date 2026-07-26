@@ -4541,23 +4541,39 @@ function warehouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex,
 
 // Friendship of Salem — the replica 1797 East Indiaman at Derby Wharf: black hull + cream sheer
 // stripe, three masts (main tallest), crossed yards (furled), a long bowsprit. The big surprise.
-function tallShip(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+// Defaults are Salem's Friendship (171 ft, 128 ft mainmast). USS Constitution is
+// a different order of ship — 204 ft with a 220 ft mainmast, which is within a
+// foot of the Bunker Hill Monument's 221 ft — so her rig is passed in rather
+// than baked, and Friendship's numbers stay exactly as they were.
+// stripeY = the sheer stripe's band relative to the deck. Friendship's default is
+// a thin 2.5 px accent; Constitution's white gunport stripe is the single thing
+// that makes her recognisable at a distance, so hers is passed in much wider.
+type ShipOpts = { mastMul?: number; yardMul?: number; hull?: string; stripe?: string; stripeY?: [number, number] };
+function tallShip(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: ShipOpts = {}) {
   const obb = obbOf(b.p);
-  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  // obbOf does NOT guarantee hl is the long axis — the Charlestown Navy Yard's
+  // 405 m Rope Walk comes back with its length in hw — so pick the long axis and
+  // turn the working angle with it, or the ship is built broadside-on.
+  const long = obb.hl >= obb.hw;
+  const ang = long ? obb.ang : obb.ang + Math.PI / 2;
+  const L = long ? obb.hl : obb.hw, beam = long ? obb.hw : obb.hl;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
   const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
-  const L = obb.hl, W = Math.min(obb.hw, L * 0.22);
-  const HULL = '#2a2a30', CREAM = '#cdb985', DECK = '#6b5a42', SPAR = '#4a3d2e';
+  const W = Math.min(beam, L * 0.22);
+  const MM = o.mastMul ?? 1, YM = o.yardMul ?? 1;
+  const HULL = o.hull ?? '#2a2a30', CREAM = o.stripe ?? '#cdb985', DECK = '#6b5a42', SPAR = '#4a3d2e';
   const wl = g, deck = g + 24;                                                                         // tall freeboard so it reads as a hull
-  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.82, W, wl, deck, obb.ang, HULL);                        // hull
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.82, W, wl, deck, ang, HULL);                            // hull
   for (const s of [1, -1] as const) { const a = pt(L * 0.82, s * W, wl), b2 = pt(L * 0.82, s * W, deck), t1 = pt(L * 1.04, 0, deck), t0 = pt(L * 1.04, 0, wl + 2); buckets[PLAIN].quad(a[0], a[1], a[2], b2[0], b2[1], b2[2], t1[0], t1[1], t1[2], t0[0], t0[1], t0[2], ca * s, 0.2, sa * s, 0.17, 0.17, 0.19); }   // bow wedge
-  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.83, W + 0.4, deck - 5, deck - 2.5, obb.ang, CREAM);     // cream sheer stripe
-  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.8, W - 0.6, deck, deck + 0.8, obb.ang, DECK);           // deck
-  const masts: [number, number][] = [[L * 0.46, L * 0.46], [-L * 0.04, L * 0.56], [-L * 0.5, L * 0.36]]; // fore / main / mizzen (main tallest)
+  const [sy0, sy1] = o.stripeY ?? [-5, -2.5];
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.83, W + 0.4, deck + sy0, deck + sy1, ang, CREAM);       // sheer stripe along the gunports
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.8, W - 0.6, deck, deck + 0.8, ang, DECK);               // deck
+  const masts: [number, number][] = [[L * 0.46, L * 0.46 * MM], [-L * 0.04, L * 0.56 * MM], [-L * 0.5, L * 0.36 * MM]]; // fore / main / mizzen (main tallest)
   for (const [mlx, mh] of masts) {
     const m = pt(mlx, 0, 0); buckets[PLAIN].box(m[0], m[2], 1.1, 1.1, deck, deck + mh, SPAR, 0);
-    for (let k = 0; k < 3; k++) { const yh = deck + mh * (0.45 + 0.18 * k), yl = W * (1.5 - 0.32 * k); rotBox(buckets[PLAIN], m[0], m[2], 0.5, yl, yh, yh + 0.9, obb.ang, SPAR); }
+    for (let k = 0; k < 3; k++) { const yh = deck + mh * (0.45 + 0.18 * k), yl = W * (1.5 - 0.32 * k) * YM; rotBox(buckets[PLAIN], m[0], m[2], 0.5, yl, yh, yh + 0.9, ang, SPAR); }
   }
-  const bsp = pt(L + L * 0.28, 0, 0); rotBox(buckets[PLAIN], bsp[0], bsp[2], L * 0.3, 0.6, deck + 5, deck + 7.5, obb.ang, SPAR);                    // bowsprit
+  const bsp = pt(L + L * 0.28, 0, 0); rotBox(buckets[PLAIN], bsp[0], bsp[2], L * 0.3, 0.6, deck + 5, deck + 7.5, ang, SPAR);                        // bowsprit
 }
 
 // tiny utilitarian outbuildings: a one-room brick gable box (the Scale House by the Custom House).
@@ -5396,6 +5412,211 @@ function woodmansEssex(buckets: Bucket[], b: Building, g: number, index: WorldIn
   rotBox(buckets[PLAIN], fp[0] + ca * 2.2, fp[2] + sa * 2.2, 2.2, 0.15, ridgeY + 8.5, ridgeY + 10.5, obb.ang, '#b03028');
 }
 
+// ── Charlestown ──────────────────────────────────────────────────────────────
+
+// One band of a tapering shaft: ring `loRing` at y0 rising to `hiRing` at y1, so
+// the result is a true frustum. Stacking prisms instead leaves a visible lip at
+// every course, which on a monument reads as a factory chimney.
+// Follows walls()' conventions exactly (winding via ringToVec2, world z = -v.y,
+// ashlar UVs), so the two can be mixed on one structure.
+function taperBand(bk: Bucket, loRing: number[], hiRing: number[], y0: number, y1: number, hex: string, texScale = TEX_SCALE) {
+  const lo = ringToVec2(loRing), hi = ringToVec2(hiRing);
+  tmp.set(hex);
+  const r = tmp.r, gg = tmp.g, bb = tmp.b;
+  for (let i = 0; i < lo.length; i++) {
+    const j = (i + 1) % lo.length;
+    const a = lo[i], b2 = lo[j], c = hi[j], d = hi[i];
+    const ex = b2.x - a.x, ey = b2.y - a.y;
+    const len = Math.hypot(ex, ey);
+    if (len < 0.01) continue;
+    const nx = ey / len, nz = ex / len;
+    const shade = 0.78 + 0.22 * Math.max(0, nx * 0.35 + nz * 0.85);
+    const u = texScale ? len / texScale : 0;
+    const v0 = texScale ? y0 / texScale : 0, v1 = texScale ? y1 / texScale : 0;
+    bk.quadUV(a.x, y0, -a.y, b2.x, y0, -b2.y, c.x, y1, -c.y, d.x, y1, -d.y,
+      nx, 0, nz, r * shade, gg * shade, bb * shade, 0, v0, u, v0, u, v1, 0, v1);
+  }
+}
+
+// Bunker Hill Monument (cornerstone 1825, dedicated 1843) — the Quincy granite
+// obelisk on Breed's Hill, where the battle was actually fought; the hill named
+// Bunker is the next one north, and OSM's natural=peak "Bunker Hill" node sits
+// up there, 550 m away.
+//
+// Real proportions, and they matter because this is the silhouette of the whole
+// town: 221 ft tall, 30 ft square at the base, tapering to 15 ft 4 in where the
+// short pyramidal cap begins. At 8 px = 1 m that is 539 px — nearly five times
+// the tallest structure previously in the set (Newburyport's rear range light,
+// ~111 px), so nothing here is scaled off a storey count.
+// OSM traces the footprint as an 8.90 m square (29.2 ft) and tags it
+// building=yes + historic=monument, which classifies it as a 1.5-storey HOUSE
+// without this hero.
+const MONU_H = 221 * 0.3048 * 8;          // 221 ft → world px
+const MONU_CAP = 14 * 0.3048 * 8;         // the pyramidion
+const MONU_TOP = 15.33 / 30;              // shaft taper: 15 ft 4 in over 30 ft
+function bunkerHillMonument(buckets: Bucket[], b: Building, g: number) {
+  const [cx, cz] = centroidOf(b.p);
+  const scaled = (s: number) => {
+    const r: number[] = [];
+    for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s);
+    return r;
+  };
+  const GRANITE = '#b8b3a8';                // sunlit Quincy granite — light warm grey, NOT charcoal
+  // PLAIN, not BRICK: brickTex() bakes RED brick into the texture and the vertex
+  // colour multiplies it, so any grey handed to the BRICK bucket comes out a dark
+  // reddish brown. The monument is smooth-dressed granite with fine joints
+  // anyway — flat faces with walls()' per-face sun shading is what it looks like.
+  const stone = buckets[PLAIN];
+  const plinthY = g + 16, shaftTop = g + MONU_H - MONU_CAP;
+
+  // stepped granite plinth — the obelisk does not spring straight from the grass
+  walls(stone, scaled(1.17), g - 8, g + 8, GRANITE, 0);
+  flatRoof(buckets[PLAIN], scaled(1.17), g + 8, '#8e8a82');
+  walls(stone, scaled(1.07), g + 8, plinthY, GRANITE, 0);
+  flatRoof(buckets[PLAIN], scaled(1.07), plinthY, '#8e8a82');
+
+  // the shaft: one frustum, base ring → 51% ring
+  taperBand(stone, b.p, scaled(MONU_TOP), plinthY, shaftTop, GRANITE, 0);
+  // the cap: a short pyramid, left with a hair of a top face so the ring never degenerates
+  taperBand(stone, scaled(MONU_TOP), scaled(MONU_TOP * 0.07), shaftTop, g + MONU_H, GRANITE, 0);
+  flatRoof(buckets[PLAIN], scaled(MONU_TOP * 0.07), g + MONU_H, '#8e8a82');
+
+  // observation chamber: one small window per face, just under the cap — the
+  // room at the top of the 294 steps, where the two cannon stand
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const sTop = MONU_TOP;                                   // shaft scale at the chamber
+  const wy0 = shaftTop - 46, wy1 = shaftTop - 30;
+  tmp.set('#31343a');
+  const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  for (const [al, aw] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    const hl = obb.hl * sTop, hw = obb.hw * sTop;
+    // face centre, pushed 0.7 px proud so it never z-fights the shaft
+    const fl = al * (hl + 0.7), fw = aw * (hw + 0.7);
+    // in-face tangent runs along whichever axis the face does not face
+    const tl = aw !== 0 ? 5.5 : 0, tw = al !== 0 ? 5.5 : 0;
+    const P = (l: number, w: number, y: number): [number, number, number] =>
+      [obb.cx + l * ca - w * sa, y, obb.cz + l * sa + w * ca];
+    const p0 = P(fl - tl, fw - tw, wy0), p1 = P(fl + tl, fw + tw, wy0);
+    const p2 = P(fl + tl, fw + tw, wy1), p3 = P(fl - tl, fw - tw, wy1);
+    const nx = al * ca - aw * sa, nz = al * sa + aw * ca;
+    buckets[GLOW].quad(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2],
+      nx, 0, nz, wr, wg, wb);
+  }
+
+  // the doorway, on the face looking toward the Lodge (south, +z)
+  {
+    const faces = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
+    let bestL = 1, bestW = 0, bestZ = -Infinity;
+    for (const [al, aw] of faces) {
+      const nz = al * sa + aw * ca;
+      if (nz > bestZ) { bestZ = nz; bestL = al; bestW = aw; }
+    }
+    const hl = obb.hl * 1.07, hw = obb.hw * 1.07;
+    const fl = bestL * (hl + 0.6), fw = bestW * (hw + 0.6);
+    const dx = obb.cx + fl * ca - fw * sa, dz = obb.cz + fl * sa + fw * ca;
+    // tangent along the face
+    const tx = bestW !== 0 ? ca : -sa, tz = bestW !== 0 ? sa : ca;
+    const nx = bestL * ca - bestW * sa, nz = bestL * sa + bestW * ca;
+    roundArch(buckets[PLAIN], dx, dz, tx, tz, nx, nz, 5, g - 2, g + 11, '#2b2723');
+  }
+}
+
+// A long low masonry shed with a shallow gable and regular window bays — the
+// Charlestown Navy Yard's working buildings. Written long-axis-aware because the
+// Rope Walk is 405 m by 23 m and obbOf hands back its length in `hw`; every
+// existing shed builder (warehouse, brickShed, federalHouse) assumes hl is the
+// long side and would lay it across the yard instead of along it.
+type ShedOpts = {
+  wall: string; roof: string; material?: 'granite' | 'brick';
+  eave?: number; ridge?: number; bay?: number; rows?: number;
+};
+function yardShed(buckets: Bucket[], b: Building, g: number, o: ShedOpts) {
+  const obb = obbOf(b.p);
+  const long = obb.hl >= obb.hw;
+  const ang = long ? obb.ang : obb.ang + Math.PI / 2;
+  const L = long ? obb.hl : obb.hw, W = long ? obb.hw : obb.hl;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const eaveH = g + (o.eave ?? 40), ridgeY = eaveH + (o.ridge ?? Math.min(W * 0.5, 22));
+  // granite is smooth ashlar → PLAIN (the BRICK bucket's texture is baked RED and
+  // multiplies, so grey handed to it comes out reddish-brown)
+  if (o.material === 'brick') walls(buckets[BRICK], b.p, g - 4, eaveH, o.wall);
+  else walls(buckets[PLAIN], b.p, g - 4, eaveH, o.wall, 0);
+  // shallow gable along the long axis
+  tmp.set(o.roof); const rr = tmp.r, rg = tmp.g, rb = tmp.b;
+  const Lr = L + 1.2, Wr = W + 1.2;
+  for (const s of [1, -1] as const) {
+    const e0 = pt(-Lr, s * Wr, eaveH), e1 = pt(Lr, s * Wr, eaveH), r0 = pt(-Lr, 0, ridgeY), r1 = pt(Lr, 0, ridgeY);
+    buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], r1[0], r1[1], r1[2], r0[0], r0[1], r0[2], -sa * s * 0.5, 0.85, ca * s * 0.5, rr, rg, rb);
+  }
+  // gable ends
+  tmp.set(o.wall); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  for (const sx of [1, -1] as const) {
+    const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY);
+    buckets[PLAIN].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, wr, wg, wb, 0, 0, 0, 0, 0, 0);
+  }
+  // window bays marching the whole length, both long faces
+  const bay = o.bay ?? 34, rows = o.rows ?? 1;
+  tmp.set('#2f3238'); const gr = tmp.r, gg2 = tmp.g, gb = tmp.b;
+  const wallH = eaveH - g;
+  for (let lx = -L + bay * 0.8; lx <= L - bay * 0.8; lx += bay) {
+    for (let r = 0; r < rows; r++) {
+      const y0 = g + wallH * (0.22 + r / rows * 0.62), y1 = y0 + Math.min(13, wallH * 0.3);
+      for (const s of [1, -1] as const) {
+        const p0 = pt(lx - 4.5, s * (W + 0.7), y0), p1 = pt(lx + 4.5, s * (W + 0.7), y0);
+        const p2 = pt(lx + 4.5, s * (W + 0.7), y1), p3 = pt(lx - 4.5, s * (W + 0.7), y1);
+        buckets[GLOW].quad(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2],
+          -sa * s, 0, ca * s, gr, gg2, gb);
+      }
+    }
+  }
+}
+
+// Muster House (1852) — the Navy Yard's brick OCTAGON, where the yard's workmen
+// mustered for the day. OSM traces it with eight vertices, so the footprint is
+// already the octagon; the shallow pyramidal roof is a taperBand up to a small
+// ring, capped with the little lantern.
+function musterHouse(buckets: Bucket[], b: Building, g: number) {
+  const [cx, cz] = centroidOf(b.p);
+  const scaled = (s: number) => {
+    const r: number[] = [];
+    for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s);
+    return r;
+  };
+  const BRICKC = '#a05a44', TRIM = '#efe9dc';
+  const eaveH = g + 40;
+  walls(buckets[BRICK], b.p, g - 4, eaveH, BRICKC);
+  walls(buckets[PLAIN], expandRing(b.p, 1.4), eaveH - 2.4, eaveH + 1.2, TRIM, 0);   // bracketed Italianate cornice
+  taperBand(buckets[PLAIN], expandRing(b.p, 1.4), scaled(0.26), eaveH + 1.2, eaveH + 20, '#6c7078', 0);
+  flatRoof(buckets[PLAIN], scaled(0.26), eaveH + 20, '#6c7078');
+  walls(buckets[PLAIN], scaled(0.22), eaveH + 20, eaveH + 30, TRIM, 0);             // lantern
+  taperBand(buckets[PLAIN], scaled(0.24), scaled(0.03), eaveH + 30, eaveH + 38, '#6c7078', 0);
+  // two rows of tall windows, one per octagon face
+  tmp.set('#2f3238');
+  const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  // walls()' convention: vertex (v.x, y, -v.y), face normal (ey/len, 0, ex/len)
+  // from the VEC2 edge delta, and tangent (ex/len, -ey/len). Mirror it exactly so
+  // the window sits flat on the face it belongs to.
+  const v = ringToVec2(b.p);
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i], b2 = v[(i + 1) % v.length];
+    const ex = b2.x - a.x, ey = b2.y - a.y;
+    const len = Math.hypot(ex, ey);
+    if (len < 8) continue;
+    const nx = ey / len, nz = ex / len;             // outward, in world x/z
+    const tx = ex / len, tz = -ey / len;            // along the face, in world x/z
+    const mx = (a.x + b2.x) / 2 + nx * 0.6;
+    const mz = -(a.y + b2.y) / 2 + nz * 0.6;
+    const hw2 = Math.min(5, len * 0.22);
+    for (const [y0, y1] of [[g + 9, g + 21], [g + 25, g + 35]] as const) {
+      buckets[GLOW].quad(mx - tx * hw2, y0, mz - tz * hw2, mx + tx * hw2, y0, mz + tz * hw2,
+        mx + tx * hw2, y1, mz + tz * hw2, mx - tx * hw2, y1, mz - tz * hw2,
+        nx, 0, nz, wr, wg, wb);
+    }
+  }
+}
+
 const HEROES: Record<string, HeroBuilder> = {
   // Both towns' heroes coexist here — entries are keyed by unique OSM building
   // names, so only the loaded town's world.json ever matches its own set.
@@ -5422,6 +5643,22 @@ const HEROES: Record<string, HeroBuilder> = {
   "St. Peter's Episcopal Church": (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#9a9b9d', quatrefoil: true }),
   'Pedrick Store House': (bk, b, g, i) => warehouse(bk, b, g, i, { wall: '#3d332a', roof: '#8a7e6c' }),   // photo-audited 7/6: near-black boards under LIGHTER weathered-cedar roof (was inverted)
   'Friendship of Salem': tallShip,
+  // — Charlestown —
+  'Bunker Hill Monument': bunkerHillMonument,
+  // Old Ironsides, afloat at Pier 1 since 1897. 204 ft on deck with a 220 ft
+  // mainmast, so her rig is ~3.5× Friendship's relative to hull length; black
+  // hull with the white stripe along the gunports she wears today.
+  'USS Constitution': (bk, b, g, i) => tallShip(bk, b, g, i, { mastMul: 3.5, yardMul: 1.55, hull: '#22222a', stripe: '#eae6da', stripeY: [-17, -7] }),
+  // The Rope Walk (Alexander Parris, 1834–37) — a quarter mile of GRANITE, 1,360
+  // ft by 45 ft, the only surviving naval ropewalk in the country. Two storeys of
+  // ashlar under a shallow slate gable, windows the whole way down both sides.
+  'Rope Walk': (bk, b, g) => yardShed(bk, b, g, { wall: '#b0aca2', roof: '#5e646c', eave: 46, ridge: 16, bay: 38, rows: 2 }),
+  'Timber Shed': (bk, b, g) => yardShed(bk, b, g, { wall: '#a8543f', roof: '#6b7079', material: 'brick', eave: 42, bay: 40 }),
+  'Hemp House': (bk, b, g) => yardShed(bk, b, g, { wall: '#a8543f', roof: '#6b7079', material: 'brick', eave: 46, bay: 36, rows: 2 }),
+  'Muster House': musterHouse,
+  // The 1805 Commandant's House on the hill above the yard — the grandest thing
+  // in it: three storeys of brick, hipped roof, wide verandah toward the harbor.
+  "Commandant's House": (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9e5340', material: 'brick', trim: '#f2ede1', roof: '#7f848c', storeys: 3, roofKind: 'hip', balustrade: 'plain', entrance: 'portico', stringcourses: true, chimney: 'interior4' }),
   'Scale House': (bk, b, g, i) => brickShed(bk, b, g, i, { wall: '#9c4d3c', roof: '#777c85' }),
   // — Beverly (colors photo-verified, docs/research/beverly.md) —
   'John Balch House': (bk, b, g, i) => firstPeriod(bk, b, g, i, { wall: '#43302a', shingle: '#59604f', nGables: 2, chimney: 'central', eave: 22 }),   // dark red-brown clapboard, weathered gray-green roof, twin front cross-gables ("1636", dendro ~1679)

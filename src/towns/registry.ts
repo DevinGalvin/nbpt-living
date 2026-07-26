@@ -12,10 +12,11 @@ import manchester from '../../towns/manchester/town.json';
 import rockport from '../../towns/rockport/town.json';
 import amesbury from '../../towns/amesbury/town.json';
 import salisbury from '../../towns/salisbury/town.json';
+import charlestown from '../../towns/charlestown/town.json';
 
 export type TownEntry = { name: string; emoji: string; path: string; tag: string };
 
 const entry = (t: { name: string; emoji: string; path: string; tag: string }): TownEntry =>
   ({ name: t.name, emoji: t.emoji, path: t.path, tag: t.tag });
 
-export const TOWNS: TownEntry[] = [entry(nbpt), entry(salem), entry(beverly), entry(ipswich), entry(gloucester), entry(marblehead), entry(manchester), entry(rockport), entry(amesbury), entry(salisbury)];
+export const TOWNS: TownEntry[] = [entry(nbpt), entry(salem), entry(beverly), entry(ipswich), entry(gloucester), entry(marblehead), entry(manchester), entry(rockport), entry(amesbury), entry(salisbury), entry(charlestown)];

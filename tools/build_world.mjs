@@ -96,12 +96,33 @@ function asRing(geometry) {
 }
 
 // Stitch open chains (flat px arrays) into rings; force-close leftovers.
+// A chain counts as already-closed only if its endpoint gap is small BOTH in
+// absolute terms and RELATIVE TO ITS OWN EXTENT. The absolute test alone
+// mis-reads a short open way as a finished ring: Charlestown's 795 building
+// multipolygons are rowhouses whose outer ring is split into one way per shared
+// wall, and a 5-point wall of 17 Monument Avenue has its two endpoints 6 m apart
+// — inside a 60 px (7.5 m) tolerance — so it was peeled off as a 19 m² sliver
+// while the rest of the relation closed into a separate partial ring (52 of 795
+// buildings fragmented). A genuine ring's closing gap is negligible next to its
+// own span; one wall's gap is a large fraction of it.
+const CLOSE_SPAN_FRAC2 = 0.0225;   // gap ≤ 15% of the chain's bbox diagonal
+function chainSpan2(c) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i < c.length; i += 2) {
+    if (c[i] < x0) x0 = c[i]; if (c[i] > x1) x1 = c[i];
+    if (c[i + 1] < y0) y0 = c[i + 1]; if (c[i + 1] > y1) y1 = c[i + 1];
+  }
+  return (x1 - x0) ** 2 + (y1 - y0) ** 2;
+}
+
 function stitchChains(chains, { forceClose = true, joinTol = 60 } = {}) {
   const open = chains.map((c) => c.slice()).filter((c) => c.length >= 4);
   const rings = [];
   const closed = (c) => {
     const dx = c[0] - c[c.length - 2], dy = c[1] - c[c.length - 1];
-    return dx * dx + dy * dy <= joinTol * joinTol;
+    const gap2 = dx * dx + dy * dy;
+    if (gap2 > joinTol * joinTol) return false;
+    return gap2 <= chainSpan2(c) * CLOSE_SPAN_FRAC2;
   };
   // peel off already-closed chains
   for (let i = open.length - 1; i >= 0; i--) {

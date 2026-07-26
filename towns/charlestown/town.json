@@ -1,0 +1,41 @@
+{
+  "id": "charlestown",
+  "name": "Charlestown",
+  "worldName": "Charlestown, Boston",
+  "title": "Charlestown",
+  "tag": "The Town",
+  "emoji": "🗼",
+  "path": "/charlestown/",
+  "savePrefix": "charlestown:",
+  "pxPerMeter": 8,
+  "origin": { "lat": 42.3764, "lon": -71.0608 },
+  "bbox": { "s": 42.363, "w": -71.08, "n": 42.396, "e": -71.04 },
+  "spawn": { "landmark": "bunker-hill-monument", "dx": 0, "dz": 210 },
+  "boundaries": { "includePlaces": true, "exclude": ["Boston"] },
+  "branding": {
+    "htmlTitle": "Charlestown — walk the real map of Charlestown, Boston in 3D",
+    "appleTitle": "Charlestown",
+    "themeColor": "#2b3a4a",
+    "bgTop": "#3a4d60",
+    "bgBottom": "#141d26",
+    "ruleColor": "#d8b24a",
+    "description": "A cozy, all-ages 3D walk through the exact map of Charlestown, Boston. Climb to the Bunker Hill Monument, walk the Navy Yard to Old Ironsides — and find your own street.",
+    "ogSiteName": "Charlestown in 3D",
+    "ogDescription": "A cozy, all-ages 3D walk through the real map of Charlestown. The Monument, the Navy Yard and Old Ironsides — find your own street.",
+    "ogUrl": "https://clippertown.io/charlestown/",
+    "ogImage": "https://clippertown.io/charlestown/og-image.jpg",
+    "ogImageType": "image/jpeg",
+    "ogImageAlt": "A 3D voxel view of the Bunker Hill Monument in Charlestown, Boston",
+    "twitterDescription": "Walk the real map of Charlestown — find your own street.",
+    "loadingTitle": "CHARLESTOWN",
+    "loadingSub": "Exploring Charlestown, Boston"
+  },
+  "storageSeeds": {
+    "nbpt-bike": "1",
+    "nbpt-kayak": "1",
+    "nbpt-seasons-rewarded": "1"
+  },
+  "storageSeedIfUnset": {
+    "nbpt-season": "summer"
+  }
+}

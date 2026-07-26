@@ -17,7 +17,7 @@
     "dev:salem": "TOWN=salem vite",
     "build:salem": "tsc --noEmit && TOWN=salem vite build",
     "check:towns": "node tools/check_town_assets.mjs && node tools/check_town_spawn.mjs",
-    "build:all": "node tools/check_town_assets.mjs && node tools/check_town_spawn.mjs && npm run share && TOWN=salem vite build && rm -rf dist/salem && mv dist-salem dist/salem && TOWN=beverly vite build && rm -rf dist/beverly && mv dist-beverly dist/beverly && TOWN=ipswich vite build && rm -rf dist/ipswich && mv dist-ipswich dist/ipswich && TOWN=gloucester vite build && rm -rf dist/gloucester && mv dist-gloucester dist/gloucester && TOWN=marblehead vite build && rm -rf dist/marblehead && mv dist-marblehead dist/marblehead && TOWN=manchester vite build && rm -rf dist/manchester && mv dist-manchester dist/manchester && TOWN=rockport vite build && rm -rf dist/rockport && mv dist-rockport dist/rockport && TOWN=amesbury vite build && rm -rf dist/amesbury && mv dist-amesbury dist/amesbury && TOWN=salisbury vite build && rm -rf dist/salisbury && mv dist-salisbury dist/salisbury",
+    "build:all": "node tools/check_town_assets.mjs && node tools/check_town_spawn.mjs && npm run share && TOWN=salem vite build && rm -rf dist/salem && mv dist-salem dist/salem && TOWN=beverly vite build && rm -rf dist/beverly && mv dist-beverly dist/beverly && TOWN=ipswich vite build && rm -rf dist/ipswich && mv dist-ipswich dist/ipswich && TOWN=gloucester vite build && rm -rf dist/gloucester && mv dist-gloucester dist/gloucester && TOWN=marblehead vite build && rm -rf dist/marblehead && mv dist-marblehead dist/marblehead && TOWN=manchester vite build && rm -rf dist/manchester && mv dist-manchester dist/manchester && TOWN=rockport vite build && rm -rf dist/rockport && mv dist-rockport dist/rockport && TOWN=amesbury vite build && rm -rf dist/amesbury && mv dist-amesbury dist/amesbury && TOWN=salisbury vite build && rm -rf dist/salisbury && mv dist-salisbury dist/salisbury && TOWN=charlestown vite build && rm -rf dist/charlestown && mv dist-charlestown dist/charlestown",
     "dev:beverly": "TOWN=beverly vite",
     "build:beverly": "tsc --noEmit && TOWN=beverly vite build",
     "dev:ipswich": "TOWN=ipswich vite",
@@ -33,7 +33,9 @@
     "dev:amesbury": "TOWN=amesbury vite",
     "build:amesbury": "tsc --noEmit && TOWN=amesbury vite build",
     "dev:salisbury": "TOWN=salisbury vite",
-    "build:salisbury": "tsc --noEmit && TOWN=salisbury vite build"
+    "build:salisbury": "tsc --noEmit && TOWN=salisbury vite build",
+    "dev:charlestown": "TOWN=charlestown vite",
+    "build:charlestown": "tsc --noEmit && TOWN=charlestown vite build"
   },
   "dependencies": {
     "three": "^0.166.1"
