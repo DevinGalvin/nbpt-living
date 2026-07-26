@@ -1,23 +1,95 @@
 # Clipper Town — Handoff
 
-A cozy, all-ages Zelda-like set on the **exact maps of real towns** — ten of
+A cozy, all-ages Zelda-like set on the **exact maps of real towns** — eleven of
 them, one codebase: Newburyport `/`, Salem `/salem/`, Beverly `/beverly/`,
 Ipswich `/ipswich/`, Gloucester `/gloucester/`, Marblehead `/marblehead/`,
 Manchester-by-the-Sea `/manchester/`, Rockport `/rockport/`,
-Amesbury `/amesbury/` and Salisbury `/salisbury/`.
+Amesbury `/amesbury/`, Salisbury `/salisbury/` and Charlestown `/charlestown/`.
 Three.js + TypeScript + Vite. Live at **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE: ten towns live at `cd8816b`. Amesbury + Salisbury shipped
-> (#9, #10), both got two landmark-accuracy passes, and the kid + dog were
-> rebuilt. NEXT UP IS CHARLESTOWN — read ✦ NEXT: CHARLESTOWN first**, it has the
-> recon already done and the two pipeline changes it needs. Then
-> ✦ AMESBURY + SALISBURY. Then ✦ MANCHESTER + ROCKPORT, which has the
+> **⚡ FRESHEST STATE: ten towns live at `cd8816b`. CHARLESTOWN (#11) IS BUILT
+> AND COMMITTED at `3c60bb7` BUT NOT PUSHED** — pushing `source` auto-deploys, so
+> it is waiting on Devin. `npm run build:all` passes for all eleven.
+> **Read ✦ CHARLESTOWN first** — it carries two engine fixes that affect every
+> town and the polish list of what is still open (races are NOT authored).
+> Then ✦ AMESBURY + SALISBURY. Then ✦ MANCHESTER + ROCKPORT, which has the
 > reusable four-step town-building workflow and the verification bar. Then read
 > ✦ MARBLEHEAD (town #6, and where the map pipeline moved into CI, which is what
 > makes a cloud session able to build a town end to end), then Two-Town Day, then
 > the post-launch polish session.
 
-## ✦ NEXT: CHARLESTOWN (town #11) — recon done, not started
+## ✦ CHARLESTOWN (town #11) — BUILT, committed `3c60bb7`, NOT pushed
+
+**Built 7/26/2026 in one session.** 4,885 buildings, a **1.7 MB** world.json, 63
+fast-travel landmarks, terrain + Overture heights, 44 welcome signs, its own
+og-image, flight off the Navy Yard apron. Spawn = the Bunker Hill Monument with
+`dz: 210` so the kid lands on the lawn facing it (clean-profile verified).
+`story: false`. **Races are NOT authored** — empty `COURSES`, as Salisbury shipped.
+
+**Heroes:** Bunker Hill Monument (539 px = 221 ft; 30 ft → 15 ft 4 in taper,
+pyramidion, chamber windows, arched door), USS Constitution (real rig — her
+220 ft mainmast is within a foot of the Monument — plus the white gunport
+stripe), the Rope Walk's full 405 m of granite, the Muster House octagon, the
+Commandant's House, Timber Shed, Hemp House.
+
+### Two engine fixes rode along — they affect every town
+
+1. **`stitchChains`' "already closed" test was absolute (60 px).** A short open
+   way whose endpoints landed within 7.5 m of each other was peeled off as a
+   finished ring, so **52 of Charlestown's 795 rowhouse multipolygons
+   fragmented** into a sliver plus a partial ring. It never bit before because
+   every prior town had 6–7 building relations, all large civic buildings with
+   long member ways. Now scale-aware (gap ≤ 15% of the chain's own diagonal).
+   **The check that caught it, reuse it:** assemble the relations EXACTLY
+   (relation geometry is fetched unclipped, so endpoints match by identity) and
+   compare the ring count against `building-rel` in the build stats.
+   **Regression:** nbpt/amesbury/salisbury rebuild BYTE-IDENTICAL, gloucester
+   set-identical (poly order only — coastline untouched), ipswich gains 5
+   vertices on two nature polys. Gloucester's and Ipswich's committed artifacts
+   were deliberately left at their shipped bytes so this doesn't bust their
+   service-worker caches; they'll pick the improvement up on their next rebuild.
+2. **`fetch_boundaries` only knew `admin_level=8`.** Charlestown is a
+   neighbourhood (relation 4033666, `boundary=place`). Opt in per town:
+   `"boundaries": {"includePlaces": true, "exclude": ["Boston"]}`. Places are
+   emitted before admin relations because the runtime's town test is
+   first-ring-wins; Boston is excluded because you're always inside it and its
+   line runs along the same Somerville/Everett borders (would double every sign).
+   ⚠️ `tools/lib/borders.mjs` has its own copy of the same `closed()` pattern and
+   was NOT changed (its member ways are long; output verified sane).
+
+### Traps this town taught
+
+- **`brickTex()` bakes RED brick into the texture and the vertex colour
+  MULTIPLIES it** — grey handed to the `BRICK` bucket comes out dark
+  reddish-brown, and the monument first rendered as a chocolate obelisk. For
+  granite use `PLAIN` with `texScale 0`.
+- **`obbOf` does NOT guarantee `hl` is the long axis** — the Rope Walk comes back
+  with its 405 m length in `hw`. `warehouse`/`brickShed`/`federalHouse` all
+  assume hl is long and would lay it across the yard. New `yardShed` and
+  `tallShip` pick the long axis and rotate the working angle with it.
+- OSM tags the Monument `building=yes` + `historic=monument`, so it classified as
+  a 1.5-storey **house** — and the original recon sweep missed it entirely
+  because that sweep looked at historic/park/station, not buildings. **Search for
+  landmark names as BUILDINGS too.**
+- Overpass mirrors were congested all session. **Pull the whole frame once with
+  `OSM_TILES`, then query `data/<town>/raw/overpass.json` locally** rather than
+  asking Overpass twenty small questions.
+
+### Still open (ranked)
+
+1. **Races** — a 3-course ladder is obvious here: the hill, the Navy Yard, a loop
+   of the whole peninsula. `tools/make_course.mjs`.
+2. **More heroes** — the Schrafft Center's clock tower (the old candy factory),
+   Chain Forge, USS Cassin Young as a WWII destroyer rather than a generic hull,
+   the Battle of Bunker Hill Museum, First Church, the Monument Lodge in granite.
+3. **`borderLore` copy review** — Charlestown's neighbours are Boston
+   neighbourhoods plus four cities, so the lines read differently from a town line.
+4. A launch post (r/Charlestown or r/boston) once Devin is happy.
+5. Monument Square's 54 trees are **real surveyed OSM positions** (19% pine, per
+   the shared style). The "conifer farm" look is the shared deciduous builder's
+   three stacked canopy blobs — not a Charlestown bug. Don't fix it per-town.
+
+## ✦ CHARLESTOWN RECON (the measurements that scoped it)
 
 Devin asked what full Boston would cost; the answer is in
 `docs/research/boston-sizing.md`. Short version: **Boston proper is blocked on a
