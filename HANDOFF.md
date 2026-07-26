@@ -7,13 +7,78 @@ Manchester-by-the-Sea `/manchester/`, Rockport `/rockport/`,
 Amesbury `/amesbury/` and Salisbury `/salisbury/`.
 Three.js + TypeScript + Vite. Live at **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE: AMESBURY + SALISBURY are live (towns #9 and #10) — the
-> flagship's own two neighbours, so Newburyport is now surrounded. Read
-> ✦ AMESBURY + SALISBURY first.** Then ✦ MANCHESTER + ROCKPORT, which has the
+> **⚡ FRESHEST STATE: ten towns live at `cd8816b`. Amesbury + Salisbury shipped
+> (#9, #10), both got two landmark-accuracy passes, and the kid + dog were
+> rebuilt. NEXT UP IS CHARLESTOWN — read ✦ NEXT: CHARLESTOWN first**, it has the
+> recon already done and the two pipeline changes it needs. Then
+> ✦ AMESBURY + SALISBURY. Then ✦ MANCHESTER + ROCKPORT, which has the
 > reusable four-step town-building workflow and the verification bar. Then read
 > ✦ MARBLEHEAD (town #6, and where the map pipeline moved into CI, which is what
 > makes a cloud session able to build a town end to end), then Two-Town Day, then
 > the post-launch polish session.
+
+## ✦ NEXT: CHARLESTOWN (town #11) — recon done, not started
+
+Devin asked what full Boston would cost; the answer is in
+`docs/research/boston-sizing.md`. Short version: **Boston proper is blocked on a
+data-streaming engine change**, but **Charlestown is an ordinary-sized town for
+this pipeline and needs no engine work.** That is why it's next.
+
+**Recon already done (July 26, 2026) — these are measured, not estimated:**
+- Candidate frame `s 42.3630, w -71.0800, n 42.3960, e -71.0400` holds
+  **4,888 buildings** — SMALLER than Manchester (5,968), the smallest town
+  shipped. Payload will be ~2 MB. No streaming work needed.
+- **Charlestown HAS an OSM boundary**: relation **4033666**, tagged
+  `boundary=place` + `place=suburb`, sourced from the BPDA neighbourhood
+  boundaries. This is the thing that makes a neighbourhood viable at all.
+- The frame is extraordinarily rich. The **whole Charlestown Navy Yard is mapped
+  building-by-building** — Rope Walk, Commandant's House, Marine Barracks,
+  Chain Forge, Carpenter Shop, Paint Shop, Hemp House, Timber Shed, Officers'
+  Quarters, the USS Constitution Museum, the Visitor Center. Plus Col. William
+  Prescott at the Monument, Phipps Street Cemetery, Charlestown Firefighters
+  Memorial, Essex Square. Across the water as in-frame nods: Old North Church,
+  Copp's Hill Terrace, the Paul Revere statue and Paul Revere's Landing, the
+  Great Molasses Flood plaque, North Station, Science Park, Lechmere.
+
+**TWO PIPELINE CHANGES IT NEEDS (neither is hard, both are required):**
+1. **`tools/fetch_boundaries.mjs` queries `admin_level=8` municipalities.**
+   Charlestown is not a municipality — it's `boundary=place`. Without a fix the
+   "Entering …" banner + welcome-sign system gets nothing, AND
+   `landmark_candidates.mjs` loses its boundary check, which is the guard that
+   kept Markey's and Seabrook's schools out of Salisbury. Teach it to accept
+   `boundary=place` when no admin_level=8 relation matches the town name.
+2. **Watch `building-rel`.** The frame has **795 building relations** (16% of
+   all buildings) against single digits in every town so far (Amesbury 6,
+   Salisbury 7). `build_world.mjs`'s multipolygon path has never had a real
+   workout. Check the count in the build stats and eyeball the Navy Yard.
+
+**Also worth knowing before you start:**
+- The frame deliberately reaches into the North End and East Boston. That's the
+  Rockport-in-Gloucester pattern — nods, not a second roster. The boundary check
+  will correctly mark them outside Charlestown; keep 3-5 as nods.
+- **Bunker Hill Monument did not appear** in the `historic`/`park`/`station`
+  sweep — only the Prescott statue at its foot (42.37615, -71.06087). It's
+  probably `man_made=obelisk` or `tourism=attraction`. Look it up specifically;
+  it is the single most important object in the town and it must be a hero.
+- Spawn candidate: **City Square** or the Monument. Prefer the one a local kid
+  would take a visitor to — see the drop-point rule in docs/TOWNS.md.
+- Obvious heroes: Bunker Hill Monument (a 221-ft granite obelisk — nothing in
+  the codebase is remotely that tall; check the LOD/impostor path), USS
+  Constitution (there is already a `tallShip` builder from Salem's Friendship),
+  the Navy Yard's ropewalk and Commandant's House, Old North Church.
+- `borderLore` neighbours here are Boston neighbourhoods plus Somerville,
+  Cambridge, Everett and Chelsea — not the usual town lines.
+
+## ✦ FULL BOSTON — sized, and why it is NOT next
+
+`docs/research/boston-sizing.md` has the measurements. Headlines: **119,414
+buildings, 92,312 addresses**, projecting to a **26-34 MB world.json** against
+Beverly's 5.79 MB, today's largest. The map pipeline scales (swap Overpass for a
+Geofabrik PBF extract); what does not is that **the engine loads and parses
+world.json whole at boot** — 30 MB of JSON is a multi-second parse and a
+150-300 MB memory spike, which is a real iOS Safari tab-kill risk. Boston needs
+per-tile world data fetched on demand (the chunk system streams *rendering*, not
+*data*) before it is worth attempting.
 
 ## ✦ AMESBURY + SALISBURY (towns #9 and #10) — Newburyport is surrounded
 
