@@ -6,25 +6,25 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Marblehead" />
-  <meta name="theme-color" content="#12233f" />
-  <title>Marblehead — walk the real map of Marblehead, MA in 3D</title>
-  <meta name="description" content="A cozy, all-ages 3D walk through the exact map of Marblehead, Massachusetts. Wander Old Town's crooked lanes, the harbor full of sailboats, and out to the Neck — and find your own house." />
+  <meta name="apple-mobile-web-app-title" content="Charlestown" />
+  <meta name="theme-color" content="#2b3a4a" />
+  <title>Charlestown — walk the real map of Charlestown, Boston in 3D</title>
+  <meta name="description" content="A cozy, all-ages 3D walk through the exact map of Charlestown, Boston. Climb to the Bunker Hill Monument, walk the Navy Yard to Old Ironsides — and find your own street." />
   <!-- Social link previews (Open Graph + Twitter Card). Absolute URLs so the card unfurls. -->
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="Marblehead in 3D" />
-  <meta property="og:title" content="Marblehead — walk the real map of Marblehead, MA in 3D" />
-  <meta property="og:description" content="A cozy, all-ages 3D walk through the real map of Marblehead. Wander Old Town, the harbor, and the Neck — and find your own house." />
-  <meta property="og:url" content="https://clippertown.io/marblehead/" />
-  <meta property="og:image" content="https://clippertown.io/marblehead/og-image.jpg" />
+  <meta property="og:site_name" content="Charlestown in 3D" />
+  <meta property="og:title" content="Charlestown — walk the real map of Charlestown, Boston in 3D" />
+  <meta property="og:description" content="A cozy, all-ages 3D walk through the real map of Charlestown. The Monument, the Navy Yard and Old Ironsides — find your own street." />
+  <meta property="og:url" content="https://clippertown.io/charlestown/" />
+  <meta property="og:image" content="https://clippertown.io/charlestown/og-image.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:type" content="image/jpeg" />
-  <meta property="og:image:alt" content="A 3D voxel view of Marblehead, Massachusetts" />
+  <meta property="og:image:alt" content="A 3D voxel view of the Bunker Hill Monument in Charlestown, Boston" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Marblehead — walk the real map of Marblehead, MA in 3D" />
-  <meta name="twitter:description" content="Walk the real map of Marblehead — find your own street." />
-  <meta name="twitter:image" content="https://clippertown.io/marblehead/og-image.jpg" />
+  <meta name="twitter:title" content="Charlestown — walk the real map of Charlestown, Boston in 3D" />
+  <meta name="twitter:description" content="Walk the real map of Charlestown — find your own street." />
+  <meta name="twitter:image" content="https://clippertown.io/charlestown/og-image.jpg" />
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16.png" />
   <link rel="icon" type="image/png" sizes="48x48" href="./favicon-48.png" />
@@ -37,8 +37,8 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #12233f;
-      background: linear-gradient(180deg, #1b3358, #0a1626);
+      background: #2b3a4a;
+      background: linear-gradient(180deg, #3a4d60, #141d26);
       touch-action: none;
       -webkit-user-select: none;
       user-select: none;
@@ -66,7 +66,7 @@
     }
     #loading .title { font-size: 34px; letter-spacing: 3px; animation: loadrise 0.8s cubic-bezier(0.22,1,0.36,1) both; }
     #loading .rule { width: 0; height: 2px; border-radius: 2px;
-      background: linear-gradient(90deg, transparent, #e0b23a, transparent);
+      background: linear-gradient(90deg, transparent, #d8b24a, transparent);
       animation: loadrule 0.9s 0.25s cubic-bezier(0.22,1,0.36,1) both; }
     #loading .sub { font-size: 13px; letter-spacing: 2px; opacity: 0.7;
       font-family: -apple-system, system-ui, sans-serif; animation: loadpulse 1.9s 0.6s ease-in-out infinite; }
@@ -79,13 +79,13 @@
     }
   </style>
   <script>
-    // Marblehead shares its origin with the root town, so it would share
+    // Charlestown shares its origin with the root town, so it would share
     // localStorage too. Namespace all saved state behind the town prefix
     // (GLOBAL keys pass through — rider name & co. ride between towns).
     (function () {
       try {
-        window.__townPath = "/marblehead/";
-        var P = "marblehead:", real = window.localStorage;
+        window.__townPath = "/charlestown/";
+        var P = "charlestown:", real = window.localStorage;
         var GLOBAL = ["nbpt-race-name","nbpt-ghost","nbpt-board-url"];
         var key = function (k) { return GLOBAL.indexOf(k) >= 0 ? k : P + k; };
         var pref = function () { return Object.keys(real).filter(function (k) { return k.indexOf(P) === 0; }); };
@@ -105,14 +105,14 @@
       } catch (e) { /* fall back to shared storage if the browser won't let us shadow it */ }
     })();
   </script>
-  <script type="module" crossorigin src="./assets/index-tRjNMyWE.js"></script>
+  <script type="module" crossorigin src="./assets/index-CjUoIigI.js"></script>
 </head>
 <body>
   <div id="game"></div>
   <div id="loading">
-    <div class="title">MARBLEHEAD</div>
+    <div class="title">CHARLESTOWN</div>
     <div class="rule"></div>
-    <div class="sub">Exploring Marblehead, Massachusetts</div>
+    <div class="sub">Exploring Charlestown, Boston</div>
   </div>
   <!-- GoatCounter analytics (privacy-friendly). Kept in source so every build keeps it —
        it was previously added only on the deploy branch and got wiped by each deploy. -->
