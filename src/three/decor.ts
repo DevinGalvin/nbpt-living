@@ -5529,7 +5529,7 @@ function bunkerHillMonument(buckets: Bucket[], b: Building, g: number) {
 // long side and would lay it across the yard instead of along it.
 type ShedOpts = {
   wall: string; roof: string; material?: 'granite' | 'brick';
-  eave?: number; ridge?: number; bay?: number; rows?: number;
+  eave?: number; ridge?: number; bay?: number; rows?: number; monitor?: boolean;
 };
 function yardShed(buckets: Bucket[], b: Building, g: number, o: ShedOpts) {
   const obb = obbOf(b.p);
@@ -5556,6 +5556,24 @@ function yardShed(buckets: Bucket[], b: Building, g: number, o: ShedOpts) {
     const a = pt(sx * L, W, eaveH), b2 = pt(sx * L, -W, eaveH), pk = pt(sx * L, 0, ridgeY);
     buckets[PLAIN].triUV(a[0], a[1], a[2], b2[0], b2[1], b2[2], pk[0], pk[1], pk[2], ca * sx, 0, sa * sx, wr, wg, wb, 0, 0, 0, 0, 0, 0);
   }
+  // a raised monitor along the ridge — the clerestory that vented heat and lit the
+  // floor in a forge or a machine shop, and the reason those buildings read as two
+  // stacked volumes rather than one shed
+  if (o.monitor) {
+    const mw = W * 0.42, mY = ridgeY + 14;
+    rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.94, mw, ridgeY - 2, mY, ang, o.wall);
+    flatRoof(buckets[PLAIN], b.p, mY, o.roof);
+    tmp.set('#33373d');
+    const cr = tmp.r, cg2 = tmp.g, cb = tmp.b;
+    for (let lx = -L * 0.9; lx <= L * 0.9; lx += 26) {
+      for (const s of [1, -1] as const) {
+        const q = (l: number, y: number): [number, number, number] => [obb.cx + l * ca - s * (mw + 0.6) * sa, y, obb.cz + l * sa + s * (mw + 0.6) * ca];
+        const p0 = q(lx - 8, ridgeY + 2), p1 = q(lx + 8, ridgeY + 2), p2 = q(lx + 8, mY - 3), p3 = q(lx - 8, mY - 3);
+        buckets[GLOW].quad(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2],
+          -sa * s, 0, ca * s, cr, cg2, cb);
+      }
+    }
+  }
   // window bays marching the whole length, both long faces
   const bay = o.bay ?? 34, rows = o.rows ?? 1;
   tmp.set('#2f3238'); const gr = tmp.r, gg2 = tmp.g, gb = tmp.b;
@@ -5570,6 +5588,151 @@ function yardShed(buckets: Bucket[], b: Building, g: number, o: ShedOpts) {
           -sa * s, 0, ca * s, gr, gg2, gb);
       }
     }
+  }
+}
+
+// USS Cassin Young (DD-793, 1943) — a Fletcher-class destroyer, moored across the
+// yard from Constitution since 1978 and open to visitors. OSM traces her at
+// 115 m × 12 m against a real 376 ft × 39 ft 8 in, so the hull comes straight off
+// the footprint. Without this she is a 5.5-storey HOUSE floating at Pier 1.
+// Painted haze grey, which is how she sits today; her wartime Measure 32/7D
+// dazzle is history, not her present appearance.
+function destroyer(buckets: Bucket[], b: Building, g: number) {
+  const obb = obbOf(b.p);
+  const long = obb.hl >= obb.hw;
+  const ang = long ? obb.ang : obb.ang + Math.PI / 2;
+  const L = long ? obb.hl : obb.hw, W = Math.min(long ? obb.hw : obb.hl, L * 0.14);
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] => [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const GREY = '#8b9198', DECK = '#5f656b', DARK = '#6d737a', WHITE = '#dfe2e4';
+  const wl = g, deck = g + 19;                                    // low freeboard — she is not a tall ship
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.9, W, wl, deck, ang, GREY);          // hull
+  // bow wedge and a raised forecastle
+  for (const s of [1, -1] as const) {
+    const a = pt(L * 0.9, s * W, wl), b2 = pt(L * 0.9, s * W, deck), t1 = pt(L, 0, deck), t0 = pt(L, 0, wl + 2);
+    buckets[PLAIN].quad(a[0], a[1], a[2], b2[0], b2[1], b2[2], t1[0], t1[1], t1[2], t0[0], t0[1], t0[2], ca * s, 0.2, sa * s, 0.5, 0.53, 0.56);
+  }
+  rotBox(buckets[PLAIN], obb.cx + ca * L * 0.5, obb.cz + sa * L * 0.5, L * 0.36, W * 0.92, deck, deck + 6, ang, GREY);   // forecastle
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.88, W * 0.9, deck, deck + 1, ang, DECK);                                  // main deck
+  // superstructure: bridge block, then the after deckhouse
+  rotBox(buckets[PLAIN], obb.cx + ca * L * 0.16, obb.cz + sa * L * 0.16, L * 0.2, W * 0.62, deck + 6, deck + 22, ang, GREY);
+  rotBox(buckets[PLAIN], obb.cx + ca * L * 0.2, obb.cz + sa * L * 0.2, L * 0.1, W * 0.5, deck + 22, deck + 32, ang, WHITE);   // pilothouse
+  rotBox(buckets[PLAIN], obb.cx - ca * L * 0.3, obb.cz - sa * L * 0.3, L * 0.16, W * 0.55, deck + 6, deck + 18, ang, GREY);   // after deckhouse
+  // two raked funnels
+  for (const f of [0.02, -0.16]) {
+    const p = pt(L * f, 0, 0);
+    rotBox(buckets[PLAIN], p[0], p[2], L * 0.035, W * 0.3, deck + 6, deck + 34, ang, DARK);
+    rotBox(buckets[PLAIN], p[0], p[2], L * 0.028, W * 0.24, deck + 34, deck + 38, ang, '#3a3f45');   // cap
+  }
+  // five single 5-inch mounts on the centreline — two forward, three aft
+  for (const m of [0.62, 0.45, -0.46, -0.6, -0.76]) {
+    const p = pt(L * m, 0, 0);
+    const base = m > 0 ? deck + 6 : deck + 1;
+    buckets[PLAIN].box(p[0], p[2], W * 0.42, W * 0.42, base, base + 8, GREY, 0);
+    // the barrel, trained forward
+    rotBox(buckets[PLAIN], p[0] + ca * W * 0.75, p[2] + sa * W * 0.75, W * 0.6, 0.9, base + 5, base + 6.6, ang, DARK);
+  }
+  // foremast with a yard
+  const mp = pt(L * 0.1, 0, 0);
+  buckets[PLAIN].box(mp[0], mp[2], 1.1, 1.1, deck + 32, deck + 96, DARK, 0);
+  rotBox(buckets[PLAIN], mp[0], mp[2], 0.6, W * 0.85, deck + 74, deck + 75.4, ang, DARK);
+  // hull number on the bow, both sides
+  tmp.set(WHITE);
+  for (const s of [1, -1] as const) {
+    const p0 = pt(L * 0.74, s * (W + 0.5), deck - 11), p1 = pt(L * 0.86, s * (W + 0.5), deck - 11);
+    const p2 = pt(L * 0.86, s * (W + 0.5), deck - 4), p3 = pt(L * 0.74, s * (W + 0.5), deck - 4);
+    buckets[PLAIN].quad(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2],
+      -sa * s, 0, ca * s, tmp.r, tmp.g, tmp.b);
+  }
+}
+
+// The Schrafft Center (1928) — William F. Schrafft and Sons, Sullivan Square, once
+// the largest candy factory in the world and still the biggest brick mass in
+// Charlestown at 149 m by 62 m. The tell is the CLOCK TOWER over the main block,
+// which carried the neon Schrafft's sign on three sides.
+function schrafftCenter(buckets: Bucket[], b: Building, g: number) {
+  const obb = obbOf(b.p);
+  const long = obb.hl >= obb.hw;
+  const ang = long ? obb.ang : obb.ang + Math.PI / 2;
+  const L = long ? obb.hl : obb.hw, W = long ? obb.hw : obb.hl;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const BRICKC = '#a85c46', TRIM = '#e4ddcd';
+  const storeys = 6, top = g + storeys * 22 + 6;
+  // OSM splits the plant into two named footprints (9,270 m² and 2,006 m²). Both
+  // get the brick-and-window treatment; only the main block carries the tower,
+  // because the real building has exactly one.
+  const mainBlock = ringAreaM2(b.p) > 5000;
+  walls(buckets[BRICK], b.p, g - 4, top, BRICKC);
+  walls(buckets[PLAIN], expandRing(b.p, 1.2), top - 3, top + 2, TRIM, 0);      // parapet cap
+  flatRoof(buckets[PLAIN], b.p, top, '#4c4f54');
+  roofClutter(buckets, b.p, top, hash32(Math.round(obb.cx), Math.round(obb.cz), 41), ringAreaM2(b.p), true);
+  // the industrial window grid, both long faces — big openings, tight piers
+  tmp.set('#33373d');
+  const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  const bay = 30;
+  for (let lx = -L + bay * 0.7; lx <= L - bay * 0.7; lx += bay) {
+    for (let s2 = 0; s2 < storeys; s2++) {
+      const y0 = g + 9 + s2 * 22, y1 = y0 + 14;
+      for (const s of [1, -1] as const) {
+        const q = (l: number, y: number): [number, number, number] => [obb.cx + l * ca - s * (W + 0.7) * sa, y, obb.cz + l * sa + s * (W + 0.7) * ca];
+        const p0 = q(lx - 9, y0), p1 = q(lx + 9, y0), p2 = q(lx + 9, y1), p3 = q(lx - 9, y1);
+        buckets[GLOW].quad(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2],
+          -sa * s, 0, ca * s, wr, wg, wb);
+      }
+    }
+  }
+  // the clock tower — a slender square tower carrying the clock and, in real
+  // life, the neon Schrafft's sign on three sides. It has to read as a TOWER from
+  // across Sullivan Square, not as a roof penthouse.
+  if (!mainBlock) return;
+  const tw = Math.min(W * 0.2, 40), tTop = top + 132;
+  rotBox(buckets[BRICK], obb.cx, obb.cz, tw, tw, top, tTop, ang, BRICKC);
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, tw + 1.6, tw + 1.6, tTop, tTop + 4, ang, TRIM);        // cornice
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, tw * 0.86, tw * 0.86, tTop + 4, tTop + 12, ang, TRIM); // lantern
+  // clock faces + the sign band on all four sides
+  for (const [al, aw] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    const nx = al * ca - aw * sa, nz = al * sa + aw * ca;
+    const fl = al * (tw + 0.7), fw = aw * (tw + 0.7);
+    const tx = aw !== 0 ? ca : -sa, tz = aw !== 0 ? sa : ca;
+    const cxx = obb.cx + fl * ca - fw * sa, czz = obb.cz + fl * sa + fw * ca;
+    const band = (y0: number, y1: number, hw2: number, hex: string) => {
+      tmp.set(hex);
+      buckets[PLAIN].quad(cxx - tx * hw2, y0, czz - tz * hw2, cxx + tx * hw2, y0, czz + tz * hw2,
+        cxx + tx * hw2, y1, czz + tz * hw2, cxx - tx * hw2, y1, czz - tz * hw2, nx, 0, nz, tmp.r, tmp.g, tmp.b);
+    };
+    band(tTop - 40, tTop - 12, tw * 0.62, '#f2ece0');   // the clock face
+    band(tTop - 29, tTop - 26, tw * 0.44, '#2b2b2e');   // hands
+    band(tTop - 28, tTop - 17, tw * 0.07, '#2b2b2e');
+    band(top + 40, top + 74, tw * 0.78, '#c8402f');     // the sign band — neon on three sides in real life
+  }
+}
+
+// Monument Lodge (1902) — the small granite lodge at the foot of the obelisk,
+// where the Warren statue stands. OSM names this way "Bunker Hill Pavilion"; the
+// real Pavilion was a separate visitor hall nearer the yard, long since gone.
+function monumentLodge(buckets: Bucket[], b: Building, g: number) {
+  const [cx, cz] = centroidOf(b.p);
+  const scaled = (s: number) => {
+    const r: number[] = [];
+    for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s);
+    return r;
+  };
+  const GRANITE = '#b3aea3';
+  const eaveH = g + 26;
+  walls(buckets[PLAIN], b.p, g - 4, eaveH, GRANITE, 0);
+  walls(buckets[PLAIN], expandRing(b.p, 1.3), eaveH - 2.2, eaveH + 1, '#c6c1b5', 0);      // cornice
+  taperBand(buckets[PLAIN], expandRing(b.p, 1.3), scaled(0.2), eaveH + 1, eaveH + 17, '#5f656d', 0);   // hipped slate roof
+  flatRoof(buckets[PLAIN], scaled(0.2), eaveH + 17, '#5f656d');
+  // tall arched openings, one per face
+  const v = ringToVec2(b.p);
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i], b2 = v[(i + 1) % v.length];
+    const ex = b2.x - a.x, ey = b2.y - a.y;
+    const len = Math.hypot(ex, ey);
+    if (len < 20) continue;
+    const nx = ey / len, nz = ex / len, tx = ex / len, tz = -ey / len;
+    const mx = (a.x + b2.x) / 2 + nx * 0.6, mz = -(a.y + b2.y) / 2 + nz * 0.6;
+    roundArch(buckets[PLAIN], mx, mz, tx, tz, nx, nz, Math.min(7, len * 0.2), g - 1, eaveH - 12, '#33373d');
   }
 }
 
@@ -5656,6 +5819,13 @@ const HEROES: Record<string, HeroBuilder> = {
   'Timber Shed': (bk, b, g) => yardShed(bk, b, g, { wall: '#a8543f', roof: '#6b7079', material: 'brick', eave: 42, bay: 40 }),
   'Hemp House': (bk, b, g) => yardShed(bk, b, g, { wall: '#a8543f', roof: '#6b7079', material: 'brick', eave: 46, bay: 36, rows: 2 }),
   'Muster House': musterHouse,
+  'USS Cassin Young': destroyer,
+  'Schrafft Center': schrafftCenter,
+  'Bunker Hill Pavilion': monumentLodge,       // OSM's name for the Monument Lodge
+  // Building 105, the Chain Forge — where the yard drop-forged anchor chain, and
+  // later the die-lock chain the whole fleet used. A big brick shop under a
+  // ridge monitor.
+  '39 Chain Forge': (bk, b, g) => yardShed(bk, b, g, { wall: '#9d5340', roof: '#6b7079', material: 'brick', eave: 62, ridge: 12, bay: 36, rows: 2, monitor: true }),
   // The 1805 Commandant's House on the hill above the yard — the grandest thing
   // in it: three storeys of brick, hipped roof, wide verandah toward the harbor.
   "Commandant's House": (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#9e5340', material: 'brick', trim: '#f2ede1', roof: '#7f848c', storeys: 3, roofKind: 'hip', balustrade: 'plain', entrance: 'portico', stringcourses: true, chimney: 'interior4' }),

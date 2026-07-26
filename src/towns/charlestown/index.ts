@@ -58,10 +58,10 @@ export const TOWN: TownPack = {
 
   courses: COURSES,
   raceTown: 'charlestown',
-  devCourse: '',
+  devCourse: 'monument',
   racePromo: {
-    course: '',
-    body: 'Races are coming to Charlestown.',
+    course: 'monument',
+    body: 'Real races on real streets! Start at Old Ironsides, run out through the Navy Yard gate, then climb Main Street to the Monument — or take the whole peninsula the long way round. Beat the clock, top the town leaderboard, and race the leader’s ghost. Any route counts — shortcuts welcome.',
   },
 
   // CHARLESTOWN palette: granite slate-blue + a monument-gold
