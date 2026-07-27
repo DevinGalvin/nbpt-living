@@ -5895,6 +5895,27 @@ function sqRing(cx: number, cz: number, hw: number, ang: number): number[] {
 // A flat ANNULUS between two matching rings — a roof with a hole in it.
 // Grandstands need this: an open-air ballpark is a ring of seating around a
 // field that is open to the sky, not a lid over the whole footprint.
+// Push every vertex of a ring inward by roughly `d` px, KEEPING the vertex count.
+// ⚠️ annulusRoof() pairs vertex i of the outer ring with vertex i of the inner
+// one, so the two rings must correspond. A hand-authored polygon has no such
+// relationship to the footprint and fans garbage quads across the whole shape —
+// which is exactly what made Fenway's grandstand a flat grey sheet. Inset the
+// real footprint instead; for a ballpark that is also the correct field shape,
+// because the OSM outline follows the stands, which follow the field.
+function insetRing(ring: number[], d: number): number[] {
+  let cx = 0, cz = 0; const n = ring.length / 2;
+  for (let i = 0; i < n; i++) { cx += ring[i * 2]; cz += ring[i * 2 + 1]; }
+  cx /= n; cz /= n;
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const x = ring[i * 2], z = ring[i * 2 + 1];
+    const dx = cx - x, dz = cz - z, len = Math.hypot(dx, dz) || 1;
+    const t = Math.min(d / len, 0.45);                 // never collapse past the middle
+    out.push(x + dx * t, z + dz * t);
+  }
+  return out;
+}
+
 function annulusRoof(bk: Bucket, outer: number[], inner: number[], y: number, hex: string) {
   tmp.set(hex);
   const r = tmp.r, g2 = tmp.g, b2 = tmp.b;
@@ -6263,38 +6284,108 @@ function customHouseTower(buckets: Bucket[], b: Building, g: number, index: Worl
 // 37 ft 2 in, the tallest wall in baseball, Dartmouth Green since 1947, with the
 // manual scoreboard set into it. Wood, then tin and concrete, then hard plastic —
 // so it renders as a smooth flat plane, not masonry.
+// Built in OBB-LOCAL coordinates, because a ballpark is all about WHERE things
+// are relative to home plate. Real numbers used throughout: the Monster is
+// 37 ft 2 in, the bases are 90 ft apart, the foul lines are 310 ft to left and
+// 302 ft to right.
+//
+// Orientation is derived, not guessed: **Lansdowne Street runs behind the Green
+// Monster**, and Lansdowne is on the NORTH side of the park (smaller world z).
+// The +lz local direction is (-sa, ca), so its z-component is `ca` — therefore
+// the local side facing north is `ca < 0 ? +1 : -1`. Home plate sits in the
+// opposite (south-west) corner, and left field runs up to the Monster.
+//
+// Colours are researched, not recalled: the seats are **Dartmouth GREEN** (the
+// park's colour since 1934) — Fenway does not have red seats. It has exactly
+// ONE, section 42 row 37 seat 21, marking Ted Williams' 502-foot home run of
+// 9 June 1946, the longest ever hit here. That single seat is modelled.
 function fenwayPark(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   const obb = obbOf(b.p);
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const BRICK_W = '#8f4a3a', MONSTER = '#2f5d3a', SEATS = '#1f5133', CONC = '#9a958c',
+        DIRT = '#a9764c', GRASS = '#4f8a3f', GLASSC = '#9fc4d8';
+
+  // The field is the footprint INSET by the depth of the stands, so the two
+  // rings correspond vertex-for-vertex and the grandstand annulus is real
+  // geometry rather than a fan of garbage quads.
+  const STAND = Math.max(70, Math.min(obb.hl, obb.hw) * 0.30);
+  const field = insetRing(b.p, STAND);
+  const deckY = g + 16 * FT, standTop = g + 44 * FT;
+
+  walls(buckets[BRICK], b.p, g - 3, standTop, BRICK_W);          // the brick street front
+  flatRoof(buckets[PLAIN], field, g + 1, GRASS);                 // the grass, OPEN to the sky
+  annulusRoof(buckets[PLAIN], b.p, field, deckY, SEATS);         // the seating bowl — Dartmouth GREEN
+  walls(buckets[PLAIN], field, g - 2, deckY, CONC);              // the face of the stands
+  walls(buckets[PLAIN], b.p, deckY, standTop, CONC);             // the upper deck behind
+
+  // ── the infield: a real 90 ft diamond, home plate in the south-west ──
+  const N = ca < 0 ? 1 : -1;                    // local +lz that points north, to Lansdowne
+  const P = (lx: number, lz: number) => [obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca] as const;
   const L = obb.hl, W = obb.hw;
-  const BRICKRED = '#8f4a3a', MONSTER = '#2f5d3a', DECK = '#7d8288';
-  // ⚠️ A ballpark is OPEN TO THE SKY. Roofing the whole footprint puts a lid over
-  // the field and hides the grass inside a box — which is exactly what this did
-  // at first. The grandstand is an ANNULUS: seating around the edge, roofed;
-  // the field in the middle, roofed by nothing.
-  const [ccx, ccz] = centroidOf(b.p);
-  const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(ccx + (b.p[i] - ccx) * s, ccz + (b.p[i + 1] - ccz) * s); return r; };
-  const field = scaled(0.62);
-  const standTop = g + 34 * FT;
-  walls(buckets[BRICK], b.p, g - 3, standTop, BRICKRED);       // the brick street front
-  walls(buckets[PLAIN], field, g - 3, standTop - 6 * FT, '#6d7278');  // stands facing the field
-  annulusRoof(buckets[PLAIN], b.p, field, standTop, DECK);     // roof over the SEATS only
-  flatRoof(buckets[PLAIN], field, g + 1, '#4e7a3f');           // the grass, open to the sky
-  // the infield dirt
-  flatRoof(buckets[PLAIN], scaled(0.2), g + 1.4, '#9a6b46');
-  // ── the Green Monster: 37 ft 2 in, along one end ──
-  const mlx = -L * 0.82;
-  const mx = obb.cx + mlx * ca, mz = obb.cz + mlx * sa;
-  rotBox(buckets[PLAIN], mx, mz, 1.6, W * 0.8, g, g + 37.17 * FT, obb.ang, MONSTER);
-  // the manual scoreboard, set INTO the wall low down
-  const slz = -W * 0.2;
-  const sx = obb.cx + (mlx + 2.2) * ca - slz * sa, sz = obb.cz + (mlx + 2.2) * sa + slz * ca;
-  rotBox(buckets[GLOW], sx, sz, 0.4, W * 0.3, g + 6, g + 16, obb.ang, '#16281c');
-  // light towers on the roof
-  for (const [lx, lz] of [[-L * 0.5, W * 0.85], [L * 0.2, W * 0.85], [-L * 0.5, -W * 0.85], [L * 0.35, -W * 0.85]] as const) {
-    const x = obb.cx + lx * ca - lz * sa, z = obb.cz + lx * sa + lz * ca;
-    buckets[PLAIN].box(x, z, 1.1, 1.1, g + 34 * FT, g + 60 * FT, '#5c6167', 0);
-    buckets[GLOW].box(x, z, 4.2, 1.2, g + 58 * FT, g + 62 * FT, '#fdf6d8', 0);
+  const HPl = -L * 0.46, HPw = -N * W * 0.44;
+  const base = Math.min(90 * FT, Math.min(L, W) * 0.42);
+  const u = [-0.32, N * 0.95] as const, v = [0.95, N * 0.32] as const;
+  const dia: number[] = [];
+  for (const [dl, dw] of [[0, 0], [u[0] * base, u[1] * base],
+                          [(u[0] + v[0]) * base, (u[1] + v[1]) * base], [v[0] * base, v[1] * base]] as const) {
+    const p = P(HPl + dl, HPw + dw); dia.push(p[0], p[1]);
+  }
+  flatRoof(buckets[PLAIN], dia, g + 1.6, DIRT);
+  const mnd = P(HPl + (u[0] + v[0]) * base * 0.34, HPw + (u[1] + v[1]) * base * 0.34);
+  buckets[PLAIN].box(mnd[0], mnd[1], 7, 7, g + 1.7, g + 3.2, DIRT, 0);
+
+  // ── THE GREEN MONSTER — 37 ft 2 in, on the Lansdowne (north) side ──
+  // Placed on the real footprint: take the longest edge of the inset field ring
+  // whose outward normal points north, so the wall sits where left field is.
+  let bi = -1, bl = 0;
+  for (let i = 0; i < field.length; i += 2) {
+    const j2 = (i + 2) % field.length;
+    const ex = field[j2] - field[i], ez = field[j2 + 1] - field[i + 1];
+    const len = Math.hypot(ex, ez); if (len < 1) continue;
+    if (-ex / len <= 0) continue;                       // outward normal (ez,-ex): north = negative z
+    if (len > bl) { bl = len; bi = i; }
+  }
+  const MONSTER_H = 37.17 * FT;                          // 37 ft 2 in — tallest wall in baseball
+  if (bi >= 0) {
+    const j2 = (bi + 2) % field.length;
+    const mx = (field[bi] + field[j2]) / 2, mz = (field[bi + 1] + field[j2 + 1]) / 2;
+    const mAng = Math.atan2(field[j2 + 1] - field[bi + 1], field[j2] - field[bi]);
+    rotBox(buckets[PLAIN], mx, mz, bl / 2, 2.6, g, g + MONSTER_H, mAng, MONSTER);
+    rotBox(buckets[GLOW], mx, mz, bl * 0.24, 0.8, g + 7, g + 22, mAng, '#16281c');   // manual scoreboard
+    rotBox(buckets[PLAIN], mx, mz, bl / 2, 5.5, g + MONSTER_H, g + MONSTER_H + 9, mAng, SEATS);  // Monster Seats
+    rotBox(buckets[PLAIN], mx, mz, bl / 2, 0.6, g + MONSTER_H + 9, g + MONSTER_H + 12, mAng, '#c9ccd0');
+    rotBox(buckets[PLAIN], mx, mz, 0.7, 3.1, g + 14, g + MONSTER_H, mAng, '#7c8a72');            // the ladder
+  }
+
+  // ── press box + glass club level above HOME PLATE, with the pennants ──
+  const bp = P(HPl - L * 0.18, HPw - N * W * 0.24);
+  rotBox(buckets[GLOW],  bp[0], bp[1], L * 0.22, 6.5, g + 46 * FT, g + 62 * FT, obb.ang, GLASSC);
+  rotBox(buckets[PLAIN], bp[0], bp[1], L * 0.23, 7.5, g + 62 * FT, g + 68 * FT, obb.ang, '#e8e4da');
+  rotBox(buckets[PLAIN], bp[0], bp[1], L * 0.23, 8.0, g + 42 * FT, g + 46 * FT, obb.ang, CONC);
+  for (let i = 0; i <= 6; i++) {
+    const f = P(HPl - L * 0.18 + L * (-0.20 + 0.40 * (i / 6)), HPw - N * W * 0.24);
+    buckets[PLAIN].box(f[0], f[1], 0.5, 0.5, g + 68 * FT, g + 80 * FT, '#c9ccd0', 0);
+    buckets[GLOW].box(f[0], f[1], 2.4, 0.4, g + 74 * FT, g + 79 * FT, i % 2 ? '#c0392f' : '#e8e4da', 0);
+  }
+
+  // ── THE RED SEAT: section 42, row 37, seat 21 — Ted Williams, 9 June 1946,
+  // 502 feet, the longest home run ever hit here. Fenway's seats are green;
+  // this is the only red one in the park.
+  const rs = P(L * 0.62, N * W * 0.30);
+  buckets[GLOW].box(rs[0], rs[1], 2.4, 2.4, deckY, deckY + 4.5, '#d0342c', 0);
+
+  // ── the two yellow foul poles (Pesky's Pole in right) ──
+  for (const [plx, plw] of [[L * 0.30, -N * W * 0.80], [-L * 0.86, N * W * 0.40]] as const) {
+    const pp = P(plx, plw);
+    buckets[GLOW].box(pp[0], pp[1], 1.1, 1.1, g, g + 52 * FT, '#e8c231', 0);
+  }
+
+  // ── light towers ──
+  for (const [lx, lz] of [[-L * 0.60, N * W * 0.60], [0, N * W * 0.90], [L * 0.55, N * W * 0.45],
+                          [-L * 0.35, -N * W * 0.75], [L * 0.35, -N * W * 0.62]] as const) {
+    const p = P(lx, lz);
+    buckets[PLAIN].box(p[0], p[1], 1.3, 1.3, standTop, g + 74 * FT, '#5c6167', 0);
+    buckets[GLOW].box(p[0], p[1], 5.2, 1.5, g + 70 * FT, g + 75 * FT, '#fdf6d8', 0);
   }
 }
 

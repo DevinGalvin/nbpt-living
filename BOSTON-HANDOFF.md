@@ -306,6 +306,51 @@ city, and it is the number to watch — not the parse.
   fires, street names resolve, fast-travel works (landed on **Lansdowne Street**
   behind Fenway's brick wall)
 
+## FENWAY PARK — rebuilt from real dimensions (one defect left, diagnosed)
+
+Devin: *"I need it to look exactly like Fenway… this is crucial."* It is now
+built in OBB-LOCAL coordinates from real numbers, because a ballpark is entirely
+about where things sit relative to home plate.
+
+**Orientation is derived, not guessed.** Lansdowne Street runs behind the Green
+Monster and is NORTH of the park (smaller world z); the +lz local direction is
+`(-sa, ca)`, so the north-facing side is `ca < 0 ? +1 : -1`. Home plate goes in
+the opposite south-west corner and left field runs up to the Monster.
+
+**Researched, not recalled — Fenway has no red seats.** The seats are *Dartmouth
+Green*, the park's colour since 1934. There is exactly **ONE red seat**: section
+42, row 37, seat 21, where Ted Williams' 502-foot home run landed on 9 June 1946,
+the longest ever hit here. That single seat is modelled, and it is a far better
+detail than a stand full of red ones would have been.
+
+Built: the **Green Monster at its real 37 ft 2 in** with the hand-operated
+scoreboard set into it, the Monster Seats and rail on top, and the ladder up its
+face · a real **90 ft infield diamond** hung off home plate with the mound at
+60 ft 6 in · the **glass-fronted press box / club above home plate** with the
+sign band and the roofline pennants · the two yellow foul poles · the bleachers ·
+five light towers.
+
+### ⚠️ THE ONE REMAINING DEFECT — read before touching it
+
+**The grandstand deck renders GREY instead of green seats.** Do not start from
+scratch; here is exactly how far the diagnosis got.
+
+- The field/Monster/dirt/poles/red seat/glass club all render correctly.
+- `annulusRoof()` pairs vertex *i* of the outer ring with vertex *i* of the
+  inner. An earlier version passed a hand-authored 7-gon as the inner ring, which
+  has no correspondence to the footprint and **fanned garbage quads across the
+  whole block** — that was the original flat-grey sheet. Fixed by `insetRing()`,
+  which pushes the real footprint inward and PRESERVES vertex count. (For a
+  ballpark the inset footprint is also the correct field shape, since the OSM
+  outline follows the stands, which follow the field.)
+- **But the deck is still grey.** A vertex-colour histogram of the deck band
+  (y 20-60, within 700 px of the centroid) shows `faf8f0`, `2c4326`, `36434d`…
+  and **no `1f5133` (SEATS) and no `9a958c` (CONC) at all**. So the annulus is
+  not landing in that band — it is not a shading problem, it is a placement or
+  emit problem. Next step: log `field.length` vs `b.p.length` and the actual y
+  of the emitted quads inside `annulusRoof`, and check whether `Bucket.quad`'s
+  argument order matches what is being passed.
+
 ## HERO ACCURACY PASS — the tooling, and four systemic bugs
 
 **Inspect heroes with a CONTACT SHEET, not one screenshot at a time.** Nine
