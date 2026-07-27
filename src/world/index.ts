@@ -1405,7 +1405,17 @@ export class WorldIndex {
       this.deckCache.set(key, d);
     }
     for (const r of d.bridges) {
-      if (distToPolylineSq(x, y, r.p) <= (r.w / 2 + 5) ** 2) return this.bridgeDeckYAt(r.p, x, y);
+      const d2 = distToPolylineSq(x, y, r.p);
+      if (d2 > (r.w / 2 + 5) ** 2) continue;
+      const dy = this.bridgeDeckYAt(r.p, x, y);
+      // WIDE decks are pulled back around buildings when drawn (deckHalfWidthLimit,
+      // same >150 px test as the renderer) — the walking contract has to match, or
+      // you stand on an invisible slab out beside the viaduct where no deck exists.
+      // Within DECK_MIN_HW of the centreline the ribbon is never pinched away, so
+      // the deck is always there.
+      if (r.w >= WorldIndex.DECK_CLEAR_MIN_W && d2 > WorldIndex.DECK_MIN_HW ** 2
+        && this.buildingTopAt(x, y) > dy - WorldIndex.DECK_T) continue;
+      return dy;
     }
     // pier polys are the solid full-width dock surface and now render 1.5px proud of any
     // overlapping centerline (the dock-flicker fix in decor.ts) — so they take priority for
@@ -2091,6 +2101,30 @@ export class WorldIndex {
   // allowance, mirroring decor's buildingDims) — lets the chase camera test
   // its sight line analytically instead of raycasting merged meshes
   private bldgCamCache = new Map<number, { bb: [number, number, number, number]; h: number }>();
+
+  // Largest half-width at which a deck may be drawn here WITHOUT slicing a building.
+  // A viaduct passing over a low shed is fine — the deck clears its roof — but where
+  // a building rises through the deck plane the ribbon has to pull in, or the house
+  // is rendered chopped off at road height. That is what Charlestown's fused
+  // Rutherford Ave deck did: a 40 m slab drawn straight through the houses beside it,
+  // leaving roofs poking out of the asphalt.
+  // Only consulted for WIDE decks (see the caller) — a normal-width span costs nothing.
+  static readonly DECK_MIN_HW = 30;   // px — never pinch a deck below a crossable width
+  // Decks at least this wide consult the building clearance. Narrower spans are
+  // slimmer than the setback beside them and never slice anything, so they skip the
+  // probe. The RENDERER and the footing test must use the SAME number or the player
+  // walks on an invisible slab — hence one constant, read by both.
+  static readonly DECK_CLEAR_MIN_W = 80;
+  deckHalfWidthLimit(x: number, z: number, lX: number, lZ: number, hw: number, deckY: number): number {
+    const soffit = deckY - WorldIndex.DECK_T;
+    let lim = hw;
+    for (const s of [1, -1] as const) {
+      for (let d = WorldIndex.DECK_MIN_HW; d <= hw; d += 12) {
+        if (this.buildingTopAt(x + lX * s * d, z + lZ * s * d) > soffit) { lim = Math.min(lim, d - 12); break; }
+      }
+    }
+    return Math.max(WorldIndex.DECK_MIN_HW, lim);
+  }
 
   buildingTopAt(x: number, y: number): number {
     const bucket = this.bucket(Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK));

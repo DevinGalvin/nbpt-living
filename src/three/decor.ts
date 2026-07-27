@@ -1313,7 +1313,10 @@ function inGillisRect(x: number, z: number): boolean {
 // Bare docks / foot-bridges (rails=false) stay wooden planks on a full side skirt.
 function ribbonDeck(buckets: Bucket[], pts0: number[], w: number, topYAt: number | ((x: number, z: number) => number),
                     rails: boolean, ox: number, oy: number, skipGillis = false, trim0 = 0, trim1 = 0, lanes: 'yellow' | 'white' = 'yellow',
-                    w0 = w, w1 = w) {   // end widths — a fused deck TAPERS to the real road width where it dies into dry pavement
+                    w0 = w, w1 = w,     // end widths — a fused deck TAPERS to the real road width where it dies into dry pavement
+                    // pulls the deck edge in where a building rises through the deck
+                    // plane, so a wide fused slab stops slicing the houses beside it
+                    hwLimit?: (x: number, z: number, lX: number, lZ: number, hw: number, y: number) => number) {
   const isRoad = rails;
   const surf = isRoad ? buckets[PLAIN] : buckets[PLANK];
   const asphalt = new THREE.Color('#3a3d42');
@@ -1406,11 +1409,12 @@ function ribbonDeck(buckets: Bucket[], pts0: number[], w: number, topYAt: number
     if (i > 0 && lX * plX + lZ * plZ < 0) { lX = -lX; lZ = -lZ; }   // never twist (bowtie guard)
     plX = lX; plZ = lZ;
     hwN[i] = hwAt(cum[i]);
+    Yn[i] = yAt(nxA[i], nzA[i]);
+    if (hwLimit) hwN[i] = Math.min(hwN[i], hwLimit(nxA[i], nzA[i], lX, lZ, hwN[i], Yn[i]));
     // stay hw off both segments, but 1.4x max — sharper corners pinch instead of spiking
     const scale = hwN[i] / Math.min(1.4, Math.max(0.72, Math.abs(lX * -aZ + lZ * aX)));
     Lx[i] = nxA[i] + lX * scale; Lz[i] = nzA[i] + lZ * scale;
     Rx[i] = nxA[i] - lX * scale; Rz[i] = nzA[i] - lZ * scale;
-    Yn[i] = yAt(nxA[i], nzA[i]);
   }
 
   // a paint stripe across the strip at across-offset o (0=centerline, +->R side)
@@ -6775,8 +6779,14 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     // and lifts clear of any water it spans (the Gillis channel is left open for
     // the custom drawbridge). trim0/trim1 pull a ramp deck back to the deck it
     // merges into, so its end never slices across the other span's surface.
+    // Only WIDE decks consult the building clearance — a normal span is slimmer than
+    // the setback beside it and never slices anything. Threshold shared with the
+    // footing test (WorldIndex.DECK_CLEAR_MIN_W) so the walking contract matches
+    // exactly what is drawn.
+    const wideDeck = ch.w >= WorldIndex.DECK_CLEAR_MIN_W;
     ribbonDeck(buckets, ch.pts, ch.w + 4, (x, z) => index.bridgeDeckYAt(ch.pts, x, z), true, ox, oy, true, ch.trim0, ch.trim1,
-      (ch.c === 'motorway' || ch.c === 'motorway_link') ? 'white' : 'yellow', ch.w0 + 4, ch.w1 + 4);
+      (ch.c === 'motorway' || ch.c === 'motorway_link') ? 'white' : 'yellow', ch.w0 + 4, ch.w1 + 4,
+      wideDeck ? (x, z, lX, lZ, hw, y) => index.deckHalfWidthLimit(x, z, lX, lZ, hw, y) : undefined);
     // hold the slab up: pier WALLS marching the span (turned across the deck, capped
     // under the soffit) + full-width abutments at the banks. One (x,z) each + the
     // chunk cull below ⇒ emitted in exactly one chunk.
