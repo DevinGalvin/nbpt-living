@@ -1,22 +1,34 @@
 # Clipper Town — Handoff
 
-A cozy, all-ages Zelda-like set on the **exact maps of real towns** — eleven of
+A cozy, all-ages Zelda-like set on the **exact maps of real towns** — twelve of
 them, one codebase: Newburyport `/`, Salem `/salem/`, Beverly `/beverly/`,
 Ipswich `/ipswich/`, Gloucester `/gloucester/`, Marblehead `/marblehead/`,
 Manchester-by-the-Sea `/manchester/`, Rockport `/rockport/`,
-Amesbury `/amesbury/`, Salisbury `/salisbury/` and Charlestown `/charlestown/`.
-Three.js + TypeScript + Vite. Live at **https://clippertown.io**.
+Amesbury `/amesbury/`, Salisbury `/salisbury/`, Charlestown `/charlestown/`
+and **Boston `/boston/`**. Three.js + TypeScript + Vite.
+Live at **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE: ELEVEN towns live. Charlestown (#11) is shipped, polished
-> and bug-fixed — see `CHARLESTOWN-HANDOFF.md` for the whole town in one place.**
-> Latest `9872ce3`; `npm run build:all` passes for all eleven.
+> **⚡ FRESHEST STATE: TWELVE towns live. FULL BOSTON IS SHIPPED** — 233,279
+> buildings, 129 landmarks, 3 races, flight off the real Logan Runway 27, and 44
+> hero keys (~59 heroes render, because Charlestown's sit inside Boston's frame).
+> Everything about it is in **`BOSTON-HANDOFF.md`** — read that first.
+> Latest `9180932`; `npm run build:all` passes for all twelve.
 >
-> **NEXT UP IS FULL BOSTON — read ✦ FULL BOSTON first**, it is written as a cold
-> start: the one real blocker (the engine parses world.json whole at boot), the
-> two candidate approaches Devin should pick between, and the pipeline swaps.
-> Charlestown was its rehearsal, so read `CHARLESTOWN-HANDOFF.md` next — Boston is
-> full of the buried highways, stacked interchanges and building multipolygons
-> that Charlestown just forced fixes for.
+> **The "one real blocker" below was measured and was NOT one.** The engine does
+> parse world.json whole at boot, but Boston's real bake is 45.6 MB raw /
+> **14.8 MB gzipped, 133 ms to parse, 97 MB retained** — linear in building
+> count, no cliff. **No streaming rewrite was needed.** Likewise "Overpass cannot
+> serve Boston, even tiled" was an untested extrapolation from a single Salisbury
+> 429: a dense downtown tile returns in 2.3 s and the city fetches at
+> `OSM_TILES=6x6`. The ✦ FULL BOSTON section below is kept only as the record of
+> what was believed beforehand — **`BOSTON-HANDOFF.md` supersedes it.**
+>
+> Boston also forced five pipeline fixes that benefit every town (an O(n²) POI
+> dedupe, stadiums not being buildings, missing light rail, walled places being
+> reduced to walls — which had deleted **Granary Burying Ground** outright — and
+> `fetch_boundaries` sending no HTTP headers at all). All are in
+> `BOSTON-HANDOFF.md`.
+>
 > Then ✦ AMESBURY + SALISBURY. Then ✦ MANCHESTER + ROCKPORT, which has the
 > reusable four-step town-building workflow and the verification bar. Then read
 > ✦ MARBLEHEAD (town #6, and where the map pipeline moved into CI, which is what
