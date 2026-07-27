@@ -1,0 +1,15 @@
+{
+  "name": "Boston in 3D",
+  "short_name": "Boston",
+  "description": "Walk the real map of Boston — the Common and the Public Garden, the Freedom Trail, Fenway and the harbor islands, in a cozy all-ages 3D city.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#2f3c34",
+  "theme_color": "#2f3c34",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

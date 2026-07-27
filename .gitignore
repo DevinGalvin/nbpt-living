@@ -4,3 +4,10 @@ dist-*/
 .DS_Store
 *.log
 .claude/settings.local.json
+
+# Boston's raw OSM is 240 MB — GitHub HARD-REJECTS any file over 100 MB, so
+# unlike every other town's, it cannot be committed (43 MB gzipped would fit,
+# but it would permanently double the repo alongside Boston's already-46 MB
+# world.json, which DOES have to ship). Regenerate it with `npm run map:boston`;
+# the built world.json is committed, so nothing about the game depends on it.
+data/boston/raw/overpass.json

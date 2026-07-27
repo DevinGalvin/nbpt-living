@@ -197,8 +197,18 @@ const SKIP_HW = new Set(['proposed', 'construction', 'corridor', 'elevator', 'ra
 // `tunnel=yes` usually means a short at-grade underpass a player rides through.
 const BURIED_HW = new Set(['motorway', 'trunk', 'primary', 'secondary', 'motorway_link', 'trunk_link', 'primary_link', 'secondary_link']);
 
+// A stadium is a BUILDING, but OSM very often maps it as a bare
+// `leisure=stadium` area with no `building` tag at all — Fenway Park is a
+// type=multipolygon relation tagged leisure=stadium, amenity=music_venue and
+// nothing else. Left alone it falls through every test here and comes out a
+// 'house', which is the USS Cassin Young trap again (a warship rendered as a
+// 5.5-storey home). Towns on the North Shore have no stadiums, so a city is the
+// first thing to expose this.
+const isStadium = (t) => t.leisure === 'stadium' || t.building === 'stadium';
+
 function buildingKind(t) {
   const b = t.building;
+  if (isStadium(t)) return 'civic';
   if (b === 'church' || b === 'chapel' || b === 'cathedral' || t.amenity === 'place_of_worship') return 'church';
   const lighty = ((t.name || '') + (t.alt_name || '')).toLowerCase().includes('light');
   if (t.man_made === 'lighthouse' || b === 'lighthouse' || (b === 'tower' && lighty)) return 'light';
@@ -322,7 +332,15 @@ for (const el of raw.elements) {
     const k = t.barrier === 'hedge' ? 'hedge' : t.barrier === 'fence' ? 'fence' : 'wall';
     for (const run of runsOf(el.geometry)) world.barriers.push({ p: simplify(run), k });
     bump('barrier:' + k);
-    continue;
+    // A walled PLACE is not a wall. This branch used to `continue`
+    // unconditionally, so any area that happened to carry barrier=wall was
+    // reduced to a bare outline and lost its land cover, its name and its label.
+    // That is how GRANARY BURYING GROUND — Paul Revere, Sam Adams, John Hancock
+    // and the Boston Massacre dead — disappeared from Boston completely: it is
+    // tagged landuse=cemetery AND barrier=wall, and the wall won. Keep drawing
+    // the wall, but fall through so the place itself still gets built.
+    if (!polyKind(t) && !(t.building && t.building !== 'no')) continue;
+    bump('barrier-also-place');
   }
 
   if (t.natural === 'tree_row') {
@@ -345,7 +363,7 @@ for (const el of raw.elements) {
     continue;
   }
 
-  if (t.building && t.building !== 'no') {
+  if ((t.building && t.building !== 'no') || isStadium(t)) {
     const ring = asRing(el.geometry);
     if (!ring) continue;
     const areaM2 = Math.abs(ringArea(ring)) / (PX_PER_M * PX_PER_M);
@@ -443,9 +461,16 @@ for (const el of raw.elements) {
     }
   }
 
-  if (t.railway === 'rail') {
+  // Light rail rides at grade in the street here — Boston's Green Line runs down
+  // the Commonwealth Ave and Beacon St medians and along Huntington, and the
+  // Mattapan line is a streetcar — so it belongs in the world the same way heavy
+  // rail does. But the Green Line's CENTRAL SUBWAY is also tagged
+  // railway=light_rail, just with tunnel=yes, and drawing that would lay track
+  // straight across the Common and down Tremont at grade. Same lesson as the
+  // buried highways: check the tunnel tag, never assume the class.
+  if (t.railway === 'rail' || (t.railway === 'light_rail' && t.tunnel !== 'yes')) {
     for (const run of runsOf(el.geometry)) world.rails.push({ p: simplify(run) });
-    bump('rail');
+    bump(t.railway === 'rail' ? 'rail' : 'light-rail');
     continue;
   }
 
@@ -515,7 +540,7 @@ for (const el of raw.elements) {
   if (el.type !== 'relation' || !el.tags) continue;
   if (DROP_OSM.has(el.id)) continue;   // stale, gone on the ground (see DROP_OSM)
   const t = el.tags;
-  const pk = t.building && t.building !== 'no' ? '_building' : polyKind(t);
+  const pk = (t.building && t.building !== 'no') || isStadium(t) ? '_building' : polyKind(t);
   if (!pk) continue;
   const outers = [], inners = [];
   for (const m of el.members || []) {
@@ -879,10 +904,24 @@ const addrMap = new Map();
 // ---------- dedupe POIs (same business as node + building way) ----------
 
 {
+  // Bucketed by lowercased name so this stays LINEAR. The rule is unchanged —
+  // a POI is a duplicate of the first kept POI sharing its name (case-
+  // insensitively) within 200 px — but scanning every kept POI for each
+  // candidate is O(n^2), and a city has tens of thousands of named POIs where a
+  // town has hundreds. Boston made that quadratic scan run for hours. Only POIs
+  // with an EQUAL lowercased name can ever match, so the name bucket holds
+  // exactly the candidates, still in insertion order: same first match, same
+  // result. Unnamed POIs (the windsock) are never deduped, as before.
   const kept = [];
+  const byName = new Map();
   for (const p of world.pois) {
-    const dup = p.n && kept.find((q) => q.n.toLowerCase() === p.n.toLowerCase() && (q.x - p.x) ** 2 + (q.y - p.y) ** 2 < 200 * 200);
-    if (!dup) kept.push(p);
+    if (!p.n) { kept.push(p); continue; }
+    const key = p.n.toLowerCase();
+    let bucket = byName.get(key);
+    if (!bucket) byName.set(key, (bucket = []));
+    if (bucket.some((q) => (q.x - p.x) ** 2 + (q.y - p.y) ** 2 < 200 * 200)) continue;
+    bucket.push(p);
+    kept.push(p);
   }
   stats['pois-deduped'] = world.pois.length - kept.length;
   world.pois = kept;

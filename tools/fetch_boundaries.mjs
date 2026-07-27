@@ -53,7 +53,18 @@ let json = null;
 for (const ep of ENDPOINTS) {
   try {
     console.log(`Fetching municipal boundaries from ${ep} …`);
-    const res = await fetch(ep, { method: 'POST', body: 'data=' + encodeURIComponent(query) });
+    // Send the same headers as tools/fetch_osm.mjs. Without them overpass-api.de
+    // answers 406 Not Acceptable EVERY time, so this tool has silently been
+    // riding its fallback endpoints (which are slower and rate-limit harder).
+    const res = await fetch(ep, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'NBPT-Living-MapBuilder/0.1 (one-time prototype data pull; respects usage policy)',
+        'Accept': 'application/json'
+      },
+      body: 'data=' + encodeURIComponent(query)
+    });
     if (!res.ok) { console.warn(`  ${res.status} ${res.statusText}`); continue; }
     json = await res.json();
     break;

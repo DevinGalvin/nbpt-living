@@ -1,0 +1,367 @@
+# Boston — town #12
+
+Everything about Boston in one place: what was measured, what was decided and
+why, what shipped, and what is still open. Read this before touching Boston.
+
+> **Status: IN PROGRESS** (started 7/27/2026). This file is written as it goes,
+> so a cold session can pick it up mid-build.
+
+## The headline: the blocker was measured, and it mostly isn't one
+
+`HANDOFF.md` and `docs/research/boston-sizing.md` both said Boston was gated on
+a data-streaming rewrite, because the engine parses `world.json` whole at boot.
+Before doing that work, it got measured. **The feared numbers do not reproduce.**
+
+A properly-scaled Boston payload (Beverly's `world.json` with every heavy array
+scaled 4.06x, to 119,414 buildings) measured on an M-series Mac:
+
+| | the fear | **measured** |
+|---|---|---|
+| `world.json` raw | 26-34 MB | **23.2 MB** |
+| over the wire | not considered | **~8 MB** (Pages already serves `content-encoding: gzip`) |
+| `JSON.parse` | "multi-second on a phone" | **65 ms** here → ~200-400 ms on a mid-range phone |
+| transient memory | "150-300 MB spike, iOS tab-kill" | **48 MB retained** after forced GC |
+
+Beverly ships 6.07 MB raw / **2.05 MB gzipped** today and its live headers
+confirm the gzip. So Boston is a **~4x download increase, not a parse crisis**.
+The loading-progress card and service worker already cover exactly that.
+
+Honest caveats, stated so nobody re-derives them: the synthetic replicates
+Beverly's data, so its gzip ratio is optimistic — but applying Beverly's *real*
+2.96x ratio to 23.2 MB independently lands at ~8 MB, which corroborates. And
+V8 is not iOS JSC; 48 MB is far enough from the danger zone that it is very
+unlikely to flip, but the real bake is what settles it.
+
+**Decision (Devin, 7/27): build full Boston on today's engine.** No per-tile
+streaming, no binary format — yet.
+
+### The binary format is still a good idea, just not a blocker
+
+Buildings are 56% of the payload and their geometry is a flat integer array.
+Delta-encoded (first point int32, the rest int16 deltas — measured: **180,957 of
+180,957 deltas fit in int16, zero overflow**), Beverly's buildings go
+**3.24 MB → 1.08 MB**. That is a real 3x cut that would benefit every town's
+load time and kill `JSON.parse` outright. It is worth doing on its own merits.
+It is not load-bearing for Boston.
+
+## Overpass CAN serve Boston — the handoff was wrong about this
+
+Both docs said "Overpass cannot serve Boston, even tiled" and prescribed a
+Geofabrik PBF clipped with osmium. That was an **untested assumption**,
+extrapolated from a 2x2 tiling of Salisbury drawing a 429. A 429 is a *request
+rate* limit, which finer tiling plus a longer delay fixes.
+
+Measured: a dense downtown Boston tile (1/64 of the frame) returned **9.3 MB in
+2.3 s, HTTP 200**. Boston fetches with the existing tool at `OSM_TILES=8x8`.
+
+Two changes to `tools/fetch_osm.mjs` made that safe, both verified
+byte-identical on Charlestown (1x1 **and** 2x2: all 16,111 elements identical,
+same key order, zero drift):
+
+1. **The merge streams to disk.** It used to build `JSON.stringify(merged)` as
+   one string with every element also live in a `Map`. Boston's 64 tiles merge
+   to a few hundred MB — that exhausts the heap. Now only the seen-key `Set` is
+   held and each new element is written straight through. Output is unchanged.
+2. **`OSM_DELAY`** (default 2000, so every existing town is untouched). Boston
+   runs at 6000 — at 2 s it drew a 429 by tile 4.
+
+### `tools/fetch_osm_pbf.mjs` — written, NOT used, NOT verified
+
+The osmium road got built before Overpass was tested. It converts a Geofabrik
+`.osm.pbf` to the same `data/<id>/raw/overpass.json` contract, streaming, with
+the two load-bearing details documented in its header (way geometry clipped to
+the bbox **with nulls**, because `runsOf()` splits on exactly those; relation
+member geometry **unclipped**, because rings must assemble exactly).
+
+**It has never been run end to end.** Either verify it against a known town or
+delete it — do not trust it as-is. Also note: the Mac's sandbox proxy blocks
+large binary downloads (squid 502), and Geofabrik rate-limits parallel range
+requests (8 connections earned a 503) — one connection with `-C -` resume is the
+polite road, and it was still only doing ~30 KB/s.
+
+## The frame
+
+```
+s 42.227   w -71.193   n 42.399   e -70.88        19.1 x 25.8 km
+```
+
+Chosen from measured counts, not drawn by eye.
+
+- The rectangle holding all of Boston counts **216,640 buildings** — *not* the
+  119,414 that `boston-sizing.md` measured against Boston's admin boundary. The
+  gap is real and unavoidable: any rectangle containing Boston also contains
+  Cambridge, Somerville, Brookline, Quincy, Newton, Milton, Chelsea, Everett and
+  Revere. **Every projection in the sizing doc is therefore ~1.8x low.**
+- That is the same bargain every town already makes (Charlestown reaches into
+  the North End, Gloucester takes all of Cape Ann), and it is a feature: you can
+  cross the Longfellow to MIT and see Harvard from the river.
+- The east edge runs past the built-up shore to take in the outer harbor —
+  Georges Island and Fort Warren, Long, Spectacle and Thompson, and Little
+  Brewster with **Boston Light** on it, America's oldest light station (1716),
+  inside the city limits and reachable only by kayak or by air. It costs almost
+  no buildings; it is all ocean.
+
+**Revised payload expectation: ~45 MB raw / ~15 MB gzipped `world.json`.** Parse
+and heap scale linearly off the measurements above and stay fine; the
+**download** is the real cost, and it is the thing to re-measure on the real bake.
+
+**`heights.bin` is NOT a problem, despite looking like one.** The world is
+25.8 x 19.1 km, and at the fixed `SPACING = 64` px (8 m) grid that is a
+3257 x 2422 Int16 field = **~15 MB raw**, three times Gloucester's 5.11 MB. That
+looked like it needed a per-town spacing knob (16 m would cut it to 3.8 MB). It
+does not: terrain is smooth, so `heights.bin` **gzips 5.0-5.8x** (measured on
+Gloucester and Charlestown), which puts Boston at **~2.7 MB on the wire**. Keep
+the 8 m resolution — Beacon Hill and Bunker Hill are worth having. Do not
+re-derive this; the knob is not needed.
+
+## What the city exposed in the pipeline (fixed here, benefits every town)
+
+The first fetch came back clean — 236.1 MB, 415,588 elements (39,981 nodes /
+370,416 ways / 5,191 relations), no tile gaps (the low-yield tiles are all
+open-harbor ones). Auditing it against a list of Boston landmarks turned up
+three real pipeline faults, all of which a city is simply the first place to hit.
+
+1. **`build_world`'s POI dedupe was O(n²).** For every POI it scanned every POI
+   kept so far, calling `toLowerCase()` twice per comparison. At a town's few
+   hundred POIs that is invisible; a city has tens of thousands of *named* POIs
+   and it would have run for hours. Now bucketed by lowercased name — the only
+   candidates that can match — so it is linear and the rule is unchanged.
+   **Verified byte-identical on six towns**, with the dedupe path actually
+   firing on four of them.
+
+2. **Stadiums were not buildings.** OSM very often maps a stadium as a bare
+   `leisure=stadium` area with no `building` tag: **Fenway Park** is a
+   `type=multipolygon` relation tagged `leisure=stadium` + `amenity=music_venue`
+   and nothing else. It was therefore fetched by no query and, had it been
+   fetched, `polyKind()` would have dropped it and `buildingKind()` would have
+   called it a `house`. Boston without Fenway Park is not Boston. Now
+   `leisure=stadium`/`building=stadium` is fetched (way + relation) and treated
+   as a building, classified `civic`.
+   **Side effect, deliberate:** Charlestown's TD Garden (which carries
+   `building=stadium`, so it was already present) reclassifies `commercial` →
+   `civic` — right for an arena, which has no storefronts. That is **one
+   building of 4,885** and nothing else moves; Charlestown's shipped
+   `world.json` only changes if it is rebaked.
+
+3. **Light rail was missing.** Only `railway=rail` was fetched, so the Green
+   Line — which runs *at grade in the street* down the Commonwealth Ave and
+   Beacon St medians and along Huntington, plus the Mattapan streetcar — did not
+   exist. Now fetched. ⚠️ The Green Line's **central subway is also tagged
+   `railway=light_rail`**, just with `tunnel=yes`; drawing that would lay track
+   across the Common and down Tremont at grade. Guarded — the same lesson as the
+   buried highways: check the tunnel tag, never trust the class.
+
+4. **A walled place was reduced to a wall.** The `barrier=fence|hedge|wall`
+   branch ran BEFORE `polyKind()` and `continue`d unconditionally, so any AREA
+   that also carried a barrier tag lost its land cover, its name and its label
+   and survived only as a bare outline. That is how **Granary Burying Ground** —
+   Paul Revere, Sam Adams, John Hancock and the Boston Massacre dead — vanished
+   from Boston entirely: it is tagged `landuse=cemetery` AND `barrier=wall`, and
+   the wall won. It now draws the wall *and* falls through to build the place.
+   **This was erasing things in four of the six towns with raw data**: Charlestown
+   recovers **7 fenced ball fields and courts plus a playground** (Langone Little
+   League Field, Puopolo Athletic Field, the Prince Street tennis courts —
+   exactly the kid-life features the fast-travel recipe asks for), NBPT recovers
+   4 clarifier basins, Gloucester 5 and Salisbury 4. Amesbury and Ipswich are
+   byte-identical.
+
+5. **`fetch_boundaries.mjs` sent no HTTP headers at all**, so
+   overpass-api.de answered **406 Not Acceptable every single time** and the tool
+   has silently been riding its slower fallback endpoints (which rate-limit
+   harder) for its whole life. It now sends the same Content-Type / User-Agent /
+   Accept as `fetch_osm.mjs`, and the main endpoint answered first try. This is
+   not a Boston bug — **every town's border fetch was affected**.
+
+### Naming notes for curation (OSM spellings differ from the real names)
+
+- Old South Meeting House is **"Old South Meeting Place"** in OSM (and "Old
+  South Church" in Copley is a *different* building).
+- King's Chapel is **"Kings Chapel"**, no apostrophe.
+- The **Zakim** bridge and **Make Way for Ducklings** carry no name in the
+  fetched data (the Zakim's name lives on a `man_made=bridge` outline we do not
+  fetch). This does **not** block them: curated landmarks in `map.mjs` are
+  hand-authored `id/name/sub/x/y/r`, so they need no OSM name —
+  `landmark_candidates.mjs` only *helps* find them.
+- Confirmed present and correctly named: Faneuil Hall, Massachusetts State
+  House, Old North Church, Trinity Church, Old State House, Paul Revere House,
+  **Boston Light**, Quincy Market, Boston Public Library, Symphony Hall, Museum
+  of Fine Arts, Isabella Stewart Gardner Museum, Custom House Tower, Fort
+  Independence, Fort Warren, Castle Island, **the Citgo Sign**, Swan Boats,
+  Hatch Memorial Shell, Longfellow and Tobin bridges.
+
+### New tool: `tools/check_hero_names.mjs`
+
+Run it before adding ANY hero. `HEROES` is keyed by OSM building name and the
+renderer runs the builder on **every** footprint with that name — in a city that
+is a live hazard, not a hypothetical. It lists names on more than one footprint,
+with each footprint's area, because the tell is usually that one candidate is the
+landmark and the other is a garage.
+
+## Design intent (decided before the bake, to be anchored to real coords after)
+
+**Flight — from Logan.** Boston is the first town in the set with a real major
+airport in frame, runways and all. No invented airfield, no waterfront-apron
+compromise like Charlestown's: you take off from the real Logan. Pick the
+runway off the actual `aeroway` geometry once the world is built — 27 (west,
+straight at downtown) and 22L (southwest over the harbor) are both spectacular.
+
+**Races — the three that write themselves.** Boston's ladder is unusually easy
+because the routes are already famous:
+1. **Freedom Trail Dash** (~1 mi) — the Common to Faneuil Hall, past the State
+   House, Park Street, the Granary, King's Chapel, Old South, the Old State
+   House. The tourist route, run flat out.
+2. **Right on Hereford, Left on Boylston** (~2 mi) — the Boston Marathon's last
+   miles, Kenmore Square to the Copley finish line. The most famous stretch of
+   running road in America, and the turn names are the course name.
+3. **The Emerald Necklace** (~5 mi) — Olmsted's park chain, Common and Public
+   Garden out along the Comm Ave Mall to the Fens, the Riverway and Jamaica
+   Pond. The long one, almost entirely on grass and park path.
+
+**Spawn — the heart.** Faneuil Hall Marketplace, which is Boston's Market
+Square / Essex St Mall / Ellis Square: the central civic gathering place a local
+would take a visitor to first. (Make Way for Ducklings and the Swan Boats are
+the kid-heart, and both become landmarks — but the Public Garden is a
+destination, not the crossroads.)
+
+**Heroes.** Researched build specs live in `docs/research/boston-heroes.md` —
+**12 written so far**: Massachusetts State House, Trinity Church, Faneuil Hall,
+Fenway Park, Old North Church, Old State House, Custom House Tower, Quincy
+Market, Boston Public Library, the Citgo Sign, Boston Light, Paul Revere House.
+Each carries sources and the colour/material facts memory gets wrong (Trinity is
+grey Dedham granite with brown trim, not red; the State House's Bulfinch centre
+is red brick, sandblasted in 1928 specifically to prove it). Two notes that save
+work: **Paul Revere House should reuse `firstPeriod()`**, and **Bunker Hill
+Monument + USS Constitution are already built for Charlestown and sit inside
+Boston's frame, so they should render for free.**
+
+**borderLore — draft copy** (Boston has more neighbours in frame than any town in
+the set; the banner fires on the more specific `boundary=place` ring first, so
+Boston's own neighbourhoods — the North End, Back Bay, Southie — will announce
+themselves before any city line does):
+
+- **Cambridge** — "Across the river: Harvard, MIT, and more bookshops than bars."
+- **Somerville** — "Seven hills and Davis Square, packed in tight."
+- **Brookline** — "The town Boston grew all the way around, and never swallowed."
+- **Newton** — "Thirteen villages pretending to be one city."
+- **Watertown** — "Up the Charles, where the river stops being tidal."
+- **Chelsea** — "Small, steep and hard-working, right across the Mystic."
+- **Everett** — "Where the tankers and the casino share a shoreline."
+- **Revere** — "America's first public beach, three miles of it."
+- **Winthrop** — "A town on a sandbar, with the airport for a neighbour."
+- **Quincy** — "The City of Presidents, and the granite Boston is built from."
+- **Milton** — "Blue Hills at its back, the Neponset at its feet."
+- **Dedham** — "Older than most of Boston, and quietly proud of it."
+- **Needham** — "Out past the Charles, where the city finally gives up."
+
+## THE BAKE — what actually came out
+
+`npm run map:boston`, then `TOWN=boston node tools/fetch_heights.mjs`, then a
+rebuild to apply the height overlay.
+
+| | |
+|---|---|
+| buildings | **233,279** |
+| roads / paths | 49,432 / 73,207 |
+| addresses | 178,346 |
+| POIs / labels | 9,182 / 3,970 |
+| rails | 1,382 (incl. **288 surface light-rail** — the Green Line) |
+| polys | 13,638 |
+| welcome signs | 120 |
+| ocean | **one polygon, 187.37 km², 51 island holes** — built first try |
+| tunnels skipped | **127** (the Big Dig stayed buried) |
+| Logan | 12 runways, 148 taxiways, 8 windsocks |
+| Overture heights applied | **137,972 buildings** |
+
+### The projection held — the fork call was right
+
+| | projected (synthetic) | **measured (real bake)** |
+|---|---|---|
+| buildings | 119,414 | 233,279 |
+| `world.json` raw | 23.2 MB | **45.6 MB** |
+| gzipped | ~8 MB | **14.8 MB** |
+| `JSON.parse` | 65 ms | **133 ms** |
+| retained heap | 48 MB | **97 MB** |
+
+**Everything scaled linearly with building count. No cliff.** 133 ms of parse and
+97 MB of heap is why Boston needed no engine rewrite. `heights.bin` is 15.7 MB
+raw / **3.9 MB gzipped**, so a **first visit downloads ~18.7 MB** and repeat
+visits are ~0 through the service worker. That download is the real cost of a
+city, and it is the number to watch — not the parse.
+
+## What is DONE
+
+- ✅ 233k-building world, terrain, Overture heights, 64 boundary rings
+- ✅ **129 curated landmarks**, every coordinate boundary- AND dry-land-checked,
+  covering every neighbourhood plus the kid-life tier (6 neighbourhood skating
+  rinks, 10 playgrounds, the harbor beaches, Boston Light)
+- ✅ spawn = **Faneuil Hall**, `check_town_spawn.mjs` green
+- ✅ pack (`src/towns/boston/index.ts`), theme, 38 borderLore lines
+- ✅ **3 races** authored on the real road graph: Freedom Trail Dash (1.2 mi),
+  Right on Hereford Left on Boylston (2.2 mi), The Emerald Necklace (6.7 mi)
+- ✅ flight from **the real Logan, Runway 27**
+- ✅ own og-image (Boston Common, real in-game 1200×630), manifest
+- ✅ registered: `registry.ts`, `build:all`, `dev:boston`, launch.json :5309
+- ✅ **`npm run build:all` passes for all 12 towns**; `tsc --noEmit` clean
+- ✅ verified in-browser: loads, spawns at Faneuil Hall, ambient landmark banner
+  fires, street names resolve, fast-travel works (landed on **Lansdowne Street**
+  behind Fenway's brick wall)
+
+## HEROES — 13 built (first pass)
+
+New shared primitives a city needed and the North Shore never did, all in
+`src/three/decor.ts`: **`circRing`**, **`domeShell`** (stacked taper bands on a
+circular profile — the State House and Quincy Market domes), **`colonnade`**,
+**`spireStack`** (named that because `steeple` was already taken by the NBPT
+church builder), **`glassTower`**, and **`FT`** (feet → world px) so every real
+dimension from the research doc is used directly.
+
+Built and registered: **Massachusetts State House · Faneuil Hall · Quincy Market
+· Old North Church · Old State House · Trinity Church · Custom House Tower ·
+Fenway Park · Boston Light · Paul Revere House** (reuses `firstPeriod()`) **·
+Prudential Tower · 200 Clarendon**.
+
+### Verified
+
+- **Faneuil Hall — visually confirmed**: brick, shallow slate gable, cupola at
+  the EAST end with the gilded grasshopper. Built **87 ft** (real ~80 ft).
+- **Massachusetts State House — gold dome confirmed** by geometry audit: gold is
+  the topmost material (y 521) above marble (479) above the brick core (311).
+- **Custom House Tower — 514 ft built vs 496 ft real** (within 4%).
+- **Quincy Market — 109 ft** with its rotunda.
+
+### Two traps this pass found, both worth not rediscovering
+
+1. **`gableRoof`'s `ridgeH` is the ridge RISE ABOVE THE EAVE, not an absolute Y.**
+   Every existing call site passes 6-9; passing an absolute height built barns
+   twice the height of the building. It hit **five** heroes at once.
+2. **`frontSegment()` is wrong for a building that fronts on four streets** — it
+   picked a back street for the State House and buried the red brick Bulfinch
+   front behind the pale extensions. That hero now takes whichever long face
+   points south, toward Beacon Street and the Common, which is a documented fact
+   about the building rather than a guess.
+   Also: OSM renamed the Hancock to **`200 Clarendon`** in 2015 —
+   `'John Hancock Tower'` matches **0** footprints and is deliberately not a key.
+
+### Hero polish still open
+
+- the State House's marble extensions are still a large plain mass; the colossal
+  columns read weakly at distance
+- Faneuil Hall's cupola reads as a drum rather than an open belfry; its pilasters
+  are too thin to see
+- **not yet looked at in-game**: Trinity, Old North, Old State House, Fenway,
+  Boston Light, the two towers (Custom House and Quincy were verified
+  dimensionally, not visually). ⚠️ Distant portraits are useless — engine fog
+  hides anything past ~1500 px, so heroes must be inspected close up.
+- ~30-45 more heroes to reach the 40-60 the accuracy bar implies
+
+## Still open
+- [ ] races not yet run end-to-end in-game (authored + typechecked, not ridden)
+- [ ] flight not yet flown from Logan in-game
+- [ ] `tools/fetch_osm_pbf.mjs` is UNVERIFIED — verify or delete
+- [ ] ⚠️ **`data/boston/raw/overpass.json` (240 MB) is gitignored** — GitHub
+      hard-rejects >100 MB. Unlike every other town, Boston's raw is not in the
+      repo; `npm run map:boston` regenerates it (~25 min). The built
+      `world.json` IS committed, so nothing about the game depends on it.
+- [ ] ⚠️ **repo weight**: Boston's committed `world.json` is 46 MB, and every
+      future rebake adds another 46 MB blob to git history forever. Worth
+      considering Git LFS before Boston is rebaked many times.

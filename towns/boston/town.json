@@ -1,0 +1,41 @@
+{
+  "id": "boston",
+  "name": "Boston",
+  "worldName": "Boston, Massachusetts",
+  "title": "Boston",
+  "tag": "The Hub",
+  "emoji": "🦆",
+  "path": "/boston/",
+  "savePrefix": "boston:",
+  "pxPerMeter": 8,
+  "origin": { "lat": 42.3564, "lon": -71.0624 },
+  "bbox": { "s": 42.227, "w": -71.193, "n": 42.399, "e": -70.88 },
+  "spawn": { "landmark": "faneuil-hall", "dx": 0, "dz": 0 },
+  "boundaries": { "includePlaces": true },
+  "branding": {
+    "htmlTitle": "Boston — walk the real map of Boston in 3D",
+    "appleTitle": "Boston",
+    "themeColor": "#2f3c34",
+    "bgTop": "#41544733",
+    "bgBottom": "#131b16",
+    "ruleColor": "#c8a44a",
+    "description": "A cozy, all-ages 3D walk through the exact map of Boston. Cross the Common, climb Beacon Hill, walk the Freedom Trail — and find your own street.",
+    "ogSiteName": "Boston in 3D",
+    "ogDescription": "A cozy, all-ages 3D walk through the real map of Boston. The Common, the North End, Fenway and the harbor — find your own street.",
+    "ogUrl": "https://clippertown.io/boston/",
+    "ogImage": "https://clippertown.io/boston/og-image.jpg",
+    "ogImageType": "image/jpeg",
+    "ogImageAlt": "A 3D voxel view of Boston Common and the State House dome",
+    "twitterDescription": "Walk the real map of Boston — find your own street.",
+    "loadingTitle": "BOSTON",
+    "loadingSub": "Exploring Boston, Massachusetts"
+  },
+  "storageSeeds": {
+    "nbpt-bike": "1",
+    "nbpt-kayak": "1",
+    "nbpt-seasons-rewarded": "1"
+  },
+  "storageSeedIfUnset": {
+    "nbpt-season": "summer"
+  }
+}

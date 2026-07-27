@@ -5857,9 +5857,470 @@ function musterHouse(buckets: Bucket[], b: Building, g: number) {
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// BOSTON
+//
+// A city needs shapes the North Shore never did: a real dome, a tall spire, a
+// colonnade, a skyscraper. Those live here as shared primitives so the heroes
+// below stay short and readable.
+//
+// Scale: FT converts feet to world px (8 px = 1 m), which is how every real
+// dimension in the specs (docs/research/boston-heroes.md) gets used directly.
+//
+// ⚠️ Granite, marble and anything pale goes in the PLAIN bucket, NEVER BRICK:
+// brickTex() bakes RED brick into the texture and the vertex colour MULTIPLIES
+// it, so grey handed to BRICK comes out dark reddish-brown. Same trap the
+// Bunker Hill Monument documents above.
+// ──────────────────────────────────────────────────────────────────────────
+const FT = 0.3048 * 8;                       // feet → world px
+
+function circRing(cx: number, cz: number, r: number, n = 16): number[] {
+  const ring: number[] = [];
+  for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; ring.push(cx + Math.cos(a) * r, cz + Math.sin(a) * r); }
+  return ring;
+}
+
+// A dome as a stack of taper bands following a circular profile. `segs` bands up,
+// `n`-gon around. Returns the apex height so a lantern/finial can sit on it.
+function domeShell(bk: Bucket, cx: number, cz: number, r: number, y0: number, h: number, hex: string, segs = 7, n = 20): number {
+  let lo = circRing(cx, cz, r, n), ly = y0;
+  for (let i = 1; i <= segs; i++) {
+    const t = i / segs;
+    const rr = r * Math.cos(t * Math.PI / 2);          // circular profile
+    const yy = y0 + h * Math.sin(t * Math.PI / 2);
+    const hi = circRing(cx, cz, Math.max(rr, r * 0.06), n);
+    taperBand(bk, lo, hi, ly, yy, hex, 0);
+    lo = hi; ly = yy;
+  }
+  flatRoof(bk, lo, ly, hex);
+  return ly;
+}
+
+// A row of free-standing columns along one local face of an OBB.
+function colonnade(bk: Bucket, obb: OBB, atLz: number, fromLx: number, toLx: number, count: number,
+                   y0: number, y1: number, rad: number, hex: string) {
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  for (let i = 0; i < count; i++) {
+    const lx = count === 1 ? (fromLx + toLx) / 2 : fromLx + (toLx - fromLx) * (i / (count - 1));
+    const x = obb.cx + lx * ca - atLz * sa, z = obb.cz + lx * sa + atLz * ca;
+    bk.box(x, z, rad, rad, y0, y1, hex, 0);                       // shaft
+    bk.box(x, z, rad * 1.45, rad * 1.45, y1, y1 + rad * 1.1, hex, 0);   // capital
+    bk.box(x, z, rad * 1.35, rad * 1.35, y0 - 1, y0 + rad * 0.8, hex, 0); // base
+  }
+}
+
+// A tapering steeple: square tiers, then a slender spire to `topY`, then a vane.
+// (Named spireStack because `steeple` is already taken by the NBPT church builder.)
+function spireStack(bk: Bucket, cx: number, cz: number, halfW: number, y0: number, topY: number,
+                    hex: string, vaneBk?: Bucket, vaneHex = '#d9b03c') {
+  const tiers = 3;
+  let w = halfW, y = y0;
+  const tierH = (topY - y0) * 0.42 / tiers;
+  for (let i = 0; i < tiers; i++) {
+    const w2 = w * 0.82;
+    taperBand(bk, circRing(cx, cz, w, 4), circRing(cx, cz, w2, 4), y, y + tierH, hex, 0);
+    y += tierH; w = w2;
+    bk.box(cx, cz, w * 1.24, w * 1.24, y, y + 1.6, hex, 0);        // cornice between tiers
+    y += 1.6;
+  }
+  // the spire proper — an octagonal needle
+  taperBand(bk, circRing(cx, cz, w, 8), circRing(cx, cz, w * 0.08, 8), y, topY, hex, 0);
+  if (vaneBk) {
+    vaneBk.box(cx, cz, 0.7, 0.7, topY, topY + 9, vaneHex, 0);      // the rod
+    vaneBk.box(cx, cz, 3.2, 0.45, topY + 6, topY + 8.4, vaneHex, 0); // the vane
+  }
+}
+
+// ── Massachusetts State House ─────────────────────────────────────────────
+// Bulfinch, 1798. RED BRICK centre (sandblasted in 1928 specifically to restore
+// it), colossal white columns over an arcaded ground storey, and the gold dome —
+// gilded 1874, topped by the gilded wooden pine cone for the lumber trade and
+// for Maine. The later flanking wings are white marble, so the mass reads as a
+// red centre between pale wings.
+function massStateHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl, W = obb.hw;
+  // NOT frontSegment(): the complex fronts on four streets and the generic
+  // street test picks Bowdoin or Derne at the back, which buries the red brick
+  // behind the pale extensions. Bulfinch's front demonstrably faces SOUTH, down
+  // Beacon Street onto the Common — so take whichever long face points south
+  // (+z world). The +lz direction is (-sa, ca), so its z-component is ca.
+  const front = ca >= 0 ? 1 : -1;
+  const BRICKRED = '#9c4534', MARBLE = '#e8e4d8', GOLD = '#d4a72c';
+
+  // The OSM footprint is the WHOLE complex — Bulfinch's 1798 building plus the
+  // far larger 1895/1917 extensions behind it. Bulfinch's front is only the
+  // central third, and it sits ON THE FRONT EDGE facing Beacon Street and the
+  // Common; the extensions run back behind it. Building it centred in depth
+  // buries the red brick inside a pale slab, which is not the State House.
+  const coreL = L * 0.34;
+  const coreD = W * 0.72;                       // depth of the Bulfinch block
+  const eave = g + 38 * FT;                     // wings kept LOW so the centre reads
+  walls(buckets[PLAIN], b.p, g - 3, eave, MARBLE, 0);
+  flatRoof(buckets[PLAIN], b.p, eave, '#c9c4b6');
+  // cornice + a base course, so the extensions are not one blank slab
+  walls(buckets[PLAIN], b.p, eave - 3.4, eave - 1.2, '#d8d4c6', 0);
+  walls(buckets[PLAIN], b.p, g - 3, g + 9, '#d2cec0', 0);
+
+  const lzFar = front * W, lzNear = front * (W - coreD);
+  const ring: number[] = [];
+  for (const [lx, lz] of [[-coreL, lzNear], [coreL, lzNear], [coreL, lzFar], [-coreL, lzFar]] as const)
+    ring.push(obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca);
+  const coreTop = g + 70 * FT;
+  walls(buckets[BRICK], ring, g - 3, coreTop, BRICKRED);
+  flatRoof(buckets[PLAIN], ring, coreTop, '#b9b3a4');
+  // the dome sits on the Bulfinch block, not on the middle of the complex
+  const dlz = front * (W - coreD * 0.55);
+  const dcx0 = obb.cx - dlz * sa, dcz0 = obb.cz + dlz * ca;
+
+  // colossal white columns across the front, over an arcaded base
+  colonnade(buckets[PLAIN], obb, front * (W + 2.5), -coreL * 0.78, coreL * 0.78, 8,
+    g + 20 * FT, g + 50 * FT, 2.6, MARBLE);
+  // entablature the columns carry
+  const ent: number[] = [];
+  for (const [lx, lz] of [[-coreL * 0.95, front * (W - 1)], [coreL * 0.95, front * (W - 1)],
+                          [coreL * 0.95, front * (W + 6)], [-coreL * 0.95, front * (W + 6)]] as const)
+    ent.push(obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca);
+  walls(buckets[PLAIN], ent, g + 50 * FT, g + 56 * FT, MARBLE, 0);
+  flatRoof(buckets[PLAIN], ent, g + 56 * FT, '#d6d1c2');
+
+  // ── the dome ──
+  const dr = Math.min(coreL * 0.72, 30 * FT);      // the real dome is ~50 ft across
+  const dcx = dcx0, dcz = dcz0;                    // centred on the Bulfinch block
+  const drumY = coreTop, drumTop = drumY + 24 * FT;   // a tall drum lifts the dome clear of the 1917 extensions
+  walls(buckets[PLAIN], circRing(dcx, dcz, dr * 1.16, 20), drumY - 2, drumTop, MARBLE, 0);   // drum
+  const apex = domeShell(buckets[PLAIN], dcx, dcz, dr, drumTop, 34 * FT, GOLD, 8, 20);
+  // lantern + the gilded pine cone
+  walls(buckets[PLAIN], circRing(dcx, dcz, dr * 0.2, 12), apex, apex + 9 * FT, MARBLE, 0);
+  domeShell(buckets[PLAIN], dcx, dcz, dr * 0.2, apex + 9 * FT, 5 * FT, GOLD, 4, 12);
+  buckets[PLAIN].box(dcx, dcz, 1.5, 1.5, apex + 14 * FT, apex + 17 * FT, GOLD, 0);
+  cone(buckets[PLAIN], dcx, apex + 17 * FT, dcz, 2.4, 6 * FT, new THREE.Color(GOLD));        // pine cone
+}
+
+// ── Faneuil Hall ──────────────────────────────────────────────────────────
+// Smibert 1742, doubled by Bulfinch 1805-06. Red brick, four storeys with the
+// attic, pilastered bays, slate GABLE roof — and the cupola at the EAST end,
+// where Bulfinch moved it, with Shem Drowne's gilded grasshopper on top. The
+// off-centre cupola is what makes it Faneuil Hall and not a brick hall.
+function faneuilHall(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl, W = obb.hw;
+  const BRICKRED = '#9a4a38', TRIM = '#efe9da';
+  const eave = g + 46 * FT;
+  walls(buckets[BRICK], b.p, g - 3, eave, BRICKRED);
+  // ⚠️ gableRoof's `ridgeH` is the ridge RISE ABOVE THE EAVE, not an absolute Y
+  // (every other call site passes 6-9). Passing an absolute height here builds a
+  // barn twice the height of the building.
+  const ridgeRise = Math.min(W * 0.30, 30);
+  gableRoof(buckets[SHINGLE], buckets[BRICK], b.p, obb, eave, ridgeRise, 1.5, '#4a4d52', BRICKRED);
+  // pilaster strips down the long faces — Bulfinch matched the third storey to
+  // the two below, so run them full height
+  const pil = (lx: number, s: number) => {
+    const lz = s * (W + 0.6);
+    rotBox(buckets[PLAIN], obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca, 1.3, 0.5,
+      g + 10, eave - 1, obb.ang, TRIM);
+  };
+  for (const s of [1, -1] as const) for (let i = 0; i <= 6; i++) pil(-L * 0.86 + (L * 1.72) * (i / 6), s);
+  // string course under the eaves
+  walls(buckets[PLAIN], b.p, eave - 3.2, eave - 1.4, TRIM, 0);
+
+  // ── the cupola, at the EAST end of the ridge ──
+  // "East" here = whichever end of the long axis faces further east in world x.
+  const endSign = (ca >= 0) ? 1 : -1;
+  const clx = endSign * L * 0.62;
+  const cx = obb.cx + clx * ca, cz = obb.cz + clx * sa;
+  const ridge = eave + ridgeRise;
+  const base = ridge + 1;
+  const cw = Math.max(7, W * 0.13);                                     // scale the cupola to the hall
+  walls(buckets[PLAIN], circRing(cx, cz, cw, 4), base, base + 8 * FT, TRIM, 0);          // square stage
+  flatRoof(buckets[PLAIN], circRing(cx, cz, cw * 1.15, 4), base + 8 * FT, '#d8d2c2');
+  // belfry — open octagon (1867 bell inside)
+  walls(buckets[PLAIN], circRing(cx, cz, cw * 0.8, 8), base + 8 * FT, base + 18 * FT, TRIM, 0);
+  domeShell(buckets[PLAIN], cx, cz, cw * 0.8, base + 18 * FT, 5 * FT, '#c9ccd2', 5, 12);   // the belfry dome
+  // the grasshopper: gilded copper, the only unmodified 1742 piece
+  buckets[PLAIN].box(cx, cz, 0.5, 0.5, base + 23 * FT, base + 27 * FT, '#d9b03c', 0);
+  buckets[GLOW].box(cx, cz, 2.6, 0.6, base + 26 * FT, base + 27.6 * FT, '#e8c24a', 0);
+}
+
+// ── Quincy Market ─────────────────────────────────────────────────────────
+// Alexander Parris, 1826. A 535 x 50 ft granite rectangle with a DOMED ROTUNDA
+// in the middle and monumental porticos at BOTH ends. The proportion — very long,
+// very narrow — is the whole silhouette. Granite columns carved in one piece.
+function quincyMarket(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const L = obb.hl, W = obb.hw;
+  const GRANITE = '#c3bfb4';
+  const eave = g + 32 * FT;
+  walls(buckets[PLAIN], b.p, g - 3, eave, GRANITE, 0);
+  gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, eave, Math.min(W * 0.30, 24), 1.2, '#6e7176', GRANITE);
+  // porticos at both ends — four columns each, carrying a pediment block
+  for (const s of [1, -1] as const) {
+    colonnade(buckets[PLAIN], obb, 0, s * L * 0.995, s * L * 0.995, 1, g, g + 30 * FT, 3.0, GRANITE); // centre pair spacing handled below
+    for (let i = 0; i < 4; i++) {
+      const lz = -W * 0.62 + (W * 1.24) * (i / 3);
+      colonnade(buckets[PLAIN], obb, lz, s * (L + 5), s * (L + 5), 1, g, g + 30 * FT, 2.8, GRANITE);
+    }
+  }
+  // ── the rotunda ──
+  const dr = Math.min(W * 1.5, 26 * FT);
+  const drumY = eave + Math.min(W * 0.7, 12 * FT) - 2;
+  walls(buckets[PLAIN], circRing(obb.cx, obb.cz, dr, 20), drumY, drumY + 12 * FT, GRANITE, 0);
+  const apex = domeShell(buckets[PLAIN], obb.cx, obb.cz, dr, drumY + 12 * FT, 22 * FT, '#a8aab0', 7, 20);
+  walls(buckets[PLAIN], circRing(obb.cx, obb.cz, dr * 0.22, 10), apex, apex + 7 * FT, GRANITE, 0);
+  domeShell(buckets[PLAIN], obb.cx, obb.cz, dr * 0.22, apex + 7 * FT, 4 * FT, '#a8aab0', 4, 10);
+}
+
+// ── Old North Church ──────────────────────────────────────────────────────
+// Christ Church, 1723. Georgian, Wren-influenced: brick tower to the WEST, nave,
+// apse east. 191 ft to the top — it should read from Charlestown, as it did on
+// the night. Gilded Shem Drowne weathervane, same hand as Faneuil Hall's
+// grasshopper.
+function oldNorthChurch(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl, W = obb.hw;
+  const BRICKRED = '#9d5140', WHITE = '#f2eee2';
+  const eave = g + 34 * FT;
+  walls(buckets[BRICK], b.p, g - 3, eave, BRICKRED);
+  gableRoof(buckets[SHINGLE], buckets[BRICK], b.p, obb, eave, Math.min(W * 0.34, 24), 1.4, '#54585e', BRICKRED);
+  // arched Georgian windows down both flanks
+  tmp.set('#e9e4d2'); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  for (const s of [1, -1] as const) for (let i = 0; i < 5; i++) {
+    const lx = -L * 0.62 + (L * 1.24) * (i / 4), lz = s * (W + 0.5);
+    const x = obb.cx + lx * ca - lz * sa, z = obb.cz + lx * sa + lz * ca;
+    rotBox(buckets[GLOW], x, z, 2.0, 0.35, g + 13, g + 30, obb.ang, '#cfd6df');
+    void wr; void wg; void wb;
+  }
+  // ── the tower, at the WEST end ──
+  const endSign = (ca >= 0) ? -1 : 1;                 // west end of the long axis
+  const tlx = endSign * L * 0.86;
+  const tx = obb.cx + tlx * ca, tz = obb.cz + tlx * sa;
+  const tw = Math.min(W * 0.82, 11);
+  const towerTop = g + 90 * FT;
+  walls(buckets[BRICK], circRing(tx, tz, tw, 4), g - 3, towerTop, BRICKRED);
+  walls(buckets[PLAIN], circRing(tx, tz, tw * 1.1, 4), towerTop - 2.5, towerTop + 1.5, WHITE, 0);
+  // the white wooden spire to 191 ft, with the gilded vane on top
+  spireStack(buckets[PLAIN], tx, tz, tw * 0.86, towerTop + 1.5, g + 191 * FT, WHITE, buckets[GLOW], '#e0bb4a');
+}
+
+// ── Old State House ───────────────────────────────────────────────────────
+// 1713 — the oldest surviving public building in Boston, and the oldest Georgian
+// public building in America. Red brick with white trim (the 1909 "red and white
+// work"), the BALCONY the Declaration was read from on 18 July 1776, and the
+// gilded LION and white UNICORN on the east gable. Those two figures are the
+// whole identification.
+function oldStateHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl, W = obb.hw;
+  const BRICKRED = '#9b4a37', WHITE = '#f0ece0';
+  const eave = g + 38 * FT;
+  walls(buckets[BRICK], b.p, g - 3, eave, BRICKRED);
+  const ridgeRise = Math.min(W * 0.34, 22), ridge = eave + ridgeRise;
+  gableRoof(buckets[SHINGLE], buckets[BRICK], b.p, obb, eave, ridgeRise, 1.3, '#4e5157', BRICKRED);
+  walls(buckets[PLAIN], b.p, eave - 3, eave - 1.2, WHITE, 0);         // cornice
+
+  // east gable end: balcony + lion and unicorn
+  const eSign = (ca >= 0) ? 1 : -1;
+  const elx = eSign * (L + 1.2);
+  const ex = obb.cx + elx * ca, ez = obb.cz + elx * sa;
+  rotBox(buckets[PLAIN], ex, ez, 0.8, W * 0.5, g + 24, g + 26.5, obb.ang, WHITE);   // balcony floor
+  rotBox(buckets[PLAIN], ex, ez, 0.5, W * 0.5, g + 26.5, g + 31, obb.ang, WHITE);   // balustrade
+  // the two figures, on the gable corners
+  const fig = (side: number, hex: string) => {
+    const lz = side * W * 0.72;
+    const fx = obb.cx + (eSign * L * 0.86) * ca - lz * sa, fz = obb.cz + (eSign * L * 0.86) * sa + lz * ca;
+    buckets[PLAIN].box(fx, fz, 1.5, 1.5, ridge + 1, ridge + 4, WHITE, 0);           // plinth
+    buckets[GLOW].box(fx, fz, 1.7, 1.1, ridge + 4, ridge + 10, hex, 0);             // the beast
+    buckets[GLOW].box(fx, fz, 0.9, 0.9, ridge + 10, ridge + 13, hex, 0);            // head/horn
+  };
+  fig(1, '#d4a72c');      // gilded lion (England)
+  fig(-1, '#f4f1e6');     // white unicorn (Scotland)
+
+  // west tower and cupola
+  const wlx = -eSign * L * 0.7;
+  const wx = obb.cx + wlx * ca, wz = obb.cz + wlx * sa;
+  const tw = Math.min(W * 0.55, 7);
+  walls(buckets[PLAIN], circRing(wx, wz, tw, 4), ridge - 2, ridge + 12 * FT, WHITE, 0);
+  walls(buckets[PLAIN], circRing(wx, wz, tw * 0.78, 8), ridge + 12 * FT, ridge + 20 * FT, WHITE, 0);
+  const cap = domeShell(buckets[PLAIN], wx, wz, tw * 0.78, ridge + 20 * FT, 6 * FT, '#c9ccd2', 5, 10);
+  buckets[PLAIN].box(wx, wz, 0.5, 0.5, cap, cap + 7, '#d9b03c', 0);
+}
+
+// ── Trinity Church, Copley Square ─────────────────────────────────────────
+// H. H. Richardson, 1877 — the birthplace of Richardsonian Romanesque. Walls are
+// rough-faced tannish-GREY Dedham granite in random ashlar; the trim is dark
+// red-brown BROWNSTONE, framing every opening and running as horizontal stripes.
+// That polychrome contrast IS the style. Massive 211 ft central tower on a
+// modified Greek-cross plan, clay tile roof.
+function trinityChurch(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const L = obb.hl, W = obb.hw;
+  const GRANITE = '#a9a496', BROWN = '#7d4a38', TILE = '#8d4f3a';
+  const eave = g + 52 * FT;
+  walls(buckets[PLAIN], b.p, g - 3, eave, GRANITE, 0);
+  // the brownstone banding — the single most identifying detail
+  for (const y of [g + 12 * FT, g + 24 * FT, g + 36 * FT, g + 47 * FT])
+    walls(buckets[PLAIN], b.p, y, y + 2.6, BROWN, 0);
+  gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, eave, Math.min(W * 0.26, 26), 2.0, TILE, GRANITE);
+
+  // heavy round-arched openings, brownstone-framed
+  const obb2 = obb, ca = Math.cos(obb2.ang), sa = Math.sin(obb2.ang);
+  for (const s of [1, -1] as const) for (let i = 0; i < 4; i++) {
+    const lx = -L * 0.6 + (L * 1.2) * (i / 3), lz = s * (W + 0.5);
+    const x = obb2.cx + lx * ca - lz * sa, z = obb2.cz + lx * sa + lz * ca;
+    rotBox(buckets[PLAIN], x, z, 3.0, 0.5, g + 16, g + 20, obb2.ang, BROWN);
+    rotBox(buckets[GLOW], x, z, 2.4, 0.35, g + 20, g + 40, obb2.ang, '#4a5570');
+    roundArch(buckets[PLAIN], x, z, ca, sa, -sa * s, ca * s, 2.9, g + 40, g + 46, BROWN);
+  }
+
+  // ── the central tower, 211 ft, on the crossing ──
+  const tw = Math.min(L, W) * 0.72;
+  const tTop = g + 190 * FT;
+  walls(buckets[PLAIN], circRing(obb.cx, obb.cz, tw, 4), g - 3, tTop, GRANITE, 0);
+  for (const y of [g + 70 * FT, g + 100 * FT, g + 130 * FT, g + 160 * FT])
+    walls(buckets[PLAIN], circRing(obb.cx, obb.cz, tw * 1.03, 4), y, y + 3.2, BROWN, 0);
+  // corner turrets + a low pyramid cap, as at Salamanca
+  for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) {
+    const x = obb.cx + (sx * tw) * ca - (sz * tw) * sa, z = obb.cz + (sx * tw) * sa + (sz * tw) * ca;
+    walls(buckets[PLAIN], circRing(x, z, tw * 0.2, 8), tTop - 26 * FT, tTop + 10 * FT, GRANITE, 0);
+    cone(buckets[PLAIN], x, tTop + 10 * FT, z, tw * 0.22, 9 * FT, new THREE.Color(TILE));
+  }
+  flatRoof(buckets[PLAIN], circRing(obb.cx, obb.cz, tw, 4), tTop, BROWN);
+  cone(buckets[SHINGLE], obb.cx, tTop, obb.cz, tw * 1.28, 21 * FT, new THREE.Color(TILE));
+}
+
+// ── Custom House Tower ────────────────────────────────────────────────────
+// Two buildings in one, and the model has to show the seam: Ammi Young's 1847
+// cruciform GREEK REVIVAL granite temple (36 fluted Doric columns, each from a
+// single piece of Quincy granite), with Peabody & Stearns' 496 ft tower driven
+// straight down through its middle in 1913-15. Boston's tallest from 1915 to
+// 1964. Four 22 ft clock faces near the top.
+function customHouseTower(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl, W = obb.hw;
+  const GRANITE = '#bab5a9';
+  // ── the temple base ──
+  const baseTop = g + 68 * FT;
+  walls(buckets[PLAIN], b.p, g - 3, baseTop, GRANITE, 0);
+  flatRoof(buckets[PLAIN], b.p, baseTop, '#9d988c');
+  // Doric colonnades on all four sides
+  colonnade(buckets[PLAIN], obb, W + 3, -L * 0.8, L * 0.8, 8, g, baseTop - 8 * FT, 2.7, GRANITE);
+  colonnade(buckets[PLAIN], obb, -(W + 3), -L * 0.8, L * 0.8, 8, g, baseTop - 8 * FT, 2.7, GRANITE);
+
+  // ── the tower ──
+  const tw = Math.min(L, W) * 0.52;
+  const shaftTop = g + 400 * FT;
+  walls(buckets[PLAIN], circRing(obb.cx, obb.cz, tw, 4), baseTop - 4, shaftTop, GRANITE, 0);
+  // clock stage — four faces, 22 ft across
+  const clockY = shaftTop + 6 * FT, cr = 11 * FT;
+  walls(buckets[PLAIN], circRing(obb.cx, obb.cz, tw * 1.08, 4), shaftTop, shaftTop + 34 * FT, GRANITE, 0);
+  for (const [al, aw] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    const fl = al * (tw * 1.08 + 0.8), fw = aw * (tw * 1.08 + 0.8);
+    const x = obb.cx + fl * ca - fw * sa, z = obb.cz + fl * sa + fw * ca;
+    const nx = al * ca - aw * sa, nz = al * sa + aw * ca;
+    octoCanopy(buckets[GLOW], x + nx * 0.3, clockY + cr * 0.55, z + nz * 0.3, cr * 0.62, new THREE.Color('#efe7cf'));
+  }
+  // stepped pyramidal crown
+  const crownY = shaftTop + 34 * FT;
+  taperBand(buckets[PLAIN], circRing(obb.cx, obb.cz, tw * 1.08, 4), circRing(obb.cx, obb.cz, tw * 0.55, 4),
+    crownY, crownY + 30 * FT, GRANITE, 0);
+  cone(buckets[PLAIN], obb.cx, crownY + 30 * FT, obb.cz, tw * 0.6, 32 * FT, new THREE.Color('#9d988c'));
+}
+
+// ── Fenway Park ───────────────────────────────────────────────────────────
+// 1912. Only reachable at all because of the leisure=stadium fix — it is a
+// multipolygon relation with no building tag. The GREEN MONSTER is the point:
+// 37 ft 2 in, the tallest wall in baseball, Dartmouth Green since 1947, with the
+// manual scoreboard set into it. Wood, then tin and concrete, then hard plastic —
+// so it renders as a smooth flat plane, not masonry.
+function fenwayPark(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl, W = obb.hw;
+  const BRICKRED = '#8f4a3a', MONSTER = '#2f5d3a', DECK = '#7d8288';
+  // the outer shell along the streets
+  walls(buckets[BRICK], b.p, g - 3, g + 34 * FT, BRICKRED);
+  flatRoof(buckets[PLAIN], b.p, g + 34 * FT, DECK);
+  // the field: grass inside the shell
+  const inner: number[] = [];
+  for (const [lx, lz] of [[-L * 0.8, -W * 0.8], [L * 0.8, -W * 0.8], [L * 0.8, W * 0.8], [-L * 0.8, W * 0.8]] as const)
+    inner.push(obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca);
+  flatRoof(buckets[PLAIN], inner, g + 1, '#4e7a3f');
+  // ── the Green Monster: 37 ft 2 in, along one end ──
+  const mlx = -L * 0.82;
+  const mx = obb.cx + mlx * ca, mz = obb.cz + mlx * sa;
+  rotBox(buckets[PLAIN], mx, mz, 1.6, W * 0.8, g, g + 37.17 * FT, obb.ang, MONSTER);
+  // the manual scoreboard, set INTO the wall low down
+  const slz = -W * 0.2;
+  const sx = obb.cx + (mlx + 2.2) * ca - slz * sa, sz = obb.cz + (mlx + 2.2) * sa + slz * ca;
+  rotBox(buckets[GLOW], sx, sz, 0.4, W * 0.3, g + 6, g + 16, obb.ang, '#16281c');
+  // light towers on the roof
+  for (const [lx, lz] of [[-L * 0.5, W * 0.85], [L * 0.2, W * 0.85], [-L * 0.5, -W * 0.85], [L * 0.35, -W * 0.85]] as const) {
+    const x = obb.cx + lx * ca - lz * sa, z = obb.cz + lx * sa + lz * ca;
+    buckets[PLAIN].box(x, z, 1.1, 1.1, g + 34 * FT, g + 60 * FT, '#5c6167', 0);
+    buckets[GLOW].box(x, z, 4.2, 1.2, g + 58 * FT, g + 62 * FT, '#fdf6d8', 0);
+  }
+}
+
+// ── Boston Light ──────────────────────────────────────────────────────────
+// Little Brewster Island, first lit 1716 — the FIRST lighthouse built in what is
+// now the United States, and the last in America to keep a Coast Guard keeper.
+// 89 ft of rough-cut stone, whitewashed.
+function bostonLight(buckets: Bucket[], b: Building, g: number) {
+  const [cx, cz] = centroidOf(b.p);
+  const WHITE = '#f4f1e8';
+  const r = 7.5;
+  taperBand(buckets[PLAIN], circRing(cx, cz, r * 1.25, 16), circRing(cx, cz, r, 16), g - 4, g + 12, '#dcd8cc', 0);
+  taperBand(buckets[PLAIN], circRing(cx, cz, r, 16), circRing(cx, cz, r * 0.74, 16), g + 12, g + 78 * FT, WHITE, 0);
+  walls(buckets[PLAIN], circRing(cx, cz, r * 0.92, 16), g + 78 * FT, g + 82 * FT, '#3a3f45', 0);   // gallery
+  walls(buckets[GLOW], circRing(cx, cz, r * 0.62, 12), g + 82 * FT, g + 89 * FT, '#fdf3cf', 0);    // the light
+  cone(buckets[PLAIN], cx, g + 89 * FT, cz, r * 0.66, 9, new THREE.Color('#2d3238'));
+}
+
+// ── the modern skyline ────────────────────────────────────────────────────
+// 200 Clarendon (John Hancock Tower): 60 storeys, 790 ft, still the tallest in
+// New England. Cobb/I.M. Pei, 1976. A minimal MIRRORED BLUE glass skin with no
+// expressed structure, on a slender RHOMBOID plan — the thin rhomboid and the
+// blue mirror are the entire building.
+// Prudential Tower: 1964, 52 storeys, 749 ft — a much blockier pale slab. The
+// pair reads as thin blue mirror beside fat pale slab.
+function glassTower(buckets: Bucket[], b: Building, g: number, o: { ft: number; glass: string; band: string; bandEvery?: number }) {
+  const obb = obbOf(b.p);
+  const top = g + o.ft * FT;
+  walls(buckets[GLOW], b.p, g - 3, top, o.glass, 0);
+  const every = o.bandEvery ?? 40;
+  for (let y = g + every * FT; y < top - 6; y += every * FT)
+    walls(buckets[PLAIN], b.p, y, y + 2.2, o.band, 0);
+  flatRoof(buckets[PLAIN], b.p, top, o.band);
+  roofClutter(buckets, b.p, top, Math.round(obb.cx), ringAreaM2(b.p), false);
+}
+
 const HEROES: Record<string, HeroBuilder> = {
   // Both towns' heroes coexist here — entries are keyed by unique OSM building
   // names, so only the loaded town's world.json ever matches its own set.
+  // ── BOSTON ──
+  'Massachusetts State House': massStateHouse,
+  'Faneuil Hall': faneuilHall,
+  'Quincy Market': quincyMarket,
+  'Old North Church': oldNorthChurch,
+  'Old State House': oldStateHouse,
+  'Trinity Church': trinityChurch,
+  'Custom House Tower': customHouseTower,
+  'Fenway Park': fenwayPark,
+  'Boston Light': (bk, b, g) => bostonLight(bk, b, g),
+  // 1680, downtown Boston's oldest building: clapboard, second-floor jetty,
+  // casement windows — exactly what firstPeriod() already builds for Salem.
+  'Paul Revere House': (bk, b, g, i) => firstPeriod(bk, b, g, i, { wall: '#6b5a48', shingle: '#5d5346', chimney: 'central' }),
+  'Prudential Tower': (bk, b, g) => glassTower(bk, b, g, { ft: 749, glass: '#9aa3ad', band: '#d8d4c8', bandEvery: 34 }),
+  // The Hancock lease expired in 2015 and OSM now names it by its address —
+  // '200 Clarendon' is the key that MATCHES (verified: 1 footprint; the old
+  // 'John Hancock Tower' matches 0, so it is deliberately not listed).
+  '200 Clarendon': (bk, b, g) => glassTower(bk, b, g, { ft: 790, glass: '#5f7fa6', band: '#3f5773', bandEvery: 60 }),
+
   'The Witch House': witchHouse,
   'The House of the Seven Gables': sevenGables,
   'Hathaway House': hathawayHouse,

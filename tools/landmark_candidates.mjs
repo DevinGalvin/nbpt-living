@@ -81,15 +81,24 @@ function interiorPoint(p) {
     }
     return m;
   };
+  // Two candidates are tracked: the best point anywhere inside, and the best
+  // point inside that is also DRY. A park built around water — Boston's Public
+  // Garden with its lagoon, Jamaica Pond, the Chestnut Hill Reservoir — pushes
+  // the "farthest from any edge" point into the middle of the water, which is
+  // where the player would then be dropped. Prefer dry whenever dry exists; only
+  // fall back to the wet point (still flagged IN WATER) for a feature that
+  // genuinely IS water.
   let best = null, bd = -1;
+  let dry = null, dd = -1;
   const N = 36;
   for (let i = 1; i < N; i++) for (let j = 1; j < N; j++) {
     const x = x0 + ((x1 - x0) * i) / N, y = y0 + ((y1 - y0) * j) / N;
     if (!polyHas(x, y, p)) continue;
     const d = edgeD2(x, y);
     if (d > bd) { bd = d; best = [Math.round(x), Math.round(y)]; }
+    if (d > dd && !wet(x, y)) { dd = d; dry = [Math.round(x), Math.round(y)]; }
   }
-  return best ?? centroid(pts);
+  return dry ?? best ?? centroid(pts);
 }
 
 const rows = [];
@@ -119,7 +128,11 @@ for (const l of world.labels || []) {
   push({ name: l.t, kind: 'label:' + l.k, x: l.x, y: l.y, m2: 0, note: '' });
 }
 
-const INTERESTING = /^(poly:(park|sand|grass|cemetery|reserve|water|playground|pitch|wood)|poi:(historic|museum|attraction|lighthouse|artwork|viewpoint|memorial)|label:(area|water))/;
+// `garden`, `pier` and `plaza` earn their place: Boston's James P. Kelleher Rose
+// Garden and Boston Fish Pier are exactly the kind of named, visitable spot a
+// roster wants, and neither could ever surface here. (`parking` stays out on
+// purpose — a named garage is not a destination. Use --all to see everything.)
+const INTERESTING = /^(poly:(park|sand|grass|cemetery|reserve|water|playground|pitch|wood|garden|pier|plaza)|poi:(historic|museum|attraction|lighthouse|artwork|viewpoint|memorial)|label:(area|water))/;
 const out = rows
   .filter((r) => ALL || INTERESTING.test(r.kind) || r.kind === 'bldg')
   .sort((a, b) => b.m2 - a.m2 || a.name.localeCompare(b.name));

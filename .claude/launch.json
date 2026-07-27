@@ -250,6 +250,19 @@
         "--strictPort"
       ],
       "port": 5307
+    },
+    {
+      "name": "boston",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:boston",
+        "--",
+        "--port",
+        "5309",
+        "--strictPort"
+      ],
+      "port": 5309
     }
   ]
 }
