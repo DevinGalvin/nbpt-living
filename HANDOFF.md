@@ -131,11 +131,41 @@ top" and sits on nearly every bridge in every town (NBPT 26, Amesbury 55). Stack
 comes from merge ends. Known rough edge: one ~29 px hop where a low slab is mounted
 (the kid model is 33 px tall, so a 29 px soffit really is too low to pass under).
 
+### The bumps + houses-in-roads follow-ups (7/27, `3821fbb` + `c500a75`, live)
+
+Devin, on the same interchange: "why are there still so many bumps instead of
+looking smooth?" and "theres also houses poking through the roads as well."
+
+- **Bumps:** the earlier pass capped how HIGH a clearance tent goes, not how MANY.
+  One tent per crossing scalloped the deck (up to 22 crossings, gaps as small as
+  2 px against a 150 px ramp → 18 ripples). Crossings now merge into PLATEAUS —
+  the same flat-run treatment the water span always had. Worst chain 18 → 10.
+- **Houses:** NOT road width. ⚠️ Do not reach for OSM's `width` tag — on
+  Charlestown residential streets its median is 11.0 m against our 7 m default,
+  because MassGIS tags the right-of-way, not the travelled way; adopting it makes
+  the poking worse. The cause was deck FUSION ballooning a slab to 53 m, then
+  the slab being drawn straight through the houses beside it.
+  `WorldIndex.deckHalfWidthLimit` now pulls the deck's per-node edge in where a
+  building rises through the deck plane, and `deckHeightAt` applies the SAME test
+  through the shared `DECK_CLEAR_MIN_W` — keep them shared, or the deck renders
+  narrow while staying walkable at full width and you stand on an invisible slab.
+  Building-interior points under a raised deck 31.2% → 18.5%; NBPT has 26 decks
+  wide enough to probe and ZERO pinched nodes.
+
+⚠️ **Diagnostic trap worth knowing:** `deckHeightAt` and `bucket()` only see
+LOADED chunks, so a grid sweep silently returns 0 far from the player. Position
+the player and bound the region — two of my sweeps read "no problems" for exactly
+this reason before I caught it.
+
 ### Still open (ranked)
 
 1. **Sweep the other ten towns with the new machine checks** — buildings-in-roads,
-   landmark anchors on pavement, steep deck grades, blocked-point sampling. They
-   run in seconds per town and both of Devin's bug reports were found this way.
+   landmark anchors on pavement, steep deck grades, blocked-point sampling, deck
+   widths. They run in seconds per town and every one of Devin's bug reports was
+   found this way. Salem, Beverly, Gloucester and Marblehead have real spans that
+   have never been sampled. NOTE: the landmark-anchor check has already been run
+   across all eleven and came back clean — the only flag worth a look is Ipswich's
+   `five-corners`, which sits on primary pavement and is that town's SPAWN point.
 2. **A launch post** (r/Charlestown or r/boston) once Devin is happy.
 3. **A few heroes left** — First Church (currently the generic `k:'church'`
    treatment, which is decent), Round Corner House, the Carpenter Shop and Paint
