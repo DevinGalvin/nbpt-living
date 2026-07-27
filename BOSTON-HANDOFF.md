@@ -306,6 +306,58 @@ city, and it is the number to watch — not the parse.
   fires, street names resolve, fast-travel works (landed on **Lansdowne Street**
   behind Fenway's brick wall)
 
+## HERO ACCURACY PASS — the tooling, and four systemic bugs
+
+**Inspect heroes with a CONTACT SHEET, not one screenshot at a time.** Nine
+heroes per image made the difference between "verified by name" and actually
+looking at them. The recipe, to paste into the console:
+
+- index `G.index.world.buildings` by name; for each hero compute its centroid and
+  max extent from `b.p`
+- `nbpt.go()` to a standoff point first and **wait ~850 ms so the chunk streams**
+  — the mesh does not exist until it does
+- **push `scene.fog.near/far` out to 200k/400k**, or anything past ~1500 px is
+  white. ⚠️ With fog off the whole-map IMPOSTOR becomes visible as a huge pale
+  curved horizon — that is not a dome, do not "fix" it
+- park the camera at `dist = size*1.6 + 520`, `h = size*0.6 + 280`, `lookAt` about
+  0.46·h, render, and `drawImage` the GL canvas into a tile of a grid canvas
+- take a **bearing** per hero: Trinity is unreadable from the north-east because
+  200 Clarendon is in the way
+- the dataURL is too big to return inline — it lands in a tool-results file, and
+  `python3` decodes it from there at zero context cost
+
+### Four bugs the sheets caught, all systemic
+
+1. **`circRing(cx,cz,r,4)` is a DIAMOND, not a square.** It puts vertices at
+   0/90/180/270°, so every 4-gon tower was turned 45° to its building, and `r` is
+   the half-DIAGONAL, so each was ~41% too wide. It hit **17 call sites** — every
+   tower, cupola and spire in Boston. Fixed by `sqRing(cx,cz,halfW,ang)`. Old
+   North and Park Street went from unreadable to correct on this one change.
+2. **A ballpark had a roof.** `fenwayPark` put a `flatRoof` over the whole
+   footprint and then drew the grass underneath it, so the field was sealed in a
+   box. A grandstand is an **annulus** — new `annulusRoof()` roofs the seating
+   ring and leaves the field open to the sky. Same fix gave `stadiumBowl` an
+   `open` flag: Harvard Stadium's horseshoe is open, TD Garden is not.
+3. **Tower and dome sizes were capped with absolute constants** that suited a
+   small church and nothing else. The Old State House cupola was capped at 7 px
+   (1.75 m — invisible), Holy Cross's cathedral towers at 15 px, while Trinity's
+   crossing tower was UNCAPPED at 0.72 of the half-extent = 46 m square, and the
+   MFA — 206 m across — implied a **128 ft dome** that filled the sky. All now
+   proportional with sane caps.
+4. **`gableRoof`'s `ridgeH` is a rise above the eave, not an absolute Y**
+   (see below) — five heroes were barns.
+
+### Confirmed reading correctly, by eye
+
+Old North Church · Park Street Church · Trinity Church · Cathedral of the Holy
+Cross · Custom House Tower · Boston City Hall · Fenway Park · Harvard Stadium ·
+Faneuil Hall · Massachusetts State House.
+
+### Still to inspect close up
+
+King's Chapel and the Old State House are hemmed in by tall neighbours and need
+a hand-picked bearing; the second-batch museums/arenas have not had a sheet yet.
+
 ## HEROES — 44 Boston keys, and ~59 heroes actually render
 
 **Every one of the 44 Boston hero keys resolves to EXACTLY ONE footprint**,

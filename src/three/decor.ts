@@ -5880,6 +5880,32 @@ function circRing(cx: number, cz: number, r: number, n = 16): number[] {
   return ring;
 }
 
+// A SQUARE aligned to the building, with `hw` as its half-WIDTH.
+// ⚠️ Do not use circRing(..., 4) for a tower: that puts vertices at 0/90/180/270°,
+// which is a DIAMOND turned 45° to the building, and its `r` is the half-DIAGONAL
+// — so the tower comes out turned the wrong way AND ~41% too wide. Every square
+// tower and cupola in Boston uses this instead.
+function sqRing(cx: number, cz: number, hw: number, ang: number): number[] {
+  const ca = Math.cos(ang), sa = Math.sin(ang), r: number[] = [];
+  for (const [l, w] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const)
+    r.push(cx + l * hw * ca - w * hw * sa, cz + l * hw * sa + w * hw * ca);
+  return r;
+}
+
+// A flat ANNULUS between two matching rings — a roof with a hole in it.
+// Grandstands need this: an open-air ballpark is a ring of seating around a
+// field that is open to the sky, not a lid over the whole footprint.
+function annulusRoof(bk: Bucket, outer: number[], inner: number[], y: number, hex: string) {
+  tmp.set(hex);
+  const r = tmp.r, g2 = tmp.g, b2 = tmp.b;
+  const n = Math.min(outer.length, inner.length) / 2;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    bk.quad(outer[i * 2], y, outer[i * 2 + 1], outer[j * 2], y, outer[j * 2 + 1],
+      inner[j * 2], y, inner[j * 2 + 1], inner[i * 2], y, inner[i * 2 + 1], 0, 1, 0, r, g2, b2);
+  }
+}
+
 // A dome as a stack of taper bands following a circular profile. `segs` bands up,
 // `n`-gon around. Returns the apex height so a lantern/finial can sit on it.
 function domeShell(bk: Bucket, cx: number, cz: number, r: number, y0: number, h: number, hex: string, segs = 7, n = 20): number {
@@ -5912,13 +5938,13 @@ function colonnade(bk: Bucket, obb: OBB, atLz: number, fromLx: number, toLx: num
 // A tapering steeple: square tiers, then a slender spire to `topY`, then a vane.
 // (Named spireStack because `steeple` is already taken by the NBPT church builder.)
 function spireStack(bk: Bucket, cx: number, cz: number, halfW: number, y0: number, topY: number,
-                    hex: string, vaneBk?: Bucket, vaneHex = '#d9b03c') {
+                    ang: number, hex: string, vaneBk?: Bucket, vaneHex = '#d9b03c') {
   const tiers = 3;
   let w = halfW, y = y0;
   const tierH = (topY - y0) * 0.42 / tiers;
   for (let i = 0; i < tiers; i++) {
     const w2 = w * 0.82;
-    taperBand(bk, circRing(cx, cz, w, 4), circRing(cx, cz, w2, 4), y, y + tierH, hex, 0);
+    taperBand(bk, sqRing(cx, cz, w, ang), sqRing(cx, cz, w2, ang), y, y + tierH, hex, 0);
     y += tierH; w = w2;
     bk.box(cx, cz, w * 1.24, w * 1.24, y, y + 1.6, hex, 0);        // cornice between tiers
     y += 1.6;
@@ -6034,8 +6060,8 @@ function faneuilHall(buckets: Bucket[], b: Building, g: number, index: WorldInde
   const ridge = eave + ridgeRise;
   const base = ridge + 1;
   const cw = Math.max(7, W * 0.13);                                     // scale the cupola to the hall
-  walls(buckets[PLAIN], circRing(cx, cz, cw, 4), base, base + 8 * FT, TRIM, 0);          // square stage
-  flatRoof(buckets[PLAIN], circRing(cx, cz, cw * 1.15, 4), base + 8 * FT, '#d8d2c2');
+  walls(buckets[PLAIN], sqRing(cx, cz, cw, obb.ang), base, base + 8 * FT, TRIM, 0);          // square stage
+  flatRoof(buckets[PLAIN], sqRing(cx, cz, cw * 1.15, obb.ang), base + 8 * FT, '#d8d2c2');
   // belfry — open octagon (1867 bell inside)
   walls(buckets[PLAIN], circRing(cx, cz, cw * 0.8, 8), base + 8 * FT, base + 18 * FT, TRIM, 0);
   domeShell(buckets[PLAIN], cx, cz, cw * 0.8, base + 18 * FT, 5 * FT, '#c9ccd2', 5, 12);   // the belfry dome
@@ -6099,10 +6125,10 @@ function oldNorthChurch(buckets: Bucket[], b: Building, g: number, index: WorldI
   const tx = obb.cx + tlx * ca, tz = obb.cz + tlx * sa;
   const tw = Math.min(W * 0.82, 11);
   const towerTop = g + 90 * FT;
-  walls(buckets[BRICK], circRing(tx, tz, tw, 4), g - 3, towerTop, BRICKRED);
-  walls(buckets[PLAIN], circRing(tx, tz, tw * 1.1, 4), towerTop - 2.5, towerTop + 1.5, WHITE, 0);
+  walls(buckets[BRICK], sqRing(tx, tz, tw, obb.ang), g - 3, towerTop, BRICKRED);
+  walls(buckets[PLAIN], sqRing(tx, tz, tw * 1.1, obb.ang), towerTop - 2.5, towerTop + 1.5, WHITE, 0);
   // the white wooden spire to 191 ft, with the gilded vane on top
-  spireStack(buckets[PLAIN], tx, tz, tw * 0.86, towerTop + 1.5, g + 191 * FT, WHITE, buckets[GLOW], '#e0bb4a');
+  spireStack(buckets[PLAIN], tx, tz, tw * 0.86, towerTop + 1.5, g + 191 * FT, obb.ang, WHITE, buckets[GLOW], '#e0bb4a');
 }
 
 // ── Old State House ───────────────────────────────────────────────────────
@@ -6142,8 +6168,8 @@ function oldStateHouse(buckets: Bucket[], b: Building, g: number, index: WorldIn
   // west tower and cupola
   const wlx = -eSign * L * 0.7;
   const wx = obb.cx + wlx * ca, wz = obb.cz + wlx * sa;
-  const tw = Math.min(W * 0.55, 7);
-  walls(buckets[PLAIN], circRing(wx, wz, tw, 4), ridge - 2, ridge + 12 * FT, WHITE, 0);
+  const tw = Math.min(W * 0.55, 16);
+  walls(buckets[PLAIN], sqRing(wx, wz, tw, obb.ang), ridge - 2, ridge + 12 * FT, WHITE, 0);
   walls(buckets[PLAIN], circRing(wx, wz, tw * 0.78, 8), ridge + 12 * FT, ridge + 20 * FT, WHITE, 0);
   const cap = domeShell(buckets[PLAIN], wx, wz, tw * 0.78, ridge + 20 * FT, 6 * FT, '#c9ccd2', 5, 10);
   buckets[PLAIN].box(wx, wz, 0.5, 0.5, cap, cap + 7, '#d9b03c', 0);
@@ -6177,18 +6203,18 @@ function trinityChurch(buckets: Bucket[], b: Building, g: number, index: WorldIn
   }
 
   // ── the central tower, 211 ft, on the crossing ──
-  const tw = Math.min(L, W) * 0.72;
+  const tw = Math.min(Math.min(L, W) * 0.34, 30 * FT);   // real crossing tower is ~18 m square
   const tTop = g + 190 * FT;
-  walls(buckets[PLAIN], circRing(obb.cx, obb.cz, tw, 4), g - 3, tTop, GRANITE, 0);
+  walls(buckets[PLAIN], sqRing(obb.cx, obb.cz, tw, obb.ang), g - 3, tTop, GRANITE, 0);
   for (const y of [g + 70 * FT, g + 100 * FT, g + 130 * FT, g + 160 * FT])
-    walls(buckets[PLAIN], circRing(obb.cx, obb.cz, tw * 1.03, 4), y, y + 3.2, BROWN, 0);
+    walls(buckets[PLAIN], sqRing(obb.cx, obb.cz, tw * 1.03, obb.ang), y, y + 3.2, BROWN, 0);
   // corner turrets + a low pyramid cap, as at Salamanca
   for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) {
     const x = obb.cx + (sx * tw) * ca - (sz * tw) * sa, z = obb.cz + (sx * tw) * sa + (sz * tw) * ca;
     walls(buckets[PLAIN], circRing(x, z, tw * 0.2, 8), tTop - 26 * FT, tTop + 10 * FT, GRANITE, 0);
     cone(buckets[PLAIN], x, tTop + 10 * FT, z, tw * 0.22, 9 * FT, new THREE.Color(TILE));
   }
-  flatRoof(buckets[PLAIN], circRing(obb.cx, obb.cz, tw, 4), tTop, BROWN);
+  flatRoof(buckets[PLAIN], sqRing(obb.cx, obb.cz, tw, obb.ang), tTop, BROWN);
   cone(buckets[SHINGLE], obb.cx, tTop, obb.cz, tw * 1.28, 21 * FT, new THREE.Color(TILE));
 }
 
@@ -6214,10 +6240,10 @@ function customHouseTower(buckets: Bucket[], b: Building, g: number, index: Worl
   // ── the tower ──
   const tw = Math.min(L, W) * 0.52;
   const shaftTop = g + 400 * FT;
-  walls(buckets[PLAIN], circRing(obb.cx, obb.cz, tw, 4), baseTop - 4, shaftTop, GRANITE, 0);
+  walls(buckets[PLAIN], sqRing(obb.cx, obb.cz, tw, obb.ang), baseTop - 4, shaftTop, GRANITE, 0);
   // clock stage — four faces, 22 ft across
   const clockY = shaftTop + 6 * FT, cr = 11 * FT;
-  walls(buckets[PLAIN], circRing(obb.cx, obb.cz, tw * 1.08, 4), shaftTop, shaftTop + 34 * FT, GRANITE, 0);
+  walls(buckets[PLAIN], sqRing(obb.cx, obb.cz, tw * 1.08, obb.ang), shaftTop, shaftTop + 34 * FT, GRANITE, 0);
   for (const [al, aw] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
     const fl = al * (tw * 1.08 + 0.8), fw = aw * (tw * 1.08 + 0.8);
     const x = obb.cx + fl * ca - fw * sa, z = obb.cz + fl * sa + fw * ca;
@@ -6226,7 +6252,7 @@ function customHouseTower(buckets: Bucket[], b: Building, g: number, index: Worl
   }
   // stepped pyramidal crown
   const crownY = shaftTop + 34 * FT;
-  taperBand(buckets[PLAIN], circRing(obb.cx, obb.cz, tw * 1.08, 4), circRing(obb.cx, obb.cz, tw * 0.55, 4),
+  taperBand(buckets[PLAIN], sqRing(obb.cx, obb.cz, tw * 1.08, obb.ang), sqRing(obb.cx, obb.cz, tw * 0.55, obb.ang),
     crownY, crownY + 30 * FT, GRANITE, 0);
   cone(buckets[PLAIN], obb.cx, crownY + 30 * FT, obb.cz, tw * 0.6, 32 * FT, new THREE.Color('#9d988c'));
 }
@@ -6242,14 +6268,20 @@ function fenwayPark(buckets: Bucket[], b: Building, g: number, index: WorldIndex
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
   const L = obb.hl, W = obb.hw;
   const BRICKRED = '#8f4a3a', MONSTER = '#2f5d3a', DECK = '#7d8288';
-  // the outer shell along the streets
-  walls(buckets[BRICK], b.p, g - 3, g + 34 * FT, BRICKRED);
-  flatRoof(buckets[PLAIN], b.p, g + 34 * FT, DECK);
-  // the field: grass inside the shell
-  const inner: number[] = [];
-  for (const [lx, lz] of [[-L * 0.8, -W * 0.8], [L * 0.8, -W * 0.8], [L * 0.8, W * 0.8], [-L * 0.8, W * 0.8]] as const)
-    inner.push(obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca);
-  flatRoof(buckets[PLAIN], inner, g + 1, '#4e7a3f');
+  // ⚠️ A ballpark is OPEN TO THE SKY. Roofing the whole footprint puts a lid over
+  // the field and hides the grass inside a box — which is exactly what this did
+  // at first. The grandstand is an ANNULUS: seating around the edge, roofed;
+  // the field in the middle, roofed by nothing.
+  const [ccx, ccz] = centroidOf(b.p);
+  const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(ccx + (b.p[i] - ccx) * s, ccz + (b.p[i + 1] - ccz) * s); return r; };
+  const field = scaled(0.62);
+  const standTop = g + 34 * FT;
+  walls(buckets[BRICK], b.p, g - 3, standTop, BRICKRED);       // the brick street front
+  walls(buckets[PLAIN], field, g - 3, standTop - 6 * FT, '#6d7278');  // stands facing the field
+  annulusRoof(buckets[PLAIN], b.p, field, standTop, DECK);     // roof over the SEATS only
+  flatRoof(buckets[PLAIN], field, g + 1, '#4e7a3f');           // the grass, open to the sky
+  // the infield dirt
+  flatRoof(buckets[PLAIN], scaled(0.2), g + 1.4, '#9a6b46');
   // ── the Green Monster: 37 ft 2 in, along one end ──
   const mlx = -L * 0.82;
   const mx = obb.cx + mlx * ca, mz = obb.cz + mlx * sa;
@@ -6320,11 +6352,11 @@ function townChurch(buckets: Bucket[], b: Building, g: number, index: WorldIndex
   // tower rises from the front end, then the spire
   const tlx = 0, tlz = front * (W - Math.min(W * 0.5, 14));
   const tx = obb.cx + tlx * ca - tlz * sa, tz = obb.cz + tlx * sa + tlz * ca;
-  const tw = Math.min(L * 0.34, W * 0.5, 13);
+  const tw = Math.min(L * 0.34, W * 0.5, 20);
   const towerTop = g + 62 * FT;
-  walls(body, circRing(tx, tz, tw, 4), g - 3, towerTop, o.wall, o.brick ? TEX_SCALE : 0);
-  walls(buckets[PLAIN], circRing(tx, tz, tw * 1.08, 4), towerTop - 2.5, towerTop + 1.5, o.trim, 0);
-  spireStack(buckets[PLAIN], tx, tz, tw * 0.84, towerTop + 1.5, g + o.spireFt * FT, o.trim, buckets[GLOW]);
+  walls(body, sqRing(tx, tz, tw, obb.ang), g - 3, towerTop, o.wall, o.brick ? TEX_SCALE : 0);
+  walls(buckets[PLAIN], sqRing(tx, tz, tw * 1.08, obb.ang), towerTop - 2.5, towerTop + 1.5, o.trim, 0);
+  spireStack(buckets[PLAIN], tx, tz, tw * 0.84, towerTop + 1.5, g + o.spireFt * FT, obb.ang, o.trim, buckets[GLOW]);
 }
 
 // A Gothic-revival stone church: buttressed body, steep roof, and either twin
@@ -6351,16 +6383,16 @@ function gothicChurch(buckets: Bucket[], b: Building, g: number, index: WorldInd
   }
   const fs = frontSegment(b, index);
   const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
-  const tw = Math.min(L * 0.26, 15);
+  const tw = Math.min(L * 0.26, 26);
   const offs = o.towers === 2 ? [-L * 0.62, L * 0.62] : [0];
   for (const lx of offs) {
     const lz = front * (W - tw * 0.2);
     const tx = obb.cx + lx * ca - lz * sa, tz = obb.cz + lx * sa + lz * ca;
     const top = g + o.towerFt * FT;
-    walls(buckets[PLAIN], circRing(tx, tz, tw, 4), g - 3, top, o.stone, 0);
+    walls(buckets[PLAIN], sqRing(tx, tz, tw, obb.ang), g - 3, top, o.stone, 0);
     for (const y of [g + 40 * FT, g + 70 * FT, g + 100 * FT]) if (y < top - 8)
-      walls(buckets[PLAIN], circRing(tx, tz, tw * 1.04, 4), y, y + 2.4, o.trim ?? o.stone, 0);
-    flatRoof(buckets[PLAIN], circRing(tx, tz, tw, 4), top, o.trim ?? o.stone);
+      walls(buckets[PLAIN], sqRing(tx, tz, tw * 1.04, obb.ang), y, y + 2.4, o.trim ?? o.stone, 0);
+    flatRoof(buckets[PLAIN], sqRing(tx, tz, tw, obb.ang), top, o.trim ?? o.stone);
     // corner pinnacles
     for (const [px2, pz2] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const)
       cone(buckets[PLAIN], tx + px2 * tw * 0.82, top, tz + pz2 * tw * 0.82, 1.8, 12 * FT, new THREE.Color(o.trim ?? o.stone));
@@ -6388,7 +6420,9 @@ function greekTemple(buckets: Bucket[], b: Building, g: number, index: WorldInde
     pts.push(obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca);
   walls(buckets[PLAIN], pts, top - 8 * FT, top - 1, o.stone, 0);
   if (o.dome) {
-    const dr = Math.min(L, W) * 0.38;
+    // cap it: dr is a FRACTION of the footprint, and the MFA is 206 m across,
+    // which without a cap gives a 128 ft dome. Real rotundas are ~50 ft.
+    const dr = Math.min(Math.min(L, W) * 0.38, 26 * FT);
     const apex = domeShell(buckets[PLAIN], obb.cx, obb.cz, dr, top, 26 * FT, '#a9adb4', 7, 18);
     walls(buckets[PLAIN], circRing(obb.cx, obb.cz, dr * 0.2, 10), apex, apex + 6 * FT, o.stone, 0);
   }
@@ -6443,14 +6477,22 @@ function mansardBlock(buckets: Bucket[], b: Building, g: number, o: { wall: stri
 // Harvard Stadium (1903) — the first big reinforced-CONCRETE structure in
 // American sport, a U-shaped horseshoe with a colonnade along its rim. Also
 // serves the arenas: `bowl:false` gives a plain closed drum instead.
-function stadiumBowl(buckets: Bucket[], b: Building, g: number, o: { wall: string; ft: number; colonnade?: boolean }) {
+function stadiumBowl(buckets: Bucket[], b: Building, g: number, o: { wall: string; ft: number; colonnade?: boolean; open?: boolean }) {
   const obb = obbOf(b.p);
   const [cx, cz] = centroidOf(b.p);
   const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
   const top = g + o.ft * FT;
   walls(buckets[PLAIN], b.p, g - 3, top, o.wall, 0);
-  flatRoof(buckets[PLAIN], b.p, top, '#8b867d');
-  flatRoof(buckets[PLAIN], scaled(0.6), g + 1, '#4e7a3f');            // the field inside
+  const field = scaled(0.6);
+  if (o.open) {
+    // an OPEN stadium — Harvard's horseshoe has no lid. Roof the seating ring
+    // only, and leave the turf looking at the sky.
+    walls(buckets[PLAIN], field, g - 3, top - 8 * FT, '#9d988e');
+    annulusRoof(buckets[PLAIN], b.p, field, top, '#8b867d');
+  } else {
+    flatRoof(buckets[PLAIN], b.p, top, '#8b867d');                    // indoor arena: a real roof
+  }
+  flatRoof(buckets[PLAIN], field, g + 1, '#4e7a3f');                  // the field
   if (o.colonnade) {
     const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
     for (const s of [1, -1] as const)
@@ -6520,7 +6562,7 @@ const HEROES: Record<string, HeroBuilder> = {
   'Arlington Street Church': (bk, b, g, i) => townChurch(bk, b, g, i, { wall: '#a8968a', trim: '#efe9dc', spireFt: 190 }),
   // King's Chapel, 1754: dark Quincy granite, a colonnaded portico — and NO
   // steeple. The money ran out, so the squat tower is the correct silhouette.
-  'Kings Chapel': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#8e8b84', cols: 4, storeyFt: 42 }),
+  'Kings Chapel': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#a6a49c', cols: 6, storeyFt: 42 }),
   'Cathedral Church of Saint Pauls': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#bdb8ab', cols: 6, storeyFt: 44 }),
   // Holy Cross: Roxbury puddingstone Gothic, twin front towers left unfinished.
   'Cathedral of the Holy Cross': (bk, b, g, i) => gothicChurch(bk, b, g, i, { stone: '#8a7d72', trim: '#a2968a', towers: 2, towerFt: 120 }),
@@ -6562,7 +6604,7 @@ const HEROES: Record<string, HeroBuilder> = {
   'Agganis Arena': (bk, b, g) => stadiumBowl(bk, b, g, { wall: '#8a8f96', ft: 96 }),
   // 1903, the first great reinforced-concrete stadium in America — a horseshoe
   // with a colonnade along the rim.
-  'Harvard Stadium': (bk, b, g) => stadiumBowl(bk, b, g, { wall: '#bab5a6', ft: 62, colonnade: true }),
+  'Harvard Stadium': (bk, b, g) => stadiumBowl(bk, b, g, { wall: '#bab5a6', ft: 62, colonnade: true, open: true }),
   'Fort Independence': (bk, b, g) => graniteFort(bk, b, g),
   'Fort Warren': (bk, b, g) => graniteFort(bk, b, g),
   'USS Constitution Museum': (bk, b, g, i) => warehouse(bk, b, g, i, { wall: '#9a5340', roof: '#5a5750' }),
