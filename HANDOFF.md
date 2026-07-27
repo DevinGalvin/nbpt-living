@@ -7,18 +7,94 @@ Manchester-by-the-Sea `/manchester/`, Rockport `/rockport/`,
 Amesbury `/amesbury/`, Salisbury `/salisbury/` and Charlestown `/charlestown/`.
 Three.js + TypeScript + Vite. Live at **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE: ELEVEN towns live. Charlestown (#11) shipped at `9461222`
-> and its polish pass — the 3-course race ladder and six more heroes — is
-> committed at `b020053`.** `npm run build:all` passes for all eleven.
-> **Read ✦ CHARLESTOWN first** — it carries two engine fixes that affect every
-> town, plus what the polish pass learned and what is still open.
+> **⚡ FRESHEST STATE: ELEVEN towns live. Charlestown (#11) is shipped, polished
+> and bug-fixed — see `CHARLESTOWN-HANDOFF.md` for the whole town in one place.**
+> Latest `9872ce3`; `npm run build:all` passes for all eleven.
+>
+> **NEXT UP IS FULL BOSTON — read ✦ FULL BOSTON first**, it is written as a cold
+> start: the one real blocker (the engine parses world.json whole at boot), the
+> two candidate approaches Devin should pick between, and the pipeline swaps.
+> Charlestown was its rehearsal, so read `CHARLESTOWN-HANDOFF.md` next — Boston is
+> full of the buried highways, stacked interchanges and building multipolygons
+> that Charlestown just forced fixes for.
 > Then ✦ AMESBURY + SALISBURY. Then ✦ MANCHESTER + ROCKPORT, which has the
 > reusable four-step town-building workflow and the verification bar. Then read
 > ✦ MARBLEHEAD (town #6, and where the map pipeline moved into CI, which is what
 > makes a cloud session able to build a town end to end), then Two-Town Day, then
 > the post-launch polish session.
 
+## ✦ FULL BOSTON — START HERE (next session, cold start)
+
+Boston is the agreed next build. Read this section, then
+`docs/research/boston-sizing.md` (the full measured recon), then
+`CHARLESTOWN-HANDOFF.md` — Charlestown was the rehearsal and Boston depends on
+every engine fix it forced.
+
+### The one real blocker
+
+**The engine loads and parses `world.json` whole at boot.** Boston measures
+**119,414 buildings / 92,312 addresses**, which projects to a **26–34 MB**
+world.json against Beverly's 5.79 MB, today's largest. That is a multi-second
+`JSON.parse` on a mid-range phone and a ~150–300 MB transient spike — a genuine
+iOS Safari tab-kill. The projection rests on a stable measured constant
+(~190–210 bytes/building across the dense towns), not a guess.
+
+The chunk system already streams **rendering** and already has LRU eviction. What
+does not stream is **data**: `WorldIndex` buckets hold integer indices into one
+complete `world.buildings` array. Extending the same idea to per-tile world data
+is the one piece of engineering, and it must be regression-tested across all
+eleven towns.
+
+**Two approaches are worth costing before picking one — this is a real fork and
+Devin should choose:**
+- **Per-tile world data** (the plan of record): split the heavy arrays onto a
+  tile grid, boot from a small head (meta/towns/landmarks/signs/labels/pois) plus
+  the spawn's tiles, fetch on demand, evict by LRU.
+- **Binary world format**, like `heights.bin` already is. Cuts size ~3–4× AND
+  kills the `JSON.parse` cost outright via typed arrays. Benefits every town's
+  load time, not just Boston's. May be less total work than tiling — but still
+  has to materialise JS objects for the buckets, so measure before believing it.
+
+### Pipeline changes Boston needs (mechanical, both known)
+
+- **Overpass cannot serve Boston, even tiled** — raw OSM for the city is roughly
+  150–250 MB and a 2×2 tiling of *Salisbury* already drew a 429. Use a Geofabrik
+  `massachusetts-latest.osm.pbf` clipped with **osmium**. ⚠️ `osmium` is **NOT
+  installed** on this Mac (checked 7/27); `duckdb` IS (heights), and there is
+  ~284 GB free.
+- `fetch_heights.mjs` would query ~119k Overture features instead of ~14k.
+  Slower, not harder.
+
+### Why Charlestown matters to Boston
+
+Boston is full of exactly what Charlestown just exposed, and all of it is now
+fixed and regression-checked: **buried highways** (build_world had no tunnel
+handling at all), **stacked interchanges** (four separate bridge-profile faults,
+plus deck fusion ballooning a slab to 53 m and drawing it through buildings), and
+**building multipolygons** (52 of 795 rowhouse relations were fragmenting).
+Do not re-derive these — see ✦ BRIDGE MODEL and `CHARLESTOWN-HANDOFF.md`, which
+also lists the reusable diagnostics and the traps (brickTex multiplies RED;
+`obbOf` hl is not always the long axis; a name-keyed hero runs on every footprint
+with that name; OSM `width` is the right-of-way, not the travelled way; `layer` is
+never an absolute elevation; grid sweeps only see LOADED chunks).
+
+### The three tiers, honestly costed
+
+1. **A Boston NEIGHBOURHOOD** — fits today's pipeline, zero engine work. This is
+   what Charlestown was. Others are available the same way (the North End,
+   the West End, East Boston, South Boston, Back Bay…).
+2. **Boston proper** — after the data change: one focused engine session plus an
+   eleven-town regression, then the bake, then curation. ~2–3 sessions before it
+   is walkable.
+3. **Boston at this project's accuracy bar** — where the cost actually is.
+   Boston's identity IS its landmarks; a Boston with grey boxes where Faneuil
+   Hall and the State House should be would miss the point of the whole set.
+
 ## ✦ CHARLESTOWN (town #11) — LIVE at `/charlestown/`
+
+> **The whole town in one place, including every trap and diagnostic, is
+> `CHARLESTOWN-HANDOFF.md`.** The sections below are the running narrative kept
+> for continuity — read the dedicated handoff first.
 
 **Built 7/26/2026 in one session, shipped `9461222`, polished `b020053`.** 4,885
 buildings, a **1.7 MB** world.json, 63 fast-travel landmarks, terrain + Overture
@@ -230,17 +306,6 @@ this pipeline and needs no engine work.** That is why it's next.
   the Navy Yard's ropewalk and Commandant's House, Old North Church.
 - `borderLore` neighbours here are Boston neighbourhoods plus Somerville,
   Cambridge, Everett and Chelsea — not the usual town lines.
-
-## ✦ FULL BOSTON — sized, and why it is NOT next
-
-`docs/research/boston-sizing.md` has the measurements. Headlines: **119,414
-buildings, 92,312 addresses**, projecting to a **26-34 MB world.json** against
-Beverly's 5.79 MB, today's largest. The map pipeline scales (swap Overpass for a
-Geofabrik PBF extract); what does not is that **the engine loads and parses
-world.json whole at boot** — 30 MB of JSON is a multi-second parse and a
-150-300 MB memory spike, which is a real iOS Safari tab-kill risk. Boston needs
-per-tile world data fetched on demand (the chunk system streams *rendering*, not
-*data*) before it is worth attempting.
 
 ## ✦ AMESBURY + SALISBURY (towns #9 and #10) — Newburyport is surrounded
 
