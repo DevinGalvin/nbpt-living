@@ -191,6 +191,11 @@ const ROAD_W_M = {
 };
 const PATH_KIND = { footway: 'foot', path: 'foot', steps: 'steps', cycleway: 'cycle', bridleway: 'foot', track: 'track', pedestrian: 'ped' };
 const SKIP_HW = new Set(['proposed', 'construction', 'corridor', 'elevator', 'raceway', 'bus_guideway', 'escape', 'platform', 'rest_area', 'services', 'bus_stop', 'emergency_bay']);
+// Through-highway classes whose `tunnel=yes` ways are genuinely BURIED and must not
+// be drawn at grade (see the tunnel note at the road emit). Anything smaller —
+// paths, service drives, residential streets — keeps its tunnel, because there
+// `tunnel=yes` usually means a short at-grade underpass a player rides through.
+const BURIED_HW = new Set(['motorway', 'trunk', 'primary', 'secondary', 'motorway_link', 'trunk_link', 'primary_link', 'secondary_link']);
 
 function buildingKind(t) {
   const b = t.building;
@@ -390,6 +395,25 @@ for (const el of raw.elements) {
       const isRoad = t.highway in ROAD_W_M;
       const kind = PATH_KIND[t.highway];
       if (isRoad || kind) {
+        // A buried THROUGH-HIGHWAY must never be painted on the surface. No town
+        // had one until Charlestown, which carries I-93 (the John F. Fitzgerald
+        // Expressway), the Sumner and Callahan tunnels and the Rutherford Avenue
+        // underpasses. Drawn at grade they laid a motorway straight through City
+        // Square and left a dozen real buildings — 20 City Square, The Beverly, the
+        // tunnel vent houses — standing in the middle of a highway, and they fed the
+        // bridge builder phantom ways to tent clearance humps over.
+        //
+        // Deliberately NARROW, because `tunnel=yes` is mostly benign elsewhere: it
+        // is how OSM marks the short UNDERPASSES that carry the Clipper City Rail
+        // Trail, Amesbury's Riverwalk and the Salisbury Ghost Trail beneath a road.
+        // Those are at grade, a kid rides straight through them, and dropping them
+        // would tear holes in three towns' best trails. Paths, service drives and
+        // minor streets therefore all stay; so does `tunnel=building_passage`
+        // (a way running under an archway).
+        if (t.tunnel === 'yes' && BURIED_HW.has(t.highway)) {
+          bump('tunnel-highway-skipped');
+          continue;
+        }
         for (const run of runsOf(el.geometry)) {
           const seg = { p: simplify(run) };
           if (t.bridge && t.bridge !== 'no') seg.b = 1;

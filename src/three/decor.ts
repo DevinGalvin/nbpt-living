@@ -3414,12 +3414,39 @@ function buildDoughboy(buckets: Bucket[], x: number, z: number, g: number) {
   buckets[GLOW].box(x + 4, z + 5, 3, 0.2, g + 27, g + 32, '#b03030', 0);
 }
 
+// Colonel William Prescott (William Wetmore Story, cast in Rome 1880, dedicated
+// June 17 1881) — the bronze at the foot of the Bunker Hill Monument, and the
+// statue every player walks past on arrival, because Charlestown drops you here.
+// An over-life-size 8 ft figure on a 6 ft 2 in red-and-grey Quincy granite base.
+// The pose is the whole point and it is very specific: SWORD in the right hand,
+// and the LEFT hand out flat, holding his men's fire until the British are close.
+function buildPrescott(buckets: Bucket[], x: number, z: number, g: number) {
+  const p = buckets[PLAIN];
+  const GRAN = '#a9a49a', GRAN2 = '#b9b0a4', BRONZE = '#5f5540';
+  p.box(x, z, 11, 11, g, g + 1.2, '#a29e95');                    // paved apron
+  p.box(x, z, 6.4, 5.6, g + 1.2, g + 13, GRAN);                  // the granite die
+  p.box(x, z, 7.2, 6.4, g + 13, g + 15, GRAN2);                  // its cap
+  // striding figure: he is mid-step on the redoubt, coat skirt flaring behind
+  p.box(x - 1.5, z + 0.9, 1.4, 1.4, g + 15, g + 23, BRONZE);     // trailing leg
+  p.box(x + 1.4, z - 0.7, 1.4, 1.4, g + 15, g + 22.4, BRONZE);   // leading leg
+  p.box(x - 2.4, z + 0.6, 2.2, 2.4, g + 19, g + 26, BRONZE);     // the long coat, blown back
+  p.box(x, z, 2.6, 2.1, g + 22.4, g + 31.5, BRONZE);             // torso
+  p.box(x, z, 1.7, 1.7, g + 31.5, g + 34.6, BRONZE);             // bareheaded
+  // right arm, sword raised and forward — the blade catches the eye from the lawn
+  p.box(x + 2.4, z - 0.4, 1.6, 0.9, g + 28.5, g + 30.2, BRONZE);
+  p.box(x + 5.4, z - 0.6, 3.4, 0.35, g + 30.5, g + 35.5, BRONZE);
+  // left arm held straight out, palm down: HOLD YOUR FIRE
+  p.box(x - 3.2, z + 0.2, 2.6, 0.85, g + 28.2, g + 29.4, BRONZE);
+  p.box(x - 5.4, z + 0.2, 1.1, 1.3, g + 28.2, g + 29.1, BRONZE);
+}
+
 const POI_HEROES: Record<string, (buckets: Bucket[], x: number, z: number, g: number) => void> = {
   "Fishermens' Monument": buildManAtWheel,          // OSM's odd apostrophe — keep it
   "Fishermen's Wives Memorial": buildWivesMemorial,
   'Tablet Rock': buildTabletRock,
   'Coast Guard Aviation Monument': buildCGMonument,
   'Doughboy Statue': buildDoughboy,                 // Amesbury
+  'Colonel William Prescott': buildPrescott,        // Charlestown — OSM's name for the statue
 };
 
 function buildRearRange(buckets: Bucket[], b: Building, g: number) {

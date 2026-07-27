@@ -237,6 +237,19 @@
         "--strictPort"
       ],
       "port": 5305
+    },
+    {
+      "name": "nbpt-bridge",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5307",
+        "--strictPort"
+      ],
+      "port": 5307
     }
   ]
 }

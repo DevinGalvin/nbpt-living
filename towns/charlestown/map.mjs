@@ -91,7 +91,8 @@ const CHARLESTOWN_LM = [
   ['working-theater', 'Charlestown Working Theater', 'A little theatre in an old firehouse', -6839, -5798, 300],
   // ── the water and the bridges ──
   ['paul-revere-park', 'Paul Revere Park', 'Grass and river where the locks are', -874, 5646, 520],
-  ['north-bank-park', 'North Bank Bridge Park', 'The footbridge over to the Cambridge side', -1980, 5944, 420],
+  ['north-bank-park', 'North Bank Bridge Park', 'The footbridge over to the Cambridge side', -2312, 5966, 420],   // moved off I-93's pavement: the candidate interior point landed in the motorway that runs through the park
+
   ['charlestown-bells', 'The Charlestown Bells', 'Bells you can play, out on the walkway', -632, 6432, 300],
   ['little-mystic', 'Little Mystic Access Area', 'Down at the water on the Mystic side', 2835, -4610, 440],
   ['schrafft-center', 'Schrafft Center', 'The old candy factory and its clock tower', -6928, -7573, 520],
@@ -101,7 +102,8 @@ const CHARLESTOWN_LM = [
   ['potato-shed', 'Potato Shed Memorial', 'What is left of the old waterfront sheds', -3198, 4045, 300],
   // ── getting around ──
   ['community-college', 'Community College', 'Orange Line, right by the college', -6125, 2265, 360],
-  ['sullivan-square', 'Sullivan Square', 'Orange Line and buses at the edge of town', -10541, -7020, 420],
+  ['sullivan-square', 'Sullivan Square', 'Orange Line and buses at the edge of town', -10636, -6944, 420],   // the station's own interior point is inside the interchange roadway — this is the nearest ground clear of every carriageway
+
   ['bunker-hill-cc', 'Bunker Hill Community College', 'The college on Rutherford Avenue', -5851, 1115, 620],
   ['wind-test-center', 'Wind Technology Testing Center', 'They bend giant wind-turbine blades in here', 2130, -6845, 460],
 ];

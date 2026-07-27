@@ -1760,6 +1760,10 @@ export class WorldIndex {
   static readonly UNDERPASS_CLEAR = 46;  // kid (33) + bike (7.5) + margin
   static readonly WATER_CLEAR = 38;      // lift over open water so boats pass beneath
   private static readonly BRIDGE_RAMP = 150;
+  // Steepest grade a deck may climb away from its approach height. UNDERPASS_CLEAR
+  // over BRIDGE_RAMP is 46/150 ≈ 0.31, so this preserves an ordinary single
+  // underpass tent exactly and only bites on lifts that were never rideable.
+  private static readonly MAX_DECK_GRADE = 0.32;
   static readonly DECK_T = 7;            // deck-slab thickness: top rides the profile, bottom sits T below
   private static readonly PIER_SPACING = 140; // columns this far apart along the span
   private static readonly CROSS_WINDOW = 60;   // no pier within this of a crossed road (leave the gap open)
@@ -1797,6 +1801,15 @@ export class WorldIndex {
     const merge = this.chainMergeEnds.get(pts);
     let g0 = merge?.o0 ? this.bridgeDeckYAt(merge.o0, pts[0], pts[1]) : h0 + 2.5;
     let g1 = merge?.o1 ? this.bridgeDeckYAt(merge.o1, pts[pts.length - 2], pts[pts.length - 1]) : h1 + 2.5;
+    // A merge-end lookup reads ANOTHER span's deck, and when spans reference each
+    // other in a cycle that can come back wild: Charlestown's Tobin Bridge approach
+    // — a single 14,000 px chain — resolved its far end to 776 px BELOW ground with
+    // the terrain at +54, and the short ramp teeing into it then had to climb out of
+    // the earth at 45°, which is the triangular spike players got stuck inside.
+    // A merge may RAISE a deck end onto the span it joins; it may never bury it below
+    // its own approach, which is exactly the +2.5 default used when there is no merge.
+    if (merge?.o0) g0 = Math.max(g0, h0 + 2.5);
+    if (merge?.o1) g1 = Math.max(g1, h1 + 2.5);
     // an end OVER WATER has no pavement to die into — the +2.5 fallback would ride
     // the seabed (-80s at the Bridge St rotary) and the deck plunged into the sea,
     // leaving an uncrossable hole mid-junction. Any wet end floats at span height.
@@ -1909,9 +1922,23 @@ export class WorldIndex {
   private deckHeightAtT(prof: BridgeProfile, t: number): number {
     const grade = prof.g0 + (prof.g1 - prof.g0) * Math.max(0, Math.min(1, t / Math.max(1, prof.total)));
     let deck = grade;
+    // A clearance tent may only rise as fast as a road can climb, and only as far
+    // as the span has room to ramp back down to BOTH ends. Without this a short
+    // bridge asked to clear a high crossing becomes a triangular spike standing in
+    // the roadway — and the deck is a collider, so players walk into it and stick.
+    // Charlestown is where this surfaced: its stacked interchange ramps demanded a
+    // 172 px (21 m) lift on a 221 px (27 m) span, and clearance STACKING ran away
+    // besides — a bridge tenting over an already-tented bridge adds a full
+    // UNDERPASS_CLEAR each time, which put a service road 590 px in the air.
+    // Newburyport never hit it: its interchange is terrain-separated, so `layer`
+    // is inert there and almost nothing tents.
+    const rampRoom = Math.min(t, prof.total - t) * WorldIndex.MAX_DECK_GRADE;
     for (const bump of prof.bumps) {
       const out = Math.abs(t - bump.t);
-      if (out < WorldIndex.BRIDGE_RAMP) deck = Math.max(deck, bump.peak - (out / WorldIndex.BRIDGE_RAMP) * (bump.peak - grade));
+      if (out < WorldIndex.BRIDGE_RAMP) {
+        const want = bump.peak - (out / WorldIndex.BRIDGE_RAMP) * (bump.peak - grade);
+        deck = Math.max(deck, Math.min(want, grade + rampRoom));
+      }
     }
     if (prof.water) {
       const { s, e } = prof.water;
@@ -1920,7 +1947,11 @@ export class WorldIndex {
       if (t <= s) wy = grade + (flatH - grade) * (s > 0 ? Math.min(1, t / s) : 1);             // ramp up from the start bank
       else if (t >= e) wy = grade + (flatH - grade) * (prof.total > e ? Math.min(1, (prof.total - t) / (prof.total - e)) : 1); // down to the end bank
       else wy = flatH;                                                                          // flat across the channel
-      deck = Math.max(deck, wy);
+      // same ramp-room limit as the clearance tents: when the water window runs
+      // right up to a bank there is no distance to climb in, and the span reared up
+      // at 45°. Long spans (every drawbridge and river crossing in the set) have
+      // ramp room to spare, so their profiles are untouched.
+      deck = Math.max(deck, Math.min(wy, grade + rampRoom));
     }
     // bank ends are ALWAYS mountable: whatever clearance humps demand mid-span,
     // the last stretch ramps to <= +20 over the approach grade (a crossed way
