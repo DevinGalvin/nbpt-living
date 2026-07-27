@@ -98,17 +98,54 @@ footprints**, so a hero keyed by name runs twice — the tower is gated on
 of a tower read as a roof penthouse; a landmark tower needs to clear the parapet
 by roughly its own building's height, not by a storey.
 
+### The bridges and tunnels pass (7/27, `f485ca9` + `a0f2997`, both live)
+
+Devin, on the Sullivan Square interchange: it "looks crazy, and you can still get
+stuck if you go under. I would say this is the biggest oddity in the whole
+platform." He was right, and Charlestown is simply the first town whose
+interchange is genuinely STACKED — Phase 2's own note says layer stacking is inert
+in Newburyport, so nothing had ever exercised it. See ✦ BRIDGE MODEL / Phase 6 in
+docs and the bridge memory for the full four faults; the short version:
+
+- `build_world.mjs` had **no tunnel handling at all**, so 27 buried through-highways
+  were painted on the surface (I-93, Sumner, Callahan, the Rutherford Ave
+  underpasses), putting 14 real buildings in a roadway. Narrow fix — through-highway
+  classes only, because `tunnel=yes` is also how OSM marks the at-grade underpasses
+  carrying three towns' rail trails.
+- Merge-end cycles resolved one deck to **776 px below ground**, so the ramp joining
+  it climbed out of the earth at 45°. That was the "triangle".
+- Clearance tents and water lifts were unbounded and **cascaded** (a tent over a
+  tent adds a full clearance each time — a service road ended up 590 px up).
+- "Too low to duck under" was a hard **block**, which around a low approach is an
+  invisible wall you stand in. Now: if you can't fit under it, you walk over it.
+
+**Reusable diagnostics — run these before and after ANY bridge change.** Grid-sample
+`deckHeightAt` / `underDeckBlockedAt` / `surfaceYAt` over the interchange, and walk a
+straight line underneath it. Sullivan Square went blocked **237 → 24** of 8,888
+points, the walk-under went to **0 blocked steps**, worst deck grade **11.72 → 0.95**.
+And check the flagship: NBPT gained **566 newly-passable points** round its own
+bridges while every one of its 38 bridge profiles stayed byte-identical.
+
+⚠️ Do NOT reach for OSM `layer` as an absolute elevation — `layer=1` just means "on
+top" and sits on nearly every bridge in every town (NBPT 26, Amesbury 55). Stacking
+comes from merge ends. Known rough edge: one ~29 px hop where a low slab is mounted
+(the kid model is 33 px tall, so a 29 px soffit really is too low to pass under).
+
 ### Still open (ranked)
 
-1. **A launch post** (r/Charlestown or r/boston) once Devin is happy.
-2. **A few heroes left** — the Battle of Bunker Hill Museum, First Church
-   (currently the generic `k:'church'` treatment, which is decent), Round Corner
-   House, the Carpenter Shop and Paint Shop. Note the museum, First Church and
-   several yard buildings have their long axis in `hw`, so `federalHouse` and
-   `warehouse` will lay them sideways — use `yardShed` or handle the axis.
-3. **`borderLore` copy review** — Charlestown's neighbours are Boston
+1. **Sweep the other ten towns with the new machine checks** — buildings-in-roads,
+   landmark anchors on pavement, steep deck grades, blocked-point sampling. They
+   run in seconds per town and both of Devin's bug reports were found this way.
+2. **A launch post** (r/Charlestown or r/boston) once Devin is happy.
+3. **A few heroes left** — First Church (currently the generic `k:'church'`
+   treatment, which is decent), Round Corner House, the Carpenter Shop and Paint
+   Shop. Note First Church and several yard buildings have their long axis in
+   `hw`, so `federalHouse` and `warehouse` will lay them sideways — use
+   `yardShed` or handle the axis. (The Battle of Bunker Hill Museum and Colonel
+   William Prescott are DONE, `f59bf4e` / `f485ca9`.)
+4. **`borderLore` copy review** — Charlestown's neighbours are Boston
    neighbourhoods plus four cities, so the lines read differently from a town line.
-4. Monument Square's 54 trees are **real surveyed OSM positions** (19% pine, per
+5. Monument Square’s 54 trees are **real surveyed OSM positions** (19% pine, per
    the shared style). The "conifer farm" look is the shared deciduous builder's
    three stacked canopy blobs — not a Charlestown bug. Don't fix it per-town.
 
