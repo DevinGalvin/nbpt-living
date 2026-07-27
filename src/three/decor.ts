@@ -6299,6 +6299,198 @@ function glassTower(buckets: Bucket[], b: Building, g: number, o: { ft: number; 
   roofClutter(buckets, b.p, top, Math.round(obb.cx), ringAreaM2(b.p), false);
 }
 
+// ── shared Boston building types ──────────────────────────────────────────
+
+// A Georgian/Federal church: body, gable, and a tower + spire on the front end.
+// Park Street (217 ft, the tallest building in America 1810-1828) and Arlington
+// Street are both this shape in different colours.
+function townChurch(buckets: Bucket[], b: Building, g: number, index: WorldIndex,
+                    o: { wall: string; trim: string; brick?: boolean; spireFt: number; roof?: string }) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl, W = obb.hw;
+  const body = o.brick ? buckets[BRICK] : buckets[PLAIN];
+  const eave = g + 40 * FT;
+  walls(body, b.p, g - 3, eave, o.wall, o.brick ? TEX_SCALE : 0);
+  gableRoof(buckets[SHINGLE], body, b.p, obb, eave, Math.min(W * 0.32, 22), 1.4, o.roof ?? '#4e5157', o.wall);
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  // portico across the front
+  colonnade(buckets[PLAIN], obb, front * (W + 4), -L * 0.5, L * 0.5, 4, g, g + 30 * FT, 2.2, o.trim);
+  // tower rises from the front end, then the spire
+  const tlx = 0, tlz = front * (W - Math.min(W * 0.5, 14));
+  const tx = obb.cx + tlx * ca - tlz * sa, tz = obb.cz + tlx * sa + tlz * ca;
+  const tw = Math.min(L * 0.34, W * 0.5, 13);
+  const towerTop = g + 62 * FT;
+  walls(body, circRing(tx, tz, tw, 4), g - 3, towerTop, o.wall, o.brick ? TEX_SCALE : 0);
+  walls(buckets[PLAIN], circRing(tx, tz, tw * 1.08, 4), towerTop - 2.5, towerTop + 1.5, o.trim, 0);
+  spireStack(buckets[PLAIN], tx, tz, tw * 0.84, towerTop + 1.5, g + o.spireFt * FT, o.trim, buckets[GLOW]);
+}
+
+// A Gothic-revival stone church: buttressed body, steep roof, and either twin
+// front towers (Holy Cross) or one campanile (Old South).
+function gothicChurch(buckets: Bucket[], b: Building, g: number, index: WorldIndex,
+                      o: { stone: string; trim?: string; towers: 1 | 2; towerFt: number }) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl, W = obb.hw;
+  const eave = g + 52 * FT;
+  walls(buckets[PLAIN], b.p, g - 3, eave, o.stone, 0);
+  gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, eave, Math.min(W * 0.42, 30), 1.8, '#4a4338', o.stone);
+  // buttresses down the flanks
+  for (const s of [1, -1] as const) for (let i = 0; i <= 5; i++) {
+    const lx = -L * 0.8 + (L * 1.6) * (i / 5), lz = s * (W + 1.4);
+    rotBox(buckets[PLAIN], obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca,
+      2.2, 2.6, g - 3, eave - 6, obb.ang, o.trim ?? o.stone);
+  }
+  // tall lancets between them
+  for (const s of [1, -1] as const) for (let i = 0; i < 5; i++) {
+    const lx = -L * 0.64 + (L * 1.28) * (i / 4), lz = s * (W + 0.4);
+    rotBox(buckets[GLOW], obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca,
+      2.6, 0.4, g + 16, eave - 10, obb.ang, '#43506e');
+  }
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const tw = Math.min(L * 0.26, 15);
+  const offs = o.towers === 2 ? [-L * 0.62, L * 0.62] : [0];
+  for (const lx of offs) {
+    const lz = front * (W - tw * 0.2);
+    const tx = obb.cx + lx * ca - lz * sa, tz = obb.cz + lx * sa + lz * ca;
+    const top = g + o.towerFt * FT;
+    walls(buckets[PLAIN], circRing(tx, tz, tw, 4), g - 3, top, o.stone, 0);
+    for (const y of [g + 40 * FT, g + 70 * FT, g + 100 * FT]) if (y < top - 8)
+      walls(buckets[PLAIN], circRing(tx, tz, tw * 1.04, 4), y, y + 2.4, o.trim ?? o.stone, 0);
+    flatRoof(buckets[PLAIN], circRing(tx, tz, tw, 4), top, o.trim ?? o.stone);
+    // corner pinnacles
+    for (const [px2, pz2] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const)
+      cone(buckets[PLAIN], tx + px2 * tw * 0.82, top, tz + pz2 * tw * 0.82, 1.8, 12 * FT, new THREE.Color(o.trim ?? o.stone));
+  }
+}
+
+// A Greek Revival temple: solid block, big pediment-carrying colonnade on the
+// front. King's Chapel (which never got its steeple), St Paul's, the MFA.
+function greekTemple(buckets: Bucket[], b: Building, g: number, index: WorldIndex,
+                     o: { stone: string; cols: number; storeyFt?: number; dome?: boolean }) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl, W = obb.hw;
+  const top = g + (o.storeyFt ?? 46) * FT;
+  walls(buckets[PLAIN], b.p, g - 3, top, o.stone, 0);
+  flatRoof(buckets[PLAIN], b.p, top, '#9d988c');
+  walls(buckets[PLAIN], b.p, top - 5, top - 1.6, '#d9d5c8', 0);            // entablature
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  colonnade(buckets[PLAIN], obb, front * (W + 5), -L * 0.62, L * 0.62, o.cols, g, top - 8 * FT, 3.0, o.stone);
+  // pediment over the columns
+  const pl = L * 0.72, plz = front * (W + 7);
+  const pts: number[] = [];
+  for (const [lx, lz] of [[-pl, plz], [pl, plz], [pl, front * (W - 2)], [-pl, front * (W - 2)]] as const)
+    pts.push(obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca);
+  walls(buckets[PLAIN], pts, top - 8 * FT, top - 1, o.stone, 0);
+  if (o.dome) {
+    const dr = Math.min(L, W) * 0.38;
+    const apex = domeShell(buckets[PLAIN], obb.cx, obb.cz, dr, top, 26 * FT, '#a9adb4', 7, 18);
+    walls(buckets[PLAIN], circRing(obb.cx, obb.cz, dr * 0.2, 10), apex, apex + 6 * FT, o.stone, 0);
+  }
+}
+
+// Boston City Hall — Kallmann McKinnell & Knowles, 1968. An INVERTED ZIGGURAT:
+// a heavy concrete top that oversails a recessed brick base, on the great brick
+// plaza. Nothing else in the city looks remotely like it, so the cantilever is
+// the whole job.
+function cityHallBrutalist(buckets: Bucket[], b: Building, g: number) {
+  const obb = obbOf(b.p);
+  const CONC = '#a49e94', DARK = '#6f6a62';
+  const [cx, cz] = centroidOf(b.p);
+  const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
+  walls(buckets[BRICK], scaled(0.86), g - 3, g + 26 * FT, '#8d5a44');            // recessed brick base
+  flatRoof(buckets[PLAIN], scaled(0.86), g + 26 * FT, DARK);
+  // three oversailing concrete tiers, each WIDER than the one below
+  const tiers: Array<[number, number, number]> = [[0.9, 26, 46], [0.97, 46, 70], [1.0, 70, 96]];
+  for (const [s, y0, y1] of tiers) {
+    walls(buckets[PLAIN], scaled(s), g + y0 * FT, g + y1 * FT, CONC, 0);
+    flatRoof(buckets[PLAIN], scaled(s), g + y1 * FT, DARK);
+  }
+  // the deep coffered fins that give the top its corduroy
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  for (const s of [1, -1] as const) for (let i = 0; i <= 11; i++) {
+    const lx = -obb.hl * 0.92 + (obb.hl * 1.84) * (i / 11), lz = s * (obb.hw + 1.2);
+    rotBox(buckets[PLAIN], obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca,
+      1.6, 1.8, g + 70 * FT, g + 96 * FT, obb.ang, DARK);
+  }
+}
+
+// Second Empire — a granite block under a steep MANSARD with dormers. Old City
+// Hall, 1865, is the set piece.
+function mansardBlock(buckets: Bucket[], b: Building, g: number, o: { wall: string; roof: string; storeyFt: number }) {
+  const obb = obbOf(b.p);
+  const eave = g + o.storeyFt * FT;
+  walls(buckets[PLAIN], b.p, g - 3, eave, o.wall, 0);
+  walls(buckets[PLAIN], b.p, eave - 4, eave - 1, '#e2ded0', 0);
+  const [cx, cz] = centroidOf(b.p);
+  const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
+  taperBand(buckets[SHINGLE], b.p, scaled(0.82), eave, eave + 20 * FT, o.roof, 0);   // the steep mansard slope
+  flatRoof(buckets[SHINGLE], scaled(0.82), eave + 20 * FT, o.roof);
+  // dormers around the mansard
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  for (const s of [1, -1] as const) for (let i = 0; i <= 4; i++) {
+    const lx = -obb.hl * 0.7 + (obb.hl * 1.4) * (i / 4), lz = s * (obb.hw * 0.94);
+    rotBox(buckets[PLAIN], obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca,
+      2.6, 2.2, eave + 3, eave + 13, obb.ang, o.wall);
+  }
+}
+
+// Harvard Stadium (1903) — the first big reinforced-CONCRETE structure in
+// American sport, a U-shaped horseshoe with a colonnade along its rim. Also
+// serves the arenas: `bowl:false` gives a plain closed drum instead.
+function stadiumBowl(buckets: Bucket[], b: Building, g: number, o: { wall: string; ft: number; colonnade?: boolean }) {
+  const obb = obbOf(b.p);
+  const [cx, cz] = centroidOf(b.p);
+  const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
+  const top = g + o.ft * FT;
+  walls(buckets[PLAIN], b.p, g - 3, top, o.wall, 0);
+  flatRoof(buckets[PLAIN], b.p, top, '#8b867d');
+  flatRoof(buckets[PLAIN], scaled(0.6), g + 1, '#4e7a3f');            // the field inside
+  if (o.colonnade) {
+    const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+    for (const s of [1, -1] as const)
+      colonnade(buckets[PLAIN], obb, s * obb.hw * 0.98, -obb.hl * 0.86, obb.hl * 0.86, 14, top, top + 16 * FT, 1.8, o.wall);
+    void ca; void sa;
+  }
+}
+
+// A low granite coastal fort: thick sloped ramparts around a parade ground.
+// Fort Independence on Castle Island is a five-pointed star; Fort Warren on
+// Georges Island is a pentagon. Both read the same way from the ground.
+function graniteFort(buckets: Bucket[], b: Building, g: number) {
+  const [cx, cz] = centroidOf(b.p);
+  const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
+  const STONE = '#b0aa9c';
+  taperBand(buckets[PLAIN], b.p, scaled(0.93), g - 4, g + 26 * FT, STONE, 0);   // battered rampart face
+  flatRoof(buckets[PLAIN], scaled(0.93), g + 26 * FT, '#928c80');
+  walls(buckets[PLAIN], scaled(0.93), g + 26 * FT, g + 32 * FT, STONE, 0);      // parapet
+  flatRoof(buckets[PLAIN], scaled(0.74), g + 8, '#7f8a5f');                     // the parade ground
+  walls(buckets[PLAIN], scaled(0.74), g + 8, g + 24 * FT, '#a8a294', 0);        // inner casemate wall
+}
+
+// A plain modern block for the mid-century and later museums/institutions:
+// concrete or glass, flat roof, a banded skin. Deliberately generic — these
+// buildings ARE plain boxes, and pretending otherwise would be worse.
+function modernBlock(buckets: Bucket[], b: Building, g: number,
+                     o: { wall: string; ft: number; glassBand?: string; podium?: boolean }) {
+  const obb = obbOf(b.p);
+  const [cx, cz] = centroidOf(b.p);
+  const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
+  const top = g + o.ft * FT;
+  if (o.podium) { walls(buckets[PLAIN], b.p, g - 3, g + 18 * FT, o.wall, 0); flatRoof(buckets[PLAIN], b.p, g + 18 * FT, '#8f8a82'); }
+  const body = o.podium ? scaled(0.72) : b.p;
+  walls(buckets[PLAIN], body, o.podium ? g + 18 * FT : g - 3, top, o.wall, 0);
+  if (o.glassBand) for (let y = g + 14 * FT; y < top - 8; y += 14 * FT)
+    walls(buckets[GLOW], body, y, y + 7 * FT, o.glassBand, 0);
+  flatRoof(buckets[PLAIN], body, top, '#7d786f');
+  roofClutter(buckets, body, top, Math.round(obb.cx), ringAreaM2(body), false);
+}
+
 const HEROES: Record<string, HeroBuilder> = {
   // Both towns' heroes coexist here — entries are keyed by unique OSM building
   // names, so only the loaded town's world.json ever matches its own set.
@@ -6320,6 +6512,60 @@ const HEROES: Record<string, HeroBuilder> = {
   // '200 Clarendon' is the key that MATCHES (verified: 1 footprint; the old
   // 'John Hancock Tower' matches 0, so it is deliberately not listed).
   '200 Clarendon': (bk, b, g) => glassTower(bk, b, g, { ft: 790, glass: '#5f7fa6', band: '#3f5773', bandEvery: 60 }),
+
+  // ── churches ──
+  // Park Street, 1809: red brick, white steeple 217 ft — the TALLEST BUILDING IN
+  // AMERICA from 1810 to 1828, and still the thing you see at the Common's corner.
+  'Park Street Church': (bk, b, g, i) => townChurch(bk, b, g, i, { wall: '#9d5140', trim: '#f4f1e6', brick: true, spireFt: 217 }),
+  'Arlington Street Church': (bk, b, g, i) => townChurch(bk, b, g, i, { wall: '#a8968a', trim: '#efe9dc', spireFt: 190 }),
+  // King's Chapel, 1754: dark Quincy granite, a colonnaded portico — and NO
+  // steeple. The money ran out, so the squat tower is the correct silhouette.
+  'Kings Chapel': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#8e8b84', cols: 4, storeyFt: 42 }),
+  'Cathedral Church of Saint Pauls': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#bdb8ab', cols: 6, storeyFt: 44 }),
+  // Holy Cross: Roxbury puddingstone Gothic, twin front towers left unfinished.
+  'Cathedral of the Holy Cross': (bk, b, g, i) => gothicChurch(bk, b, g, i, { stone: '#8a7d72', trim: '#a2968a', towers: 2, towerFt: 120 }),
+  // Old South Church, Copley, 1875: Northern Italian Gothic, banded stone and a
+  // single campanile.
+  'Old South Church': (bk, b, g, i) => gothicChurch(bk, b, g, i, { stone: '#b0a08c', trim: '#8a6b52', towers: 1, towerFt: 180 }),
+  'Emmanuel Church': (bk, b, g, i) => gothicChurch(bk, b, g, i, { stone: '#8d7a6a', towers: 1, towerFt: 96 }),
+  'Annunciation Melkite Catholic Cathedral': (bk, b, g, i) => gothicChurch(bk, b, g, i, { stone: '#a89c8e', towers: 1, towerFt: 90 }),
+  'Saint George Albanian Orthodox Cathedral': (bk, b, g, i) => gothicChurch(bk, b, g, i, { stone: '#a89c8e', towers: 1, towerFt: 86 }),
+
+  // ── civic + culture ──
+  'Boston City Hall': (bk, b, g) => cityHallBrutalist(bk, b, g),
+  'Old City Hall': (bk, b, g) => mansardBlock(bk, b, g, { wall: '#c0bbae', roof: '#4f4a44', storeyFt: 52 }),
+  // Guy Lowell, 1909 — Beaux-Arts granite with an Ionic colonnade and a rotunda.
+  'Museum of Fine Arts': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#c6c1b4', cols: 10, storeyFt: 56, dome: true }),
+  // A Venetian palazzo built around a glass-roofed courtyard, which is the point.
+  'Isabella Stewart Gardner Museum': (bk, b, g) => modernBlock(bk, b, g, { wall: '#b98f6a', ft: 62, glassBand: '#cfd8e2' }),
+  'Symphony Hall': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#9c5a44', cols: 6, storeyFt: 50 }),
+  'Boston Opera House': (bk, b, g) => mansardBlock(bk, b, g, { wall: '#b7ad9c', roof: '#4a453f', storeyFt: 62 }),
+  'Orpheum Theatre': (bk, b, g) => mansardBlock(bk, b, g, { wall: '#a89a86', roof: '#4a453f', storeyFt: 58 }),
+  'Omni Parker': (bk, b, g) => mansardBlock(bk, b, g, { wall: '#8f6a4e', roof: '#3f3b36', storeyFt: 100 }),
+
+  // ── modern institutions (these really are plain boxes) ──
+  // I. M. Pei, 1979: a white precast tower with a black glass pavilion on the sea.
+  'John F. Kennedy Presidential Library and Museum': (bk, b, g) => modernBlock(bk, b, g, { wall: '#e6e4dd', ft: 125, glassBand: '#2b3138' }),
+  'The Institute of Contemporary Art': (bk, b, g) => modernBlock(bk, b, g, { wall: '#8d949c', ft: 80, glassBand: '#b9c6d2' }),
+  'New England Aquarium': (bk, b, g) => modernBlock(bk, b, g, { wall: '#9a9690', ft: 74, glassBand: '#7fa8bd' }),
+  "Boston Children's Museum": (bk, b, g) => modernBlock(bk, b, g, { wall: '#9c5f46', ft: 62, glassBand: '#d6c98a' }),
+  'Christian Science Publishing Society': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#cfcabc', cols: 8, storeyFt: 68 }),
+  // the Mother Church extension — the great dome over the reflecting pool
+  'Christian Science Complex': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#cbc6b8', cols: 6, storeyFt: 60, dome: true }),
+  // 1977, aluminium-clad, the fluted "washboard" slab lifted on two end towers
+  'Federal Reserve Bank of Boston': (bk, b, g) => glassTower(bk, b, g, { ft: 614, glass: '#b6bcc2', band: '#8d939a', bandEvery: 26 }),
+  'Prudential Center': (bk, b, g) => modernBlock(bk, b, g, { wall: '#b3aea4', ft: 46, podium: true }),
+  '75 State Street': (bk, b, g) => glassTower(bk, b, g, { ft: 396, glass: '#9d8f74', band: '#6f6450', bandEvery: 30 }),
+
+  // ── arenas, forts, ships ──
+  'TD Garden': (bk, b, g) => stadiumBowl(bk, b, g, { wall: '#8e9299', ft: 150 }),
+  'Agganis Arena': (bk, b, g) => stadiumBowl(bk, b, g, { wall: '#8a8f96', ft: 96 }),
+  // 1903, the first great reinforced-concrete stadium in America — a horseshoe
+  // with a colonnade along the rim.
+  'Harvard Stadium': (bk, b, g) => stadiumBowl(bk, b, g, { wall: '#bab5a6', ft: 62, colonnade: true }),
+  'Fort Independence': (bk, b, g) => graniteFort(bk, b, g),
+  'Fort Warren': (bk, b, g) => graniteFort(bk, b, g),
+  'USS Constitution Museum': (bk, b, g, i) => warehouse(bk, b, g, i, { wall: '#9a5340', roof: '#5a5750' }),
 
   'The Witch House': witchHouse,
   'The House of the Seven Gables': sevenGables,

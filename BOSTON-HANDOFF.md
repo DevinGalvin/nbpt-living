@@ -306,7 +306,42 @@ city, and it is the number to watch — not the parse.
   fires, street names resolve, fast-travel works (landed on **Lansdowne Street**
   behind Fenway's brick wall)
 
-## HEROES — 13 built (first pass)
+## HEROES — 44 Boston keys, and ~59 heroes actually render
+
+**Every one of the 44 Boston hero keys resolves to EXACTLY ONE footprint**,
+checked programmatically against `world.json` rather than by eye — that is the
+name-collision trap closed. And because Charlestown sits inside Boston's frame,
+its dozen heroes (Bunker Hill Monument, USS Constitution, the Rope Walk, the
+Muster House…) render in Boston **for free**: 59 hero keys match a single Boston
+footprint in total.
+
+Second batch added these shared builders, so the roster is types rather than
+one-offs: **`townChurch`** (Georgian body + portico + tower + spire),
+**`gothicChurch`** (buttresses, lancets, one campanile or twin towers),
+**`greekTemple`** (colonnade + pediment, optional rotunda),
+**`cityHallBrutalist`**, **`mansardBlock`** (Second Empire),
+**`stadiumBowl`**, **`graniteFort`**, **`modernBlock`**.
+
+Second-batch heroes: Park Street Church (217 ft — the tallest building in
+America 1810-1828) · Arlington Street · King's Chapel (correctly steeple-LESS —
+the money ran out) · St Paul's · Cathedral of the Holy Cross · Old South Church ·
+Emmanuel · two more cathedrals · **Boston City Hall** (visually verified: the
+inverted ziggurat cantilevers out over its recessed brick base) · Old City Hall ·
+Museum of Fine Arts · Gardner · Symphony Hall · Opera House · Orpheum · Omni
+Parker · JFK Library · ICA · Aquarium · Children's Museum · Christian Science
+Publishing Society + Complex · Federal Reserve · Prudential Center · 75 State St ·
+TD Garden · Agganis · **Harvard Stadium** (1903 concrete horseshoe + rim
+colonnade) · Fort Independence · Fort Warren · USS Constitution Museum.
+
+Two things the batch turned up:
+- **`USS Cassin Young` already had Charlestown's `destroyer` builder** — the very
+  warship their handoff records rescuing from being a 5.5-storey house. My
+  duplicate key was removed rather than shadowing it.
+- ⚠️ **`Schrafft Center` matches TWO footprints in Boston's frame**, so
+  Charlestown's hero renders on both. Pre-existing (it is 2x in Charlestown's own
+  world too), inherited here, and the one unsafe key in the whole dict.
+
+## Earlier: the first 13
 
 New shared primitives a city needed and the North Shore never did, all in
 `src/three/decor.ts`: **`circRing`**, **`domeShell`** (stacked taper bands on a
