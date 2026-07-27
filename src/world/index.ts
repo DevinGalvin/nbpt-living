@@ -28,6 +28,11 @@ type BridgeProfile = {
   cum: number[];
   bumps: { t: number; peak: number }[];
   water?: { s: number; e: number };
+  // does each end actually sit on the GROUND? A merge end lands on another span's
+  // deck and is already in the air, so the profile has no reason to ramp down to
+  // earth there — which is what lets stacked interchange ramps stay airborne.
+  ground0: boolean;
+  ground1: boolean;
   supports: { piers: BridgeSupport[]; abut: BridgeSupport[] };
 };
 
@@ -1791,7 +1796,7 @@ export class WorldIndex {
     // profiles (A tees into B tees into A must bottom out here, not overflow)
     if (this.bridgeComputing.has(pts)) {
       const fb = Math.max(h0, h1) + 2.5;
-      return { g0: fb, g1: fb, total: 1, cum: [0], bumps: [], supports: { piers: [], abut: [] } };
+      return { g0: fb, g1: fb, total: 1, cum: [0], bumps: [], ground0: true, ground1: true, supports: { piers: [], abut: [] } };
     }
     this.bridgeComputing.add(pts);
     // decks die INTO the pavement (+2.5, just proud of the paint) instead of the
@@ -1876,7 +1881,7 @@ export class WorldIndex {
       if (this.isWaterAt(wx, wy)) { if (d < ws) ws = d; if (d > we) we = d; }
     }
     const water = we >= ws ? { s: ws, e: we } : undefined;
-    prof = { g0, g1, total, cum, bumps, water, supports: { piers: [], abut: [] } };
+    prof = { g0, g1, total, cum, bumps, water, ground0: !merge?.o0, ground1: !merge?.o1, supports: { piers: [], abut: [] } };
     this.bridgeProfiles.set(pts, prof);
     this.bridgeComputing.delete(pts); // cached now; deeper queries hit the cache, not recursion
 
@@ -1932,7 +1937,14 @@ export class WorldIndex {
     // UNDERPASS_CLEAR each time, which put a service road 590 px in the air.
     // Newburyport never hit it: its interchange is terrain-separated, so `layer`
     // is inert there and almost nothing tents.
-    const rampRoom = Math.min(t, prof.total - t) * WorldIndex.MAX_DECK_GRADE;
+    //
+    // Room is measured only to the ends that are actually ON THE GROUND. A merge
+    // end lands on another span's deck and is already airborne, so there is nothing
+    // to come down to on that side — without this, a stacked ramp got pancaked flat
+    // and its soffit sank below duck-under height, turning the interchange into a
+    // low black mat you could neither pass under nor climb.
+    const room = Math.min(prof.ground0 ? t : Infinity, prof.ground1 ? prof.total - t : Infinity);
+    const rampRoom = room === Infinity ? Infinity : room * WorldIndex.MAX_DECK_GRADE;
     for (const bump of prof.bumps) {
       const out = Math.abs(t - bump.t);
       if (out < WorldIndex.BRIDGE_RAMP) {
@@ -1993,7 +2005,13 @@ export class WorldIndex {
     // 22: a clearance hump near a bank can leave the deck end ~15px proud of
     // the approach (a crossed road needs headroom right up to the abutment) —
     // that step must stay mountable, like stairs
-    return d <= from + 22 ? Math.max(t, d) : t;
+    if (d <= from + 22) return Math.max(t, d);
+    // A slab you cannot fit beneath is not a wall — you walk OVER it. Otherwise a
+    // low ramp deck reads as an invisible barrier, which is what made Charlestown's
+    // interchange impassable: every approach sat just high enough to refuse a step
+    // up and just low enough to refuse a duck under.
+    if ((d - WorldIndex.DECK_T) - t < WorldIndex.KID_CLEAR) return Math.max(t, d);
+    return t;
   }
 
   // Walking UNDER a span is fine where there's headroom; this blocks the two
@@ -2020,7 +2038,10 @@ export class WorldIndex {
     for (const r of near) {
       const topY = this.bridgeDeckYAt(r.p, x, y);
       const clear = (topY - WorldIndex.DECK_T) - this.heightAtPx(x, y);
-      if (clear < WorldIndex.KID_CLEAR) return true;           // slab too low to duck under
+      // too low to duck under is no longer a blocker: surfaceYAt now walks the
+      // player OVER a slab like that, so stopping them here would be the invisible
+      // wall all over again. Solid supports below still block.
+      if (clear < WorldIndex.KID_CLEAR) continue;
       // solid supports: abutments + pier walls (same dims decor builds them with)
       const sup = this.bridgeProfile(r.p).supports;
       const hw = (r.w + 4) / 2;
