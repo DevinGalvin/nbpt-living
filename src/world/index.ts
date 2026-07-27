@@ -27,6 +27,9 @@ type BridgeProfile = {
   total: number;    // span length (arc), so height can be evaluated at any arc-length t
   cum: number[];
   bumps: { t: number; peak: number }[];
+  // crossings merged into flat runs (see the plateau note in bridgeProfile) — the
+  // deck holds one height across a cluster instead of tenting over each crossing
+  plateaus: { s: number; e: number; peak: number }[];
   water?: { s: number; e: number };
   // does each end actually sit on the GROUND? A merge end lands on another span's
   // deck and is already in the air, so the profile has no reason to ramp down to
@@ -1641,7 +1644,15 @@ export class WorldIndex {
         }
         return (bx - x) * nX + (by - y) * nZ;
       };
-      const CAP = 150;   // px: max lateral gap a way may sit from the spine and still FUSE
+      // px: max lateral gap a way may sit from the spine and still FUSE. This is the
+      // ceiling on a fused deck's half-width too (maxHw + CAP below), so it decides
+      // how big one slab can get. At 150 a motorway could fuse out to a 428 px —
+      // 53 m — plane: fine in Newburyport, whose Gillis dual carriageway only reaches
+      // ~83 px, but Charlestown's interchange packs ramps right out to the limit and
+      // the deck became a block-sized sheet that swallowed buildings and trees whole.
+      // 96 still fuses any real divided carriageway; ramps further out keep their own
+      // narrower decks, which is what an interchange should look like anyway.
+      const CAP = 96;
       // a fused member LOSES its own deck, so it must ride the spine's covered band
       // for its ENTIRE length — judged by its worst (max) offset, not its median. A
       // rotary arc or link ramp that wanders off partway keeps its own deck instead:
@@ -1796,7 +1807,7 @@ export class WorldIndex {
     // profiles (A tees into B tees into A must bottom out here, not overflow)
     if (this.bridgeComputing.has(pts)) {
       const fb = Math.max(h0, h1) + 2.5;
-      return { g0: fb, g1: fb, total: 1, cum: [0], bumps: [], ground0: true, ground1: true, supports: { piers: [], abut: [] } };
+      return { g0: fb, g1: fb, total: 1, cum: [0], bumps: [], plateaus: [], ground0: true, ground1: true, supports: { piers: [], abut: [] } };
     }
     this.bridgeComputing.add(pts);
     // decks die INTO the pavement (+2.5, just proud of the paint) instead of the
@@ -1881,7 +1892,24 @@ export class WorldIndex {
       if (this.isWaterAt(wx, wy)) { if (d < ws) ws = d; if (d > we) we = d; }
     }
     const water = we >= ws ? { s: ws, e: we } : undefined;
-    prof = { g0, g1, total, cum, bumps, water, ground0: !merge?.o0, ground1: !merge?.o1, supports: { piers: [], abut: [] } };
+    // Crossings get the SAME treatment the water span above already gets: one flat
+    // run, not a wobbly point-tent each. A tent per crossing scalloped the deck —
+    // Charlestown's interchange chains carry up to 22 crossings with gaps as small
+    // as 2 px against a 150 px ramp, so the deck began climbing for the next one
+    // before it had come down from the last and rippled 18 times along its length.
+    // Real elevated highways hold a constant grade across a whole interchange.
+    // Bumps closer than one ramp length merge into a plateau at the cluster's peak.
+    const plateaus: { s: number; e: number; peak: number }[] = [];
+    for (const b of [...bumps].sort((p, q) => p.t - q.t)) {
+      const last = plateaus[plateaus.length - 1];
+      if (last && b.t - last.e <= WorldIndex.BRIDGE_RAMP) {
+        last.e = b.t;
+        last.peak = Math.max(last.peak, b.peak);
+      } else {
+        plateaus.push({ s: b.t, e: b.t, peak: b.peak });
+      }
+    }
+    prof = { g0, g1, total, cum, bumps, plateaus, water, ground0: !merge?.o0, ground1: !merge?.o1, supports: { piers: [], abut: [] } };
     this.bridgeProfiles.set(pts, prof);
     this.bridgeComputing.delete(pts); // cached now; deeper queries hit the cache, not recursion
 
@@ -1945,10 +1973,12 @@ export class WorldIndex {
     // low black mat you could neither pass under nor climb.
     const room = Math.min(prof.ground0 ? t : Infinity, prof.ground1 ? prof.total - t : Infinity);
     const rampRoom = room === Infinity ? Infinity : room * WorldIndex.MAX_DECK_GRADE;
-    for (const bump of prof.bumps) {
-      const out = Math.abs(t - bump.t);
+    for (const pl of prof.plateaus) {
+      // inside the run the deck is FLAT at the cluster's peak; outside it ramps
+      // down over one BRIDGE_RAMP, exactly like the water span
+      const out = t < pl.s ? pl.s - t : t > pl.e ? t - pl.e : 0;
       if (out < WorldIndex.BRIDGE_RAMP) {
-        const want = bump.peak - (out / WorldIndex.BRIDGE_RAMP) * (bump.peak - grade);
+        const want = pl.peak - (out / WorldIndex.BRIDGE_RAMP) * (pl.peak - grade);
         deck = Math.max(deck, Math.min(want, grade + rampRoom));
       }
     }
