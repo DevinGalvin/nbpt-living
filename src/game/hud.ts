@@ -1169,7 +1169,14 @@ export class Hud {
   // steering thumb isn't a dead zone). Anchored at the original down point.
   private joyPend: { id: number; x: number; y: number } | null = null;
   private bannerTimer = 0;
-  private pointers = new Set<number>();
+  private pointers = new Map<number, { x: number; y: number }>();
+  // PINCH TO ZOOM. Two fingers already meant SPRINT, so the gesture has to be shared: a
+  // sprint is two fingers HELD, a pinch is two fingers whose SEPARATION CHANGES. The second
+  // finger stays a sprint until the gap moves past PINCH_SLOP, at which point it commits to
+  // a pinch for as long as both fingers are down — and cancels the sprint and the steering
+  // stick it had already started, so the kid doesn't bolt across the street while zooming.
+  private pinch: { last: number; from: number; active: boolean } | null = null;
+  onPinch?: (mult: number) => void;         // multiplier on camZoom: >1 pulls back, <1 moves in
   onTap?: (x: number, y: number) => void;   // a quick tap/click on the world (drives tap-to-pet)
   private tapDown: { x: number; y: number; id: number; t: number; moved: boolean } | null = null;
 
@@ -1350,7 +1357,7 @@ export class Hud {
     // through to the sprint branch and nothing steers. A fresh *primary* touch
     // means the old "first finger" is gone — reclaim instead of latching.
     if (this.joyId !== -1 && e.isPrimary) this.clearStick();
-    this.pointers.add(e.pointerId);
+    this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (this.joyId === -1) {
       this.joyId = e.pointerId;
       this.joyBaseX = e.clientX;
@@ -1359,7 +1366,38 @@ export class Hud {
       this.placeStick(e.clientX, e.clientY, e.clientX, e.clientY);
     } else {
       this.sprintTouch = true;
+      this.armPinch();
     }
+  }
+
+  // a second finger is a sprint UNTIL the gap between the two changes — see `pinch`
+  private armPinch() {
+    if (this.pointers.size !== 2) { this.pinch = null; return; }
+    const [a, b] = [...this.pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    this.pinch = { last: d, from: d, active: false };
+  }
+
+  private static readonly PINCH_SLOP = 26;   // px of separation change before it stops being a sprint
+
+  private stepPinch() {
+    if (!this.pinch || this.pointers.size !== 2) return;
+    const [a, b] = [...this.pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (d < 1) return;
+    if (!this.pinch.active) {
+      if (Math.abs(d - this.pinch.from) < Hud.PINCH_SLOP) return;   // still just a two-finger sprint
+      this.pinch.active = true;
+      this.sprintTouch = false;   // it was never a sprint — don't leave the kid running
+      // ⚠️ hideStick, NOT clearStick: clearStick DELETES the steering finger from `pointers`,
+      // which drops the count to 1 and makes the next stepPinch bail — the pinch would kill
+      // itself on the very frame it started. Both fingers must stay tracked until they lift.
+      this.hideStick();           // stop steering, keep the finger
+      this.pinch.last = d;
+    }
+    // fingers APART (d rising) pulls the camera IN, which is a smaller camZoom
+    this.onPinch?.(this.pinch.last / d);
+    this.pinch.last = d;
   }
 
   private onMove(e: PointerEvent) {
@@ -1371,10 +1409,18 @@ export class Hud {
       this.joyBaseX = this.joyPend.x;
       this.joyBaseY = this.joyPend.y;
       this.joyActive = true;
-      this.pointers.add(e.pointerId);
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
       this.joyPend = null;
     }
     if (this.tapDown && e.pointerId === this.tapDown.id && Math.hypot(e.clientX - this.tapDown.x, e.clientY - this.tapDown.y) > 12) this.tapDown.moved = true;
+    // track every live finger, then test for a pinch — this must run BEFORE the joystick
+    // bail-out below, since the pinch's second finger is not the steering pointer
+    if (this.pointers.has(e.pointerId)) {
+      this.pointers.get(e.pointerId)!.x = e.clientX;
+      this.pointers.get(e.pointerId)!.y = e.clientY;
+      this.stepPinch();
+    }
+    if (this.pinch?.active) { e.preventDefault(); return; }   // zooming, not steering
     if (e.pointerId !== this.joyId) return;
     e.preventDefault();   // keep the steering drag from becoming a browser gesture
     let dx = e.clientX - this.joyBaseX, dy = e.clientY - this.joyBaseY;
@@ -1411,6 +1457,7 @@ export class Hud {
       this.stickBase.style.display = 'none';
       this.stickKnob.style.display = 'none';
     }
+    if (this.pointers.size !== 2) this.pinch = null;
     if (this.pointers.size <= 1) this.sprintTouch = false;
   }
 
@@ -1418,13 +1465,18 @@ export class Hud {
   // used to unlatch a stale pointer so a new touch can take over steering
   private clearStick() {
     if (this.joyId !== -1) this.pointers.delete(this.joyId);
+    this.hideStick();
+    if (this.pointers.size <= 1) this.sprintTouch = false;
+  }
+
+  // stop steering but keep the finger tracked — the pinch needs both pointers alive
+  private hideStick() {
     this.joyId = -1;
     this.joyActive = false;
     this.joyX = 0;
     this.joyY = 0;
     this.stickBase.style.display = 'none';
     this.stickKnob.style.display = 'none';
-    if (this.pointers.size <= 1) this.sprintTouch = false;
   }
 
   private placeStick(bx: number, by: number, kx: number, ky: number) {

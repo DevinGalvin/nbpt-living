@@ -265,6 +265,10 @@ export class Game {
   private pollAcc = 0;
   private townAcc = 0;
   private curTown: string | null = null;   // which municipality the player is in (banner on change)
+  private townDwell = 0;                   // seconds inside curTown — see the banner watcher
+  private townSaid = false;                // has curTown already had its banner?
+  private townEverSet = false;             // false until the first area resolves (the spawn)
+  private lastTownSay = -1e9;
   private sprinting = false;
   private debugVec: { x: number; y: number; until: number } | null = null;
   private waterUpdate: ((t: number) => void) | null = null;
@@ -582,6 +586,16 @@ export class Game {
       if ((e.target as HTMLElement)?.closest?.('.journey-panel, .bag-panel, .travel-panel, .album-panel')) return;
       this.camZoom = Math.min(2.4, Math.max(0.55, this.camZoom * (1 + Math.sign(e.deltaY) * 0.09)));
     }, { passive: true });
+    // pinch is the wheel's touch equivalent — and on a phone it is also how you SEE far
+    // enough ahead to steer, which is half of why a dense downtown felt uncontrollable.
+    this.hud.onPinch = (mult) => {
+      this.camZoom = Math.min(2.4, Math.max(0.55, this.camZoom * mult));
+    };
+    // iOS fires its own pinch events on top of pointer events; without these Safari zooms
+    // the PAGE (the meta viewport only covers the double-tap case).
+    for (const g of ['gesturestart', 'gesturechange', 'gestureend']) {
+      window.addEventListener(g, (e) => e.preventDefault(), { passive: false });
+    }
     // Re-fit the drawing buffer to the canvas's real displayed size. Using the
     // canvas client size (CSS-driven, full-bleed) instead of innerHeight dodges the
     // iOS standalone bug where innerHeight is wrong until the viewport settles.
@@ -1849,6 +1863,14 @@ export class Game {
     // so this is dialed back further (was 0.72). The joystick still gives proportional
     // speed below this; desktop (WASD) and the run button keep the full, gamey pace.
     if (this.hud.joyActive && !this.sprinting && !this.riding && !this.kayaking) speed *= 0.55;
+    // ...and the BIKE was never included in that, which only showed up in a city. At 530 it
+    // is 4.8x the on-foot joystick pace, and it deliberately steers lazier than on foot
+    // (turnK 4.2 vs 7.5) — fine down a wide residential street, unrideable through a
+    // downtown grid where the buildings run unbroken to the kerb and the gaps are one lane
+    // (Devin, on a phone in Boston: "very hard ... not to constantly crash into buildings").
+    // A single tunable number, exactly like the on-foot 0.55 above; the throttle stays
+    // proportional under it, and desktop keeps the full gamey pace.
+    else if (this.hud.joyActive && this.riding && !this.sprinting) speed *= 0.7;
 
     const half = 5;   // a slightly slimmer footprint so narrow streets stay passable
     const free = this.kayaking
@@ -2141,10 +2163,33 @@ export class Game {
           }
           if (now) break;
         }
-        if (now && now !== this.curTown) {
-          // announce only on a real crossing — the spawn-in town sets silently
-          if (this.curTown) this.hud.announce('🪧 Entering ' + now, TOWN.borderLore?.[now] ?? 'crossing the town line');
+        // ⚠️ DWELL + COOLDOWN, because a city is not a town. This banner was written where
+        // crossings are rare and every one is an event: Newburyport has 5 boundary areas and
+        // the smallest is 6 km across, so you meet a town line maybe once a session. Boston
+        // has 64, and it counts NEIGHBOURHOODS — the Leather District is 316 m across, Bay
+        // Village 356 m, and downtown packs Chinatown, the North End, the West End, Beacon
+        // Hill and Government Center right up against each other. Announcing every crossing
+        // turned the thing that should feel like arriving somewhere into a stream of popups
+        // (Devin: "constantly getting 'Entering this hood' ... theres constantly popups").
+        //
+        // So: you must STAY somewhere ~5 s before it counts as arriving — which alone kills
+        // clipping a corner — and no two banners land within 40 s of each other. Where the
+        // banner is suppressed it is DROPPED, not queued: "Entering Back Bay" half a minute
+        // after the fact is worse than silence. `curTown` still tracks position exactly, so
+        // nothing else that reads it is affected.
+        if (now !== this.curTown) {
           this.curTown = now;
+          this.townDwell = 0;
+          this.townSaid = !this.townEverSet;   // the area you SPAWN in is set silently
+          if (now) this.townEverSet = true;
+        } else if (now && !this.townSaid) {
+          this.townDwell += 0.9;
+          const tNow = performance.now() / 1000;
+          if (this.townDwell >= 5 && tNow - this.lastTownSay >= 40) {
+            this.townSaid = true;
+            this.lastTownSay = tNow;
+            this.hud.announce('🪧 Entering ' + now, TOWN.borderLore?.[now] ?? 'crossing the town line');
+          }
         }
       }
     }
