@@ -577,6 +577,28 @@ const css = `
 /* running tally under the card — "that was number 7" */
 #hud .hcard .hcount { text-align: center; font-size: 12px; color: #c8bd96; margin: 12px 22px 0; letter-spacing: 0.4px; }
 #hud .hcard .hcount b { color: #e8c44f; }
+/* the not-yet-found treatment: same card, all the shine turned down */
+#hud .hcard.locked-card .hpic { background: linear-gradient(155deg, #322530, #1d1419); }
+#hud .hcard.locked-card .hpic .hpic-em { opacity: 0.55; filter: grayscale(0.6); }
+#hud .hcard.locked-card .hpic::after { background: linear-gradient(to bottom, transparent 55%, rgba(26,13,17,0.75)); }
+#hud .hcard.locked-card .ht { color: #d9d3c4; }
+#hud .hcard.locked-card .stamp { color: #8b8678; }
+#hud .hcard .hmore { display: block; margin-top: 10px; font-size: 13.5px; color: #c8a24f; font-style: italic; }
+#hud .hcard.locked-card .hclose { background: rgba(216,185,74,0.18); border-color: rgba(216,185,74,0.5); color: #f3f1e8; }
+/* an icon does not need a photo-sized frame — the locked card's art area is half
+   height, or the glyph floats in an empty pane */
+#hud .hcard.locked-card .hpic { aspect-ratio: 16 / 7; }
+/* "Read it" was wrapping to "Read / it" on a phone, and the stamp was colliding
+   with the buttons */
+#hud .hcard .hsay, #hud .hcard .hclose { white-space: nowrap; flex: 0 0 auto; }
+#hud .hcard .stamp { flex: 1 1 auto; min-width: 0; }
+@media (max-width: 520px) {
+  #hud .hcard .hf { flex-wrap: wrap; gap: 8px; padding: 0 16px; }
+  #hud .hcard .stamp { flex: 1 0 100%; order: 2; font-size: 10px; letter-spacing: 1.4px; }
+  #hud .hcard .hacts { order: 1; width: 100%; justify-content: flex-end; }
+  #hud .hcard .hbody { padding: 12px 16px 0; }
+  #hud .hcard .hcount { margin: 10px 16px 0; }
+}
 #hud .hist-line { text-align: center; font-size: 12.5px; color: #c8bd96; margin-top: 12px; letter-spacing: 0.5px; }
 #hud .hist-line b { color: #e8c44f; }
 
@@ -639,7 +661,8 @@ const css = `
   border-radius: 10px; overflow: hidden; background: rgba(243,241,232,0.06);
   border: 1px solid rgba(243,241,232,0.12); cursor: default;
 }
-#hud .ctile.got { border-color: rgba(216,185,74,0.55); cursor: pointer; }
+#hud .ctile { cursor: pointer; }
+#hud .ctile.got { border-color: rgba(216,185,74,0.55); }
 #hud .ctile .cpic { position: relative; width: 100%; aspect-ratio: 8 / 5; background: linear-gradient(155deg, #3a2d18, #241218); display: flex; align-items: center; justify-content: center; }
 #hud .ctile .cpic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 #hud .ctile .cpic .cem { font-size: 30px; opacity: 0.95; }
@@ -2895,7 +2918,7 @@ export class Hud {
     }
 
     // restart the entrance animation even if a card was already up
-    el.classList.remove('fresh');
+    el.classList.remove('fresh', 'locked-card');
     void el.offsetWidth;
     el.classList.toggle('fresh', !!opts?.fresh);
 
@@ -2907,6 +2930,39 @@ export class Hud {
   }
 
   private cardText = '';
+
+  // The card for something you HAVEN'T found: same shape as the real one, so a slot
+  // feels like a place rather than a dead square, but it withholds the payoff. You
+  // get the icon instead of a photo, the opening line, and where to look — enough to
+  // decide to go. The rest is the reward for going, which is the whole mechanic.
+  private lockedCard(mk: { id: string; title: string; year: string; body: string; hint?: string | null; icon?: string }) {
+    const back = document.querySelector('#hud .hcard-back') as HTMLElement;
+    const el = back.querySelector('.hcard') as HTMLElement;
+    (el.querySelector('.ht') as HTMLElement).textContent = mk.title;
+    (el.querySelector('.hy') as HTMLElement).textContent = mk.year;
+
+    // first sentence only — a taste, not the story
+    const teaser = (mk.body.match(/^[\s\S]*?[.!?](?=\s|$)/) || [mk.body])[0].trim();
+    const body = el.querySelector('.hb') as HTMLElement;
+    body.innerHTML = esc(teaser) + '<span class="hmore">Find it to read the rest.</span>';
+
+    (el.querySelector('.hpic') as HTMLElement).innerHTML =
+      '<span class="hpic-em">' + (mk.icon || '🏛') + '</span>';
+
+    const cnt = el.querySelector('.hcount') as HTMLElement;
+    cnt.style.display = '';
+    cnt.innerHTML = mk.hint
+      ? '💡 Look for it near <b>' + esc(mk.hint) + '</b>'
+      : 'Somewhere out there. Keep exploring.';
+
+    (el.querySelector('.stamp') as HTMLElement).textContent = '★ STILL OUT THERE';
+    el.classList.remove('fresh');
+    el.classList.add('locked-card');
+    this.hushSay();
+    this.cardText = mk.title + '. ' + teaser;
+    back.classList.add('open');
+    this.hcardOpen = true;
+  }
 
   // ---------- 🏛 the collection ----------
   //
@@ -3007,26 +3063,19 @@ export class Hud {
       // over a bare year, which is blind searching — you cannot go looking for
       // 1811. The title is the target; 💡 gives up the street it is on, so a kid
       // who is stuck has somewhere to walk instead of quitting.
+      // EVERY tile opens its card — found ones show the story, locked ones show a
+      // teaser and where to look. The old per-tile 💡 was the same two words on 34
+      // tiles, which is noise; the hint belongs on the card you opened to ask.
       tile.innerHTML = '<div class="cpic">' + pic + '</div>'
         + '<div class="ctx"><div class="cnm">' + esc(mk.title) + '</div>'
-        + '<div class="cyr">' + esc(mk.year) + '</div>'
-        + (!got && mk.hint ? '<div class="chint" title="Where to look">💡 <span>where?</span></div>' : '')
-        + '</div>';
+        + '<div class="cyr">' + esc(mk.year) + '</div></div>';
       if (shot) (tile.querySelector('img') as HTMLImageElement).src = shot;
-      if (got) {
-        tile.addEventListener('pointerdown', (e) => {
-          e.stopPropagation();
-          panel.classList.remove('show');
-          this.collectOpen?.(mk.id);
-        });
-      } else if (mk.hint) {
-        const h = tile.querySelector('.chint') as HTMLElement;
-        h.addEventListener('pointerdown', (e) => {
-          e.stopPropagation();
-          h.classList.add('shown');
-          (h.querySelector('span') as HTMLElement).textContent = 'near ' + mk.hint;
-        });
-      }
+      tile.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        panel.classList.remove('show');
+        if (got) this.collectOpen?.(mk.id);
+        else this.lockedCard(mk);
+      });
       grid.appendChild(tile);
     }
     panel.classList.add('show');
