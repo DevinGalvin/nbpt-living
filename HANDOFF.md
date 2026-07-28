@@ -8,11 +8,34 @@ Amesbury `/amesbury/`, Salisbury `/salisbury/`, Charlestown `/charlestown/`
 and **Boston `/boston/`**. Three.js + TypeScript + Vite.
 Live at **https://clippertown.io**.
 
-> **⚡ FRESHEST STATE: TWELVE towns live. FULL BOSTON IS SHIPPED** — 233,279
-> buildings, 129 landmarks, 3 races, flight off the real Logan Runway 27, and 44
-> hero keys (~59 heroes render, because Charlestown's sit inside Boston's frame).
-> Everything about it is in **`BOSTON-HANDOFF.md`** — read that first.
-> Latest `9180932`; `npm run build:all` passes for all twelve.
+> **⚡ FRESHEST STATE: TWELVE towns live. FULL BOSTON IS SHIPPED, AND THEN
+> POLISHED HARD.** 233,279 buildings, 129 landmarks, 3 races, flight off the real
+> Logan Runway 27. Latest `ad07c90`; `npm run build:all` passes for all twelve.
+>
+> **Read `BOSTON-POLISH-HANDOFF.md` FIRST** — it is the cold-start doc for
+> everything after Boston shipped (six commits, `cc8c4e0` → `0a62aa0`, all live).
+> `BOSTON-HANDOFF.md` is still the reference for how Boston was *built*, but a
+> lot of what it describes has since been rebuilt.
+>
+> **The lesson that session bought, and the reason to read it before touching
+> anything:** four separate defaults — each invisible in every town that had ever
+> been tested — were between them destroying the city. `lv` clamped to 6 in four
+> places (Boston had **no skyline at all**), `buildingTopAt` clamped to 5 (the
+> chase camera sat inside towers), the fast-travel stand-off capped at 320 px
+> (Fenway's footprint is 2186 px wide, so you arrived nose-to-brick), and
+> storefront spacing set *below the width of its own display glass* (a long
+> ground floor came out as one unbroken black ribbon). None of them were wrong
+> code. **A default that is invisible in every case you have tested is not
+> validated, it is untested** — when a town is bigger, denser or taller than the
+> set, go hunt the constants rather than waiting to be shown a screenshot.
+>
+> That session also shipped: `towerBlock`/`curtainWall`, `gridWindows()` (about
+> **thirty landmarks had no windows at all**), a rewritten arrival that puts
+> **128 of 129** Boston landmarks in clear view, 👀 LOOK UP, `masonryMix` /
+> `glassMix` / `bayWindows`, terrain smoothstep (plain bilinear is C0, so the
+> landscape was made of four-sided tents), **157 real-size jets at Logan**,
+> elevated spans so nothing walls off a live street, and five lo-fi music styles
+> in Settings. Six items are still open and are listed there.
 >
 > **The "one real blocker" below was measured and was NOT one.** The engine does
 > parse world.json whole at boot, but Boston's real bake is 45.6 MB raw /
