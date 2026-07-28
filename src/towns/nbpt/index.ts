@@ -2,6 +2,7 @@
 // from the engine when the towns reunified; NBPT behavior is unchanged.
 import type { TownPack, SpawnAnchor } from '../types';
 import { COURSES } from './courses';
+import { HISTORY } from './history';
 import cfg from '../../../towns/nbpt/town.json';
 
 export const TOWN: TownPack = {
@@ -13,6 +14,7 @@ export const TOWN: TownPack = {
   path: '/',
 
   story: true,
+  history: HISTORY,                  // 🏛 36 discovery markers — see ./history.ts
 
   spawn: cfg.spawn as SpawnAnchor,   // Market Square (heart landmark; see town.json)
 

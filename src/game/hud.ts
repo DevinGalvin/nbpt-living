@@ -6,6 +6,10 @@ import { SEASON, seasonsUnlocked } from '../world/style';
 
 import { TOWN } from '@town';
 import { TOWNS } from '../towns/registry';
+import { loadShot } from './shots';
+
+// marker titles are authored copy, but they land in innerHTML — keep them literal
+const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
 const css = `
 /* ── Town theme tokens ─────────────────────────────────────────────
@@ -389,7 +393,8 @@ const css = `
 #hud:has(.travel-panel.open) .objective,
 #hud:has(.journey-panel.show) .objective,
 #hud:has(.bag-panel.show) .objective,
-#hud:has(.hcard.open) .objective,
+#hud:has(.hcard-back.open) .objective,
+#hud:has(.collect-panel.show) .objective,
 #hud:has(.banner.show) .objective { display: none !important; }
 /* racing mutes the story: the quest pill yields the top of the screen to the countdown,
    the race clock, and the results board (quest beats + TALK are suppressed game-side) */
@@ -508,22 +513,134 @@ const css = `
   transition: opacity 0.7s ease;
 }
 #hud .vignette.on { opacity: 1; }
-#hud .hcard {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -52%);
-  width: min(520px, 92vw); background: var(--panel); border-radius: 14px;
-  border-bottom: 3px solid #d8b94a; padding: 20px 22px 14px; display: none;
-  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.45);
+/* ---------- the discovery card ----------
+   This is the payoff for walking somewhere, so it is built to feel like a prize
+   being handed over: the town freezes behind it, the card lands with a bump, and
+   the photo at the top is the kid's OWN view of the thing a second ago. Tapping
+   the backdrop closes it — but the close button is a real 44px target, because a
+   third grader with a trackpad should not have to be precise to get out. */
+#hud .hcard-back {
+  position: absolute; inset: 0; background: rgba(12, 6, 9, 0.55);
+  backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  display: none; align-items: center; justify-content: center;
+  pointer-events: auto; z-index: 60;
 }
-#hud .hcard.open { display: block; }
-#hud .hcard .ht { font-family: Georgia, serif; font-size: 24px; color: #f6f3e8; }
-#hud .hcard .hy { font-size: 11.5px; letter-spacing: 2px; color: #e8c44f; font-weight: 700; text-transform: uppercase; margin: 3px 0 12px; }
-#hud .hcard .hb { font-size: 15px; line-height: 1.6; color: #e8e4d8; white-space: pre-line; }
-#hud .hcard .hf { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; }
+#hud .hcard-back.open { display: flex; }
+#hud .hcard {
+  position: relative; width: min(520px, 92vw); max-height: 88vh; overflow-y: auto;
+  background: var(--panel); border-radius: 16px;
+  border-bottom: 3px solid #d8b94a; padding: 0 0 14px;
+  user-select: none; -webkit-user-select: none;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  animation: nbpt-card-in 0.42s cubic-bezier(0.18, 1.3, 0.42, 1) both;
+}
+@keyframes nbpt-card-in {
+  from { opacity: 0; transform: translateY(26px) scale(0.9); }
+  to   { opacity: 1; transform: none; }
+}
+/* the "you just found one" banner — only on a first find, never on a re-read */
+#hud .hcard .hnew {
+  display: none; text-align: center; font-size: 12px; font-weight: 800; letter-spacing: 2.4px;
+  color: #1d1207; background: linear-gradient(90deg, #e8c44f, #ffdf87 55%, #e8c44f);
+  padding: 8px 10px; border-radius: 16px 16px 0 0;
+}
+#hud .hcard.fresh .hnew { display: block; }
+/* the photo: the kid's own snapshot, or an illustrated fallback tile */
+#hud .hcard .hpic {
+  position: relative; width: 100%; aspect-ratio: 8 / 5; overflow: hidden;
+  background: linear-gradient(155deg, #4a3a1c, #2a1419 70%);
+  display: flex; align-items: center; justify-content: center;
+}
+#hud .hcard.fresh .hpic { animation: nbpt-pic-in 0.7s ease 0.15s both; }
+@keyframes nbpt-pic-in { from { filter: brightness(2.4) saturate(0.2); } to { filter: none; } }
+#hud .hcard .hpic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#hud .hcard .hpic .hpic-em { font-size: 62px; opacity: 0.85; }
+#hud .hcard .hpic::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(to bottom, transparent 55%, rgba(26,13,17,0.9));
+}
+#hud .hcard .hbody { padding: 14px 22px 0; }
+#hud .hcard .ht { font-family: Georgia, serif; font-size: 24px; color: #f6f3e8; line-height: 1.2; }
+#hud .hcard .hy { font-size: 11.5px; letter-spacing: 2px; color: #e8c44f; font-weight: 700; text-transform: uppercase; margin: 4px 0 12px; }
+#hud .hcard .hb { font-size: 15px; line-height: 1.62; color: #e8e4d8; white-space: pre-line; }
+#hud .hcard .hf { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 16px; padding: 0 22px; }
 #hud .hcard .stamp { font-size: 11px; letter-spacing: 1.8px; color: #e8c44f; font-weight: 800; }
-#hud .hcard .close { font-size: 10.5px; color: #c8bd96; letter-spacing: 1px; }
+#hud .hcard .hacts { display: flex; align-items: center; gap: 8px; }
+#hud .hcard .hsay, #hud .hcard .hclose {
+  min-width: 44px; height: 44px; padding: 0 14px; border-radius: 22px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 13px; font-weight: 700; cursor: pointer; pointer-events: auto;
+  border: 1.5px solid rgba(216,185,74,0.55); background: rgba(216,185,74,0.12); color: #f3f1e8;
+}
+#hud .hcard .hclose { background: #d8b94a; border-color: #d8b94a; color: #2a1419; }
+#hud .hcard .hsay.speaking { background: rgba(216,185,74,0.34); }
+/* running tally under the card — "that was number 7" */
+#hud .hcard .hcount { text-align: center; font-size: 12px; color: #c8bd96; margin: 12px 22px 0; letter-spacing: 0.4px; }
+#hud .hcard .hcount b { color: #e8c44f; }
 #hud .hist-line { text-align: center; font-size: 12.5px; color: #c8bd96; margin-top: 12px; letter-spacing: 0.5px; }
 #hud .hist-line b { color: #e8c44f; }
+
+/* ---------- 🏛 the collection ----------
+   With the story spine retired this is the main thing to DO, so it gets a
+   front-door button rather than living inside the backpack. In a no-story town it
+   takes the slot the missions log used to hold, and the season/race buttons
+   cascade down past it (scoped to .has-collect so world-only towns are untouched). */
+#hud .collect-btn {
+  position: absolute; top: 398px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  display: none; align-items: center; justify-content: center; font-size: 20px;
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: top 0.3s ease;
+}
+#hud .collect-btn.show { display: flex; }
+#hud.no-story .collect-btn { top: 142px !important; }
+#hud.no-story.has-collect .season-toggle, #hud.no-story.has-collect .season-pop { top: 206px !important; }
+#hud.no-story.has-collect .race-btn, #hud.no-story.has-collect .race-pop { top: 270px !important; }
+/* The gold count rides the TOP-right rim. It used to sit bottom-right, where the
+   .blab pill (which is centred on the bottom rim and painted after it) covered it
+   completely — the number was invisible on the one button whose whole point is a
+   running number. Any future badge on a labelled button belongs up here. */
+#hud .collect-btn .cb-n {
+  position: absolute; top: -3px; right: -3px; min-width: 20px; height: 18px; padding: 0 4px;
+  border-radius: 9px; background: #d8b94a; color: #2a1419;
+  font-size: 10.5px; font-weight: 800; line-height: 18px; text-align: center;
+}
+#hud .collect-btn.done { border-color: #ffd86a; box-shadow: 0 0 12px rgba(255,216,106,0.6); }
+@keyframes nbpt-collect-pop { 0%,100% { transform: scale(1); } 40% { transform: scale(1.28); } }
+#hud .collect-btn.bump { animation: nbpt-collect-pop 0.5s ease; }
+
+#hud .collect-panel {
+  position: absolute; inset: 0; background: rgba(12, 6, 9, 0.6);
+  display: none; align-items: center; justify-content: center; pointer-events: auto; z-index: 55;
+}
+#hud .collect-panel.show { display: flex; }
+#hud .collect-card {
+  position: relative; width: min(560px, 94vw); max-height: 86vh; overflow-y: auto;
+  background: var(--panel); border-radius: 14px; border-bottom: 3px solid #d8b94a;
+  padding: 18px 20px 18px; color: #f3f1e8;
+}
+#hud .collect-card h2 { font-size: 14px; letter-spacing: 3px; color: #e8c44f; font-weight: 800; margin: 0 0 10px; }
+#hud .collect-prog { height: 10px; border-radius: 5px; background: rgba(243,241,232,0.13); overflow: hidden; margin: 2px 0 6px; }
+#hud .collect-prog i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #b98f2e, #ffd86a); transition: width 0.5s ease; }
+#hud .collect-tally { font-size: 13px; color: #c8bd96; margin-bottom: 14px; }
+#hud .collect-tally b { color: #e8c44f; font-size: 15px; }
+#hud .collect-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 9px; }
+#hud .ctile {
+  border-radius: 10px; overflow: hidden; background: rgba(243,241,232,0.06);
+  border: 1px solid rgba(243,241,232,0.12); cursor: default;
+}
+#hud .ctile.got { border-color: rgba(216,185,74,0.55); cursor: pointer; }
+#hud .ctile .cpic { position: relative; width: 100%; aspect-ratio: 8 / 5; background: linear-gradient(155deg, #3a2d18, #241218); display: flex; align-items: center; justify-content: center; }
+#hud .ctile .cpic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#hud .ctile .cpic .cem { font-size: 30px; opacity: 0.9; }
+/* a locked slot shows its silhouette and its year — enough to be a lead, not a spoiler */
+#hud .ctile.locked .cpic { filter: grayscale(1) brightness(0.42); }
+#hud .ctile.locked .cpic::after { content: '?'; position: absolute; font-size: 30px; font-weight: 800; color: rgba(243,241,232,0.5); }
+#hud .ctile .ctx { padding: 7px 9px 9px; }
+#hud .ctile .cnm { font-size: 12.5px; font-weight: 700; line-height: 1.25; }
+#hud .ctile.locked .cnm { color: #8b8678; }
+#hud .ctile .cyr { font-size: 10.5px; color: #c8bd96; letter-spacing: 0.6px; margin-top: 2px; }
+#hud .collect-empty { font-size: 13px; color: #c8bd96; line-height: 1.5; }
 #hud .mini {
   position: absolute; top: 70px; right: 14px; opacity: 0.55; border-radius: 8px;
   overflow: hidden; border: 1px solid rgba(243, 241, 232, 0.35); pointer-events: none;
@@ -1241,7 +1358,21 @@ export class Hud {
       <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div><div class="namer"><input maxlength="12" placeholder="YOUR NAME"><button>SAVE</button></div></div>
       <div class="promo"><div class="promo-card"><div class="promo-x">✕</div><div class="promo-badge"></div><div class="promo-icon"></div><div class="promo-title"></div><div class="promo-body"></div><div class="promo-acts"><button class="promo-cta"></button><span class="promo-skip">Maybe later</span></div></div></div>
       <div class="levelpromo"><div class="lp-beam"></div><div class="lp-lamp"></div><div class="lp-snow"></div><div class="lp-inner"><div class="lp-kick">✦ LEVEL 1 COMPLETE ✦</div><div class="lp-lvl">LEVEL 2</div><div class="lp-title">The Light That Walks</div><div class="lp-tag">A lamp walks the shore at night, and the winter harbor needs its keeper. Your story sails on.</div><button class="lp-go">BEGIN ❄️</button><div class="lp-hint">❄️ Winter has come · change the season any time from the 🎄 button</div></div></div>
-      <div class="hcard"><div class="ht"></div><div class="hy"></div><div class="hb"></div><div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="close">tap to close</div></div></div>
+      <div class="hcard-back"><div class="hcard">
+        <div class="hnew">✦ NEW DISCOVERY ✦</div>
+        <div class="hpic"><span class="hpic-em">🏛</span></div>
+        <div class="hbody"><div class="ht"></div><div class="hy"></div><div class="hb"></div></div>
+        <div class="hcount"></div>
+        <div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="hacts"><div class="hsay" title="Read it to me">🔊 <span>Read it</span></div><div class="hclose">Got it ✓</div></div></div>
+      </div></div>
+      <div class="collect-btn" title="Your discoveries">🏛<span class="cb-n">0</span><span class="blab">DISCOVER</span></div>
+      <div class="collect-panel"><div class="collect-card">
+        <div class="modal-x">✕</div>
+        <h2>🏛 YOUR DISCOVERIES</h2>
+        <div class="collect-prog"><i style="width:0%"></i></div>
+        <div class="collect-tally"></div>
+        <div class="collect-grid"></div>
+      </div></div>
       <div class="modepick"><div class="modepick-card">
         <div class="modepick-icon">🧭</div>
         <div class="modepick-title">Welcome to Clipper Town</div>
@@ -1296,12 +1427,23 @@ export class Hud {
       e.stopPropagation();
       this.advanceDlg();
     });
-    const hcard = hud.querySelector('.hcard') as HTMLElement;
-    hcard.addEventListener('pointerdown', (e) => {
+    // Discovery card: the backdrop closes it, but the card body does NOT — a kid
+    // dragging a finger down a long story shouldn't dismiss what they're reading.
+    // Getting out is the explicit "Got it ✓" button (or the backdrop).
+    const hback = hud.querySelector('.hcard-back') as HTMLElement;
+    hback.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
-      hcard.classList.remove('open');
-      this.hcardOpen = false;
-      this.dlgCool = performance.now() + 280;
+      if (e.target === hback) this.closeHistoryCard();
+    });
+    (hud.querySelector('.hcard .hclose') as HTMLElement).addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.closeHistoryCard();
+    });
+    const hsay = hud.querySelector('.hcard .hsay') as HTMLElement;
+    if (!('speechSynthesis' in window)) hsay.style.display = 'none';
+    hsay.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.sayCard();
     });
     // tap the objective pill to tuck the quest away (freelance mode is sacred)
     const obj = hud.querySelector('.objective') as HTMLElement;
@@ -1336,7 +1478,7 @@ export class Hud {
 
   private onDown(e: PointerEvent) {
     const tgt = e.target as HTMLElement;
-    const onUI = !!tgt?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .talk-btn, .dlg, .objective, .hcard, .race-btn, .race-pop');
+    const onUI = !!tgt?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .talk-btn, .dlg, .objective, .hcard, .hcard-back, .collect-btn, .collect-panel, .race-btn, .race-pop');
     // run/bike sit right under the steering thumb: don't dead-zone them. A tap toggles (their own
     // click handler); a drag promotes to the joystick (handled in onMove). Defer either way.
     const onSoftBtn = !onUI && !!tgt?.closest?.('.run-btn, .bike-btn');
@@ -2322,8 +2464,9 @@ export class Hud {
       ap.addEventListener('click', (e) => { if (e.target === ap) ap.classList.remove('show'); });
       this.albumPanel = ap;
     }
-    let rd: Set<string>;
-    try { rd = new Set(JSON.parse(localStorage.getItem('nbpt-history-read') || '[]')); } catch { rd = new Set(); }
+    // read straight from the collection's source of truth — this used to hardcode
+    // `nbpt-history-read`, which is now a per-town key
+    const rd = this.collectRead();
     const tally = this.albumPanel.querySelector('.alb-tally') as HTMLElement;
     tally.innerHTML = rd.size >= this.histMarkers.length
       ? '\u{1F3DB} <b style="color:#ffd86a">You found all ' + this.histMarkers.length + ' — Town Historian!</b>'
@@ -2485,15 +2628,29 @@ export class Hud {
     });
   }
 
-  // ---------- look up (always shown; click or V toggles the raised camera) ----------
+  // ---------- look up (click or V toggles the raised camera) ----------
+  //
+  // NOT always shown. It earns its slot only where there is something overhead worth
+  // craning at — downtown Boston, a mill, a tower. In a town of two-storey houses the
+  // button is a promise the street can't keep, so Game polls what's nearby and calls
+  // showLook(). See Game.updateLookOffer.
 
   initLook(onToggle: () => boolean) {
     const btn = document.querySelector('#hud .look-btn') as HTMLElement;
-    btn.classList.add('show');
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       this.setLookState(onToggle());
     });
+  }
+
+  // returns true if the button just went away while the raised camera was still on,
+  // so the caller can drop the camera rather than strand it with no way back down
+  showLook(on: boolean): boolean {
+    const btn = document.querySelector('#hud .look-btn') as HTMLElement | null;
+    if (!btn) return false;
+    const was = btn.classList.contains('show');
+    btn.classList.toggle('show', on);
+    return was && !on && btn.classList.contains('on');
   }
 
   setLookState(on: boolean) {
@@ -2667,15 +2824,166 @@ export class Hud {
     return this.dlgEl.classList.contains('open') || this.hcardOpen || performance.now() < this.dlgCool;
   }
 
-  // plaque reader: serif card with the true-story stamp
-  historyCard(title: string, year: string, body: string, stamp?: string) {
-    const el = document.querySelector('#hud .hcard') as HTMLElement;
+  // The town holds still while a discovery card is up (Game.frame reads this).
+  get cardPaused(): boolean {
+    return this.hcardOpen;
+  }
+
+  // plaque reader: serif card with the true-story stamp, the kid's own photo of the
+  // place, and — on a first find — the NEW DISCOVERY banner and the running tally.
+  // `opts.fresh` is what separates "you just earned this" from "you're re-reading it".
+  historyCard(
+    title: string, year: string, body: string, stamp?: string,
+    opts?: { photo?: string | null; emoji?: string; fresh?: boolean; found?: number; total?: number },
+  ) {
+    const back = document.querySelector('#hud .hcard-back') as HTMLElement;
+    const el = back.querySelector('.hcard') as HTMLElement;
     (el.querySelector('.ht') as HTMLElement).textContent = title;
     (el.querySelector('.hy') as HTMLElement).textContent = year;
     (el.querySelector('.hb') as HTMLElement).textContent = body;
     (el.querySelector('.stamp') as HTMLElement).textContent = stamp || '★ A TRUE STORY';
-    el.classList.add('open');
+
+    const pic = el.querySelector('.hpic') as HTMLElement;
+    pic.innerHTML = opts?.photo
+      ? '<img alt="">'
+      : '<span class="hpic-em">' + (opts?.emoji || '🏛') + '</span>';
+    if (opts?.photo) (pic.querySelector('img') as HTMLImageElement).src = opts.photo;
+
+    const cnt = el.querySelector('.hcount') as HTMLElement;
+    if (opts?.total) {
+      const f = opts.found ?? 0;
+      cnt.style.display = '';
+      cnt.innerHTML = f >= opts.total
+        ? '🏛 <b>Every single one found.</b> You know this town.'
+        : 'Discovery <b>' + f + '</b> of ' + opts.total + ' — <b>' + (opts.total - f) + '</b> still out there';
+    } else {
+      cnt.style.display = 'none';
+    }
+
+    // restart the entrance animation even if a card was already up
+    el.classList.remove('fresh');
+    void el.offsetWidth;
+    el.classList.toggle('fresh', !!opts?.fresh);
+
+    this.hushSay();
+    (el.querySelector('.hsay') as HTMLElement).classList.remove('speaking');
+    this.cardText = title + '. ' + body;
+    back.classList.add('open');
     this.hcardOpen = true;
+  }
+
+  private cardText = '';
+
+  // ---------- 🏛 the collection ----------
+  //
+  // Every marker in town gets a slot from the very first second, found or not. A kid
+  // opening this on minute one should see thirty-six dark tiles and think "I want
+  // those" — a grid that only fills in as you go can't tell you what you're missing,
+  // and the missing ones are the whole motivation. Locked tiles show the year but not
+  // the story, so they read as a lead rather than a spoiler.
+
+  private collectRead: () => Set<string> = () => new Set();
+  private collectOpen: ((id: string) => void) | null = null;
+
+  initCollection(
+    markers: { id: string; title: string; year: string; body: string; stamp?: string }[],
+    read: () => Set<string>,
+    openCard: (id: string) => void,
+  ) {
+    this.histMarkers = markers;
+    this.collectRead = read;
+    this.collectOpen = openCard;
+    const btn = document.querySelector('#hud .collect-btn') as HTMLElement;
+    btn.classList.add('show');
+    this.root.classList.add('has-collect');
+    btn.addEventListener('pointerdown', (e) => { e.stopPropagation(); this.openCollection(); });
+    const panel = document.querySelector('#hud .collect-panel') as HTMLElement;
+    panel.addEventListener('pointerdown', (e) => { if (e.target === panel) panel.classList.remove('show'); });
+    (panel.querySelector('.modal-x') as HTMLElement).addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      panel.classList.remove('show');
+    });
+    this.refreshCollectCount(false);
+  }
+
+  // the gold pip on the button — and a little pop when the number goes up
+  refreshCollectCount(bump: boolean) {
+    const btn = document.querySelector('#hud .collect-btn') as HTMLElement | null;
+    if (!btn) return;
+    const n = this.collectRead().size, total = this.histMarkers.length;
+    (btn.querySelector('.cb-n') as HTMLElement).textContent = String(n);
+    btn.classList.toggle('done', total > 0 && n >= total);
+    if (bump) {
+      btn.classList.remove('bump');
+      void btn.offsetWidth;
+      btn.classList.add('bump');
+    }
+  }
+
+  openCollection() {
+    const panel = document.querySelector('#hud .collect-panel') as HTMLElement;
+    const rd = this.collectRead();
+    const total = this.histMarkers.length;
+    const pct = total ? Math.round((rd.size / total) * 100) : 0;
+    (panel.querySelector('.collect-prog i') as HTMLElement).style.width = pct + '%';
+    const tally = panel.querySelector('.collect-tally') as HTMLElement;
+    tally.innerHTML = rd.size >= total && total > 0
+      ? '<b>All ' + total + ' found</b> — you are the Town Historian.'
+      : '<b>' + rd.size + '</b> of ' + total + ' found · ' + (total - rd.size) + ' still hiding out there';
+
+    const grid = panel.querySelector('.collect-grid') as HTMLElement;
+    grid.innerHTML = '';
+    for (const mk of this.histMarkers) {
+      const got = rd.has(mk.id);
+      const shot = got ? loadShot(mk.id) : null;
+      const tile = document.createElement('div');
+      tile.className = 'ctile' + (got ? ' got' : ' locked');
+      const pic = shot
+        ? '<img alt="">'
+        : '<span class="cem">' + (got ? '🏛' : '📍') + '</span>';
+      tile.innerHTML = '<div class="cpic">' + pic + '</div>'
+        + '<div class="ctx"><div class="cnm">' + (got ? esc(mk.title) : 'Not found yet') + '</div>'
+        + '<div class="cyr">' + esc(mk.year) + '</div></div>';
+      if (shot) (tile.querySelector('img') as HTMLImageElement).src = shot;
+      if (got) {
+        tile.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          panel.classList.remove('show');
+          this.collectOpen?.(mk.id);
+        });
+      }
+      grid.appendChild(tile);
+    }
+    panel.classList.add('show');
+  }
+
+  private closeHistoryCard() {
+    const back = document.querySelector('#hud .hcard-back') as HTMLElement;
+    back.classList.remove('open');
+    (back.querySelector('.hcard') as HTMLElement).classList.remove('fresh');
+    this.hcardOpen = false;
+    this.hushSay();
+    this.dlgCool = performance.now() + 280;
+  }
+
+  // 🔊 read the card out loud. Third grade spans a very wide range of reading
+  // ability and these cards ARE the lesson — a kid who can't read this one yet
+  // still gets to collect it. Same Web Speech path the dialogue uses.
+  private sayCard() {
+    const btn = document.querySelector('#hud .hcard .hsay') as HTMLElement;
+    try {
+      if (window.speechSynthesis.speaking) {
+        this.hushSay();
+        btn.classList.remove('speaking');
+        return;
+      }
+      const u = new SpeechSynthesisUtterance(this.cardText);
+      u.lang = 'en-US';
+      u.rate = 0.9;
+      u.onend = () => btn.classList.remove('speaking');
+      btn.classList.add('speaking');
+      window.speechSynthesis.speak(u);
+    } catch { /* no voice here — the button just does nothing */ }
   }
 
   // the secret count stays hidden until something has been found
@@ -2960,8 +3268,8 @@ export class Hud {
       this.dlgDone = null;
       this.dlgCool = performance.now() + 280;
     }
-    const hc = document.querySelector('#hud .hcard');
-    if (hc?.classList.contains('open')) { hc.classList.remove('open'); this.hcardOpen = false; }
+    if (this.hcardOpen) this.closeHistoryCard();
+    document.querySelector('#hud .collect-panel')?.classList.remove('show');
     document.querySelector('#hud .race-pop')?.classList.remove('open');
     document.querySelector('#hud .season-pop')?.classList.remove('open');
     document.querySelector('#hud .settings-pop')?.classList.remove('open');

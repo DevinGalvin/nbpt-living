@@ -8,6 +8,7 @@
 // carries what lives in CODE: gameplay anchors, branding, tuning, courses.
 
 import type { Course } from '../game/race';
+import type { Site } from '../game/history';
 
 export type Vec2 = { x: number; z: number };
 
@@ -28,10 +29,17 @@ export interface TownPack {
   emoji: string;
   path: string;          // site path this town deploys under ('/', '/salem/')
 
-  // false = world-only sandbox: no quest/history/eggs/interiors/drawbridge —
-  // the story spine belongs to towns that have authored one. `?story` in the
-  // URL force-enables it for development.
+  // false = world-only sandbox: no eggs/interiors/drawbridge. NOTE this no longer
+  // gates history — the discovery collection is the main thing to do and rides
+  // `history` below. The authored Gram spine it used to enable is retired from the
+  // shipped game entirely; `?story` in the URL brings it back for development.
   story: boolean;
+
+  // 🏛 the discovery collection — this town's true stories, each a bronze plaque at
+  // the real spot. Omit and the town simply has no collection (no 🏛 button, no
+  // markers). See src/towns/nbpt/history.ts for the reference set, and
+  // docs/research/ for the sourcing bar: every card is a cited true story.
+  history?: Site[];
 
   spawn: SpawnAnchor;    // first-visit drop point — the town's heart landmark (see SpawnAnchor)
 

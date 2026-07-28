@@ -21,10 +21,16 @@ import { STYLE, SEASON } from '../world/style';
 import { startCrashWatch, mountDiagOverlay, heapMB, type DiagStats, type CrashRecord } from './diag';
 import { TOWN } from '@town';
 
-// World-only sandbox: towns without an authored story spine run bare — no
-// quest / history / eggs / interiors chrome. `?story` force-enables the spine
-// for development in any town.
-const BARE = !TOWN.story && !new URLSearchParams(location.search).has('story');
+// World-only sandbox: towns without an authored curated layer run bare — no
+// history markers / eggs / drawbridge / interiors chrome.
+const BARE = !TOWN.story;
+
+// The authored Gram spine (chapters, missions, the compass) is RETIRED from the
+// shipped game as of 7/28 — the history collection is the thing to do now, and it
+// is the part that scales to every town. None of the story content is deleted:
+// quest.ts and every chapter still live in the repo, and `?story` brings the whole
+// spine back for development. Do not re-enable it by default without a decision.
+const STORY = TOWN.story && new URLSearchParams(location.search).has('story');
 
 const JOG = 200;     // world px/s (8 px = 1 m) — fast, gamey
 const SPRINT = 380;
@@ -481,6 +487,7 @@ export class Game {
       this.lookUp = !this.lookUp;
       return this.lookUp;
     });
+    this.updateLookOffer(true);
     this.hud.initBike(() => {
       this.toggleBike();
       return this.riding;
@@ -489,12 +496,7 @@ export class Game {
     this.bike.root.visible = false;
     this.scene.add(this.bike.root);
     this.hud.initMinimap(world);
-    if (BARE) {
-      // world-only sandbox: no quest / history / eggs. Hide the story-only chrome
-      // (compass, missions, the Story settings row) — racing + vehicles stay live.
-      this.hud.setBare(true);
-      this.hud.initSettings(false, () => false);
-    } else {
+    if (STORY) {
       this.quest = new QuestRunner(this.scene, this.index, this.hud, this.audio, () => this.enterTunnel(), () => {
         localStorage.setItem('nbpt-bike', '1');
         this.bikeEarned();
@@ -505,8 +507,18 @@ export class Game {
       // ⚙️ Story-mode toggle: explore vs play. The quest is the source of truth, so the
       // switch mirrors whatever it actually applies.
       this.hud.initSettings(this.quest.story, (next) => { this.quest!.setStory(next); return this.quest!.story; });
-      this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio);
+    } else {
+      // No spine on screen: hide the compass / missions / backpack and the Story
+      // settings row. Racing, vehicles, eggs and the history collection stay live —
+      // the collection carries its own 🏛 button, so it does NOT ride the bag.
+      this.hud.setBare(true);
+      this.hud.initSettings(false, () => false);
     }
+    // 🏛 The discovery collection is the main event now, and it rides the town's own
+    // marker list — NOT the story flag and NOT BARE. Any town that ships a
+    // `history` array in its pack gets the collection; a town without one simply
+    // has none, with no 🏛 button and no plaques.
+    if (SITES.length) this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio, (cb) => this.captureShot(cb));
     this.hud.initGhost(ghostEnabled(), () => setGhostEnabled(!ghostEnabled()));
     // fade to a course's start line and begin — the picker path AND the results
     // card's RACE AGAIN both ride this
@@ -656,10 +668,7 @@ export class Game {
     // mobile and many just want to wander), and finally a light nudge to find their own
     // street. No gate — dismissing the pick just keeps the clean explore default.
     const fresh = localStorage.getItem('nbpt-welcomed') !== '1';
-    if (BARE) {
-      // no story to pick a mode for — keep only the street nudge
-      if (fresh) setTimeout(() => this.hud.showStreetNudge(() => localStorage.setItem('nbpt-welcomed', '1')), 1500);
-    } else if (fresh) {
+    if (fresh && STORY) {
       setTimeout(() => this.hud.showModePick((story) => {
         this.quest?.setStory(story);
         this.hud.refreshSettings(this.quest?.story ?? false);
@@ -669,10 +678,13 @@ export class Game {
         setTimeout(() => this.hud.showStreetNudge(() => localStorage.setItem('nbpt-welcomed', '1')), 600);
         if (!story) setTimeout(() => this.hud.hintStoryToggle(), 8600);
       }), 1500);
+    } else if (fresh) {
+      // no spine to pick a mode for — keep only the street nudge
+      setTimeout(() => this.hud.showStreetNudge(() => localStorage.setItem('nbpt-welcomed', '1')), 1500);
     } else {
       // "what's new" promos wait for the SECOND visit: a first session already carries
-      // the mode pick + street nudge + gear hint, and the promo was landing right on a
-      // newcomer's first TALK tap. Returning players get it once things settle.
+      // the street nudge (and, in dev, the mode pick), and the promo was landing right
+      // on a newcomer's first tap. Returning players get it once things settle.
       setTimeout(() => this.tryRacePromo(), 3500);
     }
     // A phone on a town too big for it gets the heads-up on the FIRST visit — unlike the
@@ -744,7 +756,7 @@ export class Game {
   // else is on screen — never lands on top of a dialogue, modal, or cutaway.
   private promoBusy(): boolean {
     return this.inside || this.flying || this.onWater || this.hud.dialogueOpen || (this.race?.active ?? false)
-      || !!document.querySelector('#hud .chapter.show, #hud .levelpromo.show, #hud .streettip.show, #hud .modepick.show, #hud .travel-panel.open, #hud .journey-panel.show, #hud .bag-panel.show, #hud .hcard.open, #hud .board-panel.show');
+      || !!document.querySelector('#hud .chapter.show, #hud .levelpromo.show, #hud .streettip.show, #hud .modepick.show, #hud .travel-panel.open, #hud .journey-panel.show, #hud .bag-panel.show, #hud .hcard-back.open, #hud .collect-panel.show, #hud .board-panel.show');
   }
   private tryRacePromo() {
     if (localStorage.getItem('nbpt-promo-race') === '1') { this.tryFlightPromo(); return; }
@@ -1782,8 +1794,24 @@ export class Game {
     }
   }
 
-  private frame(t: number) {
-    const dt = Math.min(0.05, (t - this.lastTime) / 1000 || 0.016);
+  private pausedAt = 0;      // raw rAF stamp when the town froze (0 = running)
+  private timeShift = 0;     // total paused milliseconds, subtracted from the world clock
+
+  private frame(tRaw: number) {
+    // 🛑 A discovery card stops the town. The kid is reading, and a harbor moving
+    // behind the words pulls the eye straight off them. Both the frame delta AND the
+    // absolute clock the world reads are frozen, so water, people, traffic and the
+    // sun all hold still — we keep rendering, so it reads as a held breath rather
+    // than a black screen. Everything downstream just sees dt === 0.
+    if (this.hud.cardPaused) {
+      if (this.pausedAt === 0) this.pausedAt = tRaw;
+    } else if (this.pausedAt !== 0) {
+      this.timeShift += tRaw - this.pausedAt;
+      this.pausedAt = 0;
+    }
+    const paused = this.pausedAt !== 0;
+    const t = (paused ? this.pausedAt : tRaw) - this.timeShift;
+    const dt = paused ? 0 : Math.min(0.05, (t - this.lastTime) / 1000 || 0.016);
     this.lastTime = t;
     this.updateDynamicResolution(dt);
     this.hud.setIndoors(this.inside);   // walk-only spaces hide the run + bike buttons
@@ -1970,7 +1998,8 @@ export class Game {
       nz = Math.min(b.maxY - 12, Math.max(b.minY + 12, nz));
     }
 
-    const realVx = (nx - this.px) / dt, realVz = (nz - this.pz) / dt;
+    // dt is exactly 0 while a discovery card holds the town still — don't divide by it
+    const realVx = dt > 0 ? (nx - this.px) / dt : 0, realVz = dt > 0 ? (nz - this.pz) / dt : 0;
     this.px = nx;
     this.pz = nz;
     this.kid.setPos(this.px, this.pz);
@@ -2152,6 +2181,13 @@ export class Game {
     // town-line watcher: which municipality are we in? Baked borders (world.towns)
     // + a slow poll; crossing shows the "Entering …" banner — the roadside signs'
     // UI echo. Skipped in flight (you'd cross three towns in a minute of soaring).
+    // 👀 does anywhere near here go vertical? (skylines don't move — poll lazily)
+    this.lookAcc += dt;
+    if (this.lookAcc > 1.1) {
+      this.lookAcc = 0;
+      if (!this.inside && !this.flying) this.updateLookOffer(false);
+    }
+
     this.townAcc += dt;
     if (this.townAcc > 0.9 && (this.world.towns?.length ?? 0) > 0) {
       this.townAcc = 0;
@@ -2245,6 +2281,92 @@ export class Game {
     }
 
     this.renderer.render(this.inTunnel ? this.tunnel!.scene : this.interior ? this.interior.scene : this.scene, this.camera);
+
+    // 📸 A discovery photo has to be read in the SAME tick as the render that made
+    // it — the drawing buffer is cleared before the next frame and we deliberately
+    // don't run with preserveDrawingBuffer (it costs memory on every frame to serve
+    // one frame a session). So the request is queued and drained right here.
+    if (this.shotWanted) {
+      const cb = this.shotWanted;
+      this.shotWanted = null;
+      cb(this.grabThumb());
+    }
+  }
+
+  // ---------- 👀 when is there anything to look up AT? ----------
+  //
+  // The button used to be permanent, which made it a lie in most of these towns: on a
+  // street of two-storey clapboard houses there is nothing overhead, so a kid taps it,
+  // the camera tilts at more sky, and they learn the button does nothing. It should
+  // show up where the town actually goes vertical — downtown Boston, a mill, a church
+  // tower — and stay out of the way everywhere else.
+  //
+  // Cheap by construction: buildings are already bucketed by chunk, so this reads the
+  // player's chunk and its eight neighbours and asks for the tallest `lv` in them.
+  // Polled slowly (a skyline does not move) and only when the answer could change.
+
+  private static TALL_LV = 8;      // storeys — comfortably above a mill or a triple-decker
+  private lookAcc = 0;
+  private lookOffered = false;
+
+  private updateLookOffer(force: boolean) {
+    const cx = Math.floor(this.px / CHUNK), cz = Math.floor(this.pz / CHUNK);
+    let tallest = 0;
+    for (let dx = -1; dx <= 1 && tallest < Game.TALL_LV; dx++) {
+      for (let dz = -1; dz <= 1 && tallest < Game.TALL_LV; dz++) {
+        for (const bi of this.index.bucket((cx + dx) + ',' + (cz + dz)).buildings) {
+          const lv = this.world.buildings[bi]?.lv || 0;
+          if (lv > tallest) tallest = lv;
+          if (tallest >= Game.TALL_LV) break;
+        }
+      }
+    }
+    const want = tallest >= Game.TALL_LV;
+    if (!force && want === this.lookOffered) return;
+    this.lookOffered = want;
+    // if the offer is withdrawn while the raised camera is up, put it back down —
+    // otherwise the view is stuck tilted with the only way out gone
+    if (this.hud.showLook(want) && this.lookUp) {
+      this.lookUp = false;
+      this.hud.setLookState(false);
+    }
+  }
+
+  // ---------- discovery photos ----------
+
+  private shotWanted: ((dataUrl: string | null) => void) | null = null;
+  private shotCanvas: HTMLCanvasElement | null = null;
+
+  // Ask for a thumbnail of the next rendered frame. The callback fires within one
+  // frame, or with null if the capture fails (some Chromebook GL stacks refuse the
+  // read; the collection handles a missing photo).
+  captureShot(cb: (dataUrl: string | null) => void) {
+    this.shotWanted = cb;
+  }
+
+  private grabThumb(): string | null {
+    try {
+      const src = this.renderer.domElement;
+      if (!src.width || !src.height) return null;
+      const W = 384, H = 240;                     // 8:5 — matches the card's photo well
+      if (!this.shotCanvas) {
+        this.shotCanvas = document.createElement('canvas');
+        this.shotCanvas.width = W;
+        this.shotCanvas.height = H;
+      }
+      const ctx = this.shotCanvas.getContext('2d');
+      if (!ctx) return null;
+      // cover-crop from the middle of the frame: the marker is what the player is
+      // standing at, so the centre is the subject. Letterboxing a phone's tall frame
+      // would put the sky and the joystick in the picture instead of the building.
+      const sa = src.width / src.height, da = W / H;
+      let sw = src.width, sh = src.height;
+      if (sa > da) sw = src.height * da; else sh = src.width / da;
+      ctx.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, 0, 0, W, H);
+      return this.shotCanvas.toDataURL('image/jpeg', 0.62);
+    } catch {
+      return null;      // tainted canvas / lost context — not worth a crash
+    }
   }
 
   // gather the nearest street lamps to the player so the small light pool can

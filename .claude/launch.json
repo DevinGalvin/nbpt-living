@@ -278,6 +278,19 @@
       "port": 5311
     },
     {
+      "name": "nbpt-edu",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5315",
+        "--strictPort"
+      ],
+      "port": 5315
+    },
+    {
       "name": "nbpt-check",
       "runtimeExecutable": "npm",
       "runtimeArgs": [
