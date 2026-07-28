@@ -104,6 +104,14 @@ export interface TownPack {
   devCourse: string;     // `nbpt.race()` console default
   racePromo: { course: string; body: string };
 
+  // A town heavy enough that a phone may not hold it. Optional and absent everywhere but
+  // Boston, whose parsed world is ~200 MB of heap before a single chunk is drawn — an order
+  // of magnitude past the eleven towns the engine was tuned on. Shows a one-time, DISMISSABLE
+  // card on touch devices; it is deliberately not a block, because a shared link that simply
+  // refuses to open is a dead end and plenty of phones will cope. Retire it when the world
+  // format goes binary.
+  heavyOnMobile?: { title: string; body: string };
+
   // HUD branding
   theme: {
     panel: string;

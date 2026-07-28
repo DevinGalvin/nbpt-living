@@ -18,6 +18,7 @@ import { RaceRunner, COURSES, refreshBoards, getRaceName, setRaceName, hasRaceNa
 import { EggRunner } from './eggs';
 import { GameAudio, MUSIC_STYLES } from './audio';
 import { STYLE, SEASON } from '../world/style';
+import { startCrashWatch, mountDiagOverlay, heapMB, type DiagStats, type CrashRecord } from './diag';
 import { TOWN } from '@town';
 
 // World-only sandbox: towns without an authored story spine run bare — no
@@ -612,10 +613,12 @@ export class Game {
       weather: (w: number | null) => this.sky.forceWeather(w), // 1=shower 0=clear null=auto
       fly: () => this.enterPlane(),                       // ✈️ board the plane at Plum Island Airport
       land: () => this.land(),
-      // quick health probe — mobile flag, live chunk count, flight state, JS heap if exposed
+      // quick health probe. ⚠️ heapMB is CHROME-ONLY — Safari never exposes it, so on the
+      // devices this actually matters for it reads 0. That is why the memory picture here is
+      // carried by chunk/texture/geometry counts, which every browser can be asked for.
       diag: () => ({
-        mobile: this.mobile, flying: this.flying, chunks: this.chunks.size,
-        heapMB: Math.round((((performance as unknown as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize) || 0) / 1048576),
+        mobile: this.mobile, flying: this.flying, ...this.memStats(),
+        heapMB: heapMB(), lastCrash: this.lastCrash,
       }),
       _quest: this.quest,
       // dev: teleport to a course start + begin it (nbpt.race() = the homecoming run)
@@ -658,6 +661,68 @@ export class Game {
       // newcomer's first TALK tap. Returning players get it once things settle.
       setTimeout(() => this.tryRacePromo(), 3500);
     }
+    // A phone on a town too big for it gets the heads-up on the FIRST visit — unlike the
+    // "what's new" promos, which deliberately wait for the second. The first visit is exactly
+    // when a stranger opens a shared link on their phone and the tab dies on them, and being
+    // told why beats being dropped. It still waits for the drop-in to land first: the shock of
+    // standing in the real city is the one thing we never interrupt.
+    if (this.mobile && TOWN.heavyOnMobile) setTimeout(() => this.tryHeavyMobileNotice(), 6000);
+    this.startDiagnostics();
+  }
+
+  // One-time, dismissable, touch-only. NOT a gate — see `heavyOnMobile` in towns/types.ts.
+  private tryHeavyMobileNotice() {
+    const h = TOWN.heavyOnMobile;
+    if (!h) return;
+    if (this.promoBusy() || document.querySelector('#hud .promo.show')) {
+      setTimeout(() => this.tryHeavyMobileNotice(), 2500);
+      return;
+    }
+    this.hud.featurePromo({ key: 'nbpt-heavy-mobile', badge: 'HEADS UP', icon: '💻', title: h.title, body: h.body });
+  }
+
+  private lastCrash: CrashRecord | null = null;
+
+  // What this session is actually holding. Textures dominate — every live chunk pins a 768²
+  // ground canvas — so a count of chunks alone understates it, and `renderer.info.memory`
+  // does not break down by kind. Walked on demand rather than tracked: it runs every 5 s for
+  // the sentinel, and ~700 meshes is nothing at that rate.
+  private memStats(): DiagStats {
+    let texB = 0, geoB = 0;
+    const seenT = new Set<string>(), seenG = new Set<string>();
+    this.scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const g = m.geometry;
+      if (g && !seenG.has(g.uuid)) {
+        seenG.add(g.uuid);
+        for (const k in g.attributes) geoB += (g.attributes[k].array as ArrayLike<number> & { byteLength: number }).byteLength;
+      }
+      for (const mat of (Array.isArray(m.material) ? m.material : [m.material])) {
+        const t = (mat as THREE.MeshLambertMaterial)?.map;
+        if (!t || seenT.has(t.uuid)) continue;
+        seenT.add(t.uuid);
+        const im = t.image as { width?: number; height?: number } | undefined;
+        if (im?.width && im.height) texB += im.width * im.height * 4 * 1.33;   // RGBA + mipmaps
+      }
+    });
+    return {
+      chunks: this.chunks.size,
+      texMB: Math.round(texB / 1048576),
+      geoMB: Math.round(geoB / 1048576),
+    };
+  }
+
+  // The phone reports for itself — see diag.ts. Always on (it is two localStorage keys and a
+  // 5 s timer); `?diag` additionally puts the numbers on screen, so a phone can be measured
+  // without a cable and a Mac.
+  private startDiagnostics() {
+    const sample = () => this.memStats();
+    this.lastCrash = startCrashWatch(TOWN.id, sample);
+    if (this.lastCrash) {
+      console.warn('[nbpt] previous session was KILLED, not closed:', this.lastCrash);
+    }
+    if (new URLSearchParams(location.search).has('diag')) mountDiagOverlay(TOWN.id, sample, this.lastCrash);
   }
 
   // "what's new" cards, one per visit so nobody gets promo-stacked: racing headlines
@@ -751,9 +816,22 @@ export class Game {
       let budget = this.flying ? 4 : 2;
       while (budget-- > 0 && this.pending.length) this.buildChunk(this.pending.shift()!, decorOnly);
     }
-    // evict farthest. Desktop flight keeps a big working set (no streaming-in "render" show);
-    // walking holds 110; phone flight holds 90 cheap decor-only chunks (no ground textures).
-    const cap = this.flying ? (this.mobile ? 90 : 200) : 110;
+    // Evict farthest. Desktop flight keeps a big working set (no streaming-in "render" show);
+    // phone flight holds 90 cheap decor-only chunks (no ground textures).
+    //
+    // WALKING ON A PHONE HOLDS 70, NOT 110. This cap is not draw distance — it is a CACHE of
+    // chunks BEHIND you that you can no longer see, and each one is pinning a 768² ground
+    // texture. The most the loaded square can ever show at once is 64 (at max zoom-out), so
+    // anything above ~70 is memory spent on scenery that is off-screen by definition. All the
+    // mobile memory work was done for FLIGHT — the walking cap was never revisited, and it is
+    // the same shape of miss as the `lv` clamp: a number that was fine for eleven small towns.
+    //
+    // Measured over a 28 s downtown-Boston run: 110 chunks = 363 MB of GPU texture + 89 MB of
+    // geometry; 70 chunks = 237 MB + 59 MB. ~156 MB saved with NOTHING different on screen at
+    // any instant — the only cost is a rebuild when you double back over your own tracks.
+    // ⚠️ Do not push this below 66: under the 64 the square can hold, every frame evicts a chunk
+    // it is about to rebuild.
+    const cap = this.flying ? (this.mobile ? 90 : 200) : this.mobile ? 70 : 110;
     while (this.chunks.size > cap) {
       let worstKey = '', worstD = -1;
       for (const key of this.chunks.keys()) {

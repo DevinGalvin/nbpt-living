@@ -102,6 +102,13 @@ export const TOWN: TownPack = {
     body: 'Real races on real streets! Run the Freedom Trail flat out from the Common to Faneuil Hall, take the Marathon’s last two miles into Copley — right on Hereford, left on Boylston — or go the long way round Olmsted’s Emerald Necklace. Beat the clock, top the town leaderboard, and race the leader’s ghost. Any route counts — shortcuts welcome.',
   },
 
+  // Boston is the only town in the set big enough to run a phone out of memory. See
+  // `heavyOnMobile` in towns/types.ts — dismissable, never a block.
+  heavyOnMobile: {
+    title: 'Boston is the big one',
+    body: 'You just loaded the whole city — 233,000 buildings. That is more than most phones can keep in their head at once, so this one may slow down or reload on you. If it does, open Boston on a laptop and it will run beautifully.',
+  },
+
   // BOSTON palette: Common-green + State House gold
   theme: {
     panel: 'linear-gradient(177deg, rgba(47,60,52,0.985), rgba(34,45,38,0.985) 58%, rgba(15,22,17,0.985))',
