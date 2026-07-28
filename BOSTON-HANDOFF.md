@@ -629,21 +629,58 @@ over a name below 560 px, which is what makes three fit. Tags return as soon as
 there is room; the current town always says "you're here"; the header carries the
 count.
 
-### Still open after this pass
+### The three that were left open, and how they closed
 
-- King's Chapel and the Old State House are hemmed in by tall neighbours; they
-  need a hand-picked camera bearing to inspect, and neither has been checked
-  close up since the towers went in.
-- Trinity Church reads small and tan next to 200 Clarendon. That is true to life,
-  but the granite/brownstone polychromy is not there yet.
-- Back Bay and South End **bay windows** — the Boston residential signature — are
-  not modelled.
-- Contact-sheet harness gotchas, for whoever picks this up: `G.buildChunk()`
-  directly (the frame loop's LRU evicts a distant forced chunk before you can
-  render it), `setAnimationLoop(null)` first, move `G.px/G.pz` and call
-  `G.sky.update()` or the sky dome is elsewhere and you shoot against black, and
-  **world y maps to three.js +z, not −z** (`ringToVec2` negates and `quad` negates
-  again).
+**Trinity Church** read as a grey castle keep with four little horns. The code
+had the polychromy in it and the screen did not: four thin bands the same tone at
+distance, on a body the tower's roof hid completely. Rebuilt with a taller nave,
+a heavy brownstone base course and three deep string courses instead of pinstripes,
+the 1897 west porch with its triple arch and flanking turrets, a proper LANTERN
+stage of paired arches, and — the fix that changed everything — a four-sided
+**pyramid** of red tile instead of a `cone()`. ⚠️ `cone()` is a 16-gon: on a square
+tower it reads as a round hat, which is what made this a chess rook.
+
+**King's Chapel** was running through `greekTemple`, which at a chapel's
+proportions gave a dark five-storey block with a portico stuck on one end. It has
+its own builder now: two tiers of round-arched windows, a low hip behind a
+parapet, the squat **steeple-less** tower (the money ran out in 1754, and that is
+the famous thing about it), and the 1789 wooden Ionic colonnade wrapped around
+the tower's base.
+
+⚠️ **A trap worth the retelling: I spent three contact sheets judging the wrong
+building.** King's Chapel is genuinely tiny and its neighbour is a tall dark
+office block, so "King's Chapel is a dark office block" was a misread of what was
+in the middle of the frame. A **magenta test** — tint the hero's own palette
+`#ff00ff`, rebuild, shoot — settled it in one pass and should be the first move
+next time, not the last.
+
+The **Old State House** was checked from four bearings and is fine: brick, gambrel,
+the balcony, the lion and the unicorn, the west cupola. It is simply dwarfed now,
+which is exactly what it is in life.
+
+**Bay windows** shipped as `bayWindow()` — the canted bay with a flat front and
+two angled cheeks, three lights per floor, oversailing the sidewalk by about a
+metre. **26,250 Boston buildings** carry one. Two decisions worth keeping:
+
+- the gate is **three storeys, not roof shape**. A Back Bay rowhouse is flat and a
+  Dorchester three-decker is gabled and both carry bays — height and density are
+  what separate them from a colonial cape, which never has one. Gating on
+  `!gabled` first meant it almost never fired.
+- it goes on the **street face only** (`frontSegment`). Anywhere else it would
+  push through the party wall of the house next door.
+- `TOWN.bayWindows` defaults to **0**, so the North Shore is untouched. Boston is
+  0.55. Salem, Beverly and Charlestown have real three-decker fabric and could
+  opt in — that is a deliberate not-yet, not an oversight.
+
+### Contact-sheet harness gotchas
+
+For whoever picks this up: call `G.buildChunk()` directly (the frame loop's LRU
+evicts a distant forced chunk before you can render it), `setAnimationLoop(null)`
+first, move `G.px/G.pz` and call `G.sky.update()` or the sky dome is somewhere
+else and you shoot against black, and **world y maps to three.js +z, not −z**
+(`ringToVec2` negates and `quad` negates again). The framing constants matter
+more than they look: `dist = size*k + 420` is fine for a landmark and useless for
+a rowhouse, so keep an absolute-distance shot function alongside the fitted one.
 
 ## Still open
 - [ ] races not yet run end-to-end in-game (authored + typechecked, not ridden)

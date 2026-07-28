@@ -35,6 +35,7 @@ const SHINGLE_ZONES = TOWN.shingleZones ?? [];   // weathered-shingle village di
 // brick within a single block, and rendering all of it in one red made the
 // biggest town in the set the most monotonous.
 const MASONRY_MIX = TOWN.masonryMix ?? 0;
+const BAY_WINDOWS = TOWN.bayWindows ?? 0;   // see bayWindow() — Boston's rowhouse signature
 
 const tmp = new THREE.Color();
 
@@ -652,6 +653,71 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
         if (storefront && edgeGetsAwnings) awning(plain, wx, wy, nx, nz, ux, uy, 8, g + 19.5, 4.5, 7, awningHex);
       }
     }
+  }
+}
+
+// ---------- the Boston bay window ----------
+// The projecting bay is the single most characteristic thing about Boston's
+// residential fabric: the Back Bay and the South End are miles of it, and the
+// three-decker carries it into every neighbourhood beyond them. Nothing in the
+// engine had it, because nothing on the North Shore needed it.
+//
+// It is a CANTED bay — a flat front with two angled cheeks, not a box and not a
+// curve — and it oversails the sidewalk by about a metre, which is why it only
+// ever goes on the street face. Anywhere else it would push into the party wall
+// of the house next door.
+function bayWindow(buckets: Bucket[], wallBk: Bucket, fs: { x: number; z: number; tx: number; tz: number; nx: number; nz: number; len: number },
+                   g: number, eaveH: number, rows: number, wallHex: string, seed: number, look: FacadeLook) {
+  const { tx, tz, nx, nz } = fs;
+  const hw = Math.min(11, fs.len * 0.22), d = 7.5, c = 3.4;
+  if (hw < 6) return;
+  const at = (u: number, v: number): [number, number] => [fs.x + tx * u + nx * v, fs.z + tz * u + nz * v];
+  const ring: number[] = [];
+  for (const [u, v] of [[-hw, 0.5], [-hw + c, d], [hw - c, d], [hw, 0.5]] as const) {
+    const [x, z] = at(u, v);
+    ring.push(x, z);
+  }
+  // The bay starts at the parlour floor and stops one storey short of the eave,
+  // the way a real one does — it is a room bumped out, not a pilaster.
+  const pitch = Math.min(30, Math.max(19, (eaveH - 20 - g) / Math.max(1, rows - 1)));
+  const y0 = g + 4, y1 = Math.min(eaveH - 3, g + 13 + pitch * Math.max(1, rows - 1.4));
+  if (y1 - y0 < 34) return;
+  walls(wallBk, ring, y0, y1, wallHex);
+  flatRoof(buckets[PLAIN], ring, y1, '#5f5b55');
+  walls(buckets[PLAIN], ring, y1 - 2.6, y1 + 1.6, look.lintel ?? STYLE.building.trim, 0);   // the bay's own cornice
+  // Three lights per floor: the wide front sash between two narrow cheek ones —
+  // that ratio is what makes a bay read as a bay rather than a bump.
+  const p = buckets[PLAIN];
+  tmp.set(STYLE.building.trim);
+  const tr = tmp.r, tg2 = tmp.g, tb = tmp.b;
+  const glass = new THREE.Color(look.glass ?? STYLE.building.glass);
+  const jh = hash32(seed, 59, 23) % 1000 / 1000;
+  glass.offsetHSL((jh - 0.5) * 0.09, (jh - 0.5) * 0.22, (jh - 0.5) * 0.10);
+  const rng = mulberry32(hash32(seed, 77, 31));
+  tmp.set(STYLE.building.glassLit);
+  const lr = tmp.r, lg2 = tmp.g, lb = tmp.b;
+  // ⚠️ billboard() lives in vec2 space, where y = -worldZ: pass the WORLD outward
+  // normal as (nx, nz) and the matching tangent as (ux, uy) = (nz, nx). Getting
+  // that pairing wrong flips a window inside the wall instead of onto it.
+  const face = (wx: number, wz: number, Nx: number, Nz: number, half: number) => {
+    const yStart = g + 15;
+    for (let r = 0; r < rows; r++) {
+      const yC = yStart + r * pitch;
+      if (yC + 7 > y1) break;
+      const lit = rng() < 0.12;
+      const gr = lit ? lr : glass.r, gg2 = lit ? lg2 : glass.g, gb = lit ? lb : glass.b;
+      billboard(p, wx, -wz, Nx, Nz, Nz, Nx, half, 6.2, yC, 0.5, tr, tg2, tb);
+      billboard(p, wx, -wz, Nx, Nz, Nz, Nx, half - 1.2, 5.0, yC, 0.9, gr, gg2, gb);
+    }
+  };
+  const [fx, fz] = at(0, d);
+  face(fx, fz, nx, nz, hw - c - 0.6);
+  for (const s of [-1, 1] as const) {
+    // the cheek's outward normal is the 45° bisector of the front and the wall —
+    // always outward, whatever the footprint is doing
+    const cnx = (nx + s * tx) * Math.SQRT1_2, cnz = (nz + s * tz) * Math.SQRT1_2;
+    const [ex, ez] = at(s * (hw - c * 0.5), d * 0.55);
+    face(ex, ez, cnx, cnz, 1.9);
   }
 }
 
@@ -6463,47 +6529,178 @@ function oldStateHouse(buckets: Bucket[], b: Building, g: number, index: WorldIn
   buckets[PLAIN].box(wx, wz, 0.5, 0.5, cap, cap + 7, '#d9b03c', 0);
 }
 
+// ── King's Chapel, Tremont Street ─────────────────────────────────────────
+// Peter Harrison, 1754 — the first stone church in New England, and the one
+// building in Boston whose fame is what it DOESN'T have: the money ran out, so
+// the tower was never finished and there is no steeple. In 1789 a wooden Ionic
+// colonnade was wrapped around the base of that stubby tower, and the result is
+// the silhouette everybody knows.
+//
+// It had been running through greekTemple, which gave it a flat-topped block
+// with a portico stuck on one end. At a chapel's proportions that reads as a
+// dark five-storey office block, which is exactly what it looked like — and the
+// mid-grey granite went nearly black under two shading passes, so it was a dark
+// office block at that. Granite here is LIGHT: Quincy granite in sunlight is a
+// pale warm grey, not a charcoal.
+function kingsChapel(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const L = obb.hl, W = obb.hw;
+  const p = buckets[PLAIN];
+  const GRANITE = '#c9c5b9', TRIM = '#f2efe4', ROOF = '#8e8a80';
+  const eave = g + 40 * FT;
+  walls(p, b.p, g - 3, eave, GRANITE, 0);
+  walls(p, b.p, g - 3, g + 6 * FT, '#b0aba0', 0);                       // the plinth course
+  // two tiers of round-arched windows — a gallery church, so the upper tier is
+  // the taller one
+  gridWindows(p, b.p, 1, {
+    y0: g + 15 * FT, pitch: 1, spacing: 26, w: 4.6, h: 6.5, trim: TRIM,
+    glass: '#4a5568', arch: true, lit: 0.05, seed: Math.round(obb.cx), minLen: 22
+  });
+  gridWindows(p, b.p, 1, {
+    y0: g + 28 * FT, pitch: 1, spacing: 26, w: 5, h: 9, trim: TRIM,
+    glass: '#4a5568', arch: true, lit: 0.08, seed: Math.round(obb.cz), minLen: 22
+  });
+  // a low hipped roof behind a plain parapet
+  walls(p, b.p, eave, eave + 4, TRIM, 0);
+  hipRoof(buckets[SHINGLE], obb, eave + 4, Math.min(W * 0.30, 16), 2, ROOF, false);
+
+  // the unfinished tower at the Tremont Street end, and the 1789 colonnade
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * ca + fs.nz * sa) >= 0 ? 1 : -1;              // along the LONG axis
+  const tlx = front * (L - Math.min(L * 0.42, 20));
+  const tx = obb.cx + tlx * ca, tz = obb.cz + tlx * sa;
+  const tw = Math.min(W * 0.62, L * 0.34, 22);
+  const tTop = g + 62 * FT;
+  walls(p, sqRing(tx, tz, tw, obb.ang), g - 3, tTop, GRANITE, 0);
+  gridWindows(p, sqRing(tx, tz, tw, obb.ang), 1, {
+    y0: g + 46 * FT, pitch: 1, spacing: 20, w: 3.6, h: 6, trim: TRIM,
+    glass: '#33404e', arch: true, lit: 0, seed: 1754, minLen: 12
+  });
+  walls(p, sqRing(tx, tz, tw * 1.08, obb.ang), tTop - 4, tTop + 2, TRIM, 0);   // the flat, steeple-LESS cap
+  flatRoof(p, sqRing(tx, tz, tw * 1.08, obb.ang), tTop + 2, '#8b877e');
+  // the wooden Ionic colonnade wrapped around the tower's base, on three sides
+  const colTop = g + 26 * FT;
+  for (const [ax, s] of [[0, 1], [0, -1], [1, front]] as const) {
+    const at = (tw + 7) * s;
+    const from = -(tw + 6), to = tw + 6;
+    if (ax === 0) {
+      for (let i = 0; i < 4; i++) {
+        const lx = from + (to - from) * (i / 3), lz = at;
+        const x = tx + lx * ca - lz * sa, z = tz + lx * sa + lz * ca;
+        p.box(x, z, 2.0, 2.0, g, colTop, TRIM, 0);
+        p.box(x, z, 2.7, 2.7, colTop, colTop + 2.4, TRIM, 0);
+      }
+    } else {
+      for (let i = 0; i < 4; i++) {
+        const lz = from + (to - from) * (i / 3), lx = at;
+        const x = tx + lx * ca - lz * sa, z = tz + lx * sa + lz * ca;
+        p.box(x, z, 2.0, 2.0, g, colTop, TRIM, 0);
+        p.box(x, z, 2.7, 2.7, colTop, colTop + 2.4, TRIM, 0);
+      }
+    }
+  }
+  // the entablature the colonnade carries, all the way round the tower
+  walls(p, sqRing(tx, tz, tw + 9, obb.ang), colTop + 2.4, colTop + 7, TRIM, 0);
+  flatRoof(p, sqRing(tx, tz, tw + 9, obb.ang), colTop + 7, '#8b877e');
+}
+
 // ── Trinity Church, Copley Square ─────────────────────────────────────────
-// H. H. Richardson, 1877 — the birthplace of Richardsonian Romanesque. Walls are
-// rough-faced tannish-GREY Dedham granite in random ashlar; the trim is dark
-// red-brown BROWNSTONE, framing every opening and running as horizontal stripes.
-// That polychrome contrast IS the style. Massive 211 ft central tower on a
-// modified Greek-cross plan, clay tile roof.
+// H. H. Richardson, 1877 — the birthplace of Richardsonian Romanesque, and by
+// most polls still the finest building in America. Walls are rough-faced
+// tannish-GREY Dedham granite in random ashlar; the trim is dark red-brown
+// Longmeadow BROWNSTONE, framing every opening and running as horizontal bands.
+// That polychrome contrast IS the style, and the first pass had it in the code
+// but not on the screen: the bands were thin, the same tone at distance, and
+// mostly on a body that the tower's roof hid completely.
+//
+// The tower is the other half. It is 211 ft, modelled on the lantern of the old
+// cathedral at Salamanca, and it is NOT a plain shaft with a hat — which is what
+// this rendered as, a grey castle keep with four little horns. It is a banded
+// square shaft, then a LANTERN stage of tall paired arches, then a steep
+// four-sided PYRAMID of red tile, with four corner turrets carrying their own
+// conical tile caps up past the eaves of it.
 function trinityChurch(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
   const L = obb.hl, W = obb.hw;
-  const GRANITE = '#a9a496', BROWN = '#7d4a38', TILE = '#8d4f3a';
-  const eave = g + 52 * FT;
-  walls(buckets[PLAIN], b.p, g - 3, eave, GRANITE, 0);
-  // the brownstone banding — the single most identifying detail
-  for (const y of [g + 12 * FT, g + 24 * FT, g + 36 * FT, g + 47 * FT])
-    walls(buckets[PLAIN], b.p, y, y + 2.6, BROWN, 0);
-  gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, eave, Math.min(W * 0.26, 26), 2.0, TILE, GRANITE);
+  const p = buckets[PLAIN];
+  const GRANITE = '#bdb7a6', BROWN = '#8a5340', TILE = '#a85a3c', DARKTILE = '#8d4a30';
 
-  // heavy round-arched openings, brownstone-framed
-  const obb2 = obb, ca = Math.cos(obb2.ang), sa = Math.sin(obb2.ang);
-  for (const s of [1, -1] as const) for (let i = 0; i < 4; i++) {
-    const lx = -L * 0.6 + (L * 1.2) * (i / 3), lz = s * (W + 0.5);
-    const x = obb2.cx + lx * ca - lz * sa, z = obb2.cz + lx * sa + lz * ca;
-    rotBox(buckets[PLAIN], x, z, 3.0, 0.5, g + 16, g + 20, obb2.ang, BROWN);
-    rotBox(buckets[GLOW], x, z, 2.4, 0.35, g + 20, g + 40, obb2.ang, '#4a5570');
-    roundArch(buckets[PLAIN], x, z, ca, sa, -sa * s, ca * s, 2.9, g + 40, g + 46, BROWN);
+  // ── the body: a taller nave than before, so the roof is not the whole church
+  const eave = g + 66 * FT;
+  walls(p, b.p, g - 3, eave, GRANITE, 0);
+  // The banding is the identifying detail, so it is drawn like one: a heavy base
+  // course and three deep string courses, not four thin lines.
+  walls(p, b.p, g - 3, g + 9 * FT, BROWN, 0);                       // brownstone base course
+  for (const y of [g + 22 * FT, g + 38 * FT, g + 54 * FT]) walls(p, b.p, y, y + 5, BROWN, 0);
+  walls(p, b.p, eave - 4, eave - 0.5, BROWN, 0);                    // the eaves band
+  gableRoof(buckets[SHINGLE], p, b.p, obb, eave, Math.min(W * 0.36, 34), 2.0, TILE, GRANITE);
+
+  // arcaded windows down the flanks, every one in a brownstone surround
+  for (const s of [1, -1] as const) for (let i = 0; i < 5; i++) {
+    const lx = -L * 0.66 + (L * 1.32) * (i / 4), lz = s * (W + 0.5);
+    const x = obb.cx + lx * ca - lz * sa, z = obb.cz + lx * sa + lz * ca;
+    rotBox(p, x, z, 4.2, 0.6, g + 14, g + 22, obb.ang, BROWN);                  // sill
+    rotBox(buckets[GLOW], x, z, 3.2, 0.35, g + 22, g + 44, obb.ang, '#43506e'); // the glass
+    roundArch(p, x, z, ca, sa, -sa * s, ca * s, 3.9, g + 44, g + 50, BROWN);
   }
 
-  // ── the central tower, 211 ft, on the crossing ──
-  const tw = Math.min(Math.min(L, W) * 0.34, 30 * FT);   // real crossing tower is ~18 m square
-  const tTop = g + 190 * FT;
-  walls(buckets[PLAIN], sqRing(obb.cx, obb.cz, tw, obb.ang), g - 3, tTop, GRANITE, 0);
-  for (const y of [g + 70 * FT, g + 100 * FT, g + 130 * FT, g + 160 * FT])
-    walls(buckets[PLAIN], sqRing(obb.cx, obb.cz, tw * 1.03, obb.ang), y, y + 3.2, BROWN, 0);
-  // corner turrets + a low pyramid cap, as at Salamanca
+  // ── the west porch (Shepley Rutan & Coolidge, 1897): three round arches
+  // between two little turrets, and the face Copley Square actually sees.
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const plz = front * (W + 11);
+  const porch: number[] = [];
+  for (const [lx, lz] of [[-L * 0.40, plz], [L * 0.40, plz], [L * 0.40, front * (W - 2)], [-L * 0.40, front * (W - 2)]] as const)
+    porch.push(obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca);
+  walls(p, porch, g - 3, g + 34 * FT, GRANITE, 0);
+  walls(p, porch, g + 30 * FT, g + 34 * FT, BROWN, 0);
+  flatRoof(buckets[SHINGLE], porch, g + 34 * FT, DARKTILE);
+  for (let i = -1; i <= 1; i++) {
+    const lx = i * L * 0.26, lz = plz + front * 0.6;
+    const x = obb.cx + lx * ca - lz * sa, z = obb.cz + lx * sa + lz * ca;
+    roundArch(p, x, z, ca, sa, -sa * front, ca * front, 5.6, g + 2, g + 17, BROWN);
+  }
+  for (const s of [-1, 1] as const) {
+    const lx = s * L * 0.46, lz = plz - front * 2;
+    const x = obb.cx + lx * ca - lz * sa, z = obb.cz + lx * sa + lz * ca;
+    walls(p, circRing(x, z, 6.5, 10), g - 3, g + 46 * FT, GRANITE, 0);
+    walls(p, circRing(x, z, 6.8, 10), g + 40 * FT, g + 44 * FT, BROWN, 0);
+    cone(p, x, g + 46 * FT, z, 7.4, 16 * FT, new THREE.Color(TILE));
+  }
+
+  // ── the central tower, 211 ft on the crossing ──
+  const tw = Math.min(Math.min(L, W) * 0.34, 30 * FT);      // the real one is ~18 m square
+  const shaft = g + 138 * FT, lantern = g + 172 * FT, apex = g + 211 * FT;
+  const ring = sqRing(obb.cx, obb.cz, tw, obb.ang);
+  walls(p, ring, g - 3, shaft, GRANITE, 0);
+  for (const y of [g + 78 * FT, g + 104 * FT, g + 128 * FT])
+    walls(p, sqRing(obb.cx, obb.cz, tw * 1.03, obb.ang), y, y + 5, BROWN, 0);
+  // the LANTERN: paired tall arches on all four faces, glowing, brownstone-framed
+  walls(p, ring, shaft, lantern, GRANITE, 0);
+  for (const s of [1, -1] as const) for (const ax of [1, -1] as const) for (const off of [-0.42, 0.42]) {
+    const lx = ax > 0 ? off * tw * 2 : s * tw, lz = ax > 0 ? s * tw : off * tw * 2;
+    const x = obb.cx + lx * ca - lz * sa, z = obb.cz + lx * sa + lz * ca;
+    const nx2 = ax > 0 ? -sa * s : ca * s, nz2 = ax > 0 ? ca * s : sa * s;
+    const tx2 = ax > 0 ? ca : -sa, tz2 = ax > 0 ? sa : ca;
+    rotBox(buckets[GLOW], x + nx2 * 0.7, z + nz2 * 0.7, ax > 0 ? 4.6 : 0.5, ax > 0 ? 0.5 : 4.6,
+      shaft + 6, lantern - 14, obb.ang, '#4a5878');
+    roundArch(p, x + nx2 * 1.0, z + nz2 * 1.0, tx2, tz2, nx2, nz2, 5.2, lantern - 14, lantern - 6, BROWN);
+  }
+  walls(p, sqRing(obb.cx, obb.cz, tw * 1.06, obb.ang), lantern - 5, lantern, BROWN, 0);
+  // the four corner turrets, carried up past the pyramid's eaves with tile cones
   for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]] as const) {
     const x = obb.cx + (sx * tw) * ca - (sz * tw) * sa, z = obb.cz + (sx * tw) * sa + (sz * tw) * ca;
-    walls(buckets[PLAIN], circRing(x, z, tw * 0.2, 8), tTop - 26 * FT, tTop + 10 * FT, GRANITE, 0);
-    cone(buckets[PLAIN], x, tTop + 10 * FT, z, tw * 0.22, 9 * FT, new THREE.Color(TILE));
+    walls(p, circRing(x, z, tw * 0.24, 10), shaft - 30 * FT, lantern + 14 * FT, GRANITE, 0);
+    walls(p, circRing(x, z, tw * 0.26, 10), lantern + 8 * FT, lantern + 13 * FT, BROWN, 0);
+    cone(p, x, lantern + 14 * FT, z, tw * 0.27, 22 * FT, new THREE.Color(TILE));
   }
-  flatRoof(buckets[PLAIN], sqRing(obb.cx, obb.cz, tw, obb.ang), tTop, BROWN);
-  cone(buckets[SHINGLE], obb.cx, tTop, obb.cz, tw * 1.28, 21 * FT, new THREE.Color(TILE));
+  // ⚠️ a four-sided PYRAMID, not a cone: cone() is a 16-gon and reads as a round
+  // hat on a square tower, which is what made this a chess rook.
+  taperBand(buckets[SHINGLE], sqRing(obb.cx, obb.cz, tw * 1.1, obb.ang),
+    sqRing(obb.cx, obb.cz, tw * 0.03, obb.ang), lantern, apex, TILE, 0);
+  p.box(obb.cx, obb.cz, 0.7, 0.7, apex, apex + 10, '#d9b03c', 0);   // the finial
 }
 
 // ── Custom House Tower ────────────────────────────────────────────────────
@@ -7277,7 +7474,7 @@ const HEROES: Record<string, HeroBuilder> = {
   'Arlington Street Church': (bk, b, g, i) => townChurch(bk, b, g, i, { wall: '#a8968a', trim: '#efe9dc', spireFt: 190 }),
   // King's Chapel, 1754: dark Quincy granite, a colonnaded portico — and NO
   // steeple. The money ran out, so the squat tower is the correct silhouette.
-  'Kings Chapel': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#a6a49c', cols: 6, storeyFt: 42 }),
+  'Kings Chapel': kingsChapel,
   'Cathedral Church of Saint Pauls': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#bdb8ab', cols: 6, storeyFt: 44 }),
   // Holy Cross: Roxbury puddingstone Gothic, twin front towers left unfinished.
   'Cathedral of the Holy Cross': (bk, b, g, i) => gothicChurch(bk, b, g, i, { stone: '#8a7d72', trim: '#a2968a', towers: 2, towerFt: 120 }),
@@ -8208,6 +8405,15 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         b.k === 'house' || b.k === 'commercial' || storefront,
         b.k === 'house' && !beachShake && !storefront && rng() < 0.75,
         storefront, g, undefined, isFoxRun ? '#ab3228' : undefined, undefined, look);
+      // …and the bay on the street face of a rowhouse or three-decker. Three
+      // storeys is the gate, not the roof shape: a Back Bay rowhouse is flat and
+      // a Dorchester three-decker is gabled, and both carry bays — it is height
+      // and density that separate them from a colonial cape, which never has one.
+      if (BAY_WINDOWS > 0 && b.k === 'house' && !storefront && lvEff >= 3
+          && areaM2 < 900 && hash32(seed, 89, 41) % 1000 < BAY_WINDOWS * 1000) {
+        const fsb = frontSegment(b, index);
+        if (fsb.len >= 34) bayWindow(buckets, wallBucket, fsb, g, eaveAbs, rows, bodyHex, seed, look);
+      }
     }
 
     // seasonal dressing: Christmas lights on the eaves, pumpkins by the door

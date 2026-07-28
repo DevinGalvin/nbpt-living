@@ -60,6 +60,12 @@ export interface TownPack {
   // Great Fire. A city's is not, and rendering Boston's entirely in brick red
   // was the single biggest reason it read as repetitive.
   masonryMix?: number;
+  // Share of tall-enough rowhouse-scale homes that get a projecting CANTED BAY
+  // on their street face, 0..1. The bay is the Boston residential signature —
+  // the Back Bay, the South End, and every three-decker after them — and no
+  // North Shore town is built of it, so this defaults to off and they are
+  // unchanged. Any town with a real three-decker fabric can opt in.
+  bayWindows?: number;
   sledLane: { x: number; z0: number; z1: number; halfW: number } | null;   // decor: kept clear of trees for sledding
   trainPlatform: Vec2 | null;                                      // decor: commuter-rail platform set piece
   holidayTree: Vec2 | null;                                        // winter: the town tree (null = none)

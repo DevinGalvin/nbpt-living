@@ -46,6 +46,11 @@ export const TOWN: TownPack = {
   // in stone, which is what stops the Financial District, Back Bay and the South
   // End all reading as the same red street.
   masonryMix: 0.45,
+  // The Back Bay and the South End are miles of projecting bays, and the
+  // three-decker carries them into Dorchester, Southie, Charlestown and beyond.
+  // Better than half of the qualifying stock, because in those neighbourhoods it
+  // really is nearly all of it.
+  bayWindows: 0.55,
   sledLane: null,
   trainPlatform: null,   // the T here is subway and elevated, not a platform set piece
   holidayTree: { x: -2403, z: 1207 },        // Boston Common — the tree has stood there since 1941
