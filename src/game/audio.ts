@@ -7,28 +7,88 @@ import { SEASON } from '../world/style';
 const MUSIC_LEVEL = 0.22;
 const AMBIENT_LEVEL = 0.5;
 
-// lo-fi porch chords, dressed for the season: spring lifts the key a whole
-// step and brightens the voicings, fall settles lower and slower, winter goes
-// minor-tinged, slow, and muffled (ported from the live build's spring update)
-const CHORDS = SEASON === 'winter' ? [
-  [0, 3, 7, 10],
-  [-4, 0, 3, 7],
-  [5, 8, 12, 15],
-  [3, 7, 10, 14]
-] : SEASON === 'spring' ? [
-  [0, 4, 7, 11],
-  [5, 9, 12, 16],
-  [2, 5, 9, 12],
-  [7, 11, 14, 17]
-] : [
-  [0, 4, 7, 11],
-  [-3, 0, 4, 7],
-  [5, 9, 12, 16],
-  [7, 11, 14, 16]
+// ── FIVE LO-FI STYLES ─────────────────────────────────────────────────────
+// All of this is synthesized — there are no audio assets in the project — so a
+// "track" here is a set of numbers: the chords, the key, how long a chord lasts,
+// what the pad and the plucks are made of, and how busy the melody is. Changing
+// those changes the music completely, which is why five genuinely different
+// moods cost five objects rather than five downloads.
+//
+// The season still nudges the result (winter darker and slower, spring brighter)
+// but the STYLE is now the primary voice, and it is the player's choice.
+export type MusicStyle = {
+  id: string;
+  name: string;
+  sub: string;
+  emoji: string;
+  chords: number[][];
+  key: number;          // multiplier on C3
+  bar: number;          // seconds per chord
+  lp: number;           // pad lowpass cutoff
+  padType: OscillatorType;
+  padDetune: number;
+  swell: number;        // pad attack, seconds
+  padGain: number;
+  bassType: OscillatorType;
+  bassPulses: number;   // 0 = one long root per bar; N = N notes per bar
+  bassGain: number;
+  pluck: number;        // 0..1 chance per eighth slot
+  pluckType: OscillatorType;
+  pluckDecay: number;
+  pluckHigh: number;    // chance the pluck jumps an octave
+  echo: number;         // 0..1 send into the delay
+};
+
+export const MUSIC_STYLES: MusicStyle[] = [
+  {
+    id: 'porch', name: 'Front Porch', sub: 'Warm and easy — the town’s own tune', emoji: '🌤',
+    chords: [[0, 4, 7, 11], [-3, 0, 4, 7], [5, 9, 12, 16], [7, 11, 14, 16]],
+    key: 1, bar: 4.8, lp: 850, padType: 'triangle', padDetune: 4, swell: 1.6, padGain: 0.022,
+    bassType: 'sine', bassPulses: 0, bassGain: 0.07,
+    pluck: 0.3, pluckType: 'triangle', pluckDecay: 1.2, pluckHigh: 0.25, echo: 0.5
+  },
+  {
+    id: 'rain', name: 'Rainy Day', sub: 'Slow minor ninths under a heavy blanket', emoji: '🌧',
+    chords: [[0, 3, 7, 10], [-2, 2, 5, 9], [-4, 0, 3, 10], [-5, -1, 2, 7]],
+    key: 0.891, bar: 6.4, lp: 520, padType: 'triangle', padDetune: 7, swell: 3.2, padGain: 0.03,
+    bassType: 'sine', bassPulses: 0, bassGain: 0.085,
+    pluck: 0.12, pluckType: 'sine', pluckDecay: 1.9, pluckHigh: 0.1, echo: 0.85
+  },
+  {
+    id: 'night', name: 'Night Drive', sub: 'A walking bass and a cold blue chord', emoji: '🌙',
+    chords: [[0, 3, 7, 10], [5, 8, 12, 15], [-2, 1, 5, 8], [3, 7, 10, 14]],
+    key: 0.841, bar: 3.6, lp: 980, padType: 'sawtooth', padDetune: 3, swell: 0.5, padGain: 0.011,
+    bassType: 'triangle', bassPulses: 4, bassGain: 0.075,
+    pluck: 0.22, pluckType: 'square', pluckDecay: 0.5, pluckHigh: 0.45, echo: 0.6
+  },
+  {
+    id: 'sunroom', name: 'Sunroom', sub: 'Bright major keys and busy little bells', emoji: '🌼',
+    chords: [[0, 4, 7, 11], [2, 5, 9, 12], [7, 11, 14, 18], [5, 9, 12, 16]],
+    key: 1.26, bar: 3.9, lp: 1500, padType: 'triangle', padDetune: 2, swell: 0.9, padGain: 0.016,
+    bassType: 'sine', bassPulses: 2, bassGain: 0.055,
+    pluck: 0.5, pluckType: 'triangle', pluckDecay: 0.55, pluckHigh: 0.5, echo: 0.35
+  },
+  {
+    id: 'fog', name: 'Harbor Fog', sub: 'Barely a tune at all — long, wide and open', emoji: '🌫',
+    chords: [[0, 5, 10, 17], [-2, 3, 8, 15], [-5, 0, 5, 12], [2, 7, 12, 19]],
+    key: 0.749, bar: 9.5, lp: 420, padType: 'sine', padDetune: 11, swell: 5.0, padGain: 0.036,
+    bassType: 'sine', bassPulses: 0, bassGain: 0.09,
+    pluck: 0.05, pluckType: 'sine', pluckDecay: 3.2, pluckHigh: 0.15, echo: 1
+  }
 ];
+
+export const DEFAULT_STYLE = 'porch';
+export function savedStyle(): string {
+  try { return localStorage.getItem('nbpt-music') || DEFAULT_STYLE; } catch { return DEFAULT_STYLE; }
+}
+
+// The season still colours whatever style is playing — a whole step down and a
+// slower bar in winter, a step up and a livelier one in spring.
+const SEASON_KEY = SEASON === 'spring' ? 1.122 : SEASON === 'fall' ? 0.944 : SEASON === 'winter' ? 0.891 : 1;
+const SEASON_BAR = SEASON === 'spring' ? 0.92 : SEASON === 'fall' ? 1.08 : SEASON === 'winter' ? 1.2 : 1;
+
 const PENTA = [0, 2, 4, 7, 9, 12, 14, 16]; // major pentatonic, two octaves
-const C3 = 130.81 * (SEASON === 'spring' ? 1.122 : SEASON === 'fall' ? 0.891 : SEASON === 'winter' ? 0.841 : 1);
-const BAR = SEASON === 'spring' ? 4.4 : SEASON === 'fall' ? 5.2 : SEASON === 'winter' ? 5.8 : 4.8; // seconds per chord
+const C3 = 130.81;
 
 export type StepSurface = 'soft' | 'hard' | 'wood';
 
@@ -50,6 +110,10 @@ export class GameAudio {
   private underground = false;
   private musicLP: BiquadFilterNode | null = null;
   private nextDrip = 3;
+  // the playing style, and the numbers derived from it (season-coloured)
+  private st: MusicStyle = MUSIC_STYLES.find((m) => m.id === savedStyle()) ?? MUSIC_STYLES[0];
+  private get bar(): number { return this.st.bar * SEASON_BAR; }
+  private get base(): number { return C3 * this.st.key * SEASON_KEY; }
 
   constructor() {
     this.enabled = localStorage.getItem('nbpt-sound') !== 'off';
@@ -71,6 +135,16 @@ export class GameAudio {
     }
     return this.enabled;
   }
+
+  // Switch the music. The next bar picks the new numbers up on its own — there is
+  // nothing to stop and restart, because every bar is scheduled from scratch.
+  setMusicStyle(id: string): MusicStyle {
+    this.st = MUSIC_STYLES.find((m) => m.id === id) ?? MUSIC_STYLES[0];
+    try { localStorage.setItem('nbpt-music', this.st.id); } catch { /* private mode */ }
+    if (this.ctx && this.enabled) this.boot();
+    return this.st;
+  }
+  get musicStyle(): MusicStyle { return this.st; }
 
   setNearWater(b: boolean) {
     this.nearWater = b;
@@ -263,10 +337,11 @@ export class GameAudio {
     return base * Math.pow(2, semi / 12);
   }
 
-  private pluck(t: number, hz: number, vel: number, dur: number) {
+  private pluck(t: number, hz: number, vel: number, dur: number,
+                type: OscillatorType = 'triangle', echo = 0.5) {
     if (!this.ctx) return;
     const o = this.ctx.createOscillator();
-    o.type = 'triangle';
+    o.type = type;
     o.frequency.value = hz;
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(0, t);
@@ -274,7 +349,12 @@ export class GameAudio {
     g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
     o.connect(g);
     g.connect(this.music);
-    g.connect(this.echo);
+    if (echo > 0.01) {
+      const send = this.ctx.createGain();
+      send.gain.value = echo;
+      g.connect(send);
+      send.connect(this.echo);
+    }
     o.start(t);
     o.stop(t + dur + 0.05);
   }
@@ -656,23 +736,24 @@ export class GameAudio {
 
   private scheduleBar(t: number) {
     if (!this.ctx) return;
-    const chord = CHORDS[this.chordIdx % CHORDS.length];
+    const S = this.st, BAR = this.bar, BASE = this.base;
+    const chord = S.chords[this.chordIdx % S.chords.length];
     this.chordIdx++;
-    // warm pad: detuned triangles through a lowpass, slow swell
+    // the pad: detuned oscillators through a lowpass, swelling over the bar
     const lp = this.ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = SEASON === 'winter' ? 620 : SEASON === 'fall' ? 720 : SEASON === 'spring' ? 1100 : 850;
+    lp.frequency.value = S.lp;
     lp.connect(this.music);
     for (const semi of chord) {
-      for (const det of [-4, 4]) {
+      for (const det of [-S.padDetune, S.padDetune]) {
         const o = this.ctx.createOscillator();
-        o.type = 'triangle';
-        o.frequency.value = this.freq(semi + 12);
+        o.type = S.padType;
+        o.frequency.value = this.freq(semi + 12, BASE);
         o.detune.value = det;
         const g = this.ctx.createGain();
         g.gain.setValueAtTime(0, t);
-        g.gain.linearRampToValueAtTime(0.022, t + (SEASON === 'winter' ? 2.6 : 1.6));
-        g.gain.setValueAtTime(0.022, t + BAR - 1.2);
+        g.gain.linearRampToValueAtTime(S.padGain, t + Math.min(S.swell, BAR * 0.7));
+        g.gain.setValueAtTime(S.padGain, t + BAR - 1.2);
         g.gain.linearRampToValueAtTime(0, t + BAR + 0.6);
         o.connect(g);
         g.connect(lp);
@@ -680,28 +761,33 @@ export class GameAudio {
         o.stop(t + BAR + 0.8);
       }
     }
-    // soft bass root
-    {
+    // the bass: one long root, or a walking pulse for the styles that want one
+    const pulses = Math.max(1, S.bassPulses);
+    for (let i = 0; i < pulses; i++) {
       const o = this.ctx.createOscillator();
-      o.type = 'sine';
-      o.frequency.value = this.freq(chord[0], C3 / 2);
+      o.type = S.bassType;
+      // a walking line steps through the chord; a single root just holds
+      const semi = S.bassPulses ? chord[i % chord.length] - (i % 2 ? 0 : 0) : chord[0];
+      o.frequency.value = this.freq(semi, BASE / 2);
       const g = this.ctx.createGain();
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(0.07, t + 0.08);
-      g.gain.exponentialRampToValueAtTime(0.001, t + BAR * 0.9);
+      const at = t + (i / pulses) * BAR;
+      const dur = S.bassPulses ? (BAR / pulses) * 0.85 : BAR * 0.9;
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(S.bassGain, at + 0.08);
+      g.gain.exponentialRampToValueAtTime(0.001, at + dur);
       o.connect(g);
       g.connect(this.music);
-      o.start(t);
-      o.stop(t + BAR);
+      o.start(at);
+      o.stop(at + dur + 0.05);
     }
-    // pentatonic plucks on eighth slots — spring chatters, winter barely speaks
+    // pentatonic plucks on eighth slots — how busy is the style's whole character
     const slots = 8;
-    for (let s = 0; s < slots; s++) {
-      if (Math.random() > (SEASON === 'spring' ? 0.45 : SEASON === 'winter' ? 0.14 : SEASON === 'fall' ? 0.22 : 0.3)) continue;
+    for (let sI = 0; sI < slots; sI++) {
+      if (Math.random() > S.pluck) continue;
       const semi = PENTA[Math.floor(Math.random() * PENTA.length)];
-      const oct = Math.random() < (SEASON === 'spring' ? 0.4 : 0.25) ? 24
-        : SEASON === 'fall' && Math.random() < 0.4 ? 0 : 12;
-      this.pluck(t + (s / slots) * BAR, this.freq(semi + oct, C3 * 2), 0.05 + Math.random() * 0.035, 0.9 + Math.random() * 0.7);
+      const oct = Math.random() < S.pluckHigh ? 24 : 12;
+      this.pluck(t + (sI / slots) * BAR, this.freq(semi + oct, BASE * 2),
+        0.05 + Math.random() * 0.035, S.pluckDecay * (0.8 + Math.random() * 0.5), S.pluckType, S.echo);
     }
   }
 
@@ -829,7 +915,7 @@ export class GameAudio {
     // music: lookahead scheduler, one chord bar at a time
     if (this.ctx.currentTime > this.nextBar - 0.35) {
       this.scheduleBar(this.nextBar);
-      this.nextBar += BAR;
+      this.nextBar += this.bar;
     }
     // footsteps synced to gait
     if (moving) {

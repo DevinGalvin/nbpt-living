@@ -468,6 +468,22 @@ const css = `
   #hud .tt-name { font-size: 14px; }
   #hud .tt-tag { display: block; }
 }
+/* the five lo-fi styles, as a row of chips inside Settings. Wraps rather than
+   scrolls so all five are reachable on a phone without a hidden fifth. */
+#hud .sp-music { padding: 10px 12px 12px; border-top: 1px solid rgba(243,241,232,0.12); }
+#hud .sp-mhdr { font-size: 10.5px; letter-spacing: 1.4px; color: #c9a84e; font-weight: 700; margin: 0 0 8px; }
+#hud .sp-mrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); gap: 6px; }
+#hud .sp-mbtn {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 7px 3px; border-radius: 9px; cursor: pointer;
+  background: rgba(243,241,232,0.07); border: 1px solid rgba(243,241,232,0.16);
+  transition: background 0.15s, border-color 0.15s;
+}
+#hud .sp-mbtn:hover { background: rgba(216,185,74,0.18); border-color: rgba(216,185,74,0.5); }
+#hud .sp-mbtn.cur { background: rgba(216,185,74,0.22); border-color: #d8b94a; }
+#hud .sp-mbtn .m-em { font-size: 18px; line-height: 1; }
+#hud .sp-mbtn .m-nm { font-size: 9.5px; font-weight: 700; color: #f3f1e8; text-align: center; line-height: 1.15; }
+#hud .sp-msub { margin-top: 8px; font-size: 11.5px; color: #c8bd96; line-height: 1.35; min-height: 2.7em; }
 #hud .season-row { display: flex; gap: 8px; margin: 0 0 12px; }
 #hud .season-btn {
   flex: 1; text-align: center; padding: 9px 4px; border-radius: 9px; cursor: pointer;
@@ -1190,6 +1206,11 @@ export class Hud {
         <div class="sp-row" data-set="ghost">
           <div class="sp-label"><div class="sp-name">👻 Ghost rider</div><div class="sp-sub">Race the town's best line. Off = just you and the clock.</div></div>
           <div class="sp-sw"></div>
+        </div>
+        <div class="sp-music">
+          <div class="sp-mhdr">🎵 MUSIC</div>
+          <div class="sp-mrow"></div>
+          <div class="sp-msub"></div>
         </div>
       </div>
       <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span><span class="blab">RUN</span></div>
@@ -2313,6 +2334,32 @@ export class Hud {
     row?.classList.toggle('on', on);
   }
   // keep the gear's switch in sync when story mode is changed from elsewhere (the first-run pick)
+  // the five lo-fi styles. Picking one takes effect on the NEXT bar, so it is a
+  // fade between moods rather than a cut — which is also why there is nothing to
+  // stop and restart when it changes.
+  initMusicStyles(styles: { id: string; name: string; sub: string; emoji: string }[],
+                  current: string, onPick: (id: string) => void) {
+    const row = document.querySelector('#hud .sp-mrow') as HTMLElement | null;
+    const sub = document.querySelector('#hud .sp-msub') as HTMLElement | null;
+    if (!row) return;
+    row.innerHTML = '';
+    const paint = (id: string) => {
+      for (const el of Array.from(row.children)) el.classList.toggle('cur', (el as HTMLElement).dataset.m === id);
+      const s = styles.find((x) => x.id === id);
+      if (sub && s) sub.textContent = s.sub;
+    };
+    for (const s of styles) {
+      const b = document.createElement('div');
+      b.className = 'sp-mbtn';
+      b.dataset.m = s.id;
+      b.title = `${s.name} — ${s.sub}`;
+      b.innerHTML = `<span class="m-em">${s.emoji}</span><span class="m-nm">${s.name}</span>`;
+      b.addEventListener('click', (e) => { e.stopPropagation(); onPick(s.id); paint(s.id); });
+      row.appendChild(b);
+    }
+    paint(current);
+  }
+
   refreshSettings(storyOn: boolean) { this.setStoryRowState(storyOn); }
   initSettings(on: boolean, onToggle: (next: boolean) => boolean) {
     const btn = document.querySelector('#hud .settings-btn') as HTMLElement;

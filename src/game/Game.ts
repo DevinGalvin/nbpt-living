@@ -16,7 +16,7 @@ import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
 import { RaceRunner, COURSES, refreshBoards, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles, courseEstSeconds, ghostEnabled, setGhostEnabled } from './race';
 import { EggRunner } from './eggs';
-import { GameAudio } from './audio';
+import { GameAudio, MUSIC_STYLES } from './audio';
 import { STYLE, SEASON } from '../world/style';
 import { TOWN } from '@town';
 
@@ -467,6 +467,7 @@ export class Game {
       })
     );
     this.hud.initSound(this.audio.enabled, () => this.audio.toggle());
+    this.hud.initMusicStyles(MUSIC_STYLES, this.audio.musicStyle.id, (id) => this.audio.setMusicStyle(id));
     this.hud.initRun(() => {
       this.autoRun = !this.autoRun;
       return this.autoRun;
