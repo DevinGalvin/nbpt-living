@@ -228,7 +228,41 @@ export function landmarks() {
 export const curatedPois = [];
 export const curatedPoisHand = {};
 export const manualBuildings = [];
-export function manualFeatures({ world }) {}
+export function manualFeatures({ world }) {
+  // ── Clear the inside of Fenway Park ──────────────────────────────────────
+  // OSM maps the STANDS as their own `building=yes` way inside the stadium
+  // relation — a 19,532 m² block, 58% of the park's own area — plus four small
+  // ways for the front office and a couple of kiosks. The stadium is a hero that
+  // builds the whole park (bowl, Monster, diamond), so those extra footprints
+  // render as ordinary buildings INSIDE it: standing on the outfield grass you
+  // were looking at a three-storey brick block with punched windows and
+  // storefronts where the first-base grandstand should be.
+  //
+  // General rule rather than five hand-picked ids: anything whose centroid falls
+  // inside a stadium footprint is part of that stadium, and the hero owns it.
+  const pip = (x, y, p) => {
+    let c = false;
+    for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) {
+      const xi = p[i], yi = p[i + 1], xj = p[j], yj = p[j + 1];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+    }
+    return c;
+  };
+  const centroid = (p) => {
+    let x = 0, y = 0; const n = p.length / 2;
+    for (let i = 0; i < n; i++) { x += p[i * 2]; y += p[i * 2 + 1]; }
+    return [x / n, y / n];
+  };
+  const arenas = world.buildings.filter((b) => b.n === 'Fenway Park' || b.n === 'Harvard Stadium');
+  if (!arenas.length) { console.warn('FENWAY CLEAR: no stadium footprint found'); return; }
+  const before = world.buildings.length;
+  world.buildings = world.buildings.filter((b) => {
+    if (arenas.includes(b)) return true;
+    const [cx, cy] = centroid(b.p);
+    return !arenas.some((a) => pip(cx, cy, a.p));
+  });
+  console.log(`Stadium interiors cleared: ${before - world.buildings.length} buildings removed`);
+}
 // 660 Beacon Street is nine storeys; Overture's ML pass read it as six. It has
 // to be right, because the Citgo Sign sits on its roof and the whole point of
 // the sign is where it stands over Kenmore Square.

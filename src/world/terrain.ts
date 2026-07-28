@@ -1,6 +1,20 @@
 // Heightfield from public/heights.bin (real USGS-derived elevation).
-// Heights stored in decimeters on a uniform grid; sampled bilinearly,
-// returned in WORLD PX (8 px = 1 m), y-up.
+// Heights stored in decimeters on a uniform grid; sampled with SMOOTHSTEP-
+// weighted bilinear interpolation, returned in WORLD PX (8 px = 1 m), y-up.
+//
+// ⚠️ Why not plain bilinear (which is what this was): plain bilinear is only C0.
+// The surface is continuous but its SLOPE jumps at every cell boundary, and the
+// grid here is 64 px — 8 m — so those creases are everywhere. What you see is a
+// landscape of four-sided tents: any node that is a local maximum becomes a
+// pyramid with four hard ridges running off it, and the shading facets along the
+// same lines. Roads and paths are draped over that, so a straight street kinks
+// each time it crosses a cell line and a curving park path visibly wobbles.
+//
+// smoothstep(f) = f²(3−2f) has zero derivative at 0 and 1, which makes the
+// interpolated surface C1 across cell boundaries — the creases go away and the
+// tents become rolling ground. Values AT the grid nodes are untouched
+// (smoothstep(0)=0, smoothstep(1)=1), so every real measured elevation is still
+// exactly where the survey put it; only the guesswork between samples changes.
 
 const PX_PER_M = 8;
 
@@ -58,8 +72,10 @@ export class Terrain {
     const gz = (z - this.y0) / this.spacing;
     const ix = Math.max(0, Math.min(this.w - 2, Math.floor(gx)));
     const iz = Math.max(0, Math.min(this.h - 2, Math.floor(gz)));
-    const fx = Math.max(0, Math.min(1, gx - ix));
-    const fz = Math.max(0, Math.min(1, gz - iz));
+    const rx = Math.max(0, Math.min(1, gx - ix));
+    const rz = Math.max(0, Math.min(1, gz - iz));
+    const fx = rx * rx * (3 - 2 * rx);          // smoothstep — see the note up top
+    const fz = rz * rz * (3 - 2 * rz);
     const i00 = this.data[iz * this.w + ix];
     const i10 = this.data[iz * this.w + ix + 1];
     const i01 = this.data[(iz + 1) * this.w + ix];
@@ -71,8 +87,9 @@ export class Terrain {
   }
 
   // conservative LOWER bound of the surface over a world-px box: the min of
-  // the raw grid nodes covering it (bilinear extrema live on nodes; the box is
-  // snapped OUTWARD one cell by floor/ceil), water-clamped once at the end.
+  // the raw grid nodes covering it (the interpolant is monotone in each axis, so
+  // its extrema still live on nodes even with the smoothstep reparametrisation;
+  // the box is snapped OUTWARD one cell by floor/ceil), water-clamped at the end.
   // Used by the impostor so its chords can never rise above the true ground.
   minHeightOver(x0: number, z0: number, x1: number, z1: number): number {
     if (!this.ok) return 0;

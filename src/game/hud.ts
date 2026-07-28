@@ -328,8 +328,12 @@ const css = `
    following a kid down a street and hopeless for a city: from the sidewalk in
    Boston you could not see the top of a single tower. This tilts the view up
    and opens the far plane so the skyline is actually there to look at. */
+/* ⚠️ bottom: 288px, ABOVE the action button. .talk-btn (KAYAK / TALK / HOP OUT)
+   is also right-anchored and sits at 200 — 218 with a dialogue open — so the
+   first version of this at 212 was drawn straight underneath it. The right rail
+   stacks RUN 52 · BIKE 132 · action 200 · LOOK UP 288. */
 #hud .look-btn {
-  position: absolute; right: 18px; bottom: 212px; width: 58px; height: 58px; border-radius: 50%;
+  position: absolute; right: 18px; bottom: 288px; width: 58px; height: 58px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
   display: none; align-items: center; justify-content: center; font-size: 26px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;

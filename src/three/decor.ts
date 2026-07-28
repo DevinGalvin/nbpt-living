@@ -6742,6 +6742,35 @@ function customHouseTower(buckets: Bucket[], b: Building, g: number, index: Worl
   cone(buckets[PLAIN], obb.cx, crownY + 30 * FT, obb.cz, tw * 0.6, 32 * FT, new THREE.Color('#9d988c'));
 }
 
+// A raked bowl of SEATING ROWS between two corresponding rings. Each row is a
+// riser (the seat backs, which is what you actually see from above and from
+// across the park) and a tread (the concrete step in front of them), stepping up
+// and outward from the field to the back of the stand.
+//
+// One quad per ring-edge per row rather than a box per seat: a ballpark holds
+// 37,000 of them and the banding is what the eye reads, not the individual cup
+// holders. `outer` and `inner` MUST correspond vertex-for-vertex — both derived
+// from the same footprint by insetRing — or this fans garbage across the block,
+// which is the trap `annulusRoof` already carries a warning about.
+function seatingRows(bk: Bucket[], outer: number[], inner: number[], yLo: number, yHi: number,
+                     rows: number, seat: string, tread: string, aisle?: string) {
+  const n = Math.min(outer.length, inner.length);
+  const at = (t: number) => {
+    const r: number[] = [];
+    for (let i = 0; i < n; i += 2) r.push(inner[i] + (outer[i] - inner[i]) * t, inner[i + 1] + (outer[i + 1] - inner[i + 1]) * t);
+    return r;
+  };
+  for (let k = 0; k < rows; k++) {
+    const t0 = k / rows, t1 = (k + 1) / rows;
+    const y0 = yLo + (yHi - yLo) * t0, y1 = yLo + (yHi - yLo) * t1;
+    const r0 = at(t0), r1 = at(t1);
+    // every third row's seat backs read a shade lighter — real bowls are never
+    // one flat colour, and it keeps the rows countable at a distance
+    walls(bk[PLAIN], r0, y0, y1, k % 3 === 1 && aisle ? aisle : seat, 0);   // the seat backs
+    annulusRoof(bk[PLAIN], r1, r0, y1, tread);                             // the step in front of them
+  }
+}
+
 // ── Fenway Park ───────────────────────────────────────────────────────────
 // 1912. Only reachable at all because of the leisure=stadium fix — it is a
 // multipolygon relation with no building tag. The GREEN MONSTER is the point:
@@ -6766,21 +6795,38 @@ function customHouseTower(buckets: Bucket[], b: Building, g: number, index: Worl
 function fenwayPark(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   const obb = obbOf(b.p);
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
-  const BRICK_W = '#8f4a3a', MONSTER = '#2f5d3a', SEATS = '#1f5133', CONC = '#9a958c',
-        DIRT = '#a9764c', GRASS = '#4f8a3f', GLASSC = '#9fc4d8';
+  const BRICK_W = '#8f4a3a', MONSTER = '#2f5d3a', SEATS = '#256b41', SEATS2 = '#2f7d4d',
+        SEATDARK = '#1a4a2e', CONC = '#9a958c', DIRT = '#a9764c', GRASS = '#4f8a3f', GLASSC = '#9fc4d8';
 
   // The field is the footprint INSET by the depth of the stands, so the two
   // rings correspond vertex-for-vertex and the grandstand annulus is real
   // geometry rather than a fan of garbage quads.
   const STAND = Math.max(70, Math.min(obb.hl, obb.hw) * 0.30);
   const field = insetRing(b.p, STAND);
-  const deckY = g + 16 * FT, standTop = g + 44 * FT;
+  const concourse = insetRing(b.p, 22);        // the back of the stand, inside the street wall
+  const standTop = g + 46 * FT;
 
   walls(buckets[BRICK], b.p, g - 3, standTop, BRICK_W);          // the brick street front
   flatRoof(buckets[PLAIN], field, g + 1, GRASS);                 // the grass, OPEN to the sky
-  annulusRoof(buckets[PLAIN], b.p, field, deckY, SEATS);         // the seating bowl — Dartmouth GREEN
-  walls(buckets[PLAIN], field, g - 2, deckY, CONC);              // the face of the stands
-  walls(buckets[PLAIN], b.p, deckY, standTop, CONC);             // the upper deck behind
+  // ── THE SEATING BOWL ──
+  // It used to be one flat annulus at a single height: a grey ring with no rake,
+  // no rows and nothing to read as seats — the inside of the most famous ballpark
+  // in the world rendered as a washer. It is now a real raked bowl, 20 rows deep,
+  // stepping up and back from the field wall to the concourse.
+  const bowlLo = g + 7, bowlHi = g + 42 * FT;
+  walls(buckets[PLAIN], field, g - 2, bowlLo + 4, MONSTER);      // the low green wall along the field
+  // ⚠️ The TREAD is green too, not concrete. Fenway from above is overwhelmingly
+  // dark green — you are looking at the tops of seat backs, not at the steps
+  // between them — and a grey tread per row turned the bowl into a humbug stripe.
+  seatingRows(buckets, concourse, field, bowlLo, bowlHi, 22, SEATS, SEATDARK, SEATS2);
+  // the grandstand canopy over the BACK rows only — the real one shades a good
+  // deal more, but the game's camera looks down into the park and a full roof
+  // would hide the thing this whole rebuild is about
+  const canopyIn = insetRing(b.p, 22 + (STAND - 22) * 0.17);
+  annulusRoof(buckets[PLAIN], concourse, canopyIn, g + 58 * FT, '#6e6a63');
+  walls(buckets[PLAIN], concourse, bowlHi, g + 58 * FT, CONC);
+  // the warning track: the dirt apron every outfielder feels before the wall
+  annulusRoof(buckets[PLAIN], field, insetRing(field, 18), g + 1.4, DIRT);
 
   // ── the infield: a real 90 ft diamond, home plate in the south-west ──
   const N = ca < 0 ? 1 : -1;                    // local +lz that points north, to Lansdowne
@@ -6816,8 +6862,12 @@ function fenwayPark(buckets: Bucket[], b: Building, g: number, index: WorldIndex
     const mAng = Math.atan2(field[j2 + 1] - field[bi + 1], field[j2] - field[bi]);
     rotBox(buckets[PLAIN], mx, mz, bl / 2, 2.6, g, g + MONSTER_H, mAng, MONSTER);
     rotBox(buckets[GLOW], mx, mz, bl * 0.24, 0.8, g + 7, g + 22, mAng, '#16281c');   // manual scoreboard
-    rotBox(buckets[PLAIN], mx, mz, bl / 2, 5.5, g + MONSTER_H, g + MONSTER_H + 9, mAng, SEATS);  // Monster Seats
-    rotBox(buckets[PLAIN], mx, mz, bl / 2, 0.6, g + MONSTER_H + 9, g + MONSTER_H + 12, mAng, '#c9ccd0');
+    // the Monster Seats — four rows on top of the wall, added 2003
+    for (let r = 0; r < 4; r++) {
+      rotBox(buckets[PLAIN], mx, mz + (r - 1.5) * 2.6, bl / 2, 1.2,
+        g + MONSTER_H + r * 2.2, g + MONSTER_H + r * 2.2 + 3.4, mAng, r % 2 ? SEATS2 : SEATS);
+    }
+    rotBox(buckets[PLAIN], mx, mz, bl / 2, 0.6, g + MONSTER_H + 11, g + MONSTER_H + 14, mAng, '#c9ccd0');
     rotBox(buckets[PLAIN], mx, mz, 0.7, 3.1, g + 14, g + MONSTER_H, mAng, '#7c8a72');            // the ladder
   }
 
@@ -6835,8 +6885,16 @@ function fenwayPark(buckets: Bucket[], b: Building, g: number, index: WorldIndex
   // ── THE RED SEAT: section 42, row 37, seat 21 — Ted Williams, 9 June 1946,
   // 502 feet, the longest home run ever hit here. Fenway's seats are green;
   // this is the only red one in the park.
+  // It sits IN the bowl now rather than floating at an old deck height: about
+  // two-thirds of the way up the rows, out in the right-field bleachers.
+  // It sits IN the bowl now rather than floating at an old deck height, and it is
+  // built a touch larger than one seat would really be: at this scale a single
+  // 19-inch seat among 37,000 is a pixel, and the whole point of it is that you
+  // can go and find it.
   const rs = P(L * 0.62, N * W * 0.30);
-  buckets[GLOW].box(rs[0], rs[1], 2.4, 2.4, deckY, deckY + 4.5, '#d0342c', 0);
+  const rsY = bowlLo + (bowlHi - bowlLo) * 0.62;
+  buckets[GLOW].box(rs[0], rs[1], 4.2, 4.2, rsY, rsY + 7.5, '#d0342c', 0);
+  buckets[PLAIN].box(rs[0], rs[1], 5.4, 5.4, rsY - 1.2, rsY, '#c9c4b8', 0);   // the step it stands on
 
   // ── the two yellow foul poles (Pesky's Pole in right) ──
   for (const [plx, plw] of [[L * 0.30, -N * W * 0.80], [-L * 0.86, N * W * 0.40]] as const) {
