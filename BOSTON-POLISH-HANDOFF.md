@@ -15,6 +15,8 @@ green. Verified on clippertown.io/boston/ with `window.__build` = `0a62aa0`.
 | `2d4450b` | Fenway's seats + stadium-interior clear, terrain smoothstep, button collision |
 | `6264e8a` | 157 jets at Logan, glass terminals, `glassMix`, elevated spans, storefront + State House |
 | `0a62aa0` | five lo-fi music styles in Settings |
+| `87b486d` | underground buildings skipped — the Hynes station stops walling off Mass Ave |
+| `a163536` | the Logan jets rebuilt: round fuselage, swept wing and fin, white that reads white |
 
 ---
 
@@ -102,28 +104,84 @@ takes effect at the next bar. Season still colours whatever is playing.
 
 ---
 
+## Since then (7/28)
+
+### ✅ The aircraft — DONE (`a163536`)
+
+Two structural causes, not cosmetic ones.
+
+**The fuselage was a prism.** One flat wall from belly to crown means every point
+on it shares a normal, so under a high sun it lands on ONE Lambert value: a grey
+slab, darker from the side than the concrete it stands on. It is a **lathe** now
+— 12 facets round a real fore-aft axis, nose taper, constant-section cabin, tail
+cone kicking up. Same disease on the wing (five stepped constant-chord panels)
+and the fin (a plain rectangle — a 79 px mustard billboard). Both are **swept
+tapered airfoils** now, ~29° of sweep and a little dihedral.
+
+**A white aircraft needs a vertex gain above 1.** Lambert has no bounce, so an
+unlit vertical white surface sits at ~0.36 of full — grey, however white the hex
+is. Facet colours are pushed **past 1.0** (vertex colours are floats; nothing
+clamps them), with the gain **peaking at the equator** where the light is worst
+and falling to ~1 at crown and belly — lifting the shaded side to white without
+flattening the roundness. **This trick generalises: any surface that should read
+as bright and glossy but faces away from the sun.**
+
+Two reusable primitives fell out: **`lathe()`** and **`airfoil()`**.
+⚠️ `FUSE` is authored in FRACTIONS of the half-length; `lathe` wants world px.
+Passed straight through it builds a 2 px tube and the jet renders as a wing and
+a fin with nothing between them.
+
+### ✅ A subway station was walling off Massachusetts Avenue (`87b486d`)
+
+Devin, mid-session: *"there's still this building crossing a street, it blocks
+anyone from getting through."*
+
+**`build_world` had no handling for underground BUILDINGS at all** — the
+buried-highway lesson one class further on. The Hynes Convention Center Green
+Line station is tagged `building=train_station`, so it was drawn from grade: a
+154 × 37 m box across Mass Ave at Newbury. Lifting it as an elevated span would
+have been just as wrong — there is nothing there to walk under.
+
+⚠️ **`layer` alone cannot decide this.** It is drawing order, not elevation, and
+25 Boston buildings carry `layer < 0` of which most are plainly above ground
+(Orient Heights station, the zoo's Tropical Forest, the Hilton Back Bay). The
+rule: `location=underground` is taken at its word, `layer < 0` counts only with
+`building:levels:underground`, and `location=surface` always wins. Exactly five
+structures in Boston, **zero in every other town** — so nothing else needs a
+rebake. The **relation path needed the same guard as the way path**; two of the
+five are multipolygons and the first rebake missed them.
+
+Diffed against the shipped world.json: 6 footprints gone, 0 added, every other
+collection identical. Bonus — the station box had been drawn on top of the
+**citizenM Back Bay hotel**, so a 15-storey hotel now renders there.
+
+**Related finding, NOT fixed:** 61 Boston buildings sit on a named road
+centreline; 41 of those are ordinary streets. Most are legitimate (a station
+over its own busway, air-rights buildings like the BCEC over Summer Street,
+private ways through complexes) — but the list is worth a pass, and the audit
+script pattern is in this session's scratchpad. Notably `Fazzalari Sky Bridge`
+still clips Longwood Avenue despite the earlier fix.
+
+---
+
 ## STILL OPEN — start here
 
-1. **The aircraft are underwhelming at eye level.** Correct in size, number and
-   position, and they read from above and along the ramp — but pale grey rather
-   than convincingly white, and the fuselage reads flat against the apron. Wants
-   another pass on materials and fuselage section. `airliner()` in `decor.ts`.
-2. **Nobody has heard the music.** All five schedule without throwing and the
+1. **Nobody has heard the music.** All five schedule without throwing and the
    derived numbers are deliberately spread (bar 3.6–9.5 s, key 98–165 Hz, melody
    density 5–50%), but whether Night Drive's walking bass sits right against its
    pad, or Harbor Fog is too empty, needs ears. Five numbers each to adjust.
-3. **Fenway seat colour is green and that was a deliberate call.** Devin asked
+2. **Fenway seat colour is green and that was a deliberate call.** Devin asked
    for red seats; two sources (Wikipedia, Fenway Fanatics) describe the lone red
    seat as standing out because it is *"completely surrounded by dark green
    seats"*. Built green with the one red seat modelled larger than life so it can
    be found. **If Devin asks again, make it red — he has been told the finding.**
-4. **Boston still shows a lot of brick.** `glassMix` covers 4+ storey
+3. **Boston still shows a lot of brick.** `glassMix` covers 4+ storey
    commercial/civic. Sub-4-storey commercial is still all brick, which is right
    downtown and wrong in the Seaport and Kendall. A district-aware mix would fix
    it.
-5. Salem, Beverly and Charlestown have real three-decker fabric and could opt
+4. Salem, Beverly and Charlestown have real three-decker fabric and could opt
    into `bayWindows`. Deliberate not-yet, not an oversight.
-6. `data/salem/raw` and `data/beverly/raw` are **not in this tree** (built in
+5. `data/salem/raw` and `data/beverly/raw` are **not in this tree** (built in
    worktrees), so those two towns cannot be rebaked here. Their `world.json` is
    unchanged and will pick up the small `lv` corrections whenever they are
    rebaked.
