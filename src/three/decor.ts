@@ -6489,6 +6489,71 @@ function insetRing(ring: number[], d: number): number[] {
   return out;
 }
 
+// Walk a ring by ARC LENGTH — the Logan-terminal lesson. Stepping vertex by vertex
+// on a finely-traced outline clusters everything where the tracing is detailed and
+// leaves the long straight runs empty.
+function ringPerimeter(ring: number[]): number {
+  let d = 0;
+  for (let i = 0; i < ring.length; i += 2) {
+    const j = (i + 2) % ring.length;
+    d += Math.hypot(ring[j] - ring[i], ring[j + 1] - ring[i + 1]);
+  }
+  return d;
+}
+function ringPointAt(ring: number[], dist: number): [number, number] {
+  let d = dist;
+  for (let i = 0; i < ring.length; i += 2) {
+    const j = (i + 2) % ring.length;
+    const ex = ring[j] - ring[i], ez = ring[j + 1] - ring[i + 1];
+    const len = Math.hypot(ex, ez);
+    if (d <= len || i + 2 >= ring.length) {
+      const t = len < 1e-6 ? 0 : Math.max(0, Math.min(1, d / len));
+      return [ring[i] + ex * t, ring[i + 1] + ez * t];
+    }
+    d -= len;
+  }
+  return [ring[0], ring[1]];
+}
+
+// ── a Fenway light tower ──────────────────────────────────────────────────
+// SEVEN of them since 1947 — FIVE on the grandstand roof and TWO behind the Green
+// Monster — and they are the ballpark's silhouette as much as the wall is. They
+// are also BIG: a splayed lattice mast standing well clear of the roofline under a
+// broad bank of lamps in rows. (The same left-field tower carried the Coke bottles
+// from 1997 until they came down in 2008.)
+//
+// ⚠️ The base is passed in because these do NOT stand on the ground — they stand on
+// whatever is under them, which is a roof or a wall. Every one of them was floating
+// over the outfield grass before this, on a mast that started 46 ft up in mid-air.
+function fenwayLightTower(buckets: Bucket[], x: number, z: number, baseY: number, topY: number, ang: number) {
+  const P = buckets[PLAIN], G2 = buckets[GLOW];
+  const STEEL = '#6b7076', DARK = '#43484e';
+  const bankW = 46 * FT, bankH = 24 * FT;
+  const bankLo = Math.max(baseY + 6 * FT, topY - bankH);
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const at = (l: number, w: number): [number, number] => [x + ca * l - sa * w, z + sa * l + ca * w];
+  // the mast splays out toward its footing, so it reads as a tower rather than a post
+  taperBand(P, sqRing(x, z, bankW * 0.26, ang), sqRing(x, z, bankW * 0.12, ang), baseY, bankLo, STEEL, 0);
+  for (let i = 1; i <= 3; i++) {                       // bracing bands up the mast
+    const y = baseY + (bankLo - baseY) * (i / 4);
+    const hw = bankW * (0.26 - 0.14 * (i / 4));
+    rotBox(P, x, z, hw, hw, y, y + 1.6, ang, DARK);
+  }
+  rotBox(P, x, z, bankW / 2, 3.6, bankLo, topY, ang, DARK);            // the bank's frame
+  // the lamps: rows of them, standing proud of the frame on BOTH faces so the bank
+  // reads lit from anywhere in the park
+  const ROWS = 4, COLS = 9;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const lw = ((c + 0.5) / COLS - 0.5) * bankW * 0.94;
+      const ly = bankLo + (bankH * (r + 0.5)) / ROWS;
+      const p = at(lw, 0);
+      G2.box(p[0], p[1], (bankW / COLS) * 0.36, 4.6, ly - bankH / ROWS * 0.30, ly + bankH / ROWS * 0.30, '#fdf6d8', 0);
+    }
+  }
+  rotBox(P, x, z, bankW / 2, 4.4, topY, topY + 2.2, ang, DARK);        // the hood over the top row
+}
+
 function annulusRoof(bk: Bucket, outer: number[], inner: number[], y: number, hex: string) {
   tmp.set(hex);
   const r = tmp.r, g2 = tmp.g, b2 = tmp.b;
@@ -7113,6 +7178,27 @@ function fenwayPark(buckets: Bucket[], b: Building, g: number, index: WorldIndex
   const mnd = P(HPl + (u[0] + v[0]) * base * 0.34, HPw + (u[1] + v[1]) * base * 0.34);
   buckets[PLAIN].box(mnd[0], mnd[1], 7, 7, g + 1.7, g + 3.2, DIRT, 0);
 
+  // ⚠️ EVERYTHING BELOW IS PLACED AGAINST REAL GEOMETRY, NOT AGAINST THE BOUNDING BOX.
+  // It was all sitting at fractions of the OBB half-extents — which, for anything that
+  // belongs on a wall or in the stands, means "somewhere out on the grass". The red
+  // seat, the press box, one foul pole and three of the five light towers were all
+  // floating over the outfield (Devin: "a bunch of fenway stuff is just floating").
+  // The fix is the same every time: cast the real line out until it LEAVES the field
+  // ring, and build from there.
+  //
+  // How far along a direction from home plate the outfield wall is:
+  const wallT = (dl: number, dw: number) => {
+    let lo = 0, hi = Math.hypot(L, W) * 2.2;
+    for (let i = 0; i < 26; i++) {
+      const mid = (lo + hi) / 2;
+      const p = P(HPl + dl * mid, HPw + dw * mid);
+      if (pointInRingD(p[0], p[1], field)) lo = mid; else hi = mid;
+    }
+    return lo;
+  };
+  const cf = Math.hypot(u[0] + v[0], u[1] + v[1]) || 1;   // home plate → centre field
+  const cfl = (u[0] + v[0]) / cf, cfw = (u[1] + v[1]) / cf;
+
   // ── THE GREEN MONSTER — 37 ft 2 in, on the Lansdowne (north) side ──
   // Placed on the real footprint: take the longest edge of the inset field ring
   // whose outward normal points north, so the wall sits where left field is.
@@ -7125,10 +7211,11 @@ function fenwayPark(buckets: Bucket[], b: Building, g: number, index: WorldIndex
     if (len > bl) { bl = len; bi = i; }
   }
   const MONSTER_H = 37.17 * FT;                          // 37 ft 2 in — tallest wall in baseball
+  let mx = 0, mz = 0, mAng = 0;                          // kept: the light towers stand on this wall
   if (bi >= 0) {
     const j2 = (bi + 2) % field.length;
-    const mx = (field[bi] + field[j2]) / 2, mz = (field[bi + 1] + field[j2 + 1]) / 2;
-    const mAng = Math.atan2(field[j2 + 1] - field[bi + 1], field[j2] - field[bi]);
+    mx = (field[bi] + field[j2]) / 2; mz = (field[bi + 1] + field[j2 + 1]) / 2;
+    mAng = Math.atan2(field[j2 + 1] - field[bi + 1], field[j2] - field[bi]);
     rotBox(buckets[PLAIN], mx, mz, bl / 2, 2.6, g, g + MONSTER_H, mAng, MONSTER);
     rotBox(buckets[GLOW], mx, mz, bl * 0.24, 0.8, g + 7, g + 22, mAng, '#16281c');   // manual scoreboard
     // the Monster Seats — four rows on top of the wall, added 2003
@@ -7141,42 +7228,92 @@ function fenwayPark(buckets: Bucket[], b: Building, g: number, index: WorldIndex
   }
 
   // ── press box + glass club level above HOME PLATE, with the pennants ──
-  const bp = P(HPl - L * 0.18, HPw - N * W * 0.24);
+  // Same trap as the rest: at a fraction of the bounding box it stood out on the
+  // first-base grass. It belongs BEHIND the plate and above the seating, so go from
+  // home plate directly away from centre field, out to the backstop wall, and then
+  // back into the stands.
+  const bpT = wallT(-cfl, -cfw) + STAND * 0.5;
+  const bpl = HPl - cfl * bpT, bpw = HPw - cfw * bpT;
+  const bp = P(bpl, bpw);
   rotBox(buckets[GLOW],  bp[0], bp[1], L * 0.22, 6.5, g + 46 * FT, g + 62 * FT, obb.ang, GLASSC);
   rotBox(buckets[PLAIN], bp[0], bp[1], L * 0.23, 7.5, g + 62 * FT, g + 68 * FT, obb.ang, '#e8e4da');
   rotBox(buckets[PLAIN], bp[0], bp[1], L * 0.23, 8.0, g + 42 * FT, g + 46 * FT, obb.ang, CONC);
   for (let i = 0; i <= 6; i++) {
-    const f = P(HPl - L * 0.18 + L * (-0.20 + 0.40 * (i / 6)), HPw - N * W * 0.24);
+    const f = P(bpl + L * (-0.20 + 0.40 * (i / 6)), bpw);
     buckets[PLAIN].box(f[0], f[1], 0.5, 0.5, g + 68 * FT, g + 80 * FT, '#c9ccd0', 0);
     buckets[GLOW].box(f[0], f[1], 2.4, 0.4, g + 74 * FT, g + 79 * FT, i % 2 ? '#c0392f' : '#e8e4da', 0);
   }
 
   // ── THE RED SEAT: section 42, row 37, seat 21 — Ted Williams, 9 June 1946,
-  // 502 feet, the longest home run ever hit here. Fenway's seats are green;
-  // this is the only red one in the park.
-  // It sits IN the bowl now rather than floating at an old deck height: about
-  // two-thirds of the way up the rows, out in the right-field bleachers.
-  // It sits IN the bowl now rather than floating at an old deck height, and it is
-  // built a touch larger than one seat would really be: at this scale a single
-  // 19-inch seat among 37,000 is a pixel, and the whole point of it is that you
-  // can go and find it.
-  const rs = P(L * 0.62, N * W * 0.30);
+  // 502 feet, the longest home run ever hit here. Fenway's seats are green; this is
+  // the only red one in the park. It is in the RIGHT-FIELD BLEACHERS, so: out along
+  // the right-field line swung toward centre, to the wall, then back into the stands.
+  // Built a touch larger than one seat really is — at this scale a 19-inch seat among
+  // 37,000 is a pixel, and the whole point of it is that you can go and find it.
+  let rdl = v[0] * 0.55 + cfl * 0.45, rdw = v[1] * 0.55 + cfw * 0.45;
+  const rlen = Math.hypot(rdl, rdw) || 1; rdl /= rlen; rdw /= rlen;
+  const rsT = wallT(rdl, rdw) + STAND * 0.55;
+  const rs = P(HPl + rdl * rsT, HPw + rdw * rsT);
   const rsY = bowlLo + (bowlHi - bowlLo) * 0.62;
   buckets[GLOW].box(rs[0], rs[1], 4.2, 4.2, rsY, rsY + 7.5, '#d0342c', 0);
   buckets[PLAIN].box(rs[0], rs[1], 5.4, 5.4, rsY - 1.2, rsY, '#c9c4b8', 0);   // the step it stands on
 
-  // ── the two yellow foul poles (Pesky's Pole in right) ──
-  for (const [plx, plw] of [[L * 0.30, -N * W * 0.80], [-L * 0.86, N * W * 0.40]] as const) {
-    const pp = P(plx, plw);
-    buckets[GLOW].box(pp[0], pp[1], 1.1, 1.1, g, g + 52 * FT, '#e8c231', 0);
+  // ── the two yellow foul poles — where the foul LINES actually meet the wall ──
+  // They run from home plate through third and first, so they are exactly the two
+  // base directions. Pesky's Pole is the right-field one, 302 ft out and the shortest
+  // porch in the majors.
+  for (const [dl, dw] of [u, v] as const) {
+    const t = wallT(dl, dw);
+    const pp = P(HPl + dl * t, HPw + dw * t);
+    buckets[GLOW].box(pp[0], pp[1], 1.6, 1.6, g, g + 52 * FT, '#e8c231', 0);
   }
 
-  // ── light towers ──
-  for (const [lx, lz] of [[-L * 0.60, N * W * 0.60], [0, N * W * 0.90], [L * 0.55, N * W * 0.45],
-                          [-L * 0.35, -N * W * 0.75], [L * 0.35, -N * W * 0.62]] as const) {
-    const p = P(lx, lz);
-    buckets[PLAIN].box(p[0], p[1], 1.3, 1.3, standTop, g + 74 * FT, '#5c6167', 0);
-    buckets[GLOW].box(p[0], p[1], 5.2, 1.5, g + 70 * FT, g + 75 * FT, '#fdf6d8', 0);
+  // ── THE LIGHT TOWERS — five on the roof, two behind the Monster (1947) ──
+  // Walked round the ROOF ring by arc length so every one of them lands on the
+  // grandstand it is supposed to be standing on, and the stretch belonging to the
+  // Green Monster is skipped — that side gets its own pair, up on the wall.
+  const TOWER_TOP = g + 108 * FT;
+  const roofRing = insetRing(b.p, 30);
+  const roofY = g + 58 * FT;                        // the canopy they stand on
+  const total = ringPerimeter(roofRing);
+  // ⚠️ Each bank takes the angle of the ROOF EDGE IT STANDS ON, not the park's overall
+  // angle. A 46 ft bank given one shared angle runs along the wall on two sides and
+  // straight out over the outfield on the other two — measured, that put a third of the
+  // lamps above the grass, which is the same floating bug one level down.
+  // ⚠️ And then CHECK THE WHOLE BANK, not just the mast. Orienting each tower to its own
+  // roof edge is not enough on its own: a 46 ft bank pivoting round a corner still swings
+  // an arm out over the outfield, and measuring found a third of the lamps above grass
+  // even after the angles were right. So a candidate spot only survives if BOTH ENDS of
+  // its bank clear the field ring. Same lesson as everything else here — test the real
+  // geometry rather than reason about where it ought to land.
+  const HALF_BANK = 23 * FT;
+  const spots: [number, number, number][] = [];
+  for (let s = 0; s < 240; s++) {
+    const d = (s / 240) * total;
+    const p = ringPointAt(roofRing, d);
+    if (bi >= 0 && Math.hypot(p[0] - mx, p[1] - mz) < bl * 0.62) continue;   // the Monster's side
+    const q = ringPointAt(roofRing, (d + 10) % total);
+    const a = Math.atan2(q[1] - p[1], q[0] - p[0]);
+    const ex = Math.cos(a) * HALF_BANK, ez = Math.sin(a) * HALF_BANK;
+    if (pointInRingD(p[0] + ex, p[1] + ez, field) || pointInRingD(p[0] - ex, p[1] - ez, field)) continue;
+    spots.push([p[0], p[1], a]);
+  }
+  for (let i = 0; i < 5 && spots.length; i++) {
+    const [sx, sz, sang] = spots[Math.floor(((i + 0.5) / 5) * spots.length)];
+    fenwayLightTower(buckets, sx, sz, roofY, TOWER_TOP, sang);
+  }
+  if (bi >= 0) {
+    // The two in left field stand BEHIND the wall, not on the field side of it. ⚠️ The
+    // offset that was here pushed them the WRONG WAY — 5 px INTO the outfield — which is
+    // why they read as hanging over the grass. Away from the field is (−sin, cos) of the
+    // wall's angle, and it has to clear the mast's own half-width (~29 px) or the tower
+    // still straddles the wall. Verified by measuring lamps-over-grass, not by eye.
+    const eax = Math.cos(mAng), eaz = Math.sin(mAng);
+    const ox = -Math.sin(mAng) * 42, oz = Math.cos(mAng) * 42;
+    for (const s of [-1, 1] as const) {
+      fenwayLightTower(buckets, mx + eax * bl * 0.30 * s + ox, mz + eaz * bl * 0.30 * s + oz,
+        g + MONSTER_H + 14, TOWER_TOP, mAng);
+    }
   }
 }
 
