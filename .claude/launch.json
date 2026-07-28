@@ -263,6 +263,32 @@
         "--strictPort"
       ],
       "port": 5309
+    },
+    {
+      "name": "boston-hero",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:boston",
+        "--",
+        "--port",
+        "5311",
+        "--strictPort"
+      ],
+      "port": 5311
+    },
+    {
+      "name": "nbpt-check",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5313",
+        "--strictPort"
+      ],
+      "port": 5313
     }
   ]
 }

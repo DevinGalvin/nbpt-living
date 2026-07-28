@@ -54,6 +54,12 @@ export interface TownPack {
   // institutional blocks instead of gray fishing-village shacks. `p` = share of
   // houses shingled, 0..1 (the rest keep the painted palette — real villages mix).
   shingleZones?: { x: number; z: number; r: number; p?: number }[];
+  // Share of commercial/civic blocks built of STONE rather than brick, 0..1
+  // (STYLE.building.wallsStone). Omit for a town whose downtown really is all
+  // one material — Newburyport's is, having been rebuilt in brick after the
+  // Great Fire. A city's is not, and rendering Boston's entirely in brick red
+  // was the single biggest reason it read as repetitive.
+  masonryMix?: number;
   sledLane: { x: number; z0: number; z1: number; halfW: number } | null;   // decor: kept clear of trees for sledding
   trainPlatform: Vec2 | null;                                      // decor: commuter-rail platform set piece
   holidayTree: Vec2 | null;                                        // winter: the town tree (null = none)

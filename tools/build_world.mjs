@@ -23,6 +23,16 @@ const DROP_OSM = new Set(T.map.dropOsm ?? []);
 // overlay (Overture) must not override mapped truth.
 const LV_EXPLICIT = new Set();
 
+// The storey ceiling. 6 was never a considered number — it was the North Shore's
+// tallest plausible building, and nothing in Newburyport or Gloucester ever
+// reached it, so it read as a harmless guard. In a city it is a demolition
+// order: Boston baked with 2,827 buildings sitting at exactly 6, which is every
+// tower in the Financial District, the Back Bay and the Seaport flattened into
+// one mid-rise plain — 200 Clarendon (60 storeys) and the Prudential (52) among
+// them, both of which carry a truthful building:levels tag that this clamped.
+// Per-town, defaulting to 6, so every existing town bakes byte-identical.
+const MAX_LV = T.map.maxLevels ?? 6;
+
 // ---------- geometry helpers (in px space) ----------
 
 function ringArea(pts) {
@@ -381,7 +391,7 @@ for (const el of raw.elements) {
     let sf = 0;
     if ((k === 'house' || k === 'commercial' || k === 'civic') && areaM2 >= 60 && hasStorefrontEvidence(ring)) sf = 1;
     const lvTag = parseFloat(t['building:levels']);
-    const lv = Math.min(6, lvTag || (k === 'house' ? 1.5 : k === 'shed' ? 1 : 2));
+    const lv = Math.min(MAX_LV, lvTag || (k === 'house' ? 1.5 : k === 'shed' ? 1 : 2));
     const b = { p: ring, k, lv };
     if (lvTag) LV_EXPLICIT.add(b);
     if (sf) b.sf = 1;
@@ -559,7 +569,7 @@ for (const el of raw.elements) {
     if (pk === '_building') {
       const k = buildingKind(t);
       const lvTag = parseFloat(t['building:levels']);
-      const b = { p: r, k, lv: Math.min(6, lvTag || 2) };
+      const b = { p: r, k, lv: Math.min(MAX_LV, lvTag || 2) };
       if (lvTag) LV_EXPLICIT.add(b);
       if (t.name) b.n = t.name;
       world.buildings.push(b);
@@ -995,10 +1005,20 @@ try {
     else if (areaM2 > 2000 && h < 11) lv = areaM2 > 4000 ? 1 : 1.5;
     else if (h < 9.8) lv = h < 5.2 ? 1 : h < 7.2 ? 1.5 : 2; // pitched-home regime: ridge thresholds
     else lv = (h - 1) / 3.2; // taller stock: ~3.2 m/storey + parapet, half-floor rounded below
-    if (areaM2 > 5000) lv = Math.min(lv, 2);
+    // A huge footprint is usually a mall, a school or a mill whose single tall
+    // volume must not be read as storeys — but a huge footprint is not by itself
+    // evidence of that. A 5,000 m² plate that Overture measures at 60 m IS a
+    // tower, and a city has dozens (the Federal Reserve, One Beacon, the Seaport
+    // blocks); flatly capping them at 2 is what left Boston with no skyline.
+    // 24 m is the dividing line: eight storeys of height across a full city
+    // block is unambiguously a big building, while everything below it on that
+    // footprint is a gym, a nave or a mill floor. Newburyport High measures
+    // 19.7 m over 6,467 m² and is three storeys, not six — which is why the
+    // ceiling under the line is 3 and not the raw (h-1)/3.2.
+    if (areaM2 > 5000 && h < 24) lv = Math.min(lv, 3);
     if (b.k === 'church') lv = Math.min(lv, 2.5);
     if (b.k === 'shed') lv = Math.min(lv, 1.5);
-    lv = Math.min(6, Math.max(1, Math.round(lv * 2) / 2));
+    lv = Math.min(MAX_LV, Math.max(1, Math.round(lv * 2) / 2));
     if (lv > b.lv) raised++;
     else if (lv < b.lv) lowered++;
     b.lv = lv;

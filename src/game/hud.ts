@@ -414,16 +414,32 @@ const css = `
 #hud .travel-item .tn { color: #f3f1e8; font-size: 14px; font-weight: 600; }
 #hud .travel-item .ts { color: #c8bd96; font-size: 11px; margin-top: 2px; }
 /* town switcher — hop between Newburyport, Salem (and future towns), at the top of Fast Travel */
+/* The switcher started life with two towns and grew to twelve without its layout
+   ever being revisited: initTravel computed a FIXED column count from the town
+   count (12 → 3), so on a phone three 150 px chips ran clean off the right edge
+   of a 340 px panel and the town you were standing in was half off-screen.
+   It is now a fluid auto-fill grid — the column count follows the panel, not the
+   roster — and the tile shrinks to an emoji over a name on a phone, which is
+   what makes three of them fit. Tags are charm, so they come back as soon as
+   there is room for them, and the town you are in always says so. */
 #hud .travel-towns { margin: 0 0 14px; }
-#hud .tt-hdr { font-size: 10.5px; letter-spacing: 1.5px; color: #c9a84e; font-weight: 700; margin: 0 0 8px; }
-#hud .tt-row { display: grid; gap: 8px; grid-template-columns: repeat(2, 1fr); }   /* column count set per town count in initTravel — balanced rows, never a lone stretched chip */
-#hud .tt-chip { display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 10px; background: rgba(243,241,232,0.07); border: 1px solid rgba(243,241,232,0.16); cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+#hud .tt-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 10.5px; letter-spacing: 1.5px; color: #c9a84e; font-weight: 700; margin: 0 0 8px; }
+#hud .tt-count { color: #9d9583; font-weight: 600; letter-spacing: 0.6px; }
+#hud .tt-row { display: grid; gap: 7px; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+#hud .tt-chip { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 8px 5px; border-radius: 10px; background: rgba(243,241,232,0.07); border: 1px solid rgba(243,241,232,0.16); cursor: pointer; transition: background 0.15s, border-color 0.15s; }
 #hud .tt-chip:hover { background: rgba(216,185,74,0.18); border-color: rgba(216,185,74,0.5); }
 #hud .tt-chip.cur { background: rgba(216,185,74,0.16); border-color: #d8b94a; cursor: default; }
 #hud .tt-emoji { font-size: 22px; line-height: 1; flex: none; }
-#hud .tt-info { line-height: 1.2; min-width: 0; }
-#hud .tt-name { color: #f3f1e8; font-size: 14px; font-weight: 700; }
-#hud .tt-tag { color: #c8bd96; font-size: 11px; margin-top: 1px; }
+#hud .tt-info { line-height: 1.18; min-width: 0; }
+#hud .tt-name { color: #f3f1e8; font-size: 11.5px; font-weight: 700; }
+#hud .tt-tag { display: none; color: #c8bd96; font-size: 11px; margin-top: 1px; }
+#hud .tt-here { color: #e8c44f; font-size: 10px; font-weight: 700; margin-top: 2px; letter-spacing: 0.3px; }
+@media (min-width: 560px) {
+  #hud .tt-row { grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); }
+  #hud .tt-chip { flex-direction: row; text-align: left; gap: 10px; padding: 9px 11px; }
+  #hud .tt-name { font-size: 14px; }
+  #hud .tt-tag { display: block; }
+}
 #hud .season-row { display: flex; gap: 8px; margin: 0 0 12px; }
 #hud .season-btn {
   flex: 1; text-align: center; padding: 9px 4px; border-radius: 9px; cursor: pointer;
@@ -1155,7 +1171,7 @@ export class Hud {
       <div class="race-btn" title="Races">🏁<span class="blab">RACE</span></div>
       <div class="race-pop"></div>
       <div class="board-panel"><div class="board-card"></div></div>
-      <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><div class="travel-towns"><div class="tt-hdr">EXPLORE ANOTHER TOWN</div><div class="tt-row"></div></div><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
+      <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><div class="travel-towns"><div class="tt-hdr"><span>EXPLORE ANOTHER TOWN</span><span class="tt-count"></span></div><div class="tt-row"></div></div><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q wp-q">➤</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
@@ -1685,10 +1701,13 @@ export class Hud {
     // town switcher row — current town highlighted, the others navigate on tap
     const ttRow = document.querySelector('#hud .tt-row') as HTMLElement | null;
     if (ttRow && TOWNS.length > 1) {
-      // balanced rows: 2-3 towns share one line, 4 makes a 2×2, 5-6 make rows of 3 —
-      // not the old flex-wrap, where a lone fourth town stretched across its own row
-      const rows = Math.ceil(TOWNS.length / 3);
-      ttRow.style.gridTemplateColumns = `repeat(${Math.ceil(TOWNS.length / rows)}, 1fr)`;
+      // ⚠️ No inline gridTemplateColumns. This used to derive a fixed column
+      // count from the number of towns (12 → 3), which is a roster property, not
+      // a layout one — so it overrode the stylesheet and overflowed the panel on
+      // a phone. The CSS auto-fill grid fits whatever the panel is wide enough
+      // for, and keeps fitting as more towns are added.
+      const cnt = document.querySelector('#hud .tt-count');
+      if (cnt) cnt.textContent = `${TOWNS.length} TOWNS`;
       const here = ((window as unknown as { __townPath?: string }).__townPath || location.pathname).replace(/\/+$/, '');
       const cur = TOWNS.filter((t) => t.path !== '/').sort((a, b) => b.path.length - a.path.length)
         .find((t) => { const p = t.path.replace(/\/+$/, ''); return here === p || here.startsWith(p + '/'); })
@@ -1697,7 +1716,9 @@ export class Hud {
         const isCur = t === cur;
         const chip = document.createElement('div');
         chip.className = 'tt-chip' + (isCur ? ' cur' : '');
-        chip.innerHTML = `<span class="tt-emoji">${t.emoji}</span><div class="tt-info"><div class="tt-name">${t.name}</div><div class="tt-tag">${t.tag}${isCur ? ' · you’re here' : ''}</div></div>`;
+        chip.innerHTML = `<span class="tt-emoji">${t.emoji}</span><div class="tt-info"><div class="tt-name">${t.name}</div>`
+          + `<div class="tt-tag">${t.tag}</div>${isCur ? '<div class="tt-here">you’re here</div>' : ''}</div>`;
+        chip.title = `${t.name} — ${t.tag}`;   // the tag is hidden on a phone; keep it reachable
         if (!isCur) chip.addEventListener('click', () => { location.href = t.path; });
         ttRow.appendChild(chip);
       }

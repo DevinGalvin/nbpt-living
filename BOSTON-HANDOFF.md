@@ -486,6 +486,165 @@ Prudential Tower · 200 Clarendon**.
   hides anything past ~1500 px, so heroes must be inspected close up.
 - ~30-45 more heroes to reach the 40-60 the accuracy bar implies
 
+## THE SKYLINE PASS — the cap nobody had questioned (7/27, later session)
+
+Devin: *"landmarks have to look incredible, constant facade rendering needs to be
+addressed, there's no actual citgo sign, some landmarks don't have windows."*
+Chasing those four turned up one bug bigger than all of them.
+
+### `lv` was clamped to 6 — Boston had no skyline at all
+
+Every building in the baked world sat at **`lv ≤ 6`, with 2,827 of them at
+exactly 6**: the Prudential, 200 Clarendon, the Custom House Tower, the whole
+Financial District, flattened onto one mid-rise plain. Three clamps did it —
+`Math.min(6, …)` at `build_world.mjs` lines 384 and 562 (which threw away even a
+truthful OSM `building:levels=60`) and again in the height overlay — plus a
+**fourth clamp in the renderer**, `buildingDims`' own `Math.min(6, b.lv)`, which
+would have silently undone a data fix on its own.
+
+Six was never a considered number. It was the North Shore's tallest plausible
+building, and nothing in Newburyport or Gloucester ever reached it, so it read as
+a harmless guard for eleven towns. **A default that is invisible in every case
+you have tested is not validated, it is untested.**
+
+- The ceiling is now per-town: `maxLevels` in `towns/<id>/map.mjs`, default 6, so
+  every existing town bakes byte-identical. Boston sets **60** — 200 Clarendon is
+  the tallest building in New England and nothing in frame passes it.
+- The `areaM2 > 5000 → lv ≤ 2` guard was also flattening tower footprints. It now
+  applies only below a measured **24 m**, and caps at 3 rather than 2. Six towns
+  rebaked: **4 to 17 buildings each change**, all in the right direction
+  (Charlestown's First Street Garage and the Regatta Riverview, Gloucester's
+  Market Basket). Newburyport High measures 19.7 m over 6,467 m² and is three
+  storeys, not six — which is why the ceiling under the line is 3.
+- Result: **1,314 buildings over 8 storeys, 310 over 15, 53 over 30**, and the
+  tallest are the real ones — 200 Clarendon 60, One Dalton 60, Millennium 54,
+  Winthrop Center 53, Prudential 52, South Station Tower 51.
+
+### A tower is not a tall house — `towerBlock` / `curtainWall`
+
+`facades()` punches a 4.6 × 5.8 sash with white trim, which is right for a
+clapboard three-decker and absurd on forty floors of curtain wall — and it would
+have spent its whole 1,400-window budget and left the top third blank. Above
+**`HIGHRISE_LV = 8`** a building now takes a different road entirely: a glazing
+band per floor and full-height mullions emitted **per EDGE, not per window** (a
+60-storey tower costs a few hundred quads), a taller lobby storey, a parapet, a
+mechanical penthouse, and above 22 storeys the mast with its aircraft light.
+Storey height splits regimes too — ~2.9 m below 8 floors, ~3.75 m above, because
+an office floor carries a service plenum.
+
+⚠️ **Keep `TOWER_SKINS` LIGHT.** Two shading passes multiply on a skin. The first
+attempt used swatch-accurate mid-greys and produced a skyline of silhouettes.
+And the `era: 'brick'` skins are **near-white TINTS** — `brickTex` is already red,
+so a red here multiplies red by red and the tower comes out black.
+
+The named towers were the least detailed things in their own skyline, so
+`glassTower` (the Pru, 200 Clarendon, the Fed, 75 State) now runs the same
+curtain wall in its own researched colours. The Pru gets its 158 ft antenna;
+200 Clarendon deliberately gets none, because the unbroken flat top is the point.
+
+### The landmarks with no windows
+
+`greekTemple`, `townChurch`, `mansardBlock`, `modernBlock`, `stadiumBowl`,
+`cityHallBrutalist` and `graniteFort` **never called `facades()` at all**, so
+about thirty landmarks — Symphony Hall, the MFA, King's Chapel, Old City Hall,
+the Opera House, the Gardner, the JFK, the ICA, the Aquarium, TD Garden, both
+forts — shipped as blank boxes. They were the plainest things on their own
+streets, plainer than the generic buildings around them.
+
+New **`gridWindows()`** is the hero equivalent of `facades()`: it takes the
+window's proportions, tint, a round arched head and a sill, because a temple's
+tall bay is nothing like a warehouse's sash. Every builder above now uses it.
+
+Three heroes needed more than windows:
+- **The MFA** was a 207 × 205 m footprint under one 56 ft box — a flat plate the
+  size of a city block. Rebuilt as `mfaBoston`: the granite range, a stepped
+  centre pavilion, the rotunda, the Ionic colonnade and the Huntington Avenue
+  steps.
+- **Fort Independence and Fort Warren** rendered as flat tan plates, and the
+  reason was the Fenway mistake again — `flatRoof` over the whole ring **sealed
+  the parade ground underneath it**. The terreplein is an `annulusRoof` now, with
+  the parade cut down inside it and embrasures through the parapet.
+- **The Gardner** was `modernBlock` — an anonymous box for a Venetian palazzo
+  built around a glass-roofed courtyard. New `venetianPalazzo` builds the
+  courtyard, which is the entire reason the museum exists.
+
+**Roofs matter more than they look like they should.** The game's camera is
+elevated, so on a big footprint the roof is most of what you see — and a roof one
+shade off the walls makes a building read as a lump. Museum roofs are dark now,
+with `skylights()` over the galleries (opt-in: a top-lit gallery has them, a
+concert hall does not).
+
+### "Constant facade rendering"
+
+Everything in `facades()` was a constant: one sash, one trim, one glass colour,
+one 8% lit chance, on every wall of every building in every town. At a village's
+scale that is consistency; across 233,279 buildings it is wallpaper. Now:
+
+- a `FacadeLook` per building **kind** — a civic hall's tall window, a mill's
+  wide one, a masonry block's squarer opening under a **granite lintel and sill**,
+  a house's 6-over-6;
+- **per-building** glazing tint (a seeded HSL jitter) and lit fraction (2–16%),
+  instead of one global colour and 8%;
+- a **belt course** between the ground floor and the ones above on blocks of
+  three storeys or more — one quad per wall, and the line that gives a downtown
+  its horizontal grain;
+- **`TOWN.masonryMix`**: the share of commercial/civic stock built in stone
+  rather than brick. Defaults to 0, so Newburyport — genuinely all brick, rebuilt
+  that way after the Great Fire — is untouched. **Boston is 0.45**, because
+  downtown is granite, limestone, brownstone and buff brick inside a single
+  block, and rendering all of it in one red made the biggest town in the set the
+  most monotonous.
+
+The lintel is two extra quads per opening, so it stops after 360 windows on one
+building — enough that nobody can resolve one anyway, and it keeps a huge
+footprint from tripling its geometry. Measured in the densest downtown chunks:
+**18 ms per chunk build, ~28.6k verts per chunk.**
+
+### The Citgo Sign
+
+It was a curated landmark and an OSM `attraction` node from day one and **nothing
+was ever built for it** — fast-travelling to the Citgo Sign put you in an empty
+Kenmore Square. It fell between the two mechanisms: `HEROES` needs a named
+footprint and the sign has none, and its host building is unnamed in OSM.
+
+Fixed with the tools that already existed: a `nameFix` stamps **660 Beacon
+Street** onto the host footprint and a `levelFix` sets its true 9 storeys, so
+`HEROES['660 Beacon Street']` builds the block **and** the sign on its roof —
+60 ft square on a truss 40 ft over the parapet, two back-to-back faces, the 41 ft
+trimark in three reds, and CITGO in 11 ft blue letterforms, in the GLOW bucket so
+it lights up.
+
+Two traps: pick the panel's angle by where its **face normal** points, not its
+along axis — they are 90° apart, and the wrong one renders a 60 ft sign as a
+white sliver — and **mirror `u` on the far face**, or the back reads backwards.
+
+### The town switcher, at twelve towns
+
+`initTravel` derived a **fixed** column count from the number of towns (12 → 3),
+which is a roster property, not a layout one, and it overrode the stylesheet: on
+a phone three 150 px chips ran off the right edge of a 340 px panel and **the
+town you were standing in was half off-screen**. It is a fluid `auto-fill` grid
+now — the column count follows the panel — and the tile collapses to an emoji
+over a name below 560 px, which is what makes three fit. Tags return as soon as
+there is room; the current town always says "you're here"; the header carries the
+count.
+
+### Still open after this pass
+
+- King's Chapel and the Old State House are hemmed in by tall neighbours; they
+  need a hand-picked camera bearing to inspect, and neither has been checked
+  close up since the towers went in.
+- Trinity Church reads small and tan next to 200 Clarendon. That is true to life,
+  but the granite/brownstone polychromy is not there yet.
+- Back Bay and South End **bay windows** — the Boston residential signature — are
+  not modelled.
+- Contact-sheet harness gotchas, for whoever picks this up: `G.buildChunk()`
+  directly (the frame loop's LRU evicts a distant forced chunk before you can
+  render it), `setAnimationLoop(null)` first, move `G.px/G.pz` and call
+  `G.sky.update()` or the sky dome is elsewhere and you shoot against black, and
+  **world y maps to three.js +z, not −z** (`ringToVec2` negates and `quad` negates
+  again).
+
 ## Still open
 - [ ] races not yet run end-to-end in-game (authored + typechecked, not ridden)
 - [ ] flight not yet flown from Logan in-game

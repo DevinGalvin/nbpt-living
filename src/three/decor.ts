@@ -27,6 +27,14 @@ const SLED_LANE = TOWN.sledLane;
 const TEX_SCALE = 16; // 1 texture repeat = 16 world px = 2 m
 const BEACH_X = TOWN.beachX; // east of here = barrier-beach zone (shake cottages, umbrellas); Infinity = none
 const SHINGLE_ZONES = TOWN.shingleZones ?? [];   // weathered-shingle village districts (Rockport, Manchester)
+// Share of commercial/civic blocks built of STONE rather than brick, 0..1.
+// Newburyport's downtown really is all brick — it was rebuilt in brick after the
+// Great Fire, and that uniformity is the truth about the place — so this
+// defaults to 0 and every existing town looks exactly as it did. A city is not
+// uniform: Boston downtown is granite, limestone, brownstone, buff and painted
+// brick within a single block, and rendering all of it in one red made the
+// biggest town in the set the most monotonous.
+const MASONRY_MIX = TOWN.masonryMix ?? 0;
 
 const tmp = new THREE.Color();
 
@@ -488,11 +496,33 @@ function pickHouseRoof(obb: OBB, seed: number): 'gable' | 'hip' | 'pyramid' | 'm
 // windows (+shutters), door, along the exact footprint walls.
 // Commercial buildings get a storefront ground floor: display glass, awnings, sign band.
 // `g` = ground height at the building, `eaveH` = ABSOLUTE eave height.
+//
+// `look` is how a building stops being every other building. Everything in it
+// used to be a constant: one 4.6 x 5.8 sash, one trim colour, one glass colour,
+// one 8% chance of being lit, on every wall of every building in every town. At
+// a village's scale that reads as consistency. Across a city it reads as
+// wallpaper — the same window tiled a quarter of a million times — and that is
+// what "constant facade rendering" meant.
+type FacadeLook = {
+  w?: number; h?: number;            // the sash itself
+  lintel?: string;                   // granite lintel + sill over/under each opening (brick blocks)
+  stringcourse?: string;             // a belt course between the ground floor and the ones above
+  glass?: string;                    // override the glazing (a mirrored shopfront, a dark office)
+};
 function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
                  seed: number, withDoor: boolean, withShutters: boolean, storefront: boolean, g: number,
-                 maxWinOverride?: number, forceDoor?: string, forceShutter?: string) {
+                 maxWinOverride?: number, forceDoor?: string, forceShutter?: string, look?: FacadeLook) {
   const v = ringToVec2(ring);
   const rng = mulberry32(hash32(seed, 31, 7));
+  // Per-BUILDING variation, all seeded so it is stable across chunk rebuilds:
+  // glazing shifts a little cool or warm the way real glass does with its age
+  // and its curtains, and how lively a building looks is its own property
+  // rather than a global 8%.
+  const winW = (look?.w ?? 4.6) / 2, winH = (look?.h ?? 5.8) / 2;
+  const glassJit = new THREE.Color(look?.glass ?? STYLE.building.glass);
+  const jh = hash32(seed, 59, 23) % 1000 / 1000;
+  glassJit.offsetHSL((jh - 0.5) * 0.09, (jh - 0.5) * 0.22, (jh - 0.5) * 0.10);
+  const litP = 0.02 + (hash32(seed, 61, 29) % 100 / 100) * 0.14;
   let longest = -1, longestLen = 0;
   const lens: number[] = [];
   for (let i = 0; i < v.length; i++) {
@@ -550,6 +580,13 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
         doorCols.add(Math.min(cols, Math.max(1, Math.round((cols + 1) * (d + 1) / (nDoors + 1)))));
       }
     }
+    // the belt course between the ground floor and the ones above — one quad per
+    // wall, and the line that gives a block its horizontal grain
+    if (look?.stringcourse && rows >= 3) {
+      tmp.set(look.stringcourse);
+      const mx2 = a.x + ux * (len / 2), my2 = a.y + uy * (len / 2);
+      billboard(plain, mx2, my2, nx, nz, ux, uy, len / 2, 1.1, winY0 + pitch * 0.52, 0.55, tmp.r, tmp.g, tmp.b);
+    }
     const edgeGetsAwnings = storefront && awningEdges < 4 && len >= 30;
     if (edgeGetsAwnings) {
       awningEdges++;
@@ -576,10 +613,22 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
           windows++;
           continue;
         }
-        const lit = rng() < 0.08;
-        billboard(plain, wx, wy, nx, nz, ux, uy, 4.6, 5.8, yC, 0.5, tr, tg, tb);
-        tmp.set(lit ? STYLE.building.glassLit : STYLE.building.glass);
-        billboard(plain, wx, wy, nx, nz, ux, uy, 3.4, 4.6, yC, 0.9, tmp.r, tmp.g, tmp.b);
+        const lit = rng() < litP;
+        billboard(plain, wx, wy, nx, nz, ux, uy, winW, winH, yC, 0.5, tr, tg, tb);
+        if (lit) tmp.set(STYLE.building.glassLit); else tmp.copy(glassJit);
+        billboard(plain, wx, wy, nx, nz, ux, uy, winW - 1.2, winH - 1.2, yC, 0.9, tmp.r, tmp.g, tmp.b);
+        // The lintel is two extra quads per opening. On an ordinary block that
+        // is nothing; on a footprint big enough to spend the whole window budget
+        // it would triple the building's geometry, so it stops after the first
+        // few hundred — by which point nobody can resolve one anyway.
+        if (look?.lintel && windows < 360) {
+          // The granite lintel and sill of a brick block — a pale bar over and
+          // under every opening. It is the single cheapest thing that makes a
+          // downtown block read as masonry rather than as a wall with holes.
+          tmp.set(look.lintel);
+          billboard(plain, wx, wy, nx, nz, ux, uy, winW + 1.5, 0.85, yC + winH + 1.1, 0.7, tmp.r, tmp.g, tmp.b);
+          billboard(plain, wx, wy, nx, nz, ux, uy, winW + 1.5, 0.7, yC - winH - 1.0, 0.7, tmp.r * 0.92, tmp.g * 0.92, tmp.b * 0.92);
+        }
         if (withShutters) {
           billboard(plain, wx - ux * 7.2, wy - uy * 7.2, nx, nz, ux, uy, 1.9, 5.6, yC, 0.7, sh.r, sh.g, sh.b);
           billboard(plain, wx + ux * 7.2, wy + uy * 7.2, nx, nz, ux, uy, 1.9, 5.6, yC, 0.7, sh.r, sh.g, sh.b);
@@ -1834,16 +1883,234 @@ function buildingDims(b: Building, areaM2: number): { eave: number; lvEff: numbe
   // no height data (it knows which buildings went unmatched — the renderer can't
   // tell). The old render-time compensations (area-lift for houses, min-3 for big
   // commercial blocks) fought the real data and flattened downtown to one height.
-  const lv = Math.max(1, Math.min(6, b.lv || 1.5));
+  // NO CEILING HERE. This used to clamp at 6, which silently undid the whole
+  // point of the data: build_world already applies the town's own storey ceiling
+  // (map.mjs `maxLevels` — 6 for a North Shore town, 60 for Boston), so a second
+  // clamp in the renderer could only ever throw truth away. It is what kept
+  // Boston's Financial District a mid-rise plain even after the pipeline knew
+  // better.
+  const lv = Math.max(1, b.lv || 1.5);
+  // Storey height is not one number. A low-rise storey is ~2.9 m floor to floor,
+  // which is what 23 px encodes and what every existing town is tuned to; an
+  // office tower's is ~3.75 m, because it carries a deep service plenum over the
+  // ceiling. Splitting the regime at 8 storeys keeps every North Shore building
+  // byte-for-byte where it was and stops a 50-storey tower coming out a third
+  // too short.
+  const tall = (per: number) => 8 + Math.min(lv, HIGHRISE_LV) * per + Math.max(0, lv - HIGHRISE_LV) * 30;
   switch (b.k) {
     case 'shed': return { eave: 16, lvEff: 1 };
     case 'church': return { eave: 30, lvEff: 2 };
     case 'commercial':
     case 'civic':
-      return { eave: 8 + lv * 23, lvEff: lv };
-    case 'industrial': return { eave: 8 + lv * 21, lvEff: lv };
-    default: return { eave: 12 + lv * 15, lvEff: lv };
+      return { eave: tall(23), lvEff: lv };
+    case 'industrial': return { eave: tall(21), lvEff: lv };
+    default: return { eave: 12 + Math.min(lv, HIGHRISE_LV) * 15 + Math.max(0, lv - HIGHRISE_LV) * 26, lvEff: lv };
   }
+}
+
+// Above this many storeys a building stops being a block with punched windows
+// and becomes a tower: deeper floor-to-floor, and a curtain wall rather than
+// individual sashes (see towerBlock).
+const HIGHRISE_LV = 8;
+
+// A rank of windows around a whole footprint, at a chosen rhythm and in chosen
+// proportions. This is the HERO equivalent of facades().
+//
+// facades() bakes in a 4.6 x 5.8 sash with white trim, because it was written
+// for clapboard houses and that is the right window for one. The shared Boston
+// builders — greekTemple, mansardBlock, modernBlock, stadiumBowl and the rest —
+// therefore called it for nothing and shipped with NO WINDOWS AT ALL: Symphony
+// Hall, the MFA, King's Chapel, Old City Hall, the Opera House, the Gardner and
+// two dozen more rendered as blank boxes, which made the city's most important
+// buildings the plainest things on their own streets.
+//
+// What a hero needs and facades() cannot give: the window's proportions (a
+// temple's tall bay is nothing like a warehouse's wide sash), its tint, a round
+// arched head, and a recessed reveal.
+function gridWindows(bk: Bucket, ring: number[], rows: number, o: {
+  y0: number; pitch: number; spacing?: number; w?: number; h?: number;
+  trim?: string; glass?: string; lit?: number; arch?: boolean; seed?: number;
+  minLen?: number; sill?: string; top?: number;
+}) {
+  const v = ringToVec2(ring);
+  const spacing = o.spacing ?? 22;
+  const hw = (o.w ?? 4.4) / 2, hh = (o.h ?? 7) / 2;
+  const rng = mulberry32(hash32(o.seed ?? 1, 43, 19));
+  tmp.set(o.trim ?? STYLE.building.trim);
+  const tr = tmp.r, tg = tmp.g, tb = tmp.b;
+  tmp.set(o.glass ?? STYLE.building.glass);
+  const gr = tmp.r, gg = tmp.g, gb = tmp.b;
+  tmp.set(STYLE.building.glassLit);
+  const lr = tmp.r, lg = tmp.g, lb = tmp.b;
+  const litP = o.lit ?? 0.06;
+  const minLen = o.minLen ?? 18;
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i], b2 = v[(i + 1) % v.length];
+    const ex = b2.x - a.x, ey = b2.y - a.y;
+    const len = Math.hypot(ex, ey);
+    if (len < minLen) continue;
+    const ux = ex / len, uy = ey / len;
+    const nx = ey / len, nz = ex / len;
+    const cols = Math.floor((len - 8) / spacing);
+    if (cols < 1) continue;
+    const gap = len / (cols + 1);
+    for (let c = 1; c <= cols; c++) {
+      const wx = a.x + ux * gap * c, wy = a.y + uy * gap * c;
+      for (let r = 0; r < rows; r++) {
+        const yC = o.y0 + r * o.pitch;
+        if (o.top != null && yC + hh > o.top) break;
+        const lit = rng() < litP;
+        billboard(bk, wx, wy, nx, nz, ux, uy, hw + 1.1, hh + 1.1, yC, 0.45, tr, tg, tb);   // reveal / architrave
+        billboard(bk, wx, wy, nx, nz, ux, uy, hw, hh, yC, 0.85,
+          lit ? lr : gr, lit ? lg : gg, lit ? lb : gb);
+        if (o.arch) {
+          // a round head, as three narrowing courses — cheaper than a real arc
+          // and reads correctly at every distance the game shows a building from
+          for (let k = 1; k <= 3; k++)
+            billboard(bk, wx, wy, nx, nz, ux, uy, (hw + 1.1) * (1 - k * 0.26), 0.9, yC + hh + 0.5 + k * 1.6, 0.45, tr, tg, tb);
+        }
+        if (o.sill) {
+          tmp.set(o.sill);
+          billboard(bk, wx, wy, nx, nz, ux, uy, hw + 2, 0.8, yC - hh - 1.4, 0.7, tmp.r, tmp.g, tmp.b);
+        }
+      }
+    }
+  }
+}
+
+// ---------- high-rise ----------
+// A tower is not a tall house. facades() punches a 4.6 x 5.8 sash with white
+// trim into a wall, which is exactly right for a clapboard three-decker and
+// exactly wrong for forty floors of curtain wall — and until Boston, the set had
+// nothing over six storeys, so nothing ever asked. Run at tower scale it also
+// spends its whole 1400-window budget: it would stretch the rhythm until the
+// glass scattered, or stop partway up and leave the top third blank.
+//
+// A tower reads from three things, none of them individual windows: the
+// horizontal banding of floor on floor, the vertical run of the mullions, and
+// what the top does. So that is what gets built.
+type TowerSkin = { wall: string; glass: string; mull: string; era: 'glass' | 'stone' | 'brick' };
+// ⚠️ Keep these LIGHT. Two shading passes multiply on top of a skin — walls()
+// darkens a face to 0.78 and curtainWall() darkens the glass again — so a colour
+// that looks like tinted glass in a swatch comes out near-black on the building,
+// which is what the first pass of this looked like: a skyline of silhouettes.
+const TOWER_SKINS: TowerSkin[] = [
+  // the modern curtain walls — most of the Financial District and the Seaport
+  { wall: '#bccad4', glass: '#93a8b6', mull: '#e4ebf0', era: 'glass' },
+  { wall: '#adbecd', glass: '#87a2b8', mull: '#dbe4ed', era: 'glass' },
+  { wall: '#c7bba3', glass: '#a3927a', mull: '#eae1cf', era: 'glass' },   // bronze-tinted, the 1970s
+  { wall: '#b6c8c1', glass: '#8faaa1', mull: '#dfeae5', era: 'glass' },   // the green-glass 1980s
+  // stone and precast — the Art Deco setback blocks and the 1980s postmodern
+  { wall: '#ebe5d5', glass: '#a2b0ba', mull: '#faf7ee', era: 'stone' },
+  { wall: '#d9d3c5', glass: '#9aaab4', mull: '#eeeae0', era: 'stone' },
+  { wall: '#cac7be', glass: '#9ba9b1', mull: '#e4e2db', era: 'stone' },
+  // Brick towers go through the BRICK bucket, whose texture is already red —
+  // ⚠️ so these are near-white TINTS, not brick colours. Passing a red here
+  // multiplies red by red and the tower comes out nearly black.
+  { wall: '#f2e0d2', glass: '#8b98a2', mull: '#f6e8dc', era: 'brick' },
+  { wall: '#ecd8ca', glass: '#8d9aa4', mull: '#f2e2d6', era: 'brick' }
+];
+
+// Choose a skin the way the city did: the taller it is the likelier it is late
+// and glazed, and a squat 8-storey block on a big plate is likelier masonry.
+function pickTowerSkin(lv: number, seed: number): TowerSkin {
+  const h = hash32(seed, 91, 17) % 100;
+  const glassy = Math.min(78, 18 + (lv - HIGHRISE_LV) * 4);   // 18% at 8 storeys, 78% by 23
+  if (h < glassy) return TOWER_SKINS[hash32(seed, 93, 5) % 4];
+  if (h < glassy + (100 - glassy) * 0.55) return TOWER_SKINS[4 + hash32(seed, 95, 7) % 3];
+  return TOWER_SKINS[7 + hash32(seed, 97, 11) % 2];
+}
+
+// The curtain wall: a glazing band per floor around the whole footprint, and
+// mullions running the full height in front of them. Both are emitted per EDGE,
+// not per window, so a 60-storey tower costs a few hundred quads instead of the
+// tens of thousands a punched-window grid would.
+function curtainWall(bk: Bucket, glow: Bucket, ring: number[], g: number, top: number,
+                     floors: number, skin: TowerSkin, seed: number) {
+  const v = ringToVec2(ring);
+  const rng = mulberry32(hash32(seed, 37, 13));
+  // The ground floor of a tower is a lobby — taller than the ones above it, and
+  // the reason a tower meets the street the way it does.
+  const LOBBY = 2.0;
+  const pitch = (top - g) / (floors - 1 + LOBBY);
+  const bandH = pitch * (skin.era === 'glass' ? 0.62 : 0.46) * 0.5;   // half-height
+  tmp.set(skin.glass);
+  const gr = tmp.r, gg = tmp.g, gb = tmp.b;
+  tmp.set(STYLE.building.glassLit);
+  const lr = tmp.r, lg = tmp.g, lb = tmp.b;
+  tmp.set(skin.mull);
+  const mr = tmp.r, mg = tmp.g, mb = tmp.b;
+  // a handful of floors are lit — an office tower at any hour has a few
+  const litFloors = new Set<number>();
+  for (let f = 1; f < floors; f++) if (rng() < 0.05) litFloors.add(f);
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i], b2 = v[(i + 1) % v.length];
+    const ex = b2.x - a.x, ey = b2.y - a.y;
+    const len = Math.hypot(ex, ey);
+    if (len < 6) continue;
+    const ux = ex / len, uy = ey / len;
+    const nx = ey / len, nz = ex / len;
+    const shade = 0.8 + 0.2 * Math.max(0, nx * 0.35 + nz * 0.85);
+    const inset = Math.min(3, len * 0.06);          // stop short of the corner
+    const mx = a.x + ux * (len / 2), my = a.y + uy * (len / 2);
+    const half = len / 2 - inset;
+    if (half < 3) continue;
+    for (let f = 0; f < floors; f++) {
+      const yC = g + (f === 0 ? pitch * LOBBY * 0.55 : pitch * (LOBBY + f - 0.45));
+      if (yC + bandH > top - 1) break;
+      const lit = litFloors.has(f) && i % 2 === 0;
+      const h2 = f === 0 ? bandH * 1.5 : bandH;
+      billboard(bk, mx, my, nx, nz, ux, uy, half, h2, yC, 0.7,
+        (lit ? lr : gr) * shade, (lit ? lg : gg) * shade, (lit ? lb : gb) * shade);
+    }
+    // mullions: full-height slivers, one quad each, standing proud of the glass
+    const step = skin.era === 'glass' ? 11 : 15;
+    const cols = Math.floor((len - inset * 2) / step);
+    for (let c = 0; c <= cols; c++) {
+      const t = inset + (cols === 0 ? half : ((len - inset * 2) * c) / cols);
+      const wx = a.x + ux * t, wy = a.y + uy * t;
+      billboard(bk, wx, wy, nx, nz, ux, uy, 0.55, (top - g) / 2, g + (top - g) / 2, 1.15,
+        mr * shade, mg * shade, mb * shade);
+    }
+    void glow;
+  }
+}
+
+// The whole tower: shaft, curtain wall, crown, mechanical penthouse, and — on
+// the genuinely tall ones — the mast that is most of what you see from far off.
+function towerBlock(buckets: Bucket[], b: Building, g: number, base: number, top: number,
+                    seed: number, lv: number, obb: OBB, fill: number) {
+  const skin = pickTowerSkin(lv, seed);
+  const bk = skin.era === 'brick' ? buckets[BRICK] : buckets[PLAIN];
+  const floors = Math.max(HIGHRISE_LV, Math.round(lv));
+  walls(bk, b.p, base, top, skin.wall, skin.era === 'brick' ? TEX_SCALE : 0);
+  curtainWall(buckets[PLAIN], buckets[GLOW], b.p, g, top, floors, skin, seed);
+  // crown: a parapet band in the wall colour, capping the glass
+  walls(buckets[PLAIN], b.p, top, top + 5, skin.mull, 0);
+  flatRoof(buckets[PLAIN], b.p, top + 5, '#6e6a64');
+  const [cx, cz] = centroidOf(b.p);
+  const scaled = (s: number) => {
+    const r: number[] = [];
+    for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s);
+    return r;
+  };
+  // Every real tower carries a mechanical penthouse — it is why so few of them
+  // end in a clean line. Only on footprints that are close enough to their own
+  // bounding box that a scaled ring stays inside the walls.
+  if (fill >= 0.7) {
+    const ph = scaled(0.5);
+    const phTop = top + 5 + Math.min(46, (top - g) * 0.05 + 16);
+    walls(buckets[PLAIN], ph, top + 5, phTop, skin.mull, 0);
+    flatRoof(buckets[PLAIN], ph, phTop, '#5f5c57');
+    // and the mast: from a distance the antenna IS the building's signature
+    if (lv >= 22) {
+      const mh = Math.min(150, (top - g) * 0.1 + 40);
+      buckets[PLAIN].box(cx, cz, 1.6, 1.6, phTop, phTop + mh, '#b8bcc0', 0);
+      buckets[GLOW].box(cx, cz, 2.4, 2.4, phTop + mh, phTop + mh + 3, '#e8503c', 0);   // the aircraft light
+    }
+  }
+  roofClutter(buckets, scaled(0.86), top + 5, seed, ringAreaM2(b.p), false);
+  void obb;
 }
 
 function wallHexFor(b: Building, seed: number): string {
@@ -6411,15 +6678,153 @@ function bostonLight(buckets: Bucket[], b: Building, g: number) {
 // blue mirror are the entire building.
 // Prudential Tower: 1964, 52 storeys, 749 ft — a much blockier pale slab. The
 // pair reads as thin blue mirror beside fat pale slab.
-function glassTower(buckets: Bucket[], b: Building, g: number, o: { ft: number; glass: string; band: string; bandEvery?: number }) {
+function glassTower(buckets: Bucket[], b: Building, g: number, o: { ft: number; glass: string; band: string; bandEvery?: number; floors?: number; mast?: number }) {
   const obb = obbOf(b.p);
   const top = g + o.ft * FT;
+  const seed = Math.round(obb.cx * 7 + obb.cz * 13);
   walls(buckets[GLOW], b.p, g - 3, top, o.glass, 0);
+  // The named towers used to be flat sheets of one colour — which made them the
+  // LEAST detailed things in the skyline, standing next to generic neighbours
+  // that had a curtain wall. They get the same treatment, in their own researched
+  // colours: a spandrel line per floor and mullions the full height.
+  const floors = o.floors ?? Math.max(HIGHRISE_LV, Math.round(o.ft / 13));
+  tmp.set(o.glass).multiplyScalar(0.82);
+  curtainWall(buckets[PLAIN], buckets[GLOW], b.p, g, top, floors,
+    { wall: o.glass, glass: '#' + tmp.getHexString(), mull: o.band, era: 'glass' }, seed);
+  // the mechanical band the setback sits behind, then the roof
   const every = o.bandEvery ?? 40;
   for (let y = g + every * FT; y < top - 6; y += every * FT)
     walls(buckets[PLAIN], b.p, y, y + 2.2, o.band, 0);
-  flatRoof(buckets[PLAIN], b.p, top, o.band);
-  roofClutter(buckets, b.p, top, Math.round(obb.cx), ringAreaM2(b.p), false);
+  walls(buckets[PLAIN], b.p, top, top + 6, o.band, 0);
+  flatRoof(buckets[PLAIN], b.p, top + 6, '#6e6a64');
+  const [cx, cz] = centroidOf(b.p);
+  if (o.mast) {
+    buckets[PLAIN].box(cx, cz, 2.0, 2.0, top + 6, top + 6 + o.mast * FT, '#b8bcc0', 0);
+    buckets[GLOW].box(cx, cz, 2.8, 2.8, top + 6 + o.mast * FT, top + 9 + o.mast * FT, '#e8503c', 0);
+  }
+  roofClutter(buckets, b.p, top + 6, seed, ringAreaM2(b.p), false);
+}
+
+// ── the Citgo Sign, Kenmore Square ────────────────────────────────────────
+// It was a curated landmark and an OSM attraction node from the day Boston
+// shipped, and nothing was ever built for it — fast-travelling to the Citgo Sign
+// put you in an empty Kenmore Square. It is not a building, which is why it fell
+// between the two mechanisms: HEROES needs a named footprint and the sign has
+// none of its own, so 660 Beacon Street is name-stamped in map.mjs and carries
+// both itself and the sign.
+//
+// The real thing (docs/research/boston-heroes.md): 60 ft x 60 ft, held about
+// 40 ft over the roof on a steel truss, TWO back-to-back faces. Each face is a
+// white field with a 41 ft equilateral triangle — the Citgo trimark, in three
+// shades of red — over "CITGO" in blue sans-serif letters 11 ft high. Up over
+// Kenmore since 1965, LED since 2005.
+
+// Bars in panel-local space: [u0, v0, u1, v1] in a 0..1 box per letter. A blocky
+// sans is the honest choice — at any distance the game shows this from, five
+// blue letterforms under a red triangle read as CITGO and nothing else does.
+const CITGO_GLYPHS: Record<string, Array<[number, number, number, number]>> = {
+  C: [[0.10, 0.08, 0.10, 0.92], [0.10, 0.92, 0.92, 0.92], [0.10, 0.08, 0.92, 0.08]],
+  I: [[0.50, 0.08, 0.50, 0.92]],
+  T: [[0.06, 0.92, 0.94, 0.92], [0.50, 0.08, 0.50, 0.92]],
+  G: [[0.10, 0.08, 0.10, 0.92], [0.10, 0.92, 0.92, 0.92], [0.10, 0.08, 0.92, 0.08],
+      [0.90, 0.08, 0.90, 0.46], [0.55, 0.46, 0.92, 0.46]],
+  O: [[0.10, 0.08, 0.10, 0.92], [0.90, 0.08, 0.90, 0.92], [0.10, 0.92, 0.90, 0.92], [0.10, 0.08, 0.90, 0.08]]
+};
+
+function citgoSign(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const p = buckets[PLAIN], glow = buckets[GLOW];
+  // 660 Beacon Street itself: nine storeys of buff brick with a stone base — a
+  // 1920s Kenmore apartment block, now BU's. The sign needs a host worth landing
+  // on, so the host gets built properly too.
+  const eave = g + 104 * FT;
+  walls(buckets[PLAIN], b.p, g - 6, g + 14 * FT, '#a9a196', 0);              // limestone base
+  walls(buckets[BRICK], b.p, g + 14 * FT, eave, '#b99d78');                  // buff brick shaft
+  walls(p, b.p, eave, eave + 6, '#ddd5c2', 0);                               // cornice + parapet
+  flatRoof(p, b.p, eave + 6, '#55524d');
+  gridWindows(p, b.p, 8, {
+    y0: g + 22 * FT, pitch: 10.5 * FT, spacing: 20, w: 4.6, h: 7.4,
+    trim: '#e4dccb', glass: '#3c464e', lit: 0.12, sill: '#ddd5c2',
+    seed: Math.round(obb.cx), top: eave - 10
+  });
+  roofClutter(buckets, b.p, eave + 6, Math.round(obb.cz), ringAreaM2(b.p), false);
+
+  // The sign faces Kenmore Square, which is EAST-SOUTH-EAST of the roof: that is
+  // the face on television over the Green Monster, and the one the marathon runs
+  // toward. Take whichever of the footprint's two axes points closest to ESE.
+  // ⚠️ Pick the angle by where the FACE NORMAL points, not by where the along
+  // axis points — they are 90° apart, and choosing the wrong one turns the panel
+  // edge-on to the square, which renders a 60 ft sign as a white sliver.
+  // In world px +x is east and +y is SOUTH, so ESE is +0.35 rad off east.
+  const want = { x: Math.cos(0.35), z: Math.sin(0.35) };
+  let bestA = obb.ang, bestD = -2;
+  for (const a of [obb.ang, obb.ang + Math.PI / 2, obb.ang + Math.PI, obb.ang + Math.PI * 1.5]) {
+    const d = -Math.sin(a) * want.x + Math.cos(a) * want.z;                 // the normal (-sin, cos)
+    if (d > bestD) { bestD = d; bestA = a; }
+  }
+  const ux = Math.cos(bestA), uz = Math.sin(bestA);                          // along the sign face
+  const nx = -uz, nz = ux;                                                   // out of the face, toward Kenmore Square
+  const SIDE = 60 * FT;                                                      // 60 ft square
+  const y0 = eave + 6 + 40 * FT;                                             // 40 ft of truss over the roof
+  const cx = obb.cx, cz = obb.cz;
+
+  // the steel truss that holds it up — four legs and their cross-bracing
+  for (const s of [-1, 1]) for (const t of [-1, 1]) {
+    const lx = cx + ux * s * SIDE * 0.42 + nx * t * 5, lz = cz + uz * s * SIDE * 0.42 + nz * t * 5;
+    p.box(lx, lz, 1.9, 1.9, eave, y0 + 4, '#5b6067', 0);
+  }
+  for (const yy of [eave + 14 * FT, eave + 28 * FT, y0]) for (const t of [-1, 1])
+    rotBox(p, cx + nx * t * 5, cz + nz * t * 5, SIDE * 0.42, 0.9, yy - 1.2, yy + 1.2, bestA, '#5b6067');
+
+  // A point on the face, in panel coordinates: u along the sign, v up from its
+  // bottom edge, off = how far proud of the panel (the trimark stands out).
+  // ⚠️ `u * side`: the two faces are back to back, so the far one must be
+  // MIRRORED in u or its lettering reads backwards from the other side of the
+  // square — which is exactly what the first pass did.
+  const at = (side: 1 | -1, u: number, v: number, off: number): [number, number, number] =>
+    [cx + ux * u * side + nx * side * off, y0 + v, cz + uz * u * side + nz * side * off];
+  const bar = (side: 1 | -1, u0: number, v0: number, u1: number, v1: number, th: number, off: number, hex: string) => {
+    tmp.set(hex);
+    const du = u1 - u0, dv = v1 - v0, L = Math.hypot(du, dv) || 1;
+    const pu = (-dv / L) * th, pv = (du / L) * th;                           // perpendicular in panel space
+    const A = at(side, u0 - pu, v0 - pv, off), B = at(side, u1 - pu, v1 - pv, off);
+    const C = at(side, u1 + pu, v1 + pv, off), D = at(side, u0 + pu, v0 + pv, off);
+    glow.quad(A[0], A[1], A[2], B[0], B[1], B[2], C[0], C[1], C[2], D[0], D[1], D[2],
+      nx * side, 0, nz * side, tmp.r, tmp.g, tmp.b);
+  };
+  const tri = (side: 1 | -1, u: number, v: number, half: number, h: number, off: number, hex: string) => {
+    tmp.set(hex);
+    const A = at(side, u - half, v, off), B = at(side, u + half, v, off), C = at(side, u, v + h, off);
+    glow.triUV(A[0], A[1], A[2], B[0], B[1], B[2], C[0], C[1], C[2],
+      nx * side, 0, nz * side, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0);
+  };
+
+  for (const side of [1, -1] as const) {
+    // the white field
+    bar(side, -SIDE / 2, SIDE / 2, SIDE / 2, SIDE / 2, SIDE / 2, 0.5, '#f7f5ef');
+    // the trimark: a 41 ft equilateral triangle in three reds, each course
+    // standing a little further proud, so it catches the light as a shallow
+    // pyramid the way the real panel does
+    const T41 = 41 * FT;
+    const th = T41 * Math.sqrt(3) / 2;
+    tri(side, 0, SIDE * 0.30, T41 / 2, th, 0.9, '#c4231f');
+    tri(side, 0, SIDE * 0.30 + th * 0.10, T41 * 0.40, th * 0.80, 1.5, '#e03a20');
+    tri(side, 0, SIDE * 0.30 + th * 0.22, T41 * 0.27, th * 0.56, 2.1, '#f26a3a');
+    // CITGO, 11 ft high, under the triangle
+    const LH = 11 * FT, LW = LH * 0.72, GAP = LW * 0.28, TH = LH * 0.085;
+    const word = 'CITGO';
+    const total = word.length * LW + (word.length - 1) * GAP;
+    for (let i = 0; i < word.length; i++) {
+      const u0 = -total / 2 + i * (LW + GAP);
+      for (const [a, c, d, e] of CITGO_GLYPHS[word[i]])
+        bar(side, u0 + a * LW, SIDE * 0.10 + c * LH, u0 + d * LW, SIDE * 0.10 + e * LH, TH, 1.1, '#1f4fa8');
+    }
+    // the panel's steel edge
+    for (const [u0, v0, u1, v1] of [[-SIDE / 2, 0, SIDE / 2, 0], [-SIDE / 2, SIDE, SIDE / 2, SIDE],
+                                    [-SIDE / 2, 0, -SIDE / 2, SIDE], [SIDE / 2, 0, SIDE / 2, SIDE]] as const)
+      bar(side, u0, v0, u1, v1, 1.4, 0.2, '#6d727a');
+  }
+  void index;
 }
 
 // ── shared Boston building types ──────────────────────────────────────────
@@ -6436,6 +6841,12 @@ function townChurch(buckets: Bucket[], b: Building, g: number, index: WorldIndex
   const eave = g + 40 * FT;
   walls(body, b.p, g - 3, eave, o.wall, o.brick ? TEX_SCALE : 0);
   gableRoof(buckets[SHINGLE], body, b.p, obb, eave, Math.min(W * 0.32, 22), 1.4, o.roof ?? '#4e5157', o.wall);
+  // Two ranks of round-headed windows down the flanks — a Georgian meeting
+  // house's gallery over its box pews, which is exactly what Park Street has.
+  gridWindows(buckets[PLAIN], b.p, 2, {
+    y0: g + 22, pitch: 34, spacing: 26, w: 5, h: 12, trim: o.trim,
+    glass: '#e8e2cf', arch: true, lit: 0.1, seed: Math.round(obb.cx), top: eave - 8
+  });
   const fs = frontSegment(b, index);
   const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
   // portico across the front
@@ -6493,14 +6904,28 @@ function gothicChurch(buckets: Bucket[], b: Building, g: number, index: WorldInd
 // A Greek Revival temple: solid block, big pediment-carrying colonnade on the
 // front. King's Chapel (which never got its steeple), St Paul's, the MFA.
 function greekTemple(buckets: Bucket[], b: Building, g: number, index: WorldIndex,
-                     o: { stone: string; cols: number; storeyFt?: number; dome?: boolean }) {
+                     o: { stone: string; cols: number; storeyFt?: number; dome?: boolean; skylit?: boolean }) {
   const obb = obbOf(b.p);
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
   const L = obb.hl, W = obb.hw;
   const top = g + (o.storeyFt ?? 46) * FT;
   walls(buckets[PLAIN], b.p, g - 3, top, o.stone, 0);
-  flatRoof(buckets[PLAIN], b.p, top, '#9d988c');
+  // A roof one shade off the walls makes a big building read as one solid lump
+  // from the game's elevated camera — which is most of what was wrong with these
+  // heroes. Dark membrane, then the roof furniture that says "this is a roof".
+  flatRoof(buckets[PLAIN], b.p, top, '#6b6862');
+  roofClutter(buckets, b.p, top, Math.round(obb.cx * 5 + obb.cz), ringAreaM2(b.p), false);
+  // opt-in: a top-lit gallery has skylights, a concert hall does not
+  if (o.skylit) skylights(buckets, obb, top, '#cfe2ea', 3, 5);
   walls(buckets[PLAIN], b.p, top - 5, top - 1.6, '#d9d5c8', 0);            // entablature
+  // Tall arched bays between pilasters — a Beaux-Arts institution's window, and
+  // the reason the MFA and Symphony Hall read as buildings rather than slabs.
+  const gStoreys = Math.max(2, Math.round((top - g) / (18 * FT)));
+  gridWindows(buckets[PLAIN], b.p, gStoreys, {
+    y0: g + 20, pitch: (top - g - 34) / Math.max(1, gStoreys), spacing: 30,
+    w: 5.2, h: 11, trim: '#e6e1d4', glass: '#3d4a52', arch: true, lit: 0.05,
+    seed: Math.round(obb.cx), top: top - 12, sill: '#d9d5c8'
+  });
   const fs = frontSegment(b, index);
   const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
   colonnade(buckets[PLAIN], obb, front * (W + 5), -L * 0.62, L * 0.62, o.cols, g, top - 8 * FT, 3.0, o.stone);
@@ -6530,11 +6955,21 @@ function cityHallBrutalist(buckets: Bucket[], b: Building, g: number) {
   const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
   walls(buckets[BRICK], scaled(0.86), g - 3, g + 26 * FT, '#8d5a44');            // recessed brick base
   flatRoof(buckets[PLAIN], scaled(0.86), g + 26 * FT, DARK);
+  // the deep-set openings in the brick base, under the cantilever
+  gridWindows(buckets[PLAIN], scaled(0.86), 2, {
+    y0: g + 22, pitch: 32, spacing: 24, w: 5.6, h: 9, trim: '#7d5340',
+    glass: '#2f3940', lit: 0.05, seed: Math.round(cx)
+  });
   // three oversailing concrete tiers, each WIDER than the one below
   const tiers: Array<[number, number, number]> = [[0.9, 26, 46], [0.97, 46, 70], [1.0, 70, 96]];
   for (const [s, y0, y1] of tiers) {
     walls(buckets[PLAIN], scaled(s), g + y0 * FT, g + y1 * FT, CONC, 0);
     flatRoof(buckets[PLAIN], scaled(s), g + y1 * FT, DARK);
+    // the deep window slots between the concrete fins
+    gridWindows(buckets[PLAIN], scaled(s), 1, {
+      y0: g + (y0 + (y1 - y0) * 0.45) * FT, pitch: 1, spacing: 17, w: 3.4, h: (y1 - y0) * FT * 0.42,
+      trim: CONC, glass: '#3a4147', lit: 0.06, seed: Math.round(cx + y0)
+    });
   }
   // the deep coffered fins that give the top its corduroy
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
@@ -6552,6 +6987,14 @@ function mansardBlock(buckets: Bucket[], b: Building, g: number, o: { wall: stri
   const eave = g + o.storeyFt * FT;
   walls(buckets[PLAIN], b.p, g - 3, eave, o.wall, 0);
   walls(buckets[PLAIN], b.p, eave - 4, eave - 1, '#e2ded0', 0);
+  // Second Empire fenestration: tall segmental-arched windows in heavy hooded
+  // architraves, one rank per storey under the mansard.
+  const mStoreys = Math.max(2, Math.round(o.storeyFt / 13));
+  gridWindows(buckets[PLAIN], b.p, mStoreys, {
+    y0: g + 20, pitch: (eave - g - 30) / mStoreys, spacing: 21, w: 4.6, h: 8.4,
+    trim: '#ded9c9', glass: '#3b4750', arch: true, lit: 0.07, sill: '#ded9c9',
+    seed: Math.round(o.storeyFt * 31), top: eave - 8
+  });
   const [cx, cz] = centroidOf(b.p);
   const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
   taperBand(buckets[SHINGLE], b.p, scaled(0.82), eave, eave + 20 * FT, o.roof, 0);   // the steep mansard slope
@@ -6574,6 +7017,16 @@ function stadiumBowl(buckets: Bucket[], b: Building, g: number, o: { wall: strin
   const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
   const top = g + o.ft * FT;
   walls(buckets[PLAIN], b.p, g - 3, top, o.wall, 0);
+  // The concourse band and the entry portals — an arena's whole street elevation
+  // is a lit glass ring over a rank of doorways, and TD Garden had neither.
+  gridWindows(buckets[PLAIN], b.p, 1, {
+    y0: g + 18, pitch: 1, spacing: 26, w: 11, h: 9, trim: '#d5d2c9',
+    glass: '#5d6f7c', lit: 0.3, seed: Math.round(o.ft * 17)
+  });
+  if (!o.open) gridWindows(buckets[PLAIN], b.p, 1, {
+    y0: g + o.ft * FT * 0.62, pitch: 1, spacing: 22, w: 8, h: 5,
+    trim: '#c9c6bd', glass: '#4f5f6a', lit: 0.1, seed: Math.round(o.ft * 23)
+  });
   const field = scaled(0.6);
   if (o.open) {
     // an OPEN stadium — Harvard's horseshoe has no lid. Roof the seating ring
@@ -6598,12 +7051,161 @@ function stadiumBowl(buckets: Bucket[], b: Building, g: number, o: { wall: strin
 function graniteFort(buckets: Bucket[], b: Building, g: number) {
   const [cx, cz] = centroidOf(b.p);
   const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
-  const STONE = '#b0aa9c';
-  taperBand(buckets[PLAIN], b.p, scaled(0.93), g - 4, g + 26 * FT, STONE, 0);   // battered rampart face
-  flatRoof(buckets[PLAIN], scaled(0.93), g + 26 * FT, '#928c80');
-  walls(buckets[PLAIN], scaled(0.93), g + 26 * FT, g + 32 * FT, STONE, 0);      // parapet
-  flatRoof(buckets[PLAIN], scaled(0.74), g + 8, '#7f8a5f');                     // the parade ground
-  walls(buckets[PLAIN], scaled(0.74), g + 8, g + 24 * FT, '#a8a294', 0);        // inner casemate wall
+  const STONE = '#c4bfb0', DARKSTONE = '#a8a294';
+  // ⚠️ These footprints are BIG — Fort Independence is 192 x 171 m and Fort
+  // Warren 239 x 207 m — so a 26 ft rampart over the whole star read from any
+  // normal camera as a flat tan plate on the grass, which is what shipped. A
+  // real fort's silhouette is its scarp against the sky, so the wall goes up to
+  // its true ~40 ft and the parade ground is CUT DOWN inside it, which is what
+  // gives the shape any relief at all at this scale.
+  const wallTop = g + 40 * FT;
+  taperBand(buckets[PLAIN], b.p, scaled(0.94), g - 4, wallTop, STONE, 0);        // battered scarp
+  // ⚠️ The terreplein is an ANNULUS, not a lid. Roofing the whole ring sealed the
+  // parade ground underneath it, so the fort rendered as one flat tan plate with
+  // no interior at all — the same mistake that once put a roof over Fenway.
+  const inner = scaled(0.70);
+  annulusRoof(buckets[PLAIN], scaled(0.94), inner, wallTop, '#9d978a');
+  walls(buckets[PLAIN], scaled(0.94), wallTop, wallTop + 9 * FT, STONE, 0);      // parapet
+  annulusRoof(buckets[PLAIN], scaled(0.94), inner, wallTop + 9 * FT, DARKSTONE);
+  // the parade, sunk below the terreplein, ringed by the casemate wall
+  flatRoof(buckets[PLAIN], inner, g + 4, '#7f8a5f');
+  walls(buckets[PLAIN], inner, g + 4, wallTop + 9 * FT, DARKSTONE, 0);
+  // A fort is defined by its holes: gun embrasures notched through the parapet,
+  // and the arched casemate openings looking onto the parade.
+  gridWindows(buckets[PLAIN], scaled(0.94), 1, {
+    y0: wallTop + 4.5 * FT, pitch: 1, spacing: 34, w: 6, h: 4, trim: STONE,
+    glass: '#1e2428', lit: 0, seed: Math.round(cx), minLen: 30
+  });
+  gridWindows(buckets[PLAIN], scaled(0.94), 1, {
+    y0: g + 22 * FT, pitch: 1, spacing: 34, w: 5, h: 6, trim: '#b3ae9f',
+    glass: '#232a2e', arch: true, lit: 0, seed: Math.round(cz), minLen: 30
+  });
+  gridWindows(buckets[PLAIN], inner, 1, {
+    y0: g + 16 * FT, pitch: 1, spacing: 30, w: 5.4, h: 7.5, trim: '#bdb7a9',
+    glass: '#262c30', arch: true, lit: 0, seed: Math.round(cz * 3), minLen: 26
+  });
+}
+
+// Ranks of pitched glass SKYLIGHTS over a gallery roof. The game's camera is
+// elevated, so on a building with a big footprint the roof is most of what you
+// actually see of it — and a museum's roof is not a blank membrane, it is a
+// field of glass, because top-lighting is how galleries are lit. The MFA, the
+// Gardner and Symphony Hall all read completely differently with this on.
+function skylights(bk: Bucket[], obb: OBB, y: number, hex: string, rows = 3, per = 5) {
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  for (let r = 0; r < rows; r++) {
+    const lz = obb.hw * (-0.62 + (1.24 * r) / Math.max(1, rows - 1));
+    for (let i = 0; i < per; i++) {
+      const lx = obb.hl * (-0.66 + (1.32 * i) / Math.max(1, per - 1));
+      const x = obb.cx + lx * ca - lz * sa, z = obb.cz + lx * sa + lz * ca;
+      const hl = obb.hl / (per * 1.9), hw = obb.hw / (rows * 3.2);
+      rotBox(bk[PLAIN], x, z, hl, hw, y, y + 2.4, obb.ang, '#8d8a84');     // the curb
+      rotBox(bk[GLOW], x, z, hl * 0.9, hw * 0.86, y + 2.4, y + 5.6, obb.ang, hex);
+    }
+  }
+}
+
+// ── Museum of Fine Arts, Huntington Avenue ────────────────────────────────
+// Guy Lowell, 1909. It had been running through greekTemple, which puts a 56 ft
+// box over the whole footprint — and the footprint is 207 x 205 m, so the
+// biggest art museum in New England rendered as a flat grey plate the size of a
+// city block. A building this wide needs its mass BROKEN, which is exactly what
+// Lowell did: a long two-storey granite range along Huntington behind a colossal
+// Ionic colonnade, a taller centre pavilion, the rotunda over the crossing, and
+// the wings stepping back from it.
+function mfaBoston(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const p = buckets[PLAIN];
+  const GRANITE = '#d5d0c2', TRIM = '#efeade', SHADOW = '#b6b1a4';
+  const [cx, cz] = centroidOf(b.p);
+  const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
+  const range = g + 48 * FT;
+  walls(p, b.p, g - 4, range, GRANITE, 0);
+  flatRoof(p, b.p, range, '#6f6c66');                           // a real museum roof is DARK, not more granite
+  skylights(buckets, obb, range, '#cfe2ea', 4, 7);              // the gallery lanterns
+  walls(p, b.p, range - 6, range - 2, TRIM, 0);                 // the entablature, all the way round
+  walls(p, b.p, range, range + 4, TRIM, 0);                     // parapet
+  // the tall arched gallery windows of the range
+  gridWindows(p, b.p, 1, {
+    y0: g + 26 * FT, pitch: 1, spacing: 34, w: 6, h: 13, trim: TRIM,
+    glass: '#3f4c55', arch: true, lit: 0.06, seed: Math.round(cx), minLen: 40
+  });
+  // pilasters between them, so the long walls have vertical grain
+  gridWindows(p, b.p, 1, {
+    y0: g + 24 * FT, pitch: 1, spacing: 17, w: 2.4, h: 22 * FT, trim: SHADOW,
+    glass: SHADOW, lit: 0, seed: Math.round(cz), minLen: 40
+  });
+  // the centre pavilion, stepped up behind the colonnade
+  const centre = scaled(0.5);
+  const cTop = g + 76 * FT;
+  walls(p, centre, range - 4, cTop, GRANITE, 0);
+  flatRoof(p, centre, cTop, '#8f8a7e');
+  walls(p, centre, cTop - 5, cTop - 1.5, TRIM, 0);
+  gridWindows(p, centre, 1, {
+    y0: g + 60 * FT, pitch: 1, spacing: 30, w: 5, h: 9, trim: TRIM,
+    glass: '#41505a', arch: true, lit: 0.05, seed: Math.round(cx * 3), minLen: 30
+  });
+  // the rotunda — a shallow saucer dome, the real one is modest, not a capitol
+  const dr = Math.min(obb.hw, obb.hl) * 0.17;
+  const apex = domeShell(p, cx, cz, dr, cTop, 30 * FT, '#a9adb4', 7, 20);
+  walls(p, circRing(cx, cz, dr * 0.22, 10), apex, apex + 9 * FT, TRIM, 0);
+  // the Ionic colonnade over the Huntington Avenue steps
+  const fs = frontSegment(b, index);
+  const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1;
+  const W = obb.hw, L = obb.hl;
+  colonnade(p, obb, front * (W + 7), -L * 0.26, L * 0.26, 8, g, range - 9, 3.4, TRIM);
+  const pl = L * 0.30, plz = front * (W + 10);
+  const ped: number[] = [];
+  for (const [lx, lz] of [[-pl, plz], [pl, plz], [pl, front * (W - 3)], [-pl, front * (W - 3)]] as const)
+    ped.push(obb.cx + lx * ca - lz * sa, obb.cz + lx * sa + lz * ca);
+  walls(p, ped, range - 9, range + 1, TRIM, 0);
+  flatRoof(p, ped, range + 1, TRIM);
+  // and the broad flight of granite steps up to it
+  for (let s2 = 0; s2 < 6; s2++) {
+    const lz = front * (W + 13 + s2 * 2.4);
+    rotBox(p, obb.cx - lz * sa, obb.cz + lz * ca, L * 0.30, 1.2, g - 2, g + 1.6 + s2 * 2.6, obb.ang, '#cbc6b8');
+  }
+}
+
+// ── Isabella Stewart Gardner Museum — Fenway Court, 1903 ──────────────────
+// A Venetian palazzo turned inside out: Mrs Gardner put a plain buff exterior
+// around a four-storey COURTYARD under a glass roof, and the courtyard is the
+// museum. modernBlock gave it neither — an anonymous box with a glass stripe.
+function venetianPalazzo(buckets: Bucket[], b: Building, g: number) {
+  const p = buckets[PLAIN];
+  const [cx, cz] = centroidOf(b.p);
+  const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
+  const OCHRE = '#c9a877', TRIM = '#e6dcc4', TILE = '#9e6146';
+  const top = g + 64 * FT;
+  walls(p, b.p, g - 4, top, OCHRE, 0);
+  walls(p, b.p, g - 4, g + 12 * FT, '#b09572', 0);                  // the rusticated base course
+  // Venetian fenestration: grouped round-arched windows, three ranks of them
+  for (let r = 0; r < 3; r++) gridWindows(p, b.p, 1, {
+    y0: g + (20 + r * 15) * FT, pitch: 1, spacing: r === 1 ? 15 : 24,
+    w: r === 1 ? 4.2 : 5, h: r === 1 ? 9 : 7.5, trim: TRIM,
+    glass: '#3a4650', arch: true, lit: 0.06, seed: Math.round(cx + r * 97), minLen: 22
+  });
+  // a low tiled hip over a deep cornice
+  walls(p, b.p, top - 5, top - 1, TRIM, 0);
+  taperBand(buckets[SHINGLE], b.p, scaled(0.9), top, top + 9 * FT, TILE, 0);
+  flatRoof(buckets[SHINGLE], scaled(0.9), top + 9 * FT, TILE);
+  // THE COURTYARD — the whole reason the building exists. Cut down through the
+  // roof, walled on all four sides, and covered by the glass roof you can see
+  // from the air and from the Fenway.
+  const court = scaled(0.42);
+  annulusRoof(buckets[SHINGLE], scaled(0.9), court, top + 9 * FT, TILE);
+  walls(p, court, g + 2, top + 4 * FT, '#dcc9a4', 0);
+  gridWindows(p, court, 3, {
+    y0: g + 20 * FT, pitch: 15 * FT, spacing: 13, w: 3.6, h: 8, trim: TRIM,
+    glass: '#4a5a63', arch: true, lit: 0.2, seed: Math.round(cz), minLen: 14
+  });
+  flatRoof(p, court, g + 2, '#7f8d5c');                              // the planted court floor
+  // the glass roof — a low pitched lantern, not a lit box: it is a greenhouse
+  // over a garden, and it should read as one
+  walls(p, court, top + 4 * FT, top + 6 * FT, '#9a9184', 0);         // the glazing bars' curb
+  taperBand(buckets[GLOW], court, scaled(0.30), top + 6 * FT, top + 12 * FT, '#bcd2da', 0);
+  flatRoof(buckets[GLOW], scaled(0.30), top + 12 * FT, '#c9dce2');
 }
 
 // A plain modern block for the mid-century and later museums/institutions:
@@ -6617,9 +7219,23 @@ function modernBlock(buckets: Bucket[], b: Building, g: number,
   const top = g + o.ft * FT;
   if (o.podium) { walls(buckets[PLAIN], b.p, g - 3, g + 18 * FT, o.wall, 0); flatRoof(buckets[PLAIN], b.p, g + 18 * FT, '#8f8a82'); }
   const body = o.podium ? scaled(0.72) : b.p;
-  walls(buckets[PLAIN], body, o.podium ? g + 18 * FT : g - 3, top, o.wall, 0);
+  const y0 = o.podium ? g + 18 * FT : g - 3;
+  walls(buckets[PLAIN], body, y0, top, o.wall, 0);
   if (o.glassBand) for (let y = g + 14 * FT; y < top - 8; y += 14 * FT)
     walls(buckets[GLOW], body, y, y + 7 * FT, o.glassBand, 0);
+  // Even a genuinely plain box has a window grid, and without one it reads as a
+  // shipping container. Modern institutions get a wide, shallow, mullioned
+  // opening — the strip window, not a punched sash.
+  const nStoreys = Math.max(2, Math.round(o.ft / 14));
+  gridWindows(buckets[PLAIN], body, nStoreys, {
+    y0: (o.podium ? g + 18 * FT : g) + 24, pitch: (top - y0 - 40) / nStoreys, spacing: 20,
+    w: 9, h: 5.2, trim: '#cfcdc6', glass: o.glassBand ?? '#4a5a63', lit: 0.08,
+    seed: Math.round(obb.cx * 3), top: top - 12
+  });
+  if (o.podium) gridWindows(buckets[PLAIN], b.p, 1, {
+    y0: g + 26, pitch: 1, spacing: 22, w: 10, h: 8, trim: '#cfcdc6', glass: '#54646d',
+    lit: 0.12, seed: Math.round(obb.cz * 3)
+  });
   flatRoof(buckets[PLAIN], body, top, '#7d786f');
   roofClutter(buckets, body, top, Math.round(obb.cx), ringAreaM2(body), false);
 }
@@ -6637,14 +7253,22 @@ const HEROES: Record<string, HeroBuilder> = {
   'Custom House Tower': customHouseTower,
   'Fenway Park': fenwayPark,
   'Boston Light': (bk, b, g) => bostonLight(bk, b, g),
+  // The sign has no footprint of its own — 660 Beacon Street is name-stamped in
+  // towns/boston/map.mjs so this hero can bind to its roof.
+  '660 Beacon Street': citgoSign,
   // 1680, downtown Boston's oldest building: clapboard, second-floor jetty,
   // casement windows — exactly what firstPeriod() already builds for Salem.
   'Paul Revere House': (bk, b, g, i) => firstPeriod(bk, b, g, i, { wall: '#6b5a48', shingle: '#5d5346', chimney: 'central' }),
-  'Prudential Tower': (bk, b, g) => glassTower(bk, b, g, { ft: 749, glass: '#9aa3ad', band: '#d8d4c8', bandEvery: 34 }),
+  // 749 ft to the roof, 907 ft to the top of the antenna — the mast is a third
+  // of what you see of the Pru from anywhere in the city, so it is modelled.
+  'Prudential Tower': (bk, b, g) => glassTower(bk, b, g, { ft: 749, glass: '#9aa3ad', band: '#d8d4c8', bandEvery: 34, floors: 52, mast: 158 }),
   // The Hancock lease expired in 2015 and OSM now names it by its address —
   // '200 Clarendon' is the key that MATCHES (verified: 1 footprint; the old
   // 'John Hancock Tower' matches 0, so it is deliberately not listed).
-  '200 Clarendon': (bk, b, g) => glassTower(bk, b, g, { ft: 790, glass: '#5f7fa6', band: '#3f5773', bandEvery: 60 }),
+  // Deliberately no mast: the flat, unbroken top is the whole point of the
+  // building — Cobb gave it no crown at all so the rhomboid would read as one
+  // uninterrupted mirror.
+  '200 Clarendon': (bk, b, g) => glassTower(bk, b, g, { ft: 790, glass: '#6f8fb4', band: '#4d6683', bandEvery: 60, floors: 60 }),
 
   // ── churches ──
   // Park Street, 1809: red brick, white steeple 217 ft — the TALLEST BUILDING IN
@@ -6667,10 +7291,11 @@ const HEROES: Record<string, HeroBuilder> = {
   // ── civic + culture ──
   'Boston City Hall': (bk, b, g) => cityHallBrutalist(bk, b, g),
   'Old City Hall': (bk, b, g) => mansardBlock(bk, b, g, { wall: '#c0bbae', roof: '#4f4a44', storeyFt: 52 }),
-  // Guy Lowell, 1909 — Beaux-Arts granite with an Ionic colonnade and a rotunda.
-  'Museum of Fine Arts': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#c6c1b4', cols: 10, storeyFt: 56, dome: true }),
+  // Guy Lowell, 1909 — Beaux-Arts granite with an Ionic colonnade and a rotunda,
+  // on a 207 x 205 m footprint that a single box cannot carry (see mfaBoston).
+  'Museum of Fine Arts': mfaBoston,
   // A Venetian palazzo built around a glass-roofed courtyard, which is the point.
-  'Isabella Stewart Gardner Museum': (bk, b, g) => modernBlock(bk, b, g, { wall: '#b98f6a', ft: 62, glassBand: '#cfd8e2' }),
+  'Isabella Stewart Gardner Museum': (bk, b, g) => venetianPalazzo(bk, b, g),
   'Symphony Hall': (bk, b, g, i) => greekTemple(bk, b, g, i, { stone: '#9c5a44', cols: 6, storeyFt: 50 }),
   'Boston Opera House': (bk, b, g) => mansardBlock(bk, b, g, { wall: '#b7ad9c', roof: '#4a453f', storeyFt: 62 }),
   'Orpheum Theatre': (bk, b, g) => mansardBlock(bk, b, g, { wall: '#a89a86', roof: '#4a453f', storeyFt: 58 }),
@@ -7479,12 +8104,26 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       : beachShake || villageShake ? pick(STYLE.building.wallsShake, seed)
       : beach ? pick(STYLE.building.wallsHouse, seed)
       : wallHexFor(b, seed);
+    // A high-rise takes a different road entirely — curtain wall, crown, mast —
+    // and skips the whole pitched-roof / punched-window path below. Nothing in a
+    // town ever reaches HIGHRISE_LV, so this branch is dead code everywhere
+    // except the city that needed it.
+    if (lvEff >= HIGHRISE_LV && b.k !== 'shed' && b.k !== 'church') {
+      const tobb = obbOf(b.p);
+      towerBlock(buckets, b, g, base, eaveAbs, seed, lvEff, tobb,
+        ringAreaPx2(b.p) / Math.max(1, 4 * tobb.hl * tobb.hw));
+      continue;
+    }
     const isBrick = b.k === 'commercial' || b.k === 'civic';
-    const wallBucket = isBrick ? buckets[BRICK]
+    // a share of the masonry stock is stone, not brick (see MASONRY_MIX)
+    const stone = isBrick && hash32(seed, 83, 31) % 1000 < MASONRY_MIX * 1000;
+    const wallBucket = stone ? buckets[PLAIN]
+      : isBrick ? buckets[BRICK]
       : b.k === 'industrial' ? buckets[PLAIN]
       : beachShake || villageShake ? buckets[SHINGLE]   // weathered cedar-shake cottages + shingled villages
       : buckets[CLAP];                       // painted clapboard — most of the island, like town
-    walls(wallBucket, b.p, base, eaveAbs, wallHex);
+    const bodyHex = stone ? pick(STYLE.building.wallsStone, seed) : wallHex;
+    walls(wallBucket, b.p, base, eaveAbs, bodyHex, stone ? 0 : TEX_SCALE);
 
     const obb = obbOf(b.p);
     const fill = ringAreaPx2(b.p) / Math.max(1, 4 * obb.hl * obb.hw);   // 1 = a clean rectangle
@@ -7531,7 +8170,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       }
     } else {
       flatRoof(buckets[PLAIN], b.p, eaveAbs, pick(STYLE.building.roofsCommercial, seed));
-      walls(wallBucket, b.p, eaveAbs, eaveAbs + 3.5, wallHex);
+      walls(wallBucket, b.p, eaveAbs, eaveAbs + 3.5, bodyHex, stone ? 0 : TEX_SCALE);
       if (isBrick) {
         // white Federal cornice below the parapet
         tmp.set(STYLE.building.trim);
@@ -7556,10 +8195,19 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const storefront = b.k === 'commercial' || !!b.sf;
       // one window row per storey — no cap, so tall blocks get glass all the way up
       const rows = b.k === 'house' ? (lvEff >= 2 ? Math.round(lvEff) : 1) : Math.max(2, Math.round(lvEff));
+      // A window is not one shape. A house's is a tall 6-over-6 sash; a masonry
+      // block's is squarer under a granite lintel; a civic hall's is taller
+      // again; a mill's is wide and industrial. Giving every kind its own
+      // opening is most of what stops a street looking machine-made.
+      const look: FacadeLook =
+        b.k === 'civic' ? { w: 4.4, h: 7.2, lintel: '#e6e2d6', stringcourse: '#e6e2d6' }
+        : b.k === 'industrial' ? { w: 6.6, h: 4.4, glass: '#42505a' }
+        : b.k === 'commercial' ? { w: 5.0, h: 6.2, lintel: '#eae5d8', stringcourse: stone ? '#efeade' : undefined }
+        : { w: 4.6, h: 5.8 };
       facades(buckets[PLAIN], b.p, eaveAbs, rows, seed,
         b.k === 'house' || b.k === 'commercial' || storefront,
         b.k === 'house' && !beachShake && !storefront && rng() < 0.75,
-        storefront, g, undefined, isFoxRun ? '#ab3228' : undefined);
+        storefront, g, undefined, isFoxRun ? '#ab3228' : undefined, undefined, look);
     }
 
     // seasonal dressing: Christmas lights on the eaves, pumpkins by the door

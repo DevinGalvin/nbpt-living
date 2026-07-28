@@ -135,6 +135,12 @@ export const STYLE = {
     awnings: ['#3f5d3a', '#7a2f2c', '#2c3e5c', '#8a6b3c', '#3c3c3e', '#5d3f63'],
     cars: ['#b5443a', '#3e5c84', '#d8d5cc', '#3a3c40', '#7c8b96', '#5e7e54', '#c8b04a', '#8a4a68'],
     wallsCommercial: ['#fdfcf8', '#faf8f2', '#f8f5ec'], // tint over the real brick texture
+    // Untextured masonry for the share of downtown blocks a city builds in
+    // something other than brick — Quincy granite, limestone, buff and grey
+    // pressed brick, brownstone, painted stucco. Only towns that set
+    // TOWN.masonryMix ever see these (Newburyport's downtown really is all brick).
+    wallsStone: ['#cfc9ba', '#c2bcae', '#b6b2a6', '#d6d1c2', '#a9a49a',
+                 '#b9a894', '#9d8d7d', '#c8bda9', '#a89e94', '#8f8578'],
     wallsCivic: ['#e8d8a8', '#ddca90'],
     wallsChurch: ['#faf7ea', '#f4efe0'],
     wallsIndustrial: ['#aeb4b7', '#a1a7aa'],

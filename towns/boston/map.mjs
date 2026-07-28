@@ -28,6 +28,15 @@
 
 export const dropOsm = [];
 
+// Boston is the first town in the set with a SKYLINE, so it is the first that
+// needs the storey ceiling raised. The pipeline's default of 6 is the North
+// Shore's tallest plausible building; here it flattened 2,827 buildings onto one
+// mid-rise plain, including every downtown tower and the two that carry an
+// honest building:levels tag — 200 Clarendon at 60 and the Prudential at 52.
+// 60 is the real number: 200 Clarendon is the tallest building in New England
+// and nothing in frame goes past it.
+export const maxLevels = 60;
+
 export const downtownCore = null;
 
 export const storefrontCorridors = [];
@@ -220,8 +229,24 @@ export const curatedPois = [];
 export const curatedPoisHand = {};
 export const manualBuildings = [];
 export function manualFeatures({ world }) {}
-export const levelFixes = [];
-export const nameFixes = [];
+// 660 Beacon Street is nine storeys; Overture's ML pass read it as six. It has
+// to be right, because the Citgo Sign sits on its roof and the whole point of
+// the sign is where it stands over Kenmore Square.
+export const levelFixes = [
+  { x: -22284, y: 6330, lv: 9 },   // 660 Beacon St — the Citgo Sign's host building
+];
+
+// Names OSM carries on POI nodes but not on footprints — stamped onto the
+// containing building so HEROES/search bind. Anchors verified inside the ring at
+// build time (watch for NAME_FIX missed).
+export const nameFixes = [
+  // The Citgo Sign is an `attraction` NODE in OSM (x -22318, y 6326) with no
+  // footprint of its own, and its host building is unnamed — so neither the
+  // hero mechanism nor search could reach it, and the landmark rendered as an
+  // empty square. Stamping the host's real address binds HEROES['660 Beacon
+  // Street'], which builds the block AND the sign on its roof.
+  { x: -22284, y: 6330, n: '660 Beacon Street' },
+];
 
 // Real-world verified distances guard the projection — add pairs once two
 // points are independently verified (never computed from the same formula).
