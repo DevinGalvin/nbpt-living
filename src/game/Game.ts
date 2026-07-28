@@ -2348,7 +2348,11 @@ export class Game {
     try {
       const src = this.renderer.domElement;
       if (!src.width || !src.height) return null;
-      const W = 384, H = 240;                     // 8:5 — matches the card's photo well
+      // The card is up to 520 CSS px wide and phones are DPR 2–3, so the photo is
+      // displayed at ~1000–1500 device px. Capturing 384 px and letting the browser
+      // upscale it was the whole reason these looked like mush. 960×600 covers a
+      // DPR-2 phone exactly and a DPR-3 one acceptably; IndexedDB has room for it.
+      const W = 960, H = 600;                     // 8:5 — matches the card's photo pane
       if (!this.shotCanvas) {
         this.shotCanvas = document.createElement('canvas');
         this.shotCanvas.width = W;
@@ -2362,8 +2366,15 @@ export class Game {
       const sa = src.width / src.height, da = W / H;
       let sw = src.width, sh = src.height;
       if (sa > da) sw = src.height * da; else sh = src.width / da;
+      // a touch tighter than a bare cover-crop: the player (and so the marker) is
+      // centre-frame, and trimming the edges makes the subject read bigger
+      const TIGHT = 0.86;
+      sw *= TIGHT; sh *= TIGHT;
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, 0, 0, W, H);
-      return this.shotCanvas.toDataURL('image/jpeg', 0.62);
+      // 0.62 was visibly blocky on a 3-D scene full of high-frequency edges (roofs,
+      // trees, rigging). 0.85 roughly doubles the file and removes the artefacts.
+      return this.shotCanvas.toDataURL('image/jpeg', 0.85);
     } catch {
       return null;      // tainted canvas / lost context — not worth a crash
     }

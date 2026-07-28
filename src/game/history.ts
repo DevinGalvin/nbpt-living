@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { WorldIndex } from '../world/index';
 import { Hud } from './hud';
 import { GameAudio } from './audio';
-import { loadShot, saveShot, clearShots } from './shots';
+import { loadShot, saveShot, clearShots, primeShots } from './shots';
 import { townKey } from './saves';
 import { TOWN } from '@town';
 
@@ -87,6 +87,10 @@ export class HistoryRunner {
       scene.add(glint);
       this.glints.set(s.id, glint);
     }
+    // Photos live in IndexedDB (async). Pull this town's into memory once, then every
+    // read is synchronous — and repaint the count once they land, so an album opened
+    // in the first second isn't blank.
+    void primeShots(SITES.map((s) => s.id)).then(() => this.hud.refreshCollectCount(false));
     this.hud.setHistoryCount(this.read.size, SITES.length);
     // the 🏛 collection owns the marker list now: every site gets a slot from the
     // first second, and tapping a found one re-opens its card
