@@ -158,6 +158,26 @@ export function manualFeatures({ world }) {
   // grass — the one card in the set about abolition, and the town's most famous
   // person. Added as a POI so decor.ts can hand-build it (see POI_HEROES).
   world.pois.push({ x: -2774, y: -392, k: 'memorial', n: 'William Lloyd Garrison Statue', s: 'nbpt-manual' });
+
+  // The USRC Massachusetts, moored off the waterfront where she was built.
+  // The 🏛 "Birthplace of the Coast Guard" card is about the SHIP — the first
+  // revenue cutter, built by William Searle and launched here on 23 July 1791 — and
+  // the only thing OSM offers is a roadside marker nobody has photographed. So the
+  // card gets the vessel instead: she is the subject, and a schooner in the river is
+  // worth walking to in a way a granite post never was.
+  // A hull footprint (not a POI) because the ship builder takes its length and
+  // heading from the oriented bounding box. ~60 ft on deck, lying with the river.
+  //
+  // ⚠️ CLEAR THE WHOLE VESSEL, NOT THE FOOTPRINT. revenueCutter() draws well past
+  // the polygon it is given: the bow wedge reaches 1.05×hl and the BOWSPRIT 1.34×hl,
+  // so a 144px hull actually occupies ~154px of water. The first mooring was picked
+  // by testing ±80px from centre and put the bowsprit up on the dock. This spot is
+  // verified clear at every point from −0.95×hl to +1.4×hl and across the full beam.
+  world.buildings = world.buildings.filter((b) => b.n !== 'USRC Massachusetts');
+  world.buildings.push({
+    n: 'USRC Massachusetts', k: 'ship', lv: 1, s: 'nbpt-manual',
+    p: [103, -1522, 247, -1522, 247, -1478, 103, -1478],
+  });
 }
 
 // QA: known distances (build_world) + elevation spots (fetch_terrain)

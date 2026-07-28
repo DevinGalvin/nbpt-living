@@ -5390,6 +5390,57 @@ function tallShip(buckets: Bucket[], b: Building, g: number, index: WorldIndex, 
   const bsp = pt(L + L * 0.28, 0, 0); rotBox(buckets[PLAIN], bsp[0], bsp[2], L * 0.3, 0.6, deck + 5, deck + 7.5, ang, SPAR);                        // bowsprit
 }
 
+// The USRC Massachusetts (1791) — the first revenue cutter, built by William Searle
+// and launched at Newburyport on 23 July 1791, and the reason the Coast Guard calls
+// this city its birthplace. She is moored off the waterfront (hull footprint added in
+// towns/nbpt/map.mjs manualFeatures) because the 🏛 card is about the SHIP, and the
+// only alternative was a roadside marker nobody has ever photographed.
+//
+// PHOTO-VERIFIED (Commons `USRC Massachusetts (1791)`, public domain, viewed): a small
+// TWO-masted topsail schooner — dark near-black hull with a warm ochre sheer stripe,
+// low freeboard, main mast taller than the fore, fore-and-aft GAFF spars rather than
+// full square yards, and a very long bowsprit carrying the jibs. Roughly 60 ft on
+// deck, so she is a fraction of the Friendship's bulk — do not reuse tallShip here.
+function revenueCutter(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  // obbOf does NOT guarantee hl is the long axis (see tallShip) — pick it explicitly
+  const long = obb.hl >= obb.hw;
+  const ang = long ? obb.ang : obb.ang + Math.PI / 2;
+  const L = long ? obb.hl : obb.hw, beam = long ? obb.hw : obb.hl;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const pt = (lx: number, lz: number, y: number): [number, number, number] =>
+    [obb.cx + lx * ca - lz * sa, y, obb.cz + lx * sa + lz * ca];
+  const W = Math.min(beam, L * 0.26);
+  const HULL = '#25242a', OCHRE = '#c69a4e', DECK = '#7a6647', SPAR = '#4a3d2e';
+  const wl = g, deck = g + 13;                       // low freeboard — she is a small cutter
+
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.8, W, wl, deck, ang, HULL);
+  // bow wedge
+  for (const s of [1, -1] as const) {
+    const a = pt(L * 0.8, s * W, wl), b2 = pt(L * 0.8, s * W, deck);
+    const t1 = pt(L * 1.05, 0, deck), t0 = pt(L * 1.05, 0, wl + 1.5);
+    buckets[PLAIN].quad(a[0], a[1], a[2], b2[0], b2[1], b2[2], t1[0], t1[1], t1[2], t0[0], t0[1], t0[2],
+      ca * s, 0.2, sa * s, 0.15, 0.14, 0.16);
+  }
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.81, W + 0.35, deck - 3.4, deck - 1.6, ang, OCHRE);   // the sheer stripe
+  rotBox(buckets[PLAIN], obb.cx, obb.cz, L * 0.78, W - 0.5, deck, deck + 0.7, ang, DECK);
+  rotBox(buckets[PLAIN], obb.cx - ca * L * 0.45, obb.cz - sa * L * 0.45, L * 0.16, W - 1.4, deck + 0.7, deck + 4, ang, '#3a3630'); // quarterdeck house
+
+  // two masts, main (aft) taller than fore, with gaff spars rather than square yards
+  for (const [mlx, mh, gaffs] of [[L * 0.34, L * 1.15, 2], [-L * 0.12, L * 1.45, 2]] as const) {
+    const m = pt(mlx, 0, 0);
+    buckets[PLAIN].box(m[0], m[2], 0.85, 0.85, deck, deck + mh, SPAR, 0);
+    for (let k = 0; k < gaffs; k++) {
+      const yh = deck + mh * (0.3 + 0.34 * k);
+      rotBox(buckets[PLAIN], m[0] - ca * L * 0.12, m[2] - sa * L * 0.12, L * 0.26, 0.42, yh, yh + 0.7, ang, SPAR);
+    }
+  }
+  // the long bowsprit
+  const bsp = pt(L + L * 0.34, 0, 0);
+  rotBox(buckets[PLAIN], bsp[0], bsp[2], L * 0.38, 0.5, deck + 3, deck + 5.2, ang, SPAR);
+  void index;
+}
+
 // tiny utilitarian outbuildings: a one-room brick gable box (the Scale House by the Custom House).
 function brickShed(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: { wall: string; roof: string }) {
   const obb = obbOf(b.p);
@@ -8321,6 +8372,7 @@ const HEROES: Record<string, HeroBuilder> = {
   'First Religious Society': buildFRS,
   'First Presbyterian Church': buildOldSouth,   // Old South — Whitefield's crypt is under the pulpit
   'Timothy Dexter House': buildDexterHouse,     // named via nbpt nameFixes — OSM leaves 201 High St blank
+  'USRC Massachusetts': revenueCutter,          // hull added in nbpt manualFeatures — see the uscg card
   'Mill #1': buildMill,
   'Mill #2': buildMill,
   'Mill #3': buildMill,
