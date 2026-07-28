@@ -539,24 +539,27 @@ const css = `
 #hud .hcard-wrap {
   position: relative; width: min(520px, 92vw); max-height: 88vh;
   border-radius: 18px; padding: 2px; overflow: hidden;
-  background: rgba(216, 185, 74, 0.17);       /* the dim rail the highlight rides */
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
+  background: rgba(216, 185, 74, 0.34);       /* the rail the highlight rides */
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55), 0 0 30px rgba(216, 185, 74, 0.3);
   animation: nbpt-card-in 0.42s cubic-bezier(0.18, 1.3, 0.42, 1) both;
 }
 #hud .hcard-wrap::before {
   content: ''; position: absolute; left: 50%; top: 50%;
   width: 240%; aspect-ratio: 1; translate: -50% -50%;
-  background: conic-gradient(transparent 0deg, transparent 200deg,
-    rgba(216,185,74,0.55) 250deg, #fff4cf 288deg, rgba(216,185,74,0.55) 326deg, transparent 360deg);
+  background: conic-gradient(rgba(216,185,74,0.3) 0deg, rgba(216,185,74,0.3) 165deg,
+    rgba(255,214,110,0.95) 232deg, #fffdf2 288deg, rgba(255,214,110,0.95) 344deg, rgba(216,185,74,0.3) 360deg);
   animation: nbpt-trophy-shine 3.6s linear infinite;
 }
 @keyframes nbpt-trophy-shine { to { rotate: 360deg; } }
 /* not-yet-found: the same sweep, cooled to pewter — you can see it is the same
    object, just not yours yet */
-#hud .hcard-wrap:has(.hcard.locked-card) { background: rgba(200, 189, 150, 0.13); }
+#hud .hcard-wrap:has(.hcard.locked-card) {
+  background: rgba(200, 189, 150, 0.26);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55), 0 0 26px rgba(210, 205, 185, 0.2);
+}
 #hud .hcard-wrap:has(.hcard.locked-card)::before {
-  background: conic-gradient(transparent 0deg, transparent 210deg,
-    rgba(200,189,150,0.34) 255deg, rgba(233,230,216,0.72) 288deg, rgba(200,189,150,0.34) 322deg, transparent 360deg);
+  background: conic-gradient(rgba(200,189,150,0.24) 0deg, rgba(200,189,150,0.24) 175deg,
+    rgba(226,222,205,0.8) 238deg, #f6f4ea 288deg, rgba(226,222,205,0.8) 338deg, rgba(200,189,150,0.24) 360deg);
   animation-duration: 5.2s;
 }
 #hud .hcard {
