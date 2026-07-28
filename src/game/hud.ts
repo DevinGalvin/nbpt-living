@@ -526,13 +526,45 @@ const css = `
   pointer-events: auto; z-index: 60;
 }
 #hud .hcard-back.open { display: flex; }
-#hud .hcard {
-  position: relative; width: min(520px, 92vw); max-height: 88vh; overflow-y: auto;
-  background: var(--panel); border-radius: 16px;
-  border-bottom: 3px solid #d8b94a; padding: 0 0 14px;
-  user-select: none; -webkit-user-select: none;
+/* ---------- the trophy shine ----------
+   A discovery is a prize, so the card is edged in light that travels around it
+   rather than a static gold rule along the bottom.
+   It has to live on a WRAPPER: the card itself is overflow-y:auto (long stories
+   scroll), and an overflowing element clips anything drawn outside its padding box,
+   so a glow on .hcard would simply never be visible.
+   Built as a conic gradient on an oversized square that spins — NOT an animated
+   @property angle — so it works without Houdini support; rotate: and translate: are
+   separate properties, so the spin and the centring do not fight.
+   (Reminder: NO BACKTICKS anywhere in this file's CSS. It is a template literal.) */
+#hud .hcard-wrap {
+  position: relative; width: min(520px, 92vw); max-height: 88vh;
+  border-radius: 18px; padding: 2px; overflow: hidden;
+  background: rgba(216, 185, 74, 0.17);       /* the dim rail the highlight rides */
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
   animation: nbpt-card-in 0.42s cubic-bezier(0.18, 1.3, 0.42, 1) both;
+}
+#hud .hcard-wrap::before {
+  content: ''; position: absolute; left: 50%; top: 50%;
+  width: 240%; aspect-ratio: 1; translate: -50% -50%;
+  background: conic-gradient(transparent 0deg, transparent 200deg,
+    rgba(216,185,74,0.55) 250deg, #fff4cf 288deg, rgba(216,185,74,0.55) 326deg, transparent 360deg);
+  animation: nbpt-trophy-shine 3.6s linear infinite;
+}
+@keyframes nbpt-trophy-shine { to { rotate: 360deg; } }
+/* not-yet-found: the same sweep, cooled to pewter — you can see it is the same
+   object, just not yours yet */
+#hud .hcard-wrap:has(.hcard.locked-card) { background: rgba(200, 189, 150, 0.13); }
+#hud .hcard-wrap:has(.hcard.locked-card)::before {
+  background: conic-gradient(transparent 0deg, transparent 210deg,
+    rgba(200,189,150,0.34) 255deg, rgba(233,230,216,0.72) 288deg, rgba(200,189,150,0.34) 322deg, transparent 360deg);
+  animation-duration: 5.2s;
+}
+#hud .hcard {
+  position: relative; z-index: 1;            /* above the sweep */
+  max-height: calc(88vh - 4px); overflow-y: auto;
+  background: var(--panel); border-radius: 16px;
+  padding: 0 0 14px;
+  user-select: none; -webkit-user-select: none;
 }
 @keyframes nbpt-card-in {
   from { opacity: 0; transform: translateY(26px) scale(0.9); }
@@ -1414,13 +1446,13 @@ export class Hud {
       <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div><div class="namer"><input maxlength="12" placeholder="YOUR NAME"><button>SAVE</button></div></div>
       <div class="promo"><div class="promo-card"><div class="promo-x">✕</div><div class="promo-badge"></div><div class="promo-icon"></div><div class="promo-title"></div><div class="promo-body"></div><div class="promo-acts"><button class="promo-cta"></button><span class="promo-skip">Maybe later</span></div></div></div>
       <div class="levelpromo"><div class="lp-beam"></div><div class="lp-lamp"></div><div class="lp-snow"></div><div class="lp-inner"><div class="lp-kick">✦ LEVEL 1 COMPLETE ✦</div><div class="lp-lvl">LEVEL 2</div><div class="lp-title">The Light That Walks</div><div class="lp-tag">A lamp walks the shore at night, and the winter harbor needs its keeper. Your story sails on.</div><button class="lp-go">BEGIN ❄️</button><div class="lp-hint">❄️ Winter has come · change the season any time from the 🎄 button</div></div></div>
-      <div class="hcard-back"><div class="hcard">
+      <div class="hcard-back"><div class="hcard-wrap"><div class="hcard">
         <div class="hnew">✦ NEW DISCOVERY ✦</div>
         <div class="hpic"><span class="hpic-em">🏛</span></div>
         <div class="hbody"><div class="ht"></div><div class="hy"></div><div class="hb"></div></div>
         <div class="hcount"></div>
         <div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="hacts"><div class="hsay" title="Read it to me">🔊 <span>Read it</span></div><div class="hclose">Got it ✓</div></div></div>
-      </div></div>
+      </div></div></div>
       <div class="collect-btn" title="Your discoveries">🏛<span class="cb-n">0</span><span class="blab">DISCOVER</span></div>
       <div class="collect-panel"><div class="collect-card">
         <div class="modal-x">✕</div>
