@@ -938,74 +938,221 @@ function plane(bk: Bucket, x: number, z: number, ang: number, seed: number, g: n
 //   narrowbody  737-800 / A320: 39.5 m long · 35.8 m span · 12.5 m tail
 //   widebody    767-300:        54.9 m long · 47.6 m span · 15.8 m tail
 //   heavy       777-300:        73.9 m long · 64.8 m span · 18.5 m tail
-const AIRLINER_TAILS = ['#c8332c', '#1d4f9c', '#2f7a4f', '#e0a52c', '#7a3f8c', '#d0552c', '#1b6f86'];
+const AIRLINER_TAILS = ['#d8443a', '#2a63c8', '#2f9463', '#e8a92e', '#8f52a8', '#e0663a', '#2288a8'];
+
+// A lathe along the aircraft's own fore-aft axis: `secs` are [fwd, radius, yOff]
+// in world px, `N` facets around. The style callback picks the bucket and colour
+// per ring/facet so the window line, the cheatline and the grey belly are painted
+// INTO the tube rather than stuck on as bands that z-fight with it.
+function lathe(at: (f: number, s: number) => [number, number], ca: number, sa: number,
+               axisY: number, sideOff: number, N: number,
+               secs: readonly (readonly [number, number, number])[],
+               style: (ring: number, deg: number) => [Bucket, number, number, number]) {
+  const co: number[] = [], si: number[] = [];
+  for (let k = 0; k <= N; k++) { const p = (k / N) * Math.PI * 2; co.push(Math.cos(p)); si.push(Math.sin(p)); }
+  const pt = (i: number, k: number): [number, number, number] => {
+    const s = secs[i];
+    const [px2, pz2] = at(s[0], sideOff + si[k] * s[1]);
+    return [px2, axisY + s[2] + co[k] * s[1], pz2];
+  };
+  for (let i = 0; i + 1 < secs.length; i++) {
+    for (let k = 0; k < N; k++) {
+      const phi = ((k + 0.5) / N) * Math.PI * 2;
+      const cp = Math.cos(phi), sp = Math.sin(phi);
+      const [bk, r, g2, b] = style(i, (Math.acos(Math.max(-1, Math.min(1, cp))) * 180) / Math.PI);
+      const a = pt(i, k), bb = pt(i + 1, k), c = pt(i + 1, k + 1), d = pt(i, k + 1);
+      bk.quad(a[0], a[1], a[2], bb[0], bb[1], bb[2], c[0], c[1], c[2], d[0], d[1], d[2],
+        -sa * sp, cp, ca * sp, r, g2, b);
+    }
+  }
+}
+
+// A swept, tapered slab with thickness — wing, fin, stabiliser, winglet. Stations
+// run root → tip; each gives its chord MIDPOINT in aircraft-local coords plus the
+// chord length and the thickness. `vert` puts the thickness on the lateral axis
+// instead of the vertical one, which is the only difference between a wing and a
+// tail fin.
+type Station = { f: number; s: number; y: number; c: number; t: number };
+function airfoil(P: Bucket, at: (f: number, s: number) => [number, number], ca: number, sa: number,
+                 sts: readonly Station[], vert: boolean, face: string, back: string, gain = 1) {
+  tmp.set(face); const fr = tmp.r * gain, fg = tmp.g * gain, fb = tmp.b * gain;
+  tmp.set(back); const br = tmp.r * gain, bg = tmp.g * gain, bb2 = tmp.b * gain;
+  const er = (fr + br) / 2, eg = (fg + bg) / 2, eb = (fb + bb2) / 2;
+  // corner: cs = +1 leading edge / −1 trailing edge, ts = which of the two faces
+  const cor = (st: Station, cs: number, ts: number): [number, number, number] => {
+    const [px2, pz2] = at(st.f + (cs * st.c) / 2, st.s + (vert ? (ts * st.t) / 2 : 0));
+    return [px2, st.y + (vert ? 0 : (ts * st.t) / 2), pz2];
+  };
+  const fwdN: [number, number, number] = [ca, 0, sa];                 // local +fwd in world
+  const sideN: [number, number, number] = [-sa, 0, ca];               // local +side in world
+  const upN: [number, number, number] = [0, 1, 0];
+  const faceN = vert ? sideN : upN;
+  for (let i = 0; i + 1 < sts.length; i++) {
+    const a = sts[i], b = sts[i + 1];
+    for (const ts of [1, -1] as const) {                              // the two big faces
+      const p0 = cor(a, 1, ts), p1 = cor(b, 1, ts), p2 = cor(b, -1, ts), p3 = cor(a, -1, ts);
+      const lit = ts > 0;
+      P.quad(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2],
+        faceN[0] * ts, faceN[1] * ts, faceN[2] * ts,
+        lit ? fr : br, lit ? fg : bg, lit ? fb : bb2);
+    }
+    for (const cs of [1, -1] as const) {                              // leading / trailing edge
+      const p0 = cor(a, cs, 1), p1 = cor(b, cs, 1), p2 = cor(b, cs, -1), p3 = cor(a, cs, -1);
+      P.quad(p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2],
+        fwdN[0] * cs, 0, fwdN[2] * cs, er, eg, eb);
+    }
+  }
+  const tip = sts[sts.length - 1];                                    // cap it, or it is hollow
+  const t0 = cor(tip, 1, 1), t1 = cor(tip, 1, -1), t2 = cor(tip, -1, -1), t3 = cor(tip, -1, 1);
+  const n = vert ? upN : sideN, sgn = vert ? 1 : Math.sign(tip.s) || 1;
+  P.quad(t0[0], t0[1], t0[2], t1[0], t1[1], t1[2], t2[0], t2[1], t2[2], t3[0], t3[1], t3[2],
+    n[0] * sgn, n[1] * sgn, n[2] * sgn, er, eg, eb);
+}
+
+// ── airliners ─────────────────────────────────────────────────────────────
+// Real dimensions, because the whole point of a jet at a gate is how big it is
+// next to everything else. At 8 px/m a 737-800 is 316 px long with a 286 px
+// wingspan — longer than most of the buildings around it, which is exactly the
+// shock a kid gets standing at a terminal window.
+//
+//   narrowbody  737-800 / A320: 39.5 m long · 35.8 m span · 12.5 m tail
+//   widebody    767-300:        54.9 m long · 47.6 m span · 15.8 m tail
+//   heavy       777-300:        73.9 m long · 64.8 m span · 18.5 m tail
+//
+// ⚠️ TWO THINGS decide whether this reads as an airliner or as freight, and the
+// first version had both wrong — correct in size, number and position, and still
+// a grey slab on the apron.
+//
+// 1. THE FUSELAGE HAS TO BE A TUBE. Built as an upright prism it gives you one
+//    flat wall from belly to crown; every point on that wall has the same normal,
+//    so under a high sun it lands on ONE Lambert value and the jet is a single
+//    grey slab — darker, from the side, than the concrete it stands on. A lathe
+//    with real radial normals lets the crown take the sun and the belly fall
+//    away, and that gradient IS the shape. Same for the wing and the fin: a
+//    constant-chord rectangle is a billboard, and a 79 px mustard billboard is
+//    what the tail fin actually was.
+//
+// 2. A WHITE AIRCRAFT NEEDS A VERTEX GAIN ABOVE 1. Lambert has no bounce light,
+//    so an unlit vertical white surface sits at roughly 0.36 of full — grey, no
+//    matter how white the hex is. A real fuselage is glossy and sky-filled and
+//    reads white from every angle. So the side facets are pushed PAST 1.0 (vertex
+//    colours are floats and nothing clamps them). The gain PEAKS AT THE EQUATOR,
+//    where the light is worst, and falls back to ~1 at the crown and the belly —
+//    lifting the shaded side to white without flattening the roundness that is
+//    doing all the work.
+const FUSE: readonly (readonly [number, number, number])[] = [
+  [1.000, 0.06, -0.16],   // nose tip, dropped slightly below the axis
+  [0.955, 0.46, -0.10],
+  [0.905, 0.74, -0.04],
+  [0.845, 0.92, 0.00],
+  [0.760, 1.00, 0.00],
+  [-0.480, 1.00, 0.00],   // the constant-section cabin, one long ring
+  [-0.660, 0.94, 0.06],
+  [-0.800, 0.76, 0.18],
+  [-0.905, 0.50, 0.34],   // the tail cone kicks UP, which is most of the read
+  [-0.980, 0.22, 0.50],
+];
 function airliner(buckets: Bucket[], x: number, z: number, ang: number, g: number, seed: number,
                   klass: 'narrow' | 'wide' | 'heavy' = 'narrow') {
   const P = buckets[PLAIN], G2 = buckets[GLOW];
   const M = 8;                                            // world px per metre
-  const spec = klass === 'heavy' ? { len: 73.9, span: 64.8, tail: 18.5, dia: 6.2, eng: 3.4 }
-    : klass === 'wide' ? { len: 54.9, span: 47.6, tail: 15.8, dia: 5.0, eng: 2.8 }
-    : { len: 39.5, span: 35.8, tail: 12.5, dia: 3.8, eng: 2.2 };
+  const spec = klass === 'heavy' ? { len: 73.9, span: 64.8, tail: 18.5, dia: 6.2, eng: 3.4, clear: 2.9 }
+    : klass === 'wide' ? { len: 54.9, span: 47.6, tail: 15.8, dia: 5.0, eng: 2.8, clear: 2.6 }
+    : { len: 39.5, span: 35.8, tail: 12.5, dia: 3.8, eng: 2.2, clear: 2.35 };
   const L = (spec.len * M) / 2, S = (spec.span * M) / 2, R = (spec.dia * M) / 2;
   const ca = Math.cos(ang), sa = Math.sin(ang);
   const at = (fwd: number, side: number): [number, number] => [x + ca * fwd - sa * side, z + sa * fwd + ca * side];
-  const belly = g + 2.4 * M;                              // wheels down, fuselage clear of the apron
-  const top = belly + spec.dia * M;
-  // near-white, because two shading passes take it a long way down and an
-  // airliner that is not obviously WHITE stops reading as an airliner
-  const WHITE = '#fbfaf6', BELLY = '#e4e2db', TAIL = AIRLINER_TAILS[hash32(seed, 13, 5) % AIRLINER_TAILS.length];
+  const belly = g + spec.clear * M;                       // wheels down, fuselage clear of the apron
+  const axisY = belly + R;
+  const TAIL = AIRLINER_TAILS[hash32(seed, 13, 5) % AIRLINER_TAILS.length];
+  tmp.set('#fdfdfb'); const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+  tmp.set('#dfe4e8'); const gr = tmp.r, gg = tmp.g, gb = tmp.b;      // the cool grey underside
+  tmp.set(TAIL); const tr = tmp.r, tg = tmp.g, tb = tmp.b;
 
-  // fuselage — a long chamfered tube, tapering to the nose and the tail cone
-  chamferBox(P, x, z, L * 0.86, R, belly, top, ang, WHITE, R * 0.75);
-  const nose = at(L * 0.93, 0);
-  chamferBox(P, nose[0], nose[1], L * 0.10, R * 0.68, belly + R * 0.25, top - R * 0.15, ang, WHITE, R * 0.5);
-  const cone = at(-L * 0.93, 0);
-  chamferBox(P, cone[0], cone[1], L * 0.10, R * 0.55, belly + R * 0.5, top, ang, WHITE, R * 0.4);
-  chamferBox(P, x, z, L * 0.86, R * 0.92, belly, belly + R * 0.4, ang, BELLY, R * 0.7);   // the grey underside
-  // ⚠️ The window line is a THIN band. At R*1.02 wide and 0.38 R tall it wrapped
-  // the whole body in dark grey and the aircraft read as a slate slab rather than
-  // a white jet — from any distance the fuselage of an airliner is overwhelmingly
-  // white with a narrow dark stripe, and getting that ratio wrong loses the shape.
-  rotBox(G2, x, z, L * 0.78, R * 1.03, top - R * 0.60, top - R * 0.44, ang, '#40505f');
-  const fd = at(L * 0.80, 0);
-  rotBox(G2, fd[0], fd[1], L * 0.05, R * 0.85, top - R * 0.55, top - R * 0.12, ang, '#2b3b4c');
+  // ── fuselage ────────────────────────────────────────────────────────────
+  // 12 facets round: the ones centred on 75° carry the cabin windows, the ones
+  // on 105° the cheatline — a stripe just under the window line that follows the
+  // curve of the body, so the shape still reads where the sunlit white clips.
+  lathe(at, ca, sa, axisY, 0, 12, FUSE.map(([t, r, y]) => [t * L, r * R, y * R] as const), (i, deg) => {
+    const t = FUSE[i][0];
+    const cabin = t <= 0.78 && t >= -0.50;
+    if (cabin && deg > 64 && deg < 90) return [G2, 0.20, 0.27, 0.35];             // window band
+    if (t >= 0.845 && t <= 0.96 && deg > 30 && deg < 62) return [G2, 0.13, 0.19, 0.27]; // flight deck
+    const gain = 0.94 + 0.95 * Math.pow(Math.sin((deg * Math.PI) / 180), 1.2);
+    if (cabin && deg > 92 && deg < 118) return [P, tr * gain, tg * gain, tb * gain];   // cheatline
+    if (deg > 128) return [P, gr * gain, gg * gain, gb * gain];                   // belly
+    return [P, wr * gain, wg * gain, wb * gain];
+  });
 
-  // Wings — swept AND tapered, in five panels a side. ⚠️ The taper is the whole
-  // job: a wing of constant chord is a slab, and at this size a slab is what you
-  // see from three blocks away. A jet's root chord is about a third of the
-  // fuselage length and the tip is a tenth of that, so the panels have to shrink
-  // hard as they go out, and step BACK as they go (the sweep).
+  // ── wings ───────────────────────────────────────────────────────────────
+  // Root chord ~0.38 L with the leading edge a third of the half-length forward
+  // of centre, tip chord ~0.085 L well aft of it: about 29° of sweep, which is
+  // what tells you at a glance that this is a jet and not a turboprop. Plus a
+  // little dihedral, so the top surface catches the sun and the tip lifts clear
+  // of the apron.
+  const wingY = belly + R * 0.42;
+  const engY = wingY - spec.eng * M * 0.62;
   for (const s of [1, -1] as const) {
-    const PANELS = 5;
-    for (let k = 0; k < PANELS; k++) {
-      const t0 = k / PANELS, t1 = (k + 1) / PANELS, tm = (t0 + t1) / 2;
-      const y = belly + R * 0.55;
-      const chord = L * (0.30 - 0.255 * tm);            // root ~0.30 L, tip ~0.05 L
-      const sweep = -L * 0.02 - L * 0.30 * tm;          // trailing edge rakes aft
-      const wcx = at(sweep, s * S * tm);
-      chamferBox(P, wcx[0], wcx[1], chord, (S * (t1 - t0)) / 2, y, y + 2.4, ang, WHITE, Math.min(3, chord * 0.4));
-    }
-    // the winglet — the tip fin every modern airliner carries, and the thing
-    // that stops the wing ending in a blunt edge
-    const wt = at(-L * 0.34, s * S * 0.985);
-    rotBox(P, wt[0], wt[1], L * 0.05, 1.4, belly + R * 0.55, belly + R * 0.55 + 3.1 * M, ang, TAIL);
-    // engine nacelle slung under and ahead of the wing
-    const e = at(L * 0.10, s * S * 0.36);
-    chamferBox(P, e[0], e[1], spec.eng * M * 0.9, spec.eng * M * 0.5, belly - 1.4 * M, belly - 1.4 * M + spec.eng * M, ang, '#dedcd5', spec.eng * M * 0.42);
-    const ei = at(L * 0.10 - spec.eng * M * 0.9, s * S * 0.36);
-    rotBox(G2, ei[0], ei[1], 1.2, spec.eng * M * 0.42, belly - 1.4 * M + 2, belly - 0.4 * M + spec.eng * M * 0.6, ang, '#23282e');
+    airfoil(P, at, ca, sa, [
+      { f: L * 0.16, s: s * R * 0.9, y: wingY, c: L * 0.38, t: Math.max(2.6, L * 0.38 * 0.11) },
+      { f: L * 0.05, s: s * S * 0.34, y: wingY + S * 0.035, c: L * 0.25, t: Math.max(2.2, L * 0.25 * 0.10) },
+      { f: -L * 0.17, s: s * S * 0.985, y: wingY + S * 0.105, c: L * 0.085, t: Math.max(1.4, L * 0.085 * 0.10) },
+    ], false, '#fdfdfb', '#c9d0d6', 1.12);
+    // winglet — the tip fin every modern airliner carries, and the thing that
+    // stops the wing ending in a blunt edge
+    airfoil(P, at, ca, sa, [
+      { f: -L * 0.175, s: s * S * 0.99, y: wingY + S * 0.105, c: L * 0.08, t: 1.5 },
+      { f: -L * 0.205, s: s * S * 0.995, y: wingY + S * 0.105 + 3.2 * M, c: L * 0.042, t: 1.1 },
+    ], true, TAIL, TAIL, 1.7);
+    // engine — a nacelle is a tube too, with a dark intake and a dark exhaust.
+    // Slung under and ahead of the wing, and genuinely close to the ground:
+    // a 777's engine clears the apron by about half a metre.
+    const ER = spec.eng * M * 0.5, EL = spec.eng * M * 1.0;
+    lathe(at, ca, sa, engY, s * S * 0.36, 8, [
+      [L * 0.24 + EL * 1.02, 0.34, 0],
+      [L * 0.24 + EL * 0.86, 0.88, 0],
+      [L * 0.24 + EL * 0.72, 1.00, 0],
+      [L * 0.24 - EL * 0.30, 0.98, 0],
+      [L * 0.24 - EL * 0.85, 0.72, 0],
+      [L * 0.24 - EL * 1.05, 0.44, 0],
+    ].map(([f, r, y]) => [f, r * ER, y] as const), (i, deg) => {
+      if (i === 0) return [G2, 0.10, 0.11, 0.13];                                 // looking into the fan
+      if (i >= 4) return [P, 0.24, 0.25, 0.27];                                   // the hot end
+      const gain = 0.94 + 0.95 * Math.pow(Math.sin((deg * Math.PI) / 180), 1.2);
+      return [P, wr * gain, wg * gain, wb * gain];
+    });
+    const py = at(L * 0.24 - EL * 0.5, s * S * 0.36);
+    rotBox(P, py[0], py[1], EL * 0.85, 1.5, engY + ER * 0.5, wingY, ang, '#e6e8ea');   // pylon
   }
-  // tail: fin in the airline's colour, plus the horizontal stabiliser
-  const fin = at(-L * 0.80, 0);
-  rotBox(P, fin[0], fin[1], L * 0.15, 1.6, top - 2, g + spec.tail * M, ang, TAIL);
-  rotBox(P, fin[0], fin[1], L * 0.09, 1.7, g + spec.tail * M * 0.72, g + spec.tail * M, ang, TAIL);
-  const hs = at(-L * 0.86, 0);
-  chamferBox(P, hs[0], hs[1], L * 0.11, S * 0.34, top - R * 0.2, top + 2, ang, WHITE, 2);
-  // gear
-  for (const [fwd, side] of [[L * 0.72, 0], [-L * 0.05, S * 0.17], [-L * 0.05, -S * 0.17]] as const) {
+
+  // ── tail ────────────────────────────────────────────────────────────────
+  // The fin is a swept trapezoid, not a rectangle: root chord 0.44 L at the
+  // fuselage spine tapering to 0.17 L at the top, leading edge raked hard aft
+  // and the trailing edge almost upright. It is the airline's colour and the
+  // single most recognisable thing on a parked aircraft, so a plain slab here
+  // costs more than a plain slab anywhere else.
+  airfoil(P, at, ca, sa, [
+    { f: -L * 0.62, s: 0, y: axisY + R * 0.85, c: L * 0.44, t: 2.6 },
+    { f: -L * 0.72, s: 0, y: g + spec.tail * M * 0.64, c: L * 0.30, t: 2.0 },
+    { f: -L * 0.80, s: 0, y: g + spec.tail * M, c: L * 0.17, t: 1.4 },
+  ], true, TAIL, TAIL, 1.75);
+  for (const s of [1, -1] as const) {
+    airfoil(P, at, ca, sa, [
+      { f: -L * 0.82, s: s * R * 0.4, y: axisY + R * 0.34, c: L * 0.20, t: 2.2 },
+      { f: -L * 0.90, s: s * S * 0.36, y: axisY + R * 0.34 + S * 0.03, c: L * 0.075, t: 1.3 },
+    ], false, '#fdfdfb', '#c9d0d6', 1.12);
+  }
+
+  // ── gear ────────────────────────────────────────────────────────────────
+  const wheel = Math.max(2.6, R * 0.22);
+  for (const [fwd, side, pairs] of [[L * 0.72, 0, 1], [-L * 0.02, S * 0.155, 2], [-L * 0.02, -S * 0.155, 2]] as const) {
     const p = at(fwd, side);
-    P.box(p[0], p[1], 2.2, 2.2, g, belly + 2, '#2e3338', 0);
-    P.box(p[0], p[1], 3.4, 3.4, g, g + 1.9 * M * 0.5, '#1e2226', 0);
+    P.box(p[0], p[1], 1.6, 1.6, g + wheel, belly + R * 0.3, '#5a6066', 0);          // strut
+    for (let w = 0; w < pairs; w++) {
+      const o = pairs === 1 ? 0 : (w - 0.5) * wheel * 2.6;
+      const wp = at(fwd + o, side);
+      P.box(wp[0], wp[1], wheel * 0.85, wheel * 0.5, g, g + wheel * 2, '#22262a', 0);
+    }
   }
 }
 
