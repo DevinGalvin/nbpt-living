@@ -264,6 +264,29 @@ const coastChains = [];
 const stats = {};
 const bump = (k) => (stats[k] = (stats[k] || 0) + 1);
 
+// ---------- buildings that are UNDER the ground ----------
+// The buried-highway lesson again, one class further on: a subway station box is
+// tagged `building`, so it was drawn from grade like any other. The Hynes
+// Convention Center station is 154 m long and lies across Massachusetts Avenue —
+// as a building it is a wall the width of Back Bay that nobody can get past.
+// Lifting it the way an elevated span is lifted would be just as wrong: there is
+// nothing there to walk under either. It should simply not be in the world.
+//
+// ⚠️ `layer` ALONE CANNOT DECIDE THIS. It is a drawing-order tag, not an
+// elevation — the same trap the bridge work documents — and Boston has 25
+// buildings carrying layer < 0 of which most are plainly above ground: Orient
+// Heights station, the Franklin Park Zoo's Tropical Forest, the Hilton Back Bay.
+// So `location=underground` is taken at its word; `layer < 0` counts only when
+// the building ALSO says how many storeys it has below grade; and an explicit
+// `location=surface` always wins. That lands on exactly the five buried
+// structures in Boston and nothing at all in any other town — which is why every
+// other town still bakes byte-identical.
+const isUnderground = (t) => {
+  if (t.location === 'surface') return false;
+  if (t.location === 'underground') return true;
+  return parseFloat(t.layer) < 0 && parseFloat(t['building:levels:underground']) >= 1;
+};
+
 // ---------- storefront evidence pre-pass ----------
 // A building has a storefront if it sits in a mapped retail/commercial zone or
 // contains a shop/food POI — real land-use data, not a guess.
@@ -376,6 +399,7 @@ for (const el of raw.elements) {
   if ((t.building && t.building !== 'no') || isStadium(t)) {
     const ring = asRing(el.geometry);
     if (!ring) continue;
+    if (isUnderground(t)) { bump('underground-building'); continue; }
     const areaM2 = Math.abs(ringArea(ring)) / (PX_PER_M * PX_PER_M);
     if (areaM2 < 6) continue;
     let k = buildingKind(t);
@@ -563,6 +587,7 @@ for (const el of raw.elements) {
   const t = el.tags;
   const pk = (t.building && t.building !== 'no') || isStadium(t) ? '_building' : polyKind(t);
   if (!pk) continue;
+  if (pk === '_building' && isUnderground(t)) { bump('underground-building'); continue; }
   const outers = [], inners = [];
   for (const m of el.members || []) {
     if (m.type !== 'way' || !m.geometry) continue;
