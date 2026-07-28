@@ -3976,6 +3976,46 @@ function buildTabletRock(buckets: Bucket[], x: number, z: number, g: number) {
     0, 0, -1, tmp.r, tmp.g, tmp.b);                                      // the giant 1907 tablet, south face
 }
 
+// A Babson boulder, Dogtown. Roger Babson paid out-of-work quarrymen through the
+// Depression to carve single words into the glacial erratics scattered through
+// these woods, and 21 of them are in OSM at their real coordinates with their real
+// words — WORK, TRUTH, KINDNESS, GET A JOB, NEVER TRY NEVER WIN. Nothing here is
+// invented; the map already knew.
+//
+// PHOTO-VERIFIED against Commons `Work - Babson's Boulders - Dogtown, MA`: rounded
+// pale grey-tan granite, heavily mottled with green lichen on the shaded faces,
+// each word cut LARGE and blocky in dark letters across one smoothed side, with
+// smaller stones crowding the base. Roughly head-height to half again — the size is
+// the surprise, since you meet them by walking into them in the trees.
+function babsonBoulder(buckets: Bucket[], x: number, z: number, g: number, word: string) {
+  const p = buckets[PLAIN];
+  // deterministic per-boulder variation, so 21 of them don't look stamped
+  let h = 0;
+  for (let i = 0; i < word.length; i++) h = (h * 31 + word.charCodeAt(i)) & 0xffff;
+  const r = (n: number) => ((h >> n) & 7) / 7;
+  // ⚠️ box() takes HALF-extents. The first cut used 15–22 here and produced 4-metre
+  // flat slabs — so wide that the carved face ended up on the TOP of the thing.
+  // These are ~1.7–2.5 m across and taller than they are wide, like the real ones.
+  const w = 7 + r(0) * 3, d = 6 + r(3) * 2.5, top = g + 21 + r(6) * 11;
+
+  p.box(x, z, w, d, g - 3, top, '#a9a49a');                       // the mass
+  p.box(x, z, w * 0.72, d * 0.72, top, top + 2.6, '#b6b1a6');     // rounded-off crown
+  p.box(x - w * 0.55, z + d * 0.4, w * 0.4, d * 0.4, g - 2, g + 7 + r(9) * 4, '#8f9184');  // lichen-dark shoulder
+  p.box(x + w * 1.1, z - d * 0.4, 3.4, 3, g - 2, g + 5, '#9d9f92');  // stones crowding the base
+  p.box(x - w * 1.15, z - d * 0.6, 2.8, 2.4, g - 2, g + 3.6, '#a3a599');
+
+  // the word itself — dark, blocky, across a smoothed south face. Deliberately
+  // oversized: it is the whole reason anybody walks out here.
+  tmp.set('#2f2b26');
+  const fz = z - d - 0.4;                       // the SOUTH face plane (d is a half-extent)
+  const mid = (g + top) / 2;
+  p.quad(
+    x - w * 0.66, mid - 4.5, -fz, x + w * 0.66, mid - 4.5, -fz,
+    x + w * 0.66, mid + 4.5, -fz, x - w * 0.66, mid + 4.5, -fz,
+    0, 0, -1, tmp.r, tmp.g, tmp.b,
+  );
+}
+
 // The William Lloyd Garrison statue, Brown Square (1893, Daniel Murray French of
 // Newburyport — NOT "David M. French", which the older dossier has wrong).
 //
@@ -4111,6 +4151,21 @@ const POI_HEROES: Record<string, (buckets: Bucket[], x: number, z: number, g: nu
   'Doughboy Statue': buildDoughboy,                 // Amesbury
   'Colonel William Prescott': buildPrescott,        // Charlestown — OSM's name for the statue
 };
+
+// Babson's boulders register themselves — 21 real stones, real words, real
+// coordinates, all already carried in OSM as historic=archaeological_site. Listing
+// them here rather than as 21 hand-written entries keeps the word ON the boulder it
+// belongs to; the spelling is OSM's, typos and all ("Spirtual"), because that is
+// what the node says and the renderer should not quietly correct the map.
+const BABSON_WORDS = [
+  'Work', 'Truth', 'Kindness', 'Integrity', 'Industry', 'Intelligence', 'Initiative',
+  'Get A Job', 'Help Mother', 'Never Try Never Win', 'Use Your Head', 'Keep Out Of Debt',
+  'Save', 'Be Clean', 'Be True', 'ideas', 'ideals', 'Prosperity Follows Service',
+  'Be On Time/Study', 'FIRST ATTACKED', "Spirtual Power (Uncle Andrew's Rock)",
+];
+for (const w of BABSON_WORDS) {
+  POI_HEROES[w] = (buckets, x, z, g) => babsonBoulder(buckets, x, z, g, w);
+}
 
 function buildRearRange(buckets: Bucket[], b: Building, g: number) {
   const [cx, cz] = centroidOf(b.p);

@@ -638,7 +638,14 @@ const css = `
 #hud .ctile.locked .cpic::after { content: '?'; position: absolute; font-size: 30px; font-weight: 800; color: rgba(243,241,232,0.5); }
 #hud .ctile .ctx { padding: 7px 9px 9px; }
 #hud .ctile .cnm { font-size: 12.5px; font-weight: 700; line-height: 1.25; }
-#hud .ctile.locked .cnm { color: #8b8678; }
+/* a locked slot still names its target — dimmer than a found one, but readable:
+   the point is that you can go looking for it */
+#hud .ctile.locked .cnm { color: #b3ab95; }
+#hud .ctile .chint {
+  margin-top: 5px; font-size: 10.5px; color: #e8c44f; cursor: pointer;
+  border-top: 1px solid rgba(216,185,74,0.22); padding-top: 5px; min-height: 16px;
+}
+#hud .ctile .chint.shown { color: #c8bd96; cursor: default; }
 #hud .ctile .cyr { font-size: 10.5px; color: #c8bd96; letter-spacing: 0.6px; margin-top: 2px; }
 #hud .collect-empty { font-size: 13px; color: #c8bd96; line-height: 1.5; }
 #hud .mini {
@@ -1267,7 +1274,7 @@ export class Hud {
   private missions: Mission[] = [];
   private journeyTab: 'story' | 'collections' = 'story';   // journey panel: Story | Collections
   // history markers (for the Town-stories collection + its album), shared by bag + missions
-  private histMarkers: { id: string; title: string; year: string; body: string; stamp?: string }[] = [];
+  private histMarkers: { id: string; title: string; year: string; body: string; stamp?: string; hint?: string | null }[] = [];
   private albumPanel: HTMLElement | null = null;
 
   private root: HTMLElement;            // the #hud element itself (for explore-mode class toggling)
@@ -2886,7 +2893,7 @@ export class Hud {
   private collectOpen: ((id: string) => void) | null = null;
 
   initCollection(
-    markers: { id: string; title: string; year: string; body: string; stamp?: string }[],
+    markers: { id: string; title: string; year: string; body: string; stamp?: string; hint?: string | null }[],
     read: () => Set<string>,
     openCard: (id: string) => void,
   ) {
@@ -2941,15 +2948,28 @@ export class Hud {
       const pic = shot
         ? '<img alt="">'
         : '<span class="cem">' + (got ? '🏛' : '📍') + '</span>';
+      // A locked slot NAMES what you are missing. It used to read "Not found yet"
+      // over a bare year, which is blind searching — you cannot go looking for
+      // 1811. The title is the target; 💡 gives up the street it is on, so a kid
+      // who is stuck has somewhere to walk instead of quitting.
       tile.innerHTML = '<div class="cpic">' + pic + '</div>'
-        + '<div class="ctx"><div class="cnm">' + (got ? esc(mk.title) : 'Not found yet') + '</div>'
-        + '<div class="cyr">' + esc(mk.year) + '</div></div>';
+        + '<div class="ctx"><div class="cnm">' + esc(mk.title) + '</div>'
+        + '<div class="cyr">' + esc(mk.year) + '</div>'
+        + (!got && mk.hint ? '<div class="chint" title="Where to look">💡 <span>where?</span></div>' : '')
+        + '</div>';
       if (shot) (tile.querySelector('img') as HTMLImageElement).src = shot;
       if (got) {
         tile.addEventListener('pointerdown', (e) => {
           e.stopPropagation();
           panel.classList.remove('show');
           this.collectOpen?.(mk.id);
+        });
+      } else if (mk.hint) {
+        const h = tile.querySelector('.chint') as HTMLElement;
+        h.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          h.classList.add('shown');
+          (h.querySelector('span') as HTMLElement).textContent = 'near ' + mk.hint;
         });
       }
       grid.appendChild(tile);

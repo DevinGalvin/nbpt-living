@@ -84,7 +84,13 @@ export class HistoryRunner {
     // the 🏛 collection owns the marker list now: every site gets a slot from the
     // first second, and tapping a found one re-opens its card
     this.hud.initCollection(
-      SITES.map((s) => ({ id: s.id, title: s.title, year: s.year, body: s.body, stamp: s.stamp })),
+      // `hint` is the nearest real street name — derived, not authored, so every
+      // town gets one free. A locked slot that shows only a year is blind
+      // searching; "somewhere on High Street" is a lead you can actually walk.
+      SITES.map((s) => ({
+        id: s.id, title: s.title, year: s.year, body: s.body, stamp: s.stamp,
+        hint: index.nearestRoadName(s.x, s.z, 900) || null,
+      })),
       () => new Set(this.read),
       (id) => this.openCard(id, false),
     );
@@ -152,7 +158,22 @@ export class HistoryRunner {
     // Already collected: straight to the card, no fanfare. Re-reading is for
     // looking something up, and confetti on the fourth read is noise.
     if (this.read.has(site.id)) {
-      this.openCard(site.id, false);
+      const existing = loadShot(site.id);
+      if (existing || !this.shot) { this.openCard(site.id, false); return; }
+      // …but a marker read BEFORE discovery photos existed has no picture, and
+      // never would: the capture only ran on a first find, and that already
+      // happened months ago. Anyone who played the old build would have a
+      // permanently empty album. So if we're standing at one with no photo,
+      // take it now. Quietly — this is a backfill, not a new discovery.
+      let done = false;
+      const show = (photo: string | null) => {
+        if (done) return;
+        done = true;
+        if (photo) saveShot(site.id, photo);
+        this.openCard(site.id, false, photo);
+      };
+      this.shot(show);
+      setTimeout(() => show(null), 600);
       return;
     }
 

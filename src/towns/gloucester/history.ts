@@ -105,7 +105,11 @@ export const HISTORY: Site[] = [
     stamp: '★ THE VILLAGE THAT LEFT'
   },
   {
-    id: 'babson-boulders', x: 6200, z: -21500, title: 'The Talking Rocks', year: 'the 1930s',
+    // Set in the DENSEST part of the boulder field (7 carved stones within 900px:
+    // Industry, Initiative, Integrity, ideas, ideals, Intelligence, Use Your Head)
+    // rather than jammed 48px into "Be On Time/Study" where it started — the point
+    // of this card is looking up and seeing several of them at once.
+    id: 'babson-boulders', x: 6287, z: -20465, title: 'The Talking Rocks', year: 'the 1930s',
     body: 'During the Depression a rich man named Roger Babson hired out-of-work stonecutters to carve words into the boulders all over these woods. HELP MOTHER. NEVER TRY NEVER WIN. GET A JOB. He wanted people wandering out here to bump into some advice. They are still here, still saying it, whether you asked or not.',
     stamp: '★ NEVER TRY NEVER WIN'
   },
