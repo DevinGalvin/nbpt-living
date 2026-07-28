@@ -120,6 +120,15 @@ export const manualBuildings = [
 // same-named streets across towns).
 export const levelFixes = [];
 
+// ---------- nameFixes: bind a name onto a footprint so HEROES can find it ----------
+// OSM leaves 201 High Street unnamed — no POI node, no building name — so the
+// 🏛 "Dexter's Museum" discovery card was pointing at an anonymous house. Naming
+// the footprint is what lets decor.ts render it (see HEROES) and what makes it
+// searchable. Anchor is the footprint centroid.
+export const nameFixes = [
+  { x: -7336, y: 494, n: 'Timothy Dexter House' }
+];
+
 // ---------- manual yards: real backyard details OSM doesn't carry ----------
 // 13 Fox Run Drive (Devin's house): backyard pool + white picket fence enclosing
 // the yard. The house faces Fox Run Dr to the NORTH (-y), so the yard is the +y

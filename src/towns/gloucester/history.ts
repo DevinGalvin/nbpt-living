@@ -34,7 +34,10 @@ export const HISTORY: Site[] = [
 
   // ---------- the fishing town ----------
   {
-    id: 'stage-fort-1623', x: -10100, z: 7900, icon: '🐟', title: 'The Fish Stages', year: '1623',
+    // Moved 2,000px to stand beside TABLET ROCK — the 1907 tablet that actually marks
+    // the 1623 landing, and which decor.ts already builds. The card was floating in an
+    // empty corner of the park 260 m from the monument it is about.
+    id: 'stage-fort-1623', x: -10086, z: 9978, icon: '🐟', title: 'The Fish Stages', year: '1623',
     body: 'Fourteen men from England landed right here in 1623 and built wooden platforms called stages — flat decks for splitting and drying cod in the sun. That was the whole plan: catch fish, dry fish, send fish home. The farming went badly and most of them left. But the fish part worked, and it kept working for four hundred years.',
     stamp: '★ WHERE IT STARTED'
   },

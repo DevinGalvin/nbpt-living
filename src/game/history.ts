@@ -183,7 +183,12 @@ export class HistoryRunner {
     // looking something up, and confetti on the fourth read is noise.
     if (this.read.has(site.id)) {
       const existing = loadShot(site.id);
-      if (existing || !this.shot) { this.openCard(site.id, false); return; }
+      // Re-shoot anything captured by the old low-resolution build. Those photos
+      // upscaled into mush on the card, and the backfill below only fires when a
+      // photo is MISSING — so without this they would stay bad forever. A modern
+      // 960x600 capture lands around 100 KB; anything well under that is legacy.
+      const legacyLowRes = !!existing && existing.length < 45_000;
+      if ((existing && !legacyLowRes) || !this.shot) { this.openCard(site.id, false); return; }
       // …but a marker read BEFORE discovery photos existed has no picture, and
       // never would: the capture only ran on a first find, and that already
       // happened months ago. Anyone who played the old build would have a
@@ -194,7 +199,9 @@ export class HistoryRunner {
         if (done) return;
         done = true;
         if (photo) saveShot(site.id, photo);
-        this.openCard(site.id, false, photo);
+        // if the re-shoot failed, fall back to what they already had — never
+        // downgrade a kid from a poor photo to no photo
+        this.openCard(site.id, false, photo || existing || null);
       };
       this.shot(show);
       setTimeout(() => show(null), 600);

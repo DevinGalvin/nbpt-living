@@ -2695,6 +2695,75 @@ function buildFRS(buckets: Bucket[], b: Building, g: number, index: WorldIndex) 
   steeple(buckets, b, g, index, true);
 }
 
+// The Timothy Dexter House, 201 High Street — the mansion the 🏛 "Dexter's Museum"
+// card is about, and OSM names nothing here, so it was an anonymous house until the
+// nameFixes entry in towns/nbpt/map.mjs bound a name to the footprint.
+//
+// PHOTO-VERIFIED (Commons `Lord Timothy Dexter House, as seen on October 22, 2022`,
+// viewed): three storeys of WHITE clapboard with black shutters, a dentilled cornice,
+// and the thing everybody remembers — a white CUPOLA WITH A DOME riding the roof.
+// A columned entry porch with steps, and out at the street a pair of white gate piers
+// with dentil caps carrying black wrought iron. Dexter's famous wooden statues of
+// famous men stood on that lawn; they are long gone, so they are not built here.
+function buildDexterHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const white = '#f7f5ee';
+  walls(buckets[CLAP], b.p, g - 6, g + 40, white);
+  const obb = obbOf(b.p);
+  gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, g + 40, 8, 3, '#4a4642', white);
+  houseTrim(buckets[PLAIN], b.p, g + 40, g - 6);
+  facades(buckets[PLAIN], b.p, g + 40, 3, 1801, true, true, false, g, 46);
+  // the domed cupola — the silhouette that makes this house recognisable from High St
+  const cs = 5.2;
+  walls(buckets[CLAP], [obb.cx - cs, obb.cz - cs, obb.cx + cs, obb.cz - cs, obb.cx + cs, obb.cz + cs, obb.cx - cs, obb.cz + cs],
+    g + 44, g + 58, white);
+  buckets[PLAIN].box(obb.cx, obb.cz, cs + 1.1, cs + 1.1, g + 58, g + 60, '#eeebe2');
+  buckets[PLAIN].box(obb.cx, obb.cz, 4.1, 4.1, g + 60, g + 63.5, '#d9d6cc');   // the dome, stepped
+  buckets[PLAIN].box(obb.cx, obb.cz, 2.4, 2.4, g + 63.5, g + 65.6, '#e6e3d9');
+  buckets[PLAIN].box(obb.cx, obb.cz, 0.7, 0.7, g + 65.6, g + 69, '#3a3631');   // finial
+  // gate piers at the street, with iron between them
+  const f = frontSegment(b, index);
+  for (const s of [-1, 1]) {
+    const px = f.x + f.tx * 9 * s + f.nx * 13, pz = f.z + f.tz * 9 * s + f.nz * 13;
+    buckets[PLAIN].box(px, pz, 1.9, 1.9, g, g + 15, white);
+    buckets[PLAIN].box(px, pz, 2.6, 2.6, g + 15, g + 16.6, '#eeebe2');         // dentil cap
+  }
+  rotBox(buckets[PLAIN], f.x + f.nx * 13, f.z + f.nz * 13, 7, 0.35, g + 2, g + 12, Math.atan2(f.tz, f.tx), '#2a2724');
+}
+
+// Newburyport's mills — Mill #1–#5 and the James Steam Mill, the works that the 🏛
+// "The Mills" card is about (Towle silversmiths, the comb factories). Every one of
+// them was rendering as generic massing.
+//
+// PHOTO-VERIFIED (Commons `Toole Silversmiths, Newburyport, MA` — the Towle mill,
+// viewed): a LONG red-brick block, four storeys, ranks of tall windows with pale
+// segmental heads, and a central stair tower carrying a dark MANSARD roof with
+// arch-topped dormers. Flat roofs on the wings, a taller brick elevator tower behind.
+function buildMill(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const brick = '#f6efe6';                    // brickTex MULTIPLIES red — pale in, red out
+  const trim = '#efeade';
+  // four storeys at ~24px each — the OSM `lv` on these footprints is junk (Mill #1
+  // says 1), and a mill is not a bungalow.
+  const top = g + 96;
+  walls(buckets[BRICK], b.p, g - 6, top, brick);
+  walls(buckets[PLAIN], b.p, top - 3, top, trim, 0);            // corbelled cornice band
+  flatRoof(buckets[PLAIN], b.p, top, '#4f4a44');
+  // storefront=false: these are work floors, ranks of identical tall windows all the
+  // way up. Passing true gave it shop glazing and left the long face blank.
+  facades(buckets[PLAIN], b.p, top, 4, 1878, true, false, false, g);
+  // the central mansard tower, over the middle of the long axis
+  const obb = obbOf(b.p);
+  const ts = Math.min(9, obb.hw * 0.8);
+  const ring = [obb.cx - ts, obb.cz - ts, obb.cx + ts, obb.cz - ts, obb.cx + ts, obb.cz + ts, obb.cx - ts, obb.cz + ts];
+  walls(buckets[BRICK], ring, top - 4, top + 20, brick);
+  walls(buckets[PLAIN], ring, top + 18, top + 20, trim, 0);
+  buckets[PLAIN].box(obb.cx, obb.cz, ts + 1.4, ts + 1.4, top + 20, top + 31, '#3b3a3c');   // dark mansard
+  buckets[PLAIN].box(obb.cx, obb.cz, ts - 1, ts - 1, top + 31, top + 33.5, '#46454a');
+  for (const [dx, dz] of [[0, -(ts + 1.2)], [0, ts + 1.2], [-(ts + 1.2), 0], [ts + 1.2, 0]]) {
+    buckets[PLAIN].box(obb.cx + dx, obb.cz + dz, 2.2, 2.2, top + 22, top + 28, trim);      // arched dormers
+  }
+  void index;
+}
+
 // Old South Presbyterian Church, 29 Federal St (1756) — the meetinghouse over a
 // hundred men raised in THREE DAYS, and the one George Whitefield is buried under:
 // his crypt is beneath the pulpit, which is what the 🏛 discovery card is about, so
@@ -8251,6 +8320,13 @@ const HEROES: Record<string, HeroBuilder> = {
   'Ridge Carriage House': buildRidgeCarriage,
   'First Religious Society': buildFRS,
   'First Presbyterian Church': buildOldSouth,   // Old South — Whitefield's crypt is under the pulpit
+  'Timothy Dexter House': buildDexterHouse,     // named via nbpt nameFixes — OSM leaves 201 High St blank
+  'Mill #1': buildMill,
+  'Mill #2': buildMill,
+  'Mill #3': buildMill,
+  'Mill #4': buildMill,
+  'Mill #5': buildMill,
+  'James Steam Mill': buildMill,
   'Custom House Maritime Museum': buildCustomHouse,
   'Firehouse Center For The Arts': buildFirehouse,
   'Newburyport City Hall': buildCityHall,
