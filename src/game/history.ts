@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { WorldIndex } from '../world/index';
 import { Hud } from './hud';
 import { GameAudio } from './audio';
-import { loadShot, saveShot } from './shots';
+import { loadShot, saveShot, clearShots } from './shots';
 import { townKey } from './saves';
 import { TOWN } from '@town';
 
@@ -13,7 +13,14 @@ import { TOWN } from '@town';
 const READ_KEY = townKey('history-read');
 const HISTORIAN_KEY = townKey('historian');
 
-export type Site = { id: string; x: number; z: number; title: string; year: string; body: string; stamp?: string };
+export type Site = {
+  id: string; x: number; z: number; title: string; year: string; body: string; stamp?: string;
+  // The face of this discovery's slot before it is found. Every marker gets its own,
+  // because 36 identical question marks is a wall, not a collection — and a glyph
+  // that hints at the KIND of thing (a fire, an anchor, a ghost, a whale) gives a kid
+  // something to be curious about without giving the story away.
+  icon?: string;
+};
 
 // Each town owns its own markers (src/towns/<id>/history.ts, the same pattern
 // courses.ts follows). A town with no list simply has no collection — the engine
@@ -88,12 +95,25 @@ export class HistoryRunner {
       // town gets one free. A locked slot that shows only a year is blind
       // searching; "somewhere on High Street" is a lead you can actually walk.
       SITES.map((s) => ({
-        id: s.id, title: s.title, year: s.year, body: s.body, stamp: s.stamp,
+        id: s.id, title: s.title, year: s.year, body: s.body, stamp: s.stamp, icon: s.icon,
         hint: index.nearestRoadName(s.x, s.z, 900) || null,
       })),
       () => new Set(this.read),
       (id) => this.openCard(id, false),
+      () => this.resetAll(),
     );
+  }
+
+  // Wipe the album back to nothing: read state, every photo, the Town Historian
+  // badge, and — the easy one to forget — the gold glints floating over the markers
+  // out in the world, which are what tells you a plaque is still unread.
+  private resetAll() {
+    this.read.clear();
+    try { localStorage.removeItem(READ_KEY); localStorage.removeItem(HISTORIAN_KEY); } catch { /* private mode */ }
+    clearShots(SITES.map((s) => s.id));
+    for (const [, glint] of this.glints) glint.visible = true;
+    this.hud.setHistoryCount(0, SITES.length);
+    this.hud.refreshCollectCount(false);
   }
 
   // whether a marker currently owns the talk button (eggs defer to us)

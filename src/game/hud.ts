@@ -614,11 +614,21 @@ const css = `
   display: none; align-items: center; justify-content: center; pointer-events: auto; z-index: 55;
 }
 #hud .collect-panel.show { display: flex; }
+/* Sized to read as a CARD ON the town, not a takeover. It was 94vw × 86vh, which on
+   a phone is the whole screen with a hairline of backdrop — indistinguishable from a
+   new page. Now the backdrop stays visible on every side, and the grid gets tighter
+   columns on narrow screens so shrinking the box doesn't mean endless scrolling. */
 #hud .collect-card {
-  position: relative; width: min(560px, 94vw); max-height: 86vh; overflow-y: auto;
-  background: var(--panel); border-radius: 14px; border-bottom: 3px solid #d8b94a;
-  padding: 18px 20px 18px; color: #f3f1e8;
+  position: relative; width: min(560px, 88vw); max-height: 74vh; overflow-y: auto;
+  background: var(--panel); border-radius: 16px; border-bottom: 3px solid #d8b94a;
+  padding: 16px 16px 14px; color: #f3f1e8;
+  box-shadow: 0 22px 70px rgba(0,0,0,0.6);
 }
+/* clearing the album is destructive and rare — a quiet footer link, then a confirm */
+#hud .collect-foot { margin-top: 14px; text-align: center; font-size: 11.5px; }
+#hud .collect-foot .cf-reset { color: #8b8678; cursor: pointer; letter-spacing: 0.4px; }
+#hud .collect-foot .cf-reset:hover { color: #c8bd96; }
+#hud .collect-foot.arm .cf-reset { color: #e88b7a; font-weight: 700; }
 #hud .collect-card h2 { font-size: 14px; letter-spacing: 3px; color: #e8c44f; font-weight: 800; margin: 0 0 10px; }
 #hud .collect-prog { height: 10px; border-radius: 5px; background: rgba(243,241,232,0.13); overflow: hidden; margin: 2px 0 6px; }
 #hud .collect-prog i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #b98f2e, #ffd86a); transition: width 0.5s ease; }
@@ -632,10 +642,14 @@ const css = `
 #hud .ctile.got { border-color: rgba(216,185,74,0.55); cursor: pointer; }
 #hud .ctile .cpic { position: relative; width: 100%; aspect-ratio: 8 / 5; background: linear-gradient(155deg, #3a2d18, #241218); display: flex; align-items: center; justify-content: center; }
 #hud .ctile .cpic img { width: 100%; height: 100%; object-fit: cover; display: block; }
-#hud .ctile .cpic .cem { font-size: 30px; opacity: 0.9; }
-/* a locked slot shows its silhouette and its year — enough to be a lead, not a spoiler */
-#hud .ctile.locked .cpic { filter: grayscale(1) brightness(0.42); }
-#hud .ctile.locked .cpic::after { content: '?'; position: absolute; font-size: 30px; font-weight: 800; color: rgba(243,241,232,0.5); }
+#hud .ctile .cpic .cem { font-size: 30px; opacity: 0.95; }
+/* A locked slot shows ITS OWN icon — never a shared question mark. This used to
+   stack a pin emoji AND a "?" ::after in the same box and then grey the pair, which
+   read on a phone as one blurry smudge with something behind it. One glyph, dimmed
+   but legible, and the tile is dark rather than the icon being crushed.
+   (NB: no backticks in this file's CSS — it lives inside a template literal.) */
+#hud .ctile.locked .cpic { background: linear-gradient(160deg, #2b2026, #1d1419); }
+#hud .ctile.locked .cpic .cem { opacity: 0.5; filter: grayscale(0.7); }
 #hud .ctile .ctx { padding: 7px 9px 9px; }
 #hud .ctile .cnm { font-size: 12.5px; font-weight: 700; line-height: 1.25; }
 /* a locked slot still names its target — dimmer than a found one, but readable:
@@ -648,6 +662,18 @@ const css = `
 #hud .ctile .chint.shown { color: #c8bd96; cursor: default; }
 #hud .ctile .cyr { font-size: 10.5px; color: #c8bd96; letter-spacing: 0.6px; margin-top: 2px; }
 #hud .collect-empty { font-size: 13px; color: #c8bd96; line-height: 1.5; }
+/* 88px (not 96) is deliberate: the card is 88vw with 16px padding, so 96 + gaps
+   overflowed by a few px and collapsed to TWO columns — half the grid per screen. */
+@media (max-width: 520px) {
+  #hud .collect-grid { grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 6px; }
+  #hud .ctile .cpic { aspect-ratio: 4 / 3; }
+  #hud .ctile .cpic .cem { font-size: 22px; }
+  #hud .ctile .ctx { padding: 5px 7px 7px; }
+  #hud .ctile .cnm { font-size: 11px; }
+  #hud .ctile .cyr { font-size: 9.5px; }
+  #hud .ctile .chint { font-size: 9.5px; margin-top: 4px; padding-top: 4px; }
+}
+
 #hud .mini {
   position: absolute; top: 70px; right: 14px; opacity: 0.55; border-radius: 8px;
   overflow: hidden; border: 1px solid rgba(243, 241, 232, 0.35); pointer-events: none;
@@ -1274,7 +1300,7 @@ export class Hud {
   private missions: Mission[] = [];
   private journeyTab: 'story' | 'collections' = 'story';   // journey panel: Story | Collections
   // history markers (for the Town-stories collection + its album), shared by bag + missions
-  private histMarkers: { id: string; title: string; year: string; body: string; stamp?: string; hint?: string | null }[] = [];
+  private histMarkers: { id: string; title: string; year: string; body: string; stamp?: string; hint?: string | null; icon?: string }[] = [];
   private albumPanel: HTMLElement | null = null;
 
   private root: HTMLElement;            // the #hud element itself (for explore-mode class toggling)
@@ -1379,6 +1405,7 @@ export class Hud {
         <div class="collect-prog"><i style="width:0%"></i></div>
         <div class="collect-tally"></div>
         <div class="collect-grid"></div>
+        <div class="collect-foot"><span class="cf-reset">Start the collection over</span></div>
       </div></div>
       <div class="modepick"><div class="modepick-card">
         <div class="modepick-icon">🧭</div>
@@ -2891,15 +2918,18 @@ export class Hud {
 
   private collectRead: () => Set<string> = () => new Set();
   private collectOpen: ((id: string) => void) | null = null;
+  private collectReset: (() => void) | null = null;
 
   initCollection(
-    markers: { id: string; title: string; year: string; body: string; stamp?: string; hint?: string | null }[],
+    markers: { id: string; title: string; year: string; body: string; stamp?: string; hint?: string | null; icon?: string }[],
     read: () => Set<string>,
     openCard: (id: string) => void,
+    reset?: () => void,
   ) {
     this.histMarkers = markers;
     this.collectRead = read;
     this.collectOpen = openCard;
+    this.collectReset = reset || null;
     const btn = document.querySelector('#hud .collect-btn') as HTMLElement;
     btn.classList.add('show');
     this.root.classList.add('has-collect');
@@ -2909,6 +2939,29 @@ export class Hud {
     (panel.querySelector('.modal-x') as HTMLElement).addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       panel.classList.remove('show');
+    });
+    // Two taps to wipe: the first arms it and says exactly what will be lost, the
+    // second does it. No browser confirm() — it is blocked in some embedded webviews
+    // and reads as a system error to a kid.
+    const foot = panel.querySelector('.collect-foot') as HTMLElement;
+    const link = foot.querySelector('.cf-reset') as HTMLElement;
+    link.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      if (!foot.classList.contains('arm')) {
+        foot.classList.add('arm');
+        link.textContent = 'Erase all ' + this.collectRead().size + ' and every photo? Tap again';
+        setTimeout(() => {
+          if (!foot.classList.contains('arm')) return;
+          foot.classList.remove('arm');
+          link.textContent = 'Start the collection over';
+        }, 5000);
+        return;
+      }
+      foot.classList.remove('arm');
+      link.textContent = 'Start the collection over';
+      this.collectReset?.();
+      this.refreshCollectCount(false);
+      this.openCollection();
     });
     this.refreshCollectCount(false);
   }
@@ -2945,9 +2998,11 @@ export class Hud {
       const shot = got ? loadShot(mk.id) : null;
       const tile = document.createElement('div');
       tile.className = 'ctile' + (got ? ' got' : ' locked');
+      // the marker's own icon, whether locked or found-without-a-photo — never a
+      // shared placeholder, so the grid reads as 36 different things to go and get
       const pic = shot
         ? '<img alt="">'
-        : '<span class="cem">' + (got ? '🏛' : '📍') + '</span>';
+        : '<span class="cem">' + (mk.icon || '🏛') + '</span>';
       // A locked slot NAMES what you are missing. It used to read "Not found yet"
       // over a bare year, which is blind searching — you cannot go looking for
       // 1811. The title is the target; 💡 gives up the street it is on, so a kid

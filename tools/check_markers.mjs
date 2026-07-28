@@ -46,9 +46,18 @@ async function loadMarkers(town) {
   // the marker files are plain data; pull the fields out rather than transpiling TS
   const src = readFileSync(f, 'utf8');
   const out = [];
-  const re = /id:\s*'([^']+)',\s*x:\s*(-?\d+),\s*z:\s*(-?\d+),\s*title:\s*'((?:[^'\\]|\\.)*)'/g;
+  // Tolerate any fields between z and title (icon:, q:, whatever comes next) — the
+  // first version anchored title directly after z, so adding `icon:` made this match
+  // NOTHING and the checker reported "all clear" for a file it had not read.
+  const re = /id:\s*'([^']+)',\s*x:\s*(-?\d+),\s*z:\s*(-?\d+),[\s\S]{0,120}?title:\s*'((?:[^'\\]|\\.)*)'/g;
   let m;
   while ((m = re.exec(src))) out.push({ id: m[1], x: +m[2], z: +m[3], title: m[4].replace(/\\'/g, "'") });
+  // A history.ts that parses to zero markers is a BROKEN PARSER, not a clean town.
+  // Fail loudly: silent success is the worst possible outcome for a safety check.
+  if (!out.length) {
+    console.error(`\n${town}: history.ts exists but NO markers parsed — the marker regex is stale. Fix it before trusting any result.`);
+    process.exit(2);
+  }
   return out;
 }
 
