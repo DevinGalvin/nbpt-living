@@ -324,6 +324,30 @@ const css = `
 }
 #hud .bike-btn.show { display: flex; }
 #hud .bike-btn.on { background: rgba(216, 185, 74, 0.45); border-color: #e8c44f; }
+/* LOOK UP — the chase camera aims about 26° DOWNWARD, which is right for
+   following a kid down a street and hopeless for a city: from the sidewalk in
+   Boston you could not see the top of a single tower. This tilts the view up
+   and opens the far plane so the skyline is actually there to look at. */
+#hud .look-btn {
+  position: absolute; right: 18px; bottom: 212px; width: 58px; height: 58px; border-radius: 50%;
+  background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
+  display: none; align-items: center; justify-content: center; font-size: 26px;
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+#hud .look-btn.show { display: flex; }
+#hud .look-btn.on { background: rgba(216, 185, 74, 0.45); border-color: #e8c44f; }
+#hud .look-btn .kc {
+  position: absolute; right: -5px; bottom: -5px;
+  min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box;
+  background: #f3f1e8; color: #2e161c;
+  border-radius: 5px; border: 1px solid rgba(0,0,0,0.22);
+  box-shadow: 0 1.5px 0 rgba(0,0,0,0.3);
+  font: 800 11px/1 system-ui, sans-serif;
+  display: none; align-items: center; justify-content: center; pointer-events: none;
+}
+#hud.keys .look-btn .kc { display: flex; }
+#hud .look-btn:hover { border-color: #d8b94a; }
+#hud.indoors .look-btn { display: none !important; }
 /* desktop key-hint badge on the action buttons — only shown on keyboard (#hud.keys) */
 #hud .run-btn .kc, #hud .bike-btn .kc {
   position: absolute; right: -5px; bottom: -5px;
@@ -1139,7 +1163,7 @@ export class Hud {
     hud.innerHTML = `
       <div class="pill"><span class="dot"></span><span class="txt"></span></div>
       <div class="banner"><div class="name"></div><div class="sub"></div></div>
-      <div class="corner help">WASD / arrows · R run · Shift sprint · C camera · M travel &amp; search · wheel zoom</div>
+      <div class="corner help">WASD / arrows · R run · Shift sprint · V look up · C camera · M travel &amp; search · wheel zoom</div>
       <div class="corner attr">Map data © OpenStreetMap contributors</div>
       <div class="stick-base"></div><div class="stick-knob"></div>
       <div class="compass"><div class="needle">N</div></div>
@@ -1166,6 +1190,7 @@ export class Hud {
       </div>
       <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span><span class="blab">RUN</span></div>
       <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span><span class="blab">BIKE</span></div>
+      <div class="look-btn" title="Look up (V)">👀<span class="kc">V</span><span class="blab">LOOK UP</span></div>
       <div class="season-toggle" title="Season"><span class="s-em">🍂</span><span class="blab">SEASON</span></div>
       <div class="season-pop"></div>
       <div class="race-btn" title="Races">🏁<span class="blab">RACE</span></div>
@@ -2357,6 +2382,21 @@ export class Hud {
     });
   }
 
+  // ---------- look up (always shown; click or V toggles the raised camera) ----------
+
+  initLook(onToggle: () => boolean) {
+    const btn = document.querySelector('#hud .look-btn') as HTMLElement;
+    btn.classList.add('show');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.setLookState(onToggle());
+    });
+  }
+
+  setLookState(on: boolean) {
+    (document.querySelector('#hud .look-btn') as HTMLElement | null)?.classList.toggle('on', on);
+  }
+
   // bike toggle: appears once the bike is earned (B does the same on keys)
   initBike(onToggle: () => boolean) {
     const btn = document.querySelector('#hud .bike-btn') as HTMLElement;
@@ -2856,10 +2896,13 @@ export class Hud {
     this.bannerTimer = window.setTimeout(() => this.banner.classList.remove('show'), 3400);
   }
 
-  maybeShowLandmark(lm: Landmark): boolean {
+  // `force` skips the 90-second ambient cooldown: walking past a place twice in a
+  // minute should not re-announce it, but deliberately fast-travelling to it must
+  // ALWAYS say where you have arrived.
+  maybeShowLandmark(lm: Landmark, force = false): boolean {
     const now = performance.now();
     const last = this.lastShown.get(lm.id) || -1e9;
-    if (now - last < 90_000) return false;
+    if (!force && now - last < 90_000) return false;
     this.lastShown.set(lm.id, now);
     this.bannerName.textContent = lm.name;
     this.bannerSub.textContent = lm.sub;

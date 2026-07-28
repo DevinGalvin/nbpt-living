@@ -277,6 +277,16 @@ export class Game {
   private aimX = 0; private aimZ = 0; // smoothed heading — kids hold a line, turns round off
   private camClamp = 1;             // occlusion pull-in (1 = full distance)
   private chaseCam = true;          // C toggles chase <-> north-up map view
+  // LOOK UP (V / the 👀 button). The chase cam aims ~26° DOWN, which is right for
+  // following a kid along a street and useless in a city — from a Boston sidewalk
+  // you could not see the top of a single tower. `camLift` eases 0 → 1 and both
+  // tilts the aim above the horizon and opens the far plane, so the skyline is
+  // there to be looked at rather than culled at 6000 px.
+  private lookUp = false;
+  private camLift = 0;
+  // a one-shot partial tilt applied on arrival at a tall landmark, so its top is
+  // in frame without committing you to the full look-up; released by walking
+  private arriveLift = 0;
   private cineLook: { x: number; z: number } | null = null;  // scripted "look out to sea" cutaway (the birdwatcher reveal)
   private autoRun = false;          // R toggles always-run
   private runTipShown = localStorage.getItem('nbpt-run-tip') === '1'; // one-time "press R to run" nudge
@@ -461,6 +471,10 @@ export class Game {
       this.autoRun = !this.autoRun;
       return this.autoRun;
     });
+    this.hud.initLook(() => {
+      this.lookUp = !this.lookUp;
+      return this.lookUp;
+    });
     this.hud.initBike(() => {
       this.toggleBike();
       return this.riding;
@@ -535,6 +549,7 @@ export class Game {
       if ((e.target as HTMLElement)?.tagName === 'INPUT') return; // typing an address, not playing
       this.keys.add(e.code);
       if (e.code === 'KeyC') this.chaseCam = !this.chaseCam;
+      if (e.code === 'KeyV') { this.lookUp = !this.lookUp; this.hud.setLookState(this.lookUp); }
       if (e.code === 'KeyL' && this.flying) this.land();
       if (e.code === 'KeyE' && !this.hud.dialogueOpen) {
         if (this.inTunnel) this.tunnel?.tryInteract(this.px, this.pz);
@@ -1717,6 +1732,13 @@ export class Game {
       else { vx = this.debugVec.x; vz = this.debugVec.y; }
     }
     if (this.hud.dialogueOpen || this.cineLook) { vx = 0; vz = 0; }   // freeze during dialogue + the look-out-to-sea cutaway
+    // LOOK UP releases the moment you walk. At full tilt the kid is out of frame
+    // — which is fine for a deliberate "look at THAT", and not fine to get stuck
+    // in — so moving always returns you to a camera that has you in it.
+    if (Math.hypot(vx, vz) > 0.25) {
+      if (this.lookUp) { this.lookUp = false; this.hud.setLookState(false); }
+      this.arriveLift = 0;
+    }
     const mag = Math.hypot(vx, vz);
     if (mag > 1) { vx /= mag; vz /= mag; }
     // ease the heading toward the input so small wobbles don't twitch the path — a kid
@@ -2141,8 +2163,15 @@ export class Game {
     // interiors (tunnel/den/star) use a steep, close dungeon camera so the room
     // walls between the camera and the kid never occlude
     const z = this.inside ? 0.52 : this.camZoom;
-    const dist = this.inside ? 150 : 470 * z;
-    const high = this.inside ? 330 : 340 * z;
+    // LOOK UP eases in rather than snapping — a hard cut to a 30° upward pitch is
+    // disorienting, and the swing itself is half of what sells "look at THAT".
+    const wantLift = this.inside || this.flying ? 0 : (this.lookUp ? 1 : this.arriveLift);
+    this.camLift += (wantLift - this.camLift) * (snap ? 1 : Math.min(1, dt * 3.4));
+    const lift = this.camLift;
+    const dist = this.inside ? 150 : 470 * z * (1 + 0.18 * lift);
+    // drop the camera toward street level as it tilts up, so you are looking up
+    // the face of the building rather than down onto its roof
+    const high = this.inside ? 330 : 340 * z * (1 - 0.38 * lift);
     const fx = Math.sin(this.camAz), fz = Math.cos(this.camAz);
     let tx = this.px - fx * dist;
     let ty = high + this.kidY;
@@ -2183,18 +2212,35 @@ export class Game {
       this.camera.lookAt(this.cineLook.x, WATER_Y + 50, this.cineLook.z);
     } else {
       const ahead = this.inside ? 60 : 190 * z * this.camClamp;
-      this.camera.lookAt(this.px + fx * ahead, this.kidY + 20, this.pz + fz * ahead);
+      const ax = this.px + fx * ahead, az2 = this.pz + fz * ahead;
+      // ⚠️ The lift has to be measured against the camera's ACTUAL position, not
+      // a nominal one. When a wall pulls the camera in, the horizontal run to the
+      // aim point collapses; a fixed vertical rise then becomes a near-vertical
+      // stare at the sky. Rising by a FRACTION OF THE RUN keeps the pitch itself
+      // constant however hard the camera is clamped.
+      const cp = this.camera.position;
+      const run = Math.hypot(ax - cp.x, az2 - cp.z);
+      const baseY = this.kidY + 20;
+      // 0.32 of the run ≈ 18° up. Steeper fills the frame with empty sky; this
+      // puts the tower tops in the upper half and still shows the street.
+      this.camera.lookAt(ax, baseY + lift * (cp.y + run * 0.32 - baseY), az2);
     }
     if (!this.inside) {
       const fog = this.scene.fog as THREE.Fog;
       // open the far plane + fog out over the water while kayaking or during the
       // look-out-to-sea cutaway, so the far light (and its beacon) render past the
       // normal 6000 cull; restored to the zoom-based values back on land.
+      // LOOK UP does the same thing for the same reason: a skyline two kilometres
+      // off is nothing but far-plane cull and fog until you open both.
       const seaView = this.kayaking || !!this.cineLook;
-      const wantFar = seaView ? 11000 : 6000;
+      const wantFar = seaView || lift > 0.05 ? 11000 : 6000;
       if (this.camera.far !== wantFar) { this.camera.far = wantFar; this.camera.updateProjectionMatrix(); }
       if (seaView) { fog.near = 3200; fog.far = 9500; }
-      else { fog.near = 1300 * z; fog.far = 2900 * z + 700; }
+      else {
+        const nearL = 1300 * z, farL = 2900 * z + 700;
+        fog.near = nearL + lift * (3000 - nearL);
+        fog.far = farL + lift * (9800 - farL);
+      }
     }
   }
 
@@ -2257,45 +2303,180 @@ export class Game {
   travelTo(id: string) {
     const lm = this.world.landmarks.find((l) => l.id === id);
     if (!lm) return;
-    this.travelToPlace(lm.x, lm.y, lm.r);
+    this.travelToPlace(lm.x, lm.y, lm.r, TOWN.landmarkTops?.[id]);
+    // Say where you are, always. The ambient banner only fires inside lm.r, and a
+    // big landmark's proper vantage is now well OUTSIDE that radius — you can be
+    // standing in the right place looking straight at Fenway Park and never be
+    // told that is what you are looking at.
+    this.hud.maybeShowLandmark(lm, true);
+  }
+
+  // The thing you travelled to, MEASURED. A curated `r` is a hand-authored hint
+  // about how big the place is; it is not the size of the building, and for
+  // Fenway Park the two differ by a factor of two — its footprint is 2186 x 1466
+  // px and its `r` is 460, which is how fast travel put you nose-to-brick on
+  // Lansdowne Street with the ballpark completely invisible behind the wall.
+  private landmarkMass(x: number, y: number, r: number): { rad: number; top: number } | null {
+    let best: { rad: number; top: number; inside: boolean; area: number } | null = null;
+    const reach = Math.max(r, 200);
+    const c0 = Math.floor((x - reach) / CHUNK), c1 = Math.floor((x + reach) / CHUNK);
+    const d0 = Math.floor((y - reach) / CHUNK), d1 = Math.floor((y + reach) / CHUNK);
+    for (let cx = c0; cx <= c1; cx++) for (let cy = d0; cy <= d1; cy++) {
+      for (const bi of this.index.bucket(cx + ',' + cy).buildings) {
+        const b = this.world.buildings[bi];
+        let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
+        for (let i = 0; i < b.p.length; i += 2) {
+          if (b.p[i] < mnx) mnx = b.p[i];
+          if (b.p[i] > mxx) mxx = b.p[i];
+          if (b.p[i + 1] < mny) mny = b.p[i + 1];
+          if (b.p[i + 1] > mxy) mxy = b.p[i + 1];
+        }
+        const bcx = (mnx + mxx) / 2, bcy = (mny + mxy) / 2;
+        const rad = Math.hypot(mxx - mnx, mxy - mny) / 2;
+        const inside = x >= mnx && x <= mxx && y >= mny && y <= mxy;
+        // either the landmark point sits in it, or it is a big mass sitting right
+        // on top of the point (a plaza pin beside its own building)
+        if (!inside && Math.hypot(bcx - x, bcy - y) > rad + 120) continue;
+        const area = (mxx - mnx) * (mxy - mny);
+        if (best && (best.inside && !inside || best.area >= area)) continue;
+        best = { rad, top: this.index.buildingTopAt(bcx, bcy), inside, area };
+      }
+    }
+    return best && best.rad > 60 ? { rad: best.rad, top: best.top } : null;
+  }
+
+  // Is the line from a vantage to the place actually clear? The old test probed a
+  // fixed 22/42/62 px, which a sidewalk is wide enough to pass — so standing with
+  // your nose against a stadium wall counted as an open view. Probe the whole way
+  // instead, stop short of the target's OWN mass (the thing you came to look at
+  // is allowed to be in the way of itself), and — the part that matters in a city
+  // — test it in THREE DIMENSIONS. A six-storey block between you and the Custom
+  // House Tower does not hide the Custom House Tower; you see 500 ft of it over
+  // the top. A flat 2-D test rejects every vantage downtown and lands you back at
+  // the fallback, which is how a 496 ft landmark ends up viewed from a doorway.
+  // Returns the FRACTION of the sightline that is unobstructed, 0..1. A score
+  // rather than a yes/no, because in a dense downtown the honest answer for
+  // several landmarks is "nowhere is completely clear" — and a pass/fail test
+  // then falls through to an arbitrary fallback instead of choosing the best
+  // available view.
+  private sightlineScore(sx: number, sy: number, tx: number, ty: number, stopShort: number, aimY: number): number {
+    const dist = Math.hypot(tx - sx, ty - sy);
+    const reach = dist - stopShort;
+    if (reach <= 24) return 1;
+    const eyeY = Math.max(this.terrain.heightAt(sx, sy), this.index.deckHeightAt(sx, sy)) + 26;
+    const ux = (tx - sx) / dist, uy = (ty - sy) / dist;
+    let seen = 0, total = 0;
+    for (let d = 26; d < reach; d += 34) {
+      const qx = sx + ux * d, qy = sy + uy * d;
+      total++;
+      // water ahead is fine — an offshore landmark is meant to be looked across at
+      if (this.index.isWaterAt(qx, qy)) { seen++; continue; }
+      const ray = eyeY + (aimY - eyeY) * (d / dist);
+      const top = this.index.buildingTopAt(qx, qy);
+      if (top > ray) continue;
+      // walls, fences and hedges carry no building height — treat them as
+      // shoulder-high, so they block a statue and not a steeple
+      if (!isFinite(top) && this.index.isBlocked(qx, qy)
+          && ray < this.terrain.heightAt(qx, qy) + 60) continue;
+      seen++;
+    }
+    return total ? seen / total : 1;
+  }
+
+  private sightlineClear(sx: number, sy: number, tx: number, ty: number, stopShort: number, aimY: number): boolean {
+    return this.sightlineScore(sx, sy, tx, ty, stopShort, aimY) > 0.995;
   }
 
   // shared arrival for landmarks AND search results: arrive LOOKING AT the place —
   // drop back from the center and face it, so the player recognizes where they are.
   // Landing in the middle of the thing you traveled to reads as nowhere.
-  travelToPlace(x: number, y: number, r = 240) {
-    const d = Math.min(Math.max(r * 0.55, 130), 320);
+  travelToPlace(x: number, y: number, r = 240, topPx?: number) {
+    const mass = this.landmarkMass(x, y, r);
+    const gy = this.terrain.heightAt(x, y);
+    // a declared silhouette height (TOWN.landmarkTops) beats the footprint's,
+    // because a spire, an obelisk, a mast and a rooftop sign are all invisible
+    // to a building's storey count
+    if (topPx !== undefined && mass) mass.top = Math.max(mass.top, gy + topPx);
+    // How far back you have to be to actually SEE it: clear of its own footprint,
+    // then far enough that its height fits in the frame. A three-storey house
+    // needs a few metres; a ballpark needs eighty.
+    const tall = mass ? Math.max(0, mass.top - gy) : 0;
+    // capped: a landmark point that lands inside something enormous (Deer
+    // Island's treatment works) would otherwise demand a stand-off no vantage in
+    // the world satisfies, and every candidate gets rejected down to the
+    // last-resort centre — the exact failure the whole rewrite is about.
+    const clearOf = Math.min(mass ? mass.rad * 1.12 : Math.max(r * 0.55, 130), 1500);
+    // The stand-off margin scales with the thing. A flat 230 px is a fine viewing
+    // distance in the open and three houses back on Beacon Hill, where the
+    // landmark is a lane four metres wide.
+    const d = Math.min(clearOf + Math.max(Math.min(230, clearOf * 1.6), tall * 1.5), 2100);
+    const stopShort = mass ? mass.rad * 0.92 : Math.max(r * 0.4, 90);
+    // aim two-thirds up the thing: you have "seen" a tower when its top half is
+    // in view, not only when its front door is
+    const aimY = gy + (mass ? tall * 0.62 : 45);
     // rings walk outward so an offshore landmark (the Greasy Pole platform, a
     // lighthouse island) lands you on ITS nearest shore, facing it — findFree's
     // last-resort march used to carry you clear across the harbor to spawn
-    for (const ringScale of [1, 2, 3.2, 4.8, 6.5]) {
+    // The window a vantage has to fall in. The floor keeps you off the wall (372
+    // px from the centre of a 360-radius footprint is twelve pixels of air, which
+    // is the nose-to-brick arrival all over again). The CEILING matters just as
+    // much: Old South Meeting House is boxed in on all four sides by taller
+    // Downtown Crossing blocks, and without a ceiling the search happily walked
+    // 292 m away to find the least-obstructed line — technically a view of it,
+    // and no use to anybody trying to find the building.
+    const lo = clearOf * 1.06;
+    const hi = Math.max(d * 1.55, lo + 300);
+    const rings = [0.78, 1, 1.28, 1.65, 2.1, 2.8];
+    const angles = [0.5, 0.75, 0.25, 1, 0, 1.25, 1.75, 1.5];
+    // Score every candidate and take the best rather than the first that passes:
+    // a clear view always beats an obstructed one, and among equally clear views
+    // the one nearest the canonical stand-off wins.
+    let best: { x: number; y: number; score: number } | null = null;
+    for (const ringScale of rings) {
       const R = d * ringScale;
-      if (R > 1250 && ringScale > 1) break;
-      for (const a of [0.5, 0.75, 0.25, 1, 0, 1.25, 1.75, 1.5]) {
+      if (R > 3400) break;
+      for (const a of angles) {
         const ang = a * Math.PI;
         const spot = this.findFree(x + Math.sin(ang) * R, y + Math.cos(ang) * R);
         // findFree may march the vantage around (water, buildings) — only accept
         // one that still stands off and hasn't been carried far away
         const dist = Math.hypot(spot.x - x, spot.y - y);
-        if (dist < d * 0.5 || dist > R + 260) continue;
-        // and the view must be OPEN: a big-footprint hero used to land you
-        // nose-to-brick (findFree pulls ring spots in against the wall). Solid
-        // ground blocking the first ~8 m of the sightline rejects the vantage;
-        // water ahead is fine — offshore landmarks are meant to be looked at.
-        const ux = (x - spot.x) / dist, uy = (y - spot.y) / dist;
-        let walled = false;
-        for (const dd of [22, 42, 62]) {
-          const qx = spot.x + ux * dd, qy = spot.y + uy * dd;
-          if (this.index.isBlocked(qx, qy) && !this.index.isWaterAt(qx, qy)) { walled = true; break; }
-        }
-        if (walled) continue;
-        this.travelToXY(spot.x, spot.y, { x, y });
-        return;
+        if (dist < lo || dist > Math.min(hi, R + 420)) continue;
+        const open = this.sightlineScore(spot.x, spot.y, x, y, stopShort, aimY);
+        // ⚠️ The distance penalty has to bite. At /500 a marginally clearer view
+        // three times too far away wins, and Old South Meeting House was chosen
+        // from 292 m — technically visible, unidentifiable in practice.
+        const score = open * 100 - Math.abs(dist - d) / 100;
+        if (!best || score > best.score) best = { x: spot.x, y: spot.y, score };
       }
+      if (best && best.score > 99.5) break;   // a clean view — stop looking
     }
-    // no vantage at all (the point sits far out over open water): land on
-    // whatever shore findFree picks, but still face the place so the view reads
-    this.travelToXY(x, y, { x, y });
+    this.arriveLooking(best ? best.x : x, best ? best.y : y, x, y, mass ? mass.rad : r, mass ? mass.top : gy + 40);
+  }
+
+  // Arrive facing the place, and pull the camera back far enough that the place
+  // FITS. Landing correctly in front of something the size of a ballpark is only
+  // half the job if the chase cam is still zoomed to walking distance.
+  private arriveLooking(sx: number, sy: number, tx: number, ty: number, size: number, topY: number) {
+    this.travelToXY(sx, sy, { x: tx, y: ty });
+    // ⚠️ SET it, don't max() it. Maxing means the zoom only ever ratchets up:
+    // travel to a ballpark and every landmark after it is viewed from 1100 px
+    // back, which parks the camera inside whatever building is behind you.
+    // Fast travel frames its destination; the wheel is still there afterwards.
+    this.camZoom = Math.min(2.4, Math.max(0.82, 0.82 + (size - 300) / 900));
+    // …and TILT UP if the thing is tall enough that its top would otherwise be
+    // off the top of the screen. Standing in the right place is only half of
+    // knowing where you are: the Citgo Sign sits on a roof, the Custom House
+    // Tower is 496 ft, and a camera pitched 26° down shows you neither.
+    const dist = Math.hypot(tx - this.px, ty - this.pz);
+    const eyeY = this.kidY + 26;
+    const need = dist > 1 ? ((topY - eyeY) * 1.15) / dist : 0;
+    // A PARTIAL lift, not the full look-up toggle: only as much tilt as the
+    // building actually needs, so the kid stays in frame and you can still see
+    // where your feet are.
+    this.arriveLift = Math.max(0, Math.min(1, (need - 0.13) / 0.4));   // 0.13 ≈ the top of the default frame
+    this.camLift = this.arriveLift;
+    this.updateCamera(0, true);
   }
 
   travelToXY(x: number, y: number, lookAt?: { x: number; y: number }) {

@@ -672,6 +672,85 @@ metre. **26,250 Boston buildings** carry one. Two decisions worth keeping:
   0.55. Salem, Beverly and Charlestown have real three-decker fabric and could
   opt in — that is a deliberate not-yet, not an oversight.
 
+## ARRIVAL AND THE CAMERA — "for every landmark I need to know where I am"
+
+Fast-travelling to **Fenway Park** put you on the Lansdowne Street sidewalk with
+your nose against the brick, the ballpark entirely invisible behind it. Two
+separate faults, and the second one is the general lesson.
+
+**1. The stand-off came from the curated `r`, which is not the size of the
+building.** `travelToPlace` used `clamp(r * 0.55, 130, 320)`. Fenway's `r` is 460
+and its footprint is **2186 x 1466 px** — so every candidate vantage was inside
+the park, and `findFree` marched each one out to the nearest free ground, which
+is the sidewalk against the wall. The open-sightline check that should have
+caught it probed a fixed 22/42/62 px, and a sidewalk is wider than that.
+
+`landmarkMass()` now MEASURES the thing: the footprint the landmark point sits
+in, its bounding radius and its height. Stand-off is `radius * 1.12 + max(230,
+height * 1.5)`, capped at 2100.
+
+**2. The sightline test has to be three-dimensional and a SCORE, not a boolean.**
+A six-storey block between you and the Custom House Tower does not hide the
+Custom House Tower — you see 500 ft of it over the roof. A flat 2-D test rejects
+every vantage downtown and drops through to the fallback, which is how a 496 ft
+landmark ended up viewed from a doorway. And in a dense downtown the honest
+answer for several landmarks is "nowhere is completely clear", so pass/fail picks
+arbitrarily. `sightlineScore()` returns the unobstructed FRACTION, tested against
+a ray to a point two-thirds up the target, and every candidate is scored:
+
+```
+score = open * 100 - |dist - ideal| / 100
+```
+
+⚠️ **The distance penalty has to bite.** At `/500` a marginally clearer view three
+times too far away wins, and Old South Meeting House got chosen from **292 m** —
+technically a view of it, no use to anyone trying to find it. There is also a
+hard ceiling on the search window (`d * 1.55`) for exactly that reason.
+
+**Result, measured over all 129 Boston landmarks: 128 arrive with a completely
+clear view**, the 129th (Chestnut Hill Reservoir, seen across the water) at 98%.
+Median arrival distance 562 px. Newburyport: 32 of 32 clear.
+
+**Two more things arrival now does**, because standing in the right place is only
+part of knowing where you are:
+- it **says the name** — `maybeShowLandmark(lm, true)`, forcing past the 90 s
+  ambient cooldown, since a big landmark's proper vantage is now well outside the
+  `lm.r` that the ambient banner fires inside;
+- it **frames the thing** — zoom scaled to the mass (⚠️ SET, never `max()`: maxing
+  ratchets the zoom up forever, so one trip to a ballpark parks the camera inside
+  the building behind you for every landmark after it), and a **partial upward
+  tilt** when the target is tall enough that its top would be off-screen. 52 of
+  the 129 arrivals tilt.
+
+### `TOWN.landmarkTops` — when the footprint lies about the silhouette
+
+A spire, an obelisk, a mast and a rooftop sign are all invisible to a storey
+count, so the Citgo Sign framed its host building and cut the sign off the top of
+the screen. Real heights in world px, keyed by landmark id, live in the town pack
+(`src/towns/boston/index.ts`) — eleven of them so far, from the Prudential's
+907 ft to Boston Light's 98.
+
+## LOOK UP (👀 / V)
+
+The chase camera aims about **26° DOWNWARD**. That is right for following a kid
+along a street and hopeless in a city: from a Boston sidewalk you could not see
+the top of a single tower. `camLift` eases 0 → 1, drops the camera toward street
+level, tilts the aim to about 18° UP, and opens the far plane to 11000 with the
+fog to match — a skyline two kilometres off is nothing but cull and haze
+otherwise.
+
+- ⚠️ Measure the lift against the camera's **actual** position. When a wall pulls
+  the camera in, the horizontal run collapses; a fixed vertical rise then becomes
+  a near-vertical stare at the sky. Rising by a **fraction of the run** (0.32)
+  keeps the pitch constant however hard the camera is clamped.
+- It **releases the moment you walk**. At full tilt the kid is out of frame, which
+  is fine for a deliberate "look at THAT" and not fine to be stuck in.
+
+**Also fixed here: `index.buildingTopAt` clamped `lv` at 5**, so the camera
+believed a sixty-storey tower was five storeys and happily sat inside the
+Prudential. It mirrors `decor.ts`'s `buildingDims` now, two-regime storey height
+and all.
+
 ### Contact-sheet harness gotchas
 
 For whoever picks this up: call `G.buildChunk()` directly (the frame loop's LRU

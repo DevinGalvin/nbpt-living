@@ -2138,7 +2138,14 @@ export class WorldIndex {
           area += b.p[i] * b.p[i + 3] - b.p[i + 2] * b.p[i + 1];
         }
         const areaM2 = Math.abs(area / 2) / 64;
-        let lv = Math.max(1, Math.min(5, b.lv || 1.5));
+        // ⚠️ NOT clamped at 5 any more. This is what the chase camera uses to
+        // decide whether something is between it and the kid, and it used to
+        // believe a sixty-storey tower was five storeys — so the camera happily
+        // sat inside the Prudential. It has to mirror decor.ts's buildingDims,
+        // including its two-regime storey height above HIGHRISE_LV.
+        let lv = Math.max(1, b.lv || 1.5);
+        const HIGHRISE = 8;
+        const tiered = (per: number) => 8 + Math.min(lv, HIGHRISE) * per + Math.max(0, lv - HIGHRISE) * 30;
         let h: number;
         switch (b.k) {
           case 'shed': h = 22; break;
@@ -2146,12 +2153,12 @@ export class WorldIndex {
           case 'commercial':
           case 'civic':
             if (areaM2 > 140) lv = Math.max(lv, 3);
-            h = 8 + lv * 23 + 7;
+            h = tiered(23) + 7;
             break;
-          case 'industrial': h = 8 + lv * 21 + 7; break;
+          case 'industrial': h = tiered(21) + 7; break;
           default:
             if (areaM2 > 110) lv = Math.max(lv, 2.2);
-            h = 12 + lv * 15 + 20; // gable ridge allowance
+            h = 12 + Math.min(lv, HIGHRISE) * 15 + Math.max(0, lv - HIGHRISE) * 26 + 20; // gable ridge allowance
         }
         c = { bb: bboxOf(b.p), h };
         this.bldgCamCache.set(bi, c);

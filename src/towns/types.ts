@@ -66,6 +66,12 @@ export interface TownPack {
   // North Shore town is built of it, so this defaults to off and they are
   // unchanged. Any town with a real three-decker fabric can opt in.
   bayWindows?: number;
+  // Landmarks whose VISIBLE height is not their footprint's building height, in
+  // world px above the ground: a spire, an obelisk, a mast, a sign on a roof.
+  // Fast-travel arrival uses this to decide how far to stand back and how far to
+  // tilt up, and without it the Citgo Sign frames its host building and cuts the
+  // sign off at the top of the screen. Keyed by landmark id.
+  landmarkTops?: Record<string, number>;
   sledLane: { x: number; z0: number; z1: number; halfW: number } | null;   // decor: kept clear of trees for sledding
   trainPlatform: Vec2 | null;                                      // decor: commuter-rail platform set piece
   holidayTree: Vec2 | null;                                        // winter: the town tree (null = none)

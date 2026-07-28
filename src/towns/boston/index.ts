@@ -51,6 +51,23 @@ export const TOWN: TownPack = {
   // Better than half of the qualifying stock, because in those neighbourhoods it
   // really is nearly all of it.
   bayWindows: 0.55,
+  // Real heights in world px (8 px = 1 m; ft x 2.438). Every one of these is a
+  // landmark whose footprint says one thing and whose silhouette says another —
+  // arrival has to stand back far enough, and tilt up far enough, for the part
+  // people actually came to see.
+  landmarkTops: {
+    'prudential-tower': 2212,          // 907 ft to the top of the antenna
+    'skywalk-observatory': 1826,       // the 50th-floor observatory
+    'custom-house-tower': 1210,        // 496 ft
+    'bunker-hill-monument': 539,       // 221 ft
+    'uss-constitution': 537,           // 220 ft mainmast
+    'park-street-church': 529,         // 217 ft — tallest in America, 1810-28
+    'citgo-sign': 520,                 // 60 ft sign on 40 ft of truss on a 9-storey roof
+    'trinity-church': 515,             // 211 ft central tower
+    'old-north-church': 466,           // 191 ft steeple
+    'massachusetts-state-house': 378,  // the gold dome
+    'boston-light': 239                // 98 ft
+  },
   sledLane: null,
   trainPlatform: null,   // the T here is subway and elevated, not a platform set piece
   holidayTree: { x: -2403, z: 1207 },        // Boston Common — the tree has stood there since 1941
