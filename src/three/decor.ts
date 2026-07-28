@@ -2695,6 +2695,25 @@ function buildFRS(buckets: Bucket[], b: Building, g: number, index: WorldIndex) 
   steeple(buckets, b, g, index, true);
 }
 
+// Old South Presbyterian Church, 29 Federal St (1756) — the meetinghouse over a
+// hundred men raised in THREE DAYS, and the one George Whitefield is buried under:
+// his crypt is beneath the pulpit, which is what the 🏛 discovery card is about, so
+// the building itself had better be worth walking to. A white New England
+// meetinghouse: clapboard walls, gable roof, and a tall multi-stage steeple whose
+// belfry carries a bell cast by Paul Revere. It is the SIBLING of the First
+// Religious Society down the street — same idiom, deliberately a touch shorter, so
+// the two read as related without the 1801 steeple losing its primacy on the skyline.
+// (Sources call the style everything from Greek to Gothic Revival; the fabric on the
+// ground is a plain 18th-c meetinghouse, so that is what this builds.)
+function buildOldSouth(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const wallHex = '#f6f3e9';
+  walls(buckets[CLAP], b.p, g - 6, g + 30, wallHex);
+  complexGable(buckets[SHINGLE], buckets[CLAP], b.p, g + 30, '#4a4642', wallHex);
+  houseTrim(buckets[PLAIN], b.p, g + 30, g - 6);
+  facades(buckets[PLAIN], b.p, g + 30, 2, 1756, true, false, false, g, 54);
+  steeple(buckets, b, g, index, true);
+}
+
 // Custom House (1835, Robert Mills) — granite Greek Revival with a columned porch
 function buildCustomHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   const granite = '#a3a49e';
@@ -3957,6 +3976,71 @@ function buildTabletRock(buckets: Bucket[], x: number, z: number, g: number) {
     0, 0, -1, tmp.r, tmp.g, tmp.b);                                      // the giant 1907 tablet, south face
 }
 
+// The William Lloyd Garrison statue, Brown Square (1893, Daniel Murray French of
+// Newburyport — NOT "David M. French", which the older dossier has wrong).
+//
+// PHOTO-VERIFIED against Commons `Garrison statue in Newburyport Oct 2012.JPG` and
+// `Garrison statue base b.JPG`, both viewed: a STANDING bronze in a knee-length frock
+// coat, hands together at his front, balding — and the patina is DARK BROWN-BLACK,
+// not the sea-green of Gloucester's fisherman. Getting that wrong would make the two
+// statues read as siblings when they look nothing alike. He stands on a tall pale
+// speckled-granite pedestal: broad stepped plinth, a taller die carrying incised
+// inscriptions on every face ("I SOLICIT NO MAN'S PRAISE. I FEAR NO MAN'S CENSURE…"),
+// and a moulded cap. The whole thing sits in a round granite-curbed planting bed on
+// brick paving.
+//
+// This is the one card in Newburyport's set about abolition, and about the most famous
+// person the town ever produced — until now it pointed a kid at open grass.
+function buildGarrisonStatue(buckets: Bucket[], x: number, z: number, g: number) {
+  const p = buckets[PLAIN];
+  const granite = '#b3aea4', graniteLo = '#a29d94', graniteHi = '#c2bdb3';
+  const bronze = '#3b352e';                       // dark patina — deliberately NOT verdigris
+
+  // round curbed planting bed, brick plaza underneath
+  walls(p, octRing(x, z, 21), g, g + 2.2, '#9b968c', 0);
+  p.box(x, z, 30, 30, g, g + 0.8, '#8a6f5e');
+  // pedestal: stepped plinth → inscribed die → moulded cap
+  p.box(x, z, 15, 15, g + 0.8, g + 4, graniteLo);
+  p.box(x, z, 12.6, 12.6, g + 4, g + 7, granite);
+  p.box(x, z, 10.4, 10.4, g + 7, g + 30, granite);                       // the die
+  for (const [dx, dz, w, d] of [[0, -5.25, 8.2, 0.3], [0, 5.25, 8.2, 0.3], [-5.25, 0, 0.3, 8.2], [5.25, 0, 0.3, 8.2]]) {
+    p.box(x + dx, z + dz, w, d, g + 11, g + 26, graniteHi);              // incised inscription panels, all four faces
+  }
+  p.box(x, z, 12.2, 12.2, g + 30, g + 33, graniteHi);                    // cap
+  p.box(x, z, 10.8, 10.8, g + 33, g + 34.4, granite);
+
+  // the figure — standing, frock coat to the knee, facing the Garrison Inn (north)
+  p.box(x - 1.5, z, 1.9, 1.9, g + 34.4, g + 41, bronze);                 // legs
+  p.box(x + 1.5, z, 1.9, 1.9, g + 34.4, g + 41, bronze);
+  p.box(x, z, 5.4, 3.8, g + 41, g + 50, bronze);                         // the long coat, skirt flaring below the waist
+  p.box(x, z, 4.6, 3.2, g + 50, g + 55.5, bronze);                       // chest and shoulders
+  p.box(x, z - 1.9, 3.4, 1.1, g + 44, g + 46.5, bronze);                 // hands together at his front
+  p.box(x, z, 2.5, 2.5, g + 55.5, g + 59.5, bronze);                     // head
+}
+
+// Whale's Jaw, Dogtown — a glacial erratic the ice dropped here and split, and for
+// a century the two halves together looked like a whale surfacing open-mouthed. One
+// half came down after a fire in 1989, so it reads far less like a whale now; this
+// builds WHAT STANDS, not the postcard. Deliberately huge: the taller piece is
+// around 20 ft, which is roughly three of the kid stacked up, and the scale IS the
+// experience — a kid walks into the woods expecting a rock and meets a building.
+// Keyed off the OSM POI, because it is a boulder, not a footprint.
+function buildWhalesJaw(buckets: Bucket[], x: number, z: number, g: number) {
+  const p = buckets[PLAIN];
+  const pale = '#9e9a92', shade = '#8b877f', lit = '#aaa69d';
+  // the standing half — leaning back, stacked slabs rather than one clean block so
+  // it reads as split granite instead of a crate
+  p.box(x - 3, z, 26, 21, g - 2, g + 22, pale);
+  p.box(x - 5, z - 2, 22, 17, g + 22, g + 40, shade);
+  p.box(x - 7, z - 3, 17, 13, g + 40, g + 52, lit);
+  // the fallen half — lower, tipped away, with the gap between them you can stand in
+  p.box(x + 16, z + 5, 20, 18, g - 2, g + 17, shade);
+  p.box(x + 18, z + 6, 15, 13, g + 17, g + 25, pale);
+  // frost-split shards at the base, where the 1989 piece came apart
+  p.box(x + 7, z - 9, 7, 5, g - 1, g + 5, lit);
+  p.box(x + 3, z + 13, 5, 6, g - 1, g + 4, shade);
+}
+
 // Coast Guard Aviation Monument — a real-scale granite marker (this one is
 // genuinely modest in life) with its green dedication plaque
 function buildCGMonument(buckets: Bucket[], x: number, z: number, g: number) {
@@ -4021,6 +4105,8 @@ const POI_HEROES: Record<string, (buckets: Bucket[], x: number, z: number, g: nu
   "Fishermens' Monument": buildManAtWheel,          // OSM's odd apostrophe — keep it
   "Fishermen's Wives Memorial": buildWivesMemorial,
   'Tablet Rock': buildTabletRock,
+  "Whale's Jaw": buildWhalesJaw,
+  'William Lloyd Garrison Statue': buildGarrisonStatue,   // added via nbpt manualFeatures — OSM has no node for it
   'Coast Guard Aviation Monument': buildCGMonument,
   'Doughboy Statue': buildDoughboy,                 // Amesbury
   'Colonel William Prescott': buildPrescott,        // Charlestown — OSM's name for the statue
@@ -8109,6 +8195,7 @@ const HEROES: Record<string, HeroBuilder> = {
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,
   'First Religious Society': buildFRS,
+  'First Presbyterian Church': buildOldSouth,   // Old South — Whitefield's crypt is under the pulpit
   'Custom House Maritime Museum': buildCustomHouse,
   'Firehouse Center For The Arts': buildFirehouse,
   'Newburyport City Hall': buildCityHall,

@@ -127,8 +127,28 @@ export const levelFixes = [];
 // east wall. k:'picket' renders as the white post-and-rail style (decor.ts) —
 // the stockade-tan k:'fence' stays for mapped OSM barriers.
 export function manualFeatures({ world }) {
-  world.polys.push({ k: 'pool', z: 6.8, p: [-18759, 2932, -18707, 2932, -18695, 2944, -18695, 2972, -18707, 2984, -18759, 2984, -18771, 2972, -18771, 2944] });
-  world.barriers.push({ k: 'picket', p: [-18822, 2795, -18822, 3055, -18645, 3055, -18645, 2813, -18660, 2812] });
+  // ⚠️ IDEMPOTENT. build_world runs this hook AND tools/patch_features.mjs re-runs it
+  // in place, repeatedly. Without these filters a second run duplicates the pool and
+  // the fence — coplanar copies z-fight, and doubled barriers box the yard in twice.
+  //
+  // The filters must ALSO catch the legacy copies already baked into world.json by an
+  // earlier build, which carry no `s` tag at all — matching only on `s === 'foxrun'`
+  // leaves those behind and you end up with two fences. `picket` is manual-only by
+  // design (mapped OSM barriers render as stockade-tan `fence`), so all of them go;
+  // the pool is matched by position, because the other ~70 pool polys are real OSM.
+  const nearYard = (p) => Math.hypot(p[0] - -18759, p[1] - 2932) < 400;
+  world.polys = world.polys.filter((p) => p.k !== 'pool' || !nearYard(p.p));
+  world.barriers = world.barriers.filter((b) => b.k !== 'picket');
+  world.pois = (world.pois || []).filter((p) => p.s !== 'nbpt-manual');
+
+  world.polys.push({ k: 'pool', z: 6.8, s: 'foxrun', p: [-18759, 2932, -18707, 2932, -18695, 2944, -18695, 2972, -18707, 2984, -18759, 2984, -18771, 2972, -18771, 2944] });
+  world.barriers.push({ k: 'picket', s: 'foxrun', p: [-18822, 2795, -18822, 3055, -18645, 3055, -18645, 2813, -18660, 2812] });
+
+  // The William Lloyd Garrison statue, Brown Square (1893). OSM does not carry it,
+  // so the 🏛 "The Paper Boy" discovery card was standing a kid in front of open
+  // grass — the one card in the set about abolition, and the town's most famous
+  // person. Added as a POI so decor.ts can hand-build it (see POI_HEROES).
+  world.pois.push({ x: -2774, y: -392, k: 'memorial', n: 'William Lloyd Garrison Statue', s: 'nbpt-manual' });
 }
 
 // QA: known distances (build_world) + elevation spots (fetch_terrain)
