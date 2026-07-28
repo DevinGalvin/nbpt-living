@@ -60,6 +60,10 @@ export interface TownPack {
   // Great Fire. A city's is not, and rendering Boston's entirely in brick red
   // was the single biggest reason it read as repetitive.
   masonryMix?: number;
+  // Share of MID-RISE commercial/civic (4 storeys up to the high-rise threshold)
+  // built as a modern curtain wall instead of masonry, 0..1. Omit for a town
+  // whose downtown predates plate glass. Boston's does not.
+  glassMix?: number;
   // Share of tall-enough rowhouse-scale homes that get a projecting CANTED BAY
   // on their street face, 0..1. The bay is the Boston residential signature —
   // the Back Bay, the South End, and every three-decker after them — and no

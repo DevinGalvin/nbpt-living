@@ -1359,6 +1359,10 @@ export class WorldIndex {
       strokeLine(ctx, w.rails[ri].p);
     }
     for (const bi of bucket.buildings) {
+      // An ELEVATED span (skybridge, air-rights, station headhouse) does not
+      // block the ground it crosses — that is the whole point of it being up
+      // there, and marking it blocked walls off the street underneath.
+      if (w.buildings[bi].my !== undefined) continue;
       ctx.fillStyle = '#ff0000';
       traceRing(ctx, w.buildings[bi].p);
       ctx.fill();

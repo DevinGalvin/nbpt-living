@@ -51,6 +51,12 @@ export const TOWN: TownPack = {
   // Better than half of the qualifying stock, because in those neighbourhoods it
   // really is nearly all of it.
   bayWindows: 0.55,
+  // Boston is a modern city that happens to have old bones. Rendering every
+  // mid-rise office block in brick made it read as far older and far more
+  // uniform than it is — the Seaport, Kendall, the Financial District and the
+  // Longwood medical area are largely glass, and even a Back Bay street mixes a
+  // glass box in among the brownstones.
+  glassMix: 0.5,
   // Real heights in world px (8 px = 1 m; ft x 2.438). Every one of these is a
   // landmark whose footprint says one thing and whose silhouette says another —
   // arrival has to stand back far enough, and tilt up far enough, for the part

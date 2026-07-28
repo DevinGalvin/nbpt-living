@@ -395,6 +395,17 @@ for (const el of raw.elements) {
     const b = { p: ring, k, lv };
     if (lvTag) LV_EXPLICIT.add(b);
     if (sf) b.sf = 1;
+    // ── elevated structures: `my` = the height its walls START at, world px ──
+    // A skybridge, an air-rights building or an elevated station is a building
+    // that does not touch the ground under part of itself. Drawn from grade it
+    // becomes a wall across a live street — Boston has thirty of them, and the
+    // Fazzalari Sky Bridge and the Boston Medical Center connectors were sitting
+    // straight across Longwood Avenue and Massachusetts Avenue. `min_height` and
+    // `building:min_level` are the two ways OSM says so.
+    const minH = parseFloat(t['min_height']);
+    const minLv = parseFloat(t['building:min_level']);
+    if (Number.isFinite(minH) && minH > 1) b.my = Math.round(minH * PX_PER_M);
+    else if (Number.isFinite(minLv) && minLv >= 1) b.my = Math.round(minLv * 3.2 * PX_PER_M);
     if (t.name) b.n = t.name;
     // a mapped architecture style → render the home in that style (the rest stay generic)
     const arch = (t['building:architecture'] || '').toLowerCase();
@@ -1064,6 +1075,64 @@ for (const f of T.map.nameFixes ?? []) {
 // it may push onto any world collection. Survives `npm run map` re-runs by
 // construction: curation lives in towns/<id>/map.mjs, not in the output.
 T.map.manualFeatures?.({ world, px, PX_PER_M });
+
+// ---------- elevated spans: a building must never wall off a live street ----------
+// Only about fifteen of Boston's carry `min_height`; the rest — skybridges,
+// hospital connectors, elevated station headhouses — are mapped as plain
+// buildings that happen to overlap a road. Drawn from grade they are a wall
+// across the street, which is what you hit running down Massachusetts Avenue.
+//
+// The tell is shape, not tagging: something SMALL and THIN lying across a road
+// centreline is a span, not a block. Big footprints that overlap a road (Copley
+// Place, the Convention Center) are left alone — the road under those is a real
+// tunnel, and lifting the building would be the wrong correction.
+{
+  const CELL = 512;
+  const grid = new Map();
+  for (let bi = 0; bi < world.buildings.length; bi++) {
+    const b = world.buildings[bi];
+    if (b.my !== undefined) continue;
+    const [cx, cy] = centroid(b.p);
+    const k = `${Math.floor(cx / CELL)},${Math.floor(cy / CELL)}`;
+    let a = grid.get(k);
+    if (!a) grid.set(k, (a = []));
+    a.push(b);
+  }
+  let lifted = 0;
+  const hit = (x, y) => {
+    const gx = Math.floor(x / CELL), gy = Math.floor(y / CELL);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      for (const b of grid.get(`${gx + dx},${gy + dy}`) || []) {
+        if (b.my !== undefined) continue;
+        if (!pointInRing(x, y, b.p)) continue;
+        const areaM2 = Math.abs(ringArea(b.p)) / (PX_PER_M * PX_PER_M);
+        if (areaM2 > 1500) continue;                       // a block, not a span
+        // thin: the short side of its bounding box under ~28 m
+        let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
+        for (let i = 0; i < b.p.length; i += 2) {
+          if (b.p[i] < mnx) mnx = b.p[i];
+          if (b.p[i] > mxx) mxx = b.p[i];
+          if (b.p[i + 1] < mny) mny = b.p[i + 1];
+          if (b.p[i + 1] > mxy) mxy = b.p[i + 1];
+        }
+        if (Math.min(mxx - mnx, mxy - mny) / PX_PER_M > 28) continue;
+        b.my = Math.round(7 * PX_PER_M);                   // 7 m — legal road clearance
+        lifted++;
+      }
+    }
+  };
+  for (const r of world.roads) {
+    if (r.c === 'service') continue;
+    for (let i = 0; i + 3 < r.p.length; i += 2) {
+      const x0 = r.p[i], y0 = r.p[i + 1], x1 = r.p[i + 2], y1 = r.p[i + 3];
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      const steps = Math.max(1, Math.ceil(len / 40));      // sample along, not just at vertices
+      for (let s = 0; s <= steps; s++) hit(x0 + ((x1 - x0) * s) / steps, y0 + ((y1 - y0) * s) / steps);
+    }
+  }
+  const tagged = world.buildings.filter((b) => b.my !== undefined).length - lifted;
+  console.log(`Elevated spans: ${tagged} tagged (min_height / building:min_level), ${lifted} inferred over roads`);
+}
 
 // ---------- shrink nature polygons (download size) ----------
 // polys are ~54% of world.json: OSM nature rings (river/marsh/woods/parks) carry

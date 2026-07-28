@@ -35,6 +35,13 @@ const SHINGLE_ZONES = TOWN.shingleZones ?? [];   // weathered-shingle village di
 // brick within a single block, and rendering all of it in one red made the
 // biggest town in the set the most monotonous.
 const MASONRY_MIX = TOWN.masonryMix ?? 0;
+// Share of MID-RISE commercial/civic (4 storeys up to HIGHRISE_LV) that is a
+// modern curtain wall rather than masonry. Towers already get one; below four
+// storeys a Boston block really is brick or stone. The band between was the gap,
+// and it is a big one — a city that renders every mid-rise office in brick reads
+// as far older and far more uniform than Boston is, where the same street has
+// granite, red brick and a glass box side by side.
+const GLASS_MIX = TOWN.glassMix ?? 0;
 const BAY_WINDOWS = TOWN.bayWindows ?? 0;   // see bayWindow() — Boston's rowhouse signature
 
 const tmp = new THREE.Color();
@@ -539,7 +546,13 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
   // like a school anywhere on any map. If a footprint is so huge the estimate
   // passes the safety valve, the rhythm stretches uniformly — walls never go
   // blank because earlier walls spent the budget.
-  let spacing = storefront ? 18 : 24;
+  // ⚠️ Storefront spacing must exceed the display window's WIDTH. The glass is
+  // drawn at half-width 9.5 — 19 px across — so a spacing of 18 put every shop
+  // front hard against its neighbour and the whole ground floor of a long
+  // building came out as one unbroken black ribbon with no piers between the
+  // shops. 30 leaves a masonry pier between each one, which is what a street of
+  // shops actually looks like.
+  let spacing = storefront ? 30 : 24;
   const perim = lens.reduce((s2, l) => s2 + l, 0);
   const SAFETY = 1400; // merged into the chunk mesh, so this is a data guard, not a perf cliff
   if (maxWinOverride === undefined && (perim / spacing) * rows > SAFETY) {
@@ -913,6 +926,86 @@ function plane(bk: Bucket, x: number, z: number, ang: number, seed: number, g: n
   rotBox(bk, x + ca * 57, z + sa * 57, 0.9, 1.3, g + 6.5, g + 24, ang, '#2e3338');       // prop blade
   for (const [lx, lz] of [[11, -9], [11, 9], [-36, 0]] as const) {
     chamferBox(bk, x + lx * ca - lz * sa, z + lx * sa + lz * ca, 2.3, 1.6, g, g + 10, ang, '#2e3338', 0.7); // gear
+  }
+}
+
+// ── airliners ─────────────────────────────────────────────────────────────
+// Real dimensions, because the whole point of a jet at a gate is how big it is
+// next to everything else. At 8 px/m a 737-800 is 316 px long with a 286 px
+// wingspan — longer than most of the buildings around it, which is exactly the
+// shock a kid gets standing at a terminal window.
+//
+//   narrowbody  737-800 / A320: 39.5 m long · 35.8 m span · 12.5 m tail
+//   widebody    767-300:        54.9 m long · 47.6 m span · 15.8 m tail
+//   heavy       777-300:        73.9 m long · 64.8 m span · 18.5 m tail
+const AIRLINER_TAILS = ['#c8332c', '#1d4f9c', '#2f7a4f', '#e0a52c', '#7a3f8c', '#d0552c', '#1b6f86'];
+function airliner(buckets: Bucket[], x: number, z: number, ang: number, g: number, seed: number,
+                  klass: 'narrow' | 'wide' | 'heavy' = 'narrow') {
+  const P = buckets[PLAIN], G2 = buckets[GLOW];
+  const M = 8;                                            // world px per metre
+  const spec = klass === 'heavy' ? { len: 73.9, span: 64.8, tail: 18.5, dia: 6.2, eng: 3.4 }
+    : klass === 'wide' ? { len: 54.9, span: 47.6, tail: 15.8, dia: 5.0, eng: 2.8 }
+    : { len: 39.5, span: 35.8, tail: 12.5, dia: 3.8, eng: 2.2 };
+  const L = (spec.len * M) / 2, S = (spec.span * M) / 2, R = (spec.dia * M) / 2;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const at = (fwd: number, side: number): [number, number] => [x + ca * fwd - sa * side, z + sa * fwd + ca * side];
+  const belly = g + 2.4 * M;                              // wheels down, fuselage clear of the apron
+  const top = belly + spec.dia * M;
+  // near-white, because two shading passes take it a long way down and an
+  // airliner that is not obviously WHITE stops reading as an airliner
+  const WHITE = '#fbfaf6', BELLY = '#e4e2db', TAIL = AIRLINER_TAILS[hash32(seed, 13, 5) % AIRLINER_TAILS.length];
+
+  // fuselage — a long chamfered tube, tapering to the nose and the tail cone
+  chamferBox(P, x, z, L * 0.86, R, belly, top, ang, WHITE, R * 0.75);
+  const nose = at(L * 0.93, 0);
+  chamferBox(P, nose[0], nose[1], L * 0.10, R * 0.68, belly + R * 0.25, top - R * 0.15, ang, WHITE, R * 0.5);
+  const cone = at(-L * 0.93, 0);
+  chamferBox(P, cone[0], cone[1], L * 0.10, R * 0.55, belly + R * 0.5, top, ang, WHITE, R * 0.4);
+  chamferBox(P, x, z, L * 0.86, R * 0.92, belly, belly + R * 0.4, ang, BELLY, R * 0.7);   // the grey underside
+  // ⚠️ The window line is a THIN band. At R*1.02 wide and 0.38 R tall it wrapped
+  // the whole body in dark grey and the aircraft read as a slate slab rather than
+  // a white jet — from any distance the fuselage of an airliner is overwhelmingly
+  // white with a narrow dark stripe, and getting that ratio wrong loses the shape.
+  rotBox(G2, x, z, L * 0.78, R * 1.03, top - R * 0.60, top - R * 0.44, ang, '#40505f');
+  const fd = at(L * 0.80, 0);
+  rotBox(G2, fd[0], fd[1], L * 0.05, R * 0.85, top - R * 0.55, top - R * 0.12, ang, '#2b3b4c');
+
+  // Wings — swept AND tapered, in five panels a side. ⚠️ The taper is the whole
+  // job: a wing of constant chord is a slab, and at this size a slab is what you
+  // see from three blocks away. A jet's root chord is about a third of the
+  // fuselage length and the tip is a tenth of that, so the panels have to shrink
+  // hard as they go out, and step BACK as they go (the sweep).
+  for (const s of [1, -1] as const) {
+    const PANELS = 5;
+    for (let k = 0; k < PANELS; k++) {
+      const t0 = k / PANELS, t1 = (k + 1) / PANELS, tm = (t0 + t1) / 2;
+      const y = belly + R * 0.55;
+      const chord = L * (0.30 - 0.255 * tm);            // root ~0.30 L, tip ~0.05 L
+      const sweep = -L * 0.02 - L * 0.30 * tm;          // trailing edge rakes aft
+      const wcx = at(sweep, s * S * tm);
+      chamferBox(P, wcx[0], wcx[1], chord, (S * (t1 - t0)) / 2, y, y + 2.4, ang, WHITE, Math.min(3, chord * 0.4));
+    }
+    // the winglet — the tip fin every modern airliner carries, and the thing
+    // that stops the wing ending in a blunt edge
+    const wt = at(-L * 0.34, s * S * 0.985);
+    rotBox(P, wt[0], wt[1], L * 0.05, 1.4, belly + R * 0.55, belly + R * 0.55 + 3.1 * M, ang, TAIL);
+    // engine nacelle slung under and ahead of the wing
+    const e = at(L * 0.10, s * S * 0.36);
+    chamferBox(P, e[0], e[1], spec.eng * M * 0.9, spec.eng * M * 0.5, belly - 1.4 * M, belly - 1.4 * M + spec.eng * M, ang, '#dedcd5', spec.eng * M * 0.42);
+    const ei = at(L * 0.10 - spec.eng * M * 0.9, s * S * 0.36);
+    rotBox(G2, ei[0], ei[1], 1.2, spec.eng * M * 0.42, belly - 1.4 * M + 2, belly - 0.4 * M + spec.eng * M * 0.6, ang, '#23282e');
+  }
+  // tail: fin in the airline's colour, plus the horizontal stabiliser
+  const fin = at(-L * 0.80, 0);
+  rotBox(P, fin[0], fin[1], L * 0.15, 1.6, top - 2, g + spec.tail * M, ang, TAIL);
+  rotBox(P, fin[0], fin[1], L * 0.09, 1.7, g + spec.tail * M * 0.72, g + spec.tail * M, ang, TAIL);
+  const hs = at(-L * 0.86, 0);
+  chamferBox(P, hs[0], hs[1], L * 0.11, S * 0.34, top - R * 0.2, top + 2, ang, WHITE, 2);
+  // gear
+  for (const [fwd, side] of [[L * 0.72, 0], [-L * 0.05, S * 0.17], [-L * 0.05, -S * 0.17]] as const) {
+    const p = at(fwd, side);
+    P.box(p[0], p[1], 2.2, 2.2, g, belly + 2, '#2e3338', 0);
+    P.box(p[0], p[1], 3.4, 3.4, g, g + 1.9 * M * 0.5, '#1e2226', 0);
   }
 }
 
@@ -6338,10 +6431,39 @@ function massStateHouse(buckets: Bucket[], b: Building, g: number, index: WorldI
   const coreD = W * 0.72;                       // depth of the Bulfinch block
   const eave = g + 38 * FT;                     // wings kept LOW so the centre reads
   walls(buckets[PLAIN], b.p, g - 3, eave, MARBLE, 0);
-  flatRoof(buckets[PLAIN], b.p, eave, '#c9c4b6');
-  // cornice + a base course, so the extensions are not one blank slab
+  // ⚠️ The ROOF is what you actually see of the extensions. Beacon Hill is high
+  // and the chase camera looks DOWN, so from Beacon Street or the Common the
+  // 1895/1917 wings present a hundred-metre plane and almost no wall — and a
+  // roof one shade off the walls turns the biggest building on the hill into a
+  // blank slab. Dark membrane, mechanical plant, and the ranks of skylights that
+  // light the legislative chambers underneath.
+  flatRoof(buckets[PLAIN], b.p, eave, '#6f6d66');
+  roofClutter(buckets, b.p, eave, Math.round(obb.cz * 3), ringAreaM2(b.p), false);
+  skylights(buckets, obb, eave, '#cfe2ea', 3, 6);
+  // ⚠️ A cornice and a base course are NOT enough on a mass this size. The 1895
+  // and 1917 extensions are most of the footprint — from Beacon Street they are
+  // the biggest thing in front of you — and with only two horizontal lines they
+  // read as a blank pale slab with a dome behind it. They are Classical Revival
+  // buildings: three ranks of tall windows between pilasters, under a real
+  // entablature, over a rusticated base.
   walls(buckets[PLAIN], b.p, eave - 3.4, eave - 1.2, '#d8d4c6', 0);
-  walls(buckets[PLAIN], b.p, g - 3, g + 9, '#d2cec0', 0);
+  walls(buckets[PLAIN], b.p, g - 3, g + 12 * FT, '#dbd7c9', 0);              // rusticated base storey
+  const mSeed = Math.round(obb.cx * 5 + obb.cz);
+  // the pilasters first, so the windows sit between them
+  gridWindows(buckets[PLAIN], b.p, 1, {
+    y0: g + 25 * FT, pitch: 1, spacing: 27, w: 3.4, h: 22 * FT, trim: '#dedacc',
+    glass: '#dedacc', lit: 0, seed: mSeed, minLen: 26
+  });
+  gridWindows(buckets[PLAIN], b.p, 2, {
+    y0: g + 19 * FT, pitch: 13 * FT, spacing: 27, w: 4.6, h: 9.5, trim: '#f3f0e6',
+    glass: '#46525c', lit: 0.06, sill: '#e4e0d2', seed: mSeed + 7, minLen: 26, top: eave - 6
+  });
+  // and a balustrade along the roofline, which is what the real parapet is
+  gridWindows(buckets[PLAIN], b.p, 1, {
+    y0: eave + 3.4, pitch: 1, spacing: 9, w: 1.5, h: 3.4, trim: '#e8e4d6',
+    glass: '#e8e4d6', lit: 0, seed: mSeed + 13, minLen: 26
+  });
+  walls(buckets[PLAIN], b.p, eave + 6.6, eave + 8.4, '#e8e4d6', 0);
 
   const lzFar = front * W, lzNear = front * (W - coreD);
   const ring: number[] = [];
@@ -6960,6 +7082,37 @@ function glassTower(buckets: Bucket[], b: Building, g: number, o: { ft: number; 
   roofClutter(buckets, b.p, top + 6, seed, ringAreaM2(b.p), false);
 }
 
+// ── airport terminal ──────────────────────────────────────────────────────
+// Logan's piers were coming out as ordinary buildings: Terminals A, B and E are
+// `building=yes` so they rendered as painted clapboard HOUSES, and Terminal C as
+// a brick commercial block. An airport terminal is the least brick thing in a
+// city — it is a long low shed of glass and white steel with a shallow curved
+// roof, and it is the first and last thing anybody sees of Boston.
+function airportTerminal(buckets: Bucket[], b: Building, g: number, o: { ft: number; glass?: string }) {
+  const obb = obbOf(b.p);
+  const p = buckets[PLAIN];
+  const STEEL = '#d3d6d8', GLASS = o.glass ?? '#8fb4c6', SOFFIT = '#b9bcbe';
+  const top = g + o.ft * FT;
+  const [cx, cz] = centroidOf(b.p);
+  const scaled = (s: number) => { const r: number[] = []; for (let i = 0; i < b.p.length; i += 2) r.push(cx + (b.p[i] - cx) * s, cz + (b.p[i + 1] - cz) * s); return r; };
+  walls(p, b.p, g - 4, g + 5 * FT, '#a8abac', 0);                  // the concrete kerbside base
+  walls(buckets[GLOW], b.p, g + 5 * FT, top - 6 * FT, GLASS, 0);   // the curtain wall, floor to soffit
+  // mullions: the vertical rhythm that stops a glass wall reading as a sheet
+  gridWindows(p, b.p, 1, {
+    y0: g + (o.ft / 2) * FT, pitch: 1, spacing: 15, w: 1.6, h: (o.ft - 12) * FT * 0.5,
+    trim: STEEL, glass: STEEL, lit: 0, seed: Math.round(cx), minLen: 20
+  });
+  walls(p, b.p, top - 6 * FT, top, STEEL, 0);                      // the fascia band
+  // a shallow oversailing roof with a deep white soffit — every terminal has one
+  const eaves: number[] = [];
+  for (let i = 0; i < b.p.length; i += 2) eaves.push(cx + (b.p[i] - cx) * 1.035, cz + (b.p[i + 1] - cz) * 1.035);
+  annulusRoof(p, eaves, b.p, top - 1.5, SOFFIT);
+  flatRoof(p, eaves, top + 1.5, '#c6c9ca');
+  taperBand(p, eaves, scaled(0.62), top + 1.5, top + 9 * FT, '#ccd0d1', 0);   // the shallow curve
+  flatRoof(p, scaled(0.62), top + 9 * FT, '#c6c9ca');
+  roofClutter(buckets, scaled(0.62), top + 9 * FT, Math.round(cz), ringAreaM2(b.p), false);
+}
+
 // ── the Citgo Sign, Kenmore Square ────────────────────────────────────────
 // It was a curated landmark and an OSM attraction node from the day Boston
 // shipped, and nothing was ever built for it — fast-travelling to the Citgo Sign
@@ -7511,6 +7664,12 @@ const HEROES: Record<string, HeroBuilder> = {
   // The sign has no footprint of its own — 660 Beacon Street is name-stamped in
   // towns/boston/map.mjs so this hero can bind to its roof.
   '660 Beacon Street': citgoSign,
+  // ── Logan ── the piers are glass and steel, never brick and never clapboard
+  'Terminal A': (bk, b, g) => airportTerminal(bk, b, g, { ft: 52 }),
+  'Terminal A Satellite': (bk, b, g) => airportTerminal(bk, b, g, { ft: 40 }),
+  'Terminal B': (bk, b, g) => airportTerminal(bk, b, g, { ft: 58 }),
+  'Terminal C': (bk, b, g) => airportTerminal(bk, b, g, { ft: 62 }),
+  'Terminal E': (bk, b, g) => airportTerminal(bk, b, g, { ft: 74, glass: '#93bccb' }),
   // 1680, downtown Boston's oldest building: clapboard, second-floor jetty,
   // casement windows — exactly what firstPeriod() already builds for Salem.
   'Paul Revere House': (bk, b, g, i) => firstPeriod(bk, b, g, i, { wall: '#6b5a48', shingle: '#5d5346', chimney: 'central' }),
@@ -8306,7 +8465,9 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (h < gLo) gLo = h;
     }
     const g = gHi;
-    const base = gLo - 8;
+    // `my` lifts an elevated span off the ground so the street runs under it.
+    // Everything else keeps burying its walls into the slope as before.
+    const base = b.my !== undefined ? gLo + b.my : gLo - 8;
 
     // named heroes win over the generic light treatment (the three real
     // lighthouses are all named and hand-built)
@@ -8341,7 +8502,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const rng = mulberry32(hash32(seed, 5, 11));
     const areaM2 = ringAreaM2(b.p);
     const { eave, lvEff } = buildingDims(b, areaM2);
-    const eaveAbs = g + eave;
+    // an elevated span keeps its own height — it starts higher and ends higher,
+    // rather than being squashed into the gap above the road
+    const gEff = g + (b.my ?? 0);
+    const eaveAbs = gEff + eave;
     const [bcx, bcz] = centroidOf(b.p);
     const beach = bcx > BEACH_X && (b.k === 'house' || b.k === 'shed');
     // Plum Island is a colorful mix like the rest of town — mostly painted clapboard
@@ -8367,6 +8531,17 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const tobb = obbOf(b.p);
       towerBlock(buckets, b, g, base, eaveAbs, seed, lvEff, tobb,
         ringAreaPx2(b.p) / Math.max(1, 4 * tobb.hl * tobb.hw));
+      continue;
+    }
+    // …and the mid-rise glass box, the thing between a brick block and a tower
+    if (GLASS_MIX > 0 && lvEff >= 4 && (b.k === 'commercial' || b.k === 'civic')
+        && hash32(seed, 101, 37) % 1000 < GLASS_MIX * 1000) {
+      const skin = TOWER_SKINS[hash32(seed, 103, 7) % 4];      // the four glass skins
+      walls(buckets[PLAIN], b.p, base, eaveAbs, skin.wall, 0);
+      curtainWall(buckets[PLAIN], buckets[GLOW], b.p, g, eaveAbs, Math.max(4, Math.round(lvEff)), skin, seed);
+      walls(buckets[PLAIN], b.p, eaveAbs, eaveAbs + 4, skin.mull, 0);
+      flatRoof(buckets[PLAIN], b.p, eaveAbs + 4, '#6e6a64');
+      roofClutter(buckets, b.p, eaveAbs + 4, seed, areaM2, false);
       continue;
     }
     const isBrick = b.k === 'commercial' || b.k === 'civic';
@@ -8462,7 +8637,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       facades(buckets[PLAIN], b.p, eaveAbs, rows, seed,
         b.k === 'house' || b.k === 'commercial' || storefront,
         b.k === 'house' && !beachShake && !storefront && rng() < 0.75,
-        storefront, g, undefined, isFoxRun ? '#ab3228' : undefined, undefined, look);
+        storefront, gEff, undefined, isFoxRun ? '#ab3228' : undefined, undefined, look);
       // …and the bay on the street face of a rowhouse or three-decker. Three
       // storeys is the gate, not the roof shape: a Back Bay rowhouse is flat and
       // a Dorchester three-decker is gabled, and both carry bays — it is height
@@ -8470,7 +8645,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (BAY_WINDOWS > 0 && b.k === 'house' && !storefront && lvEff >= 3
           && areaM2 < 900 && hash32(seed, 89, 41) % 1000 < BAY_WINDOWS * 1000) {
         const fsb = frontSegment(b, index);
-        if (fsb.len >= 34) bayWindow(buckets, wallBucket, fsb, g, eaveAbs, rows, bodyHex, seed, look);
+        if (fsb.len >= 34) bayWindow(buckets, wallBucket, fsb, gEff, eaveAbs, rows, bodyHex, seed, look);
       }
     }
 
@@ -9020,7 +9195,13 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     if (poi.x < ox || poi.x >= ox + CHUNK || poi.y < oy || poi.y >= oy + CHUNK) continue;
     const ph = POI_HEROES[poi.n || ''];
     if (ph) { ph(buckets, poi.x, poi.y, index.heightAtPx(poi.x, poi.y)); continue; }   // named monuments (Man at the Wheel &c.)
-    if (poi.k === 'windsock') {
+    if (poi.k === 'airliner') {
+      // parked at a gate or out on a taxiway — see towns/boston/map.mjs, which
+      // walks the real terminal perimeters and puts one on every gate stand
+      const p2 = poi as unknown as { a?: number; s?: string };
+      airliner(buckets, poi.x, poi.y, p2.a ?? 0, index.heightAtPx(poi.x, poi.y),
+        Math.round(poi.x * 7 + poi.y * 13), (p2.s as 'narrow' | 'wide' | 'heavy') ?? 'narrow');
+    } else if (poi.k === 'windsock') {
       const g = index.heightAtPx(poi.x, poi.y);
       const a = ((hash32(Math.round(poi.x), 7) % 100) / 100) * Math.PI * 2;
       buckets[PLAIN].box(poi.x, poi.y, 0.6, 0.6, g, g + 20, '#d8d5cc');

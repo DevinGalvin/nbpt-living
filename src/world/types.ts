@@ -23,6 +23,11 @@ export interface Building {
   n?: string;
   sf?: number;      // 1 = storefront ground floor (real retail-zone/POI evidence)
   style?: string;   // mapped building:architecture — 'federal' | 'georgian' | 'queen_anne'
+  // Height its walls START at, world px above the ground — a skybridge, an
+  // air-rights span, an elevated station headhouse. Set from OSM `min_height` /
+  // `building:min_level`, or inferred at build time for a small thin footprint
+  // lying across a road. Such a building must NOT block the street underneath.
+  my?: number;
 }
 
 export interface Road {

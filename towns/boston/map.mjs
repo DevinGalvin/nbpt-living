@@ -228,7 +228,7 @@ export function landmarks() {
 export const curatedPois = [];
 export const curatedPoisHand = {};
 export const manualBuildings = [];
-export function manualFeatures({ world }) {
+export function manualFeatures({ world, PX_PER_M }) {
   // ── Clear the inside of Fenway Park ──────────────────────────────────────
   // OSM maps the STANDS as their own `building=yes` way inside the stadium
   // relation — a 19,532 m² block, 58% of the park's own area — plus four small
@@ -253,6 +253,108 @@ export function manualFeatures({ world }) {
     for (let i = 0; i < n; i++) { x += p[i * 2]; y += p[i * 2 + 1]; }
     return [x / n, y / n];
   };
+  // ── Logan: an airliner on every gate stand ───────────────────────────────
+  // OSM has the real terminals as detailed piers — Terminal B is a 281-vertex
+  // footprint — so the gates do not need hand-placing: walk each terminal's
+  // perimeter and stand a jet nose-in against every stretch long enough to take
+  // one, at real gate spacing. Aircraft are real size (a 737 is 316 px long), so
+  // they read as the biggest moving things in the city, which is what they are.
+  const GATE_PITCH = 52 * PX_PER_M;         // real narrowbody gate spacing, ~52 m
+  const terminals = [
+    { n: 'Terminal A', s: 'narrow' }, { n: 'Terminal A Satellite', s: 'narrow' },
+    { n: 'Terminal B', s: 'narrow' }, { n: 'Terminal C', s: 'wide' },
+    { n: 'Terminal E', s: 'heavy' }              // Terminal E is the international pier
+  ];
+  let jets = 0;
+  // ⚠️ Walk the perimeter by ARC LENGTH, not edge by edge. These footprints are
+  // traced in fine detail — Terminal B has 281 vertices — so almost every single
+  // edge is shorter than a gate, and a per-edge rule found only 34 stands in the
+  // whole airport. Stepping along the accumulated perimeter puts a jet every
+  // 52 m of frontage no matter how finely the outline is drawn.
+  const blocked = (x, y) => world.buildings.some((b2) => {
+    const p = b2.p;
+    let mnx = Infinity, mny = Infinity, mxx = -Infinity, mxy = -Infinity;
+    for (let i = 0; i < p.length; i += 2) {
+      if (p[i] < mnx) mnx = p[i]; if (p[i] > mxx) mxx = p[i];
+      if (p[i + 1] < mny) mny = p[i + 1]; if (p[i + 1] > mxy) mxy = p[i + 1];
+    }
+    return x >= mnx && x <= mxx && y >= mny && y <= mxy && pip(x, y, p);
+  });
+  for (const t of terminals) {
+    const b = world.buildings.find((x) => x.n === t.n);
+    if (!b) { console.warn('LOGAN: no footprint for', t.n); continue; }
+    const [bx, by] = centroid(b.p);
+    const sz = t.s === 'heavy' ? 73.9 : t.s === 'wide' ? 54.9 : 39.5;
+    const out = (sz * PX_PER_M) / 2 + 9 * PX_PER_M;
+    let acc = 0;                                   // distance since the last stand
+    for (let i = 0; i < b.p.length; i += 2) {
+      const j = (i + 2) % b.p.length;
+      const ax = b.p[i], ay = b.p[i + 1], cx2 = b.p[j], cy2 = b.p[j + 1];
+      const ex = cx2 - ax, ey = cy2 - ay;
+      const len = Math.hypot(ex, ey);
+      if (len < 1) continue;
+      const ux = ex / len, uy = ey / len;
+      let nx = -uy, ny = ux;
+      const mx = (ax + cx2) / 2, my = (ay + cy2) / 2;
+      if ((mx - bx) * nx + (my - by) * ny < 0) { nx = -nx; ny = -ny; }
+      for (let d = GATE_PITCH - acc; d < len; d += GATE_PITCH) {
+        // The jet's NOSE is at the gate, so its centre sits half a fuselage out.
+        // Heading points back INTO the terminal, which is how an aircraft parks.
+        const px2 = Math.round(ax + ux * d + nx * out), py2 = Math.round(ay + uy * d + ny * out);
+        if (blocked(px2, py2)) continue;            // that face looks at the garage, not the apron
+        const jet = { x: px2, y: py2, k: 'airliner', n: '', a: Math.atan2(-nx, -ny), s: t.s };
+        world.pois.push(jet);
+        (t.stands || (t.stands = [])).push(jet);
+        jets++;
+      }
+      acc = (acc + len) % GATE_PITCH;
+    }
+  }
+  // …and a few out on the taxiways, moving between the piers and the runways
+  const taxi = world.paths.filter((p) => p.c === 'taxiway' && p.p.length >= 8);
+  for (let i = 0; i < taxi.length; i += 7) {
+    const p = taxi[i];
+    const m = Math.floor(p.p.length / 4) * 2;
+    const ax = p.p[m], ay = p.p[m + 1], cx2 = p.p[m + 2], cy2 = p.p[m + 3];
+    if (Math.hypot(cx2 - ax, cy2 - ay) < 40) continue;
+    world.pois.push({ x: Math.round((ax + cx2) / 2), y: Math.round((ay + cy2) / 2), k: 'airliner', n: '',
+      a: Math.atan2(cx2 - ax, cy2 - ay), s: i % 3 === 0 ? 'wide' : 'narrow' });
+    jets++;
+  }
+  // ── and pavement under them ──────────────────────────────────────────────
+  // OSM has only a handful of small `aeroway=apron` areas at Logan, so the gate
+  // stands were landing on plain ground — a hundred and fifty jets parked on
+  // grass. The apron is the CONVEX HULL of each terminal's footprint and its own
+  // stands: guaranteed simple (no self-intersection to break triangulation), and
+  // it fills the notches between the piers, which is what a real apron does.
+  const hull = (pts) => {
+    const P = pts.slice().sort((a, b2) => a[0] - b2[0] || a[1] - b2[1]);
+    if (P.length < 3) return null;
+    const cross = (o, a, b2) => (a[0] - o[0]) * (b2[1] - o[1]) - (a[1] - o[1]) * (b2[0] - o[0]);
+    const lo = [], up = [];
+    for (const p of P) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for (let i = P.length - 1; i >= 0; i--) { const p = P[i]; while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+    lo.pop(); up.pop();
+    return lo.concat(up);
+  };
+  for (const t of terminals) {
+    const b = world.buildings.find((x) => x.n === t.n);
+    if (!b) continue;
+    // ⚠️ Only THIS terminal's own stands. Sweeping up every jet within a radius
+    // pulled in the neighbouring piers' aircraft, and the hull of all of them was
+    // a grey plain that swallowed the whole airport.
+    const pts = [];
+    for (let i = 0; i < b.p.length; i += 2) pts.push([b.p[i], b.p[i + 1]]);
+    const sz = t.s === 'heavy' ? 73.9 : t.s === 'wide' ? 54.9 : 39.5;
+    const tail = (sz * PX_PER_M) / 2 + 12 * PX_PER_M;      // just past the tail, no further
+    for (const p of t.stands || []) {
+      for (const r of [0, tail, -tail]) pts.push([p.x + Math.sin(p.a) * r, p.y + Math.cos(p.a) * r]);
+    }
+    const h = hull(pts);
+    if (h) world.polys.push({ k: 'apron', p: h.flat().map(Math.round), z: 6 });
+  }
+  console.log(`Logan: ${jets} airliners placed`);
+
   const arenas = world.buildings.filter((b) => b.n === 'Fenway Park' || b.n === 'Harvard Stadium');
   if (!arenas.length) { console.warn('FENWAY CLEAR: no stadium footprint found'); return; }
   const before = world.buildings.length;
