@@ -103,6 +103,15 @@ panel is the worked example: the slab's sheen and the bobbing town emoji both be
 single passes on open, and the only survivor is the ‹ chevron's nudge, because it is
 indicating where the tap goes.
 
+**Two sanctioned loops. Do not "fix" these:**
+- `nbpt-meping` — the minimap ping. It marks where you are.
+- `nbpt-trophy-shine` — the light travelling around the discovery card's border.
+  Devin's call, and it is the one place a loop is the point: the card *is* the prize,
+  and the shine is what makes it read as one. Note it rides the **border** rather than
+  crossing the text, which is why it does not compete the way the album's old sheen
+  did. That distinction is the rule — light around an edge can idle, light across
+  something you are reading cannot.
+
 Two mechanics that make "once, on open" work:
 - Scope the animation to the open state (`.travel-panel.open .tv-switch::after`). A
   CSS animation restarts whenever its rule *starts* matching, so it replays on every
