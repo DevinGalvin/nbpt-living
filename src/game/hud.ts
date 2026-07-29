@@ -468,15 +468,18 @@ const css = `
 #hud .travel-panel.towns .tv-title { display: none; }
 #hud .travel-panel.towns .tv-back { display: inline; }
 #hud .tv-back:hover { color: #ffe9a3; }
-/* the way through to the roster — reads as a destination, not a control */
+/* The way through to the roster. It sits ABOVE the search, at the top of the panel,
+   and is styled as a real button — twelve towns is one of the best things about this
+   thing and a grey footer link buried under thirty landmarks hid it. */
 #hud .tv-switch {
-  margin-top: 14px; padding: 12px 14px; border-radius: 11px; cursor: pointer;
-  background: rgba(243,241,232,0.06); border: 1px solid rgba(243,241,232,0.16);
-  color: #c8bd96; font-size: 13px; display: flex; align-items: center; gap: 7px;
+  margin: 0 0 12px; padding: 13px 15px; border-radius: 11px; cursor: pointer;
+  background: rgba(216,185,74,0.14); border: 1px solid rgba(216,185,74,0.5);
+  color: #f3f1e8; font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; gap: 9px;
 }
 #hud .tv-switch b { color: #e8c44f; }
-#hud .tv-switch span { margin-left: auto; color: #e8c44f; font-size: 16px; }
-#hud .tv-switch:hover { background: rgba(216,185,74,0.16); border-color: rgba(216,185,74,0.5); color: #f3f1e8; }
+#hud .tv-sw-arrow { margin-left: auto; color: #e8c44f; font-size: 18px; }
+#hud .tv-switch:hover { background: rgba(216,185,74,0.26); border-color: #d8b94a; }
 #hud .travel-towns { margin: 0 0 14px; }
 #hud .tt-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 10.5px; letter-spacing: 1.5px; color: #c9a84e; font-weight: 700; margin: 0 0 8px; }
 #hud .tt-count { color: #9d9583; font-weight: 600; letter-spacing: 0.6px; }
@@ -623,14 +626,12 @@ const css = `
 #hud .hcard .hf { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 16px; padding: 0 22px; }
 #hud .hcard .stamp { font-size: 11px; letter-spacing: 1.8px; color: #e8c44f; font-weight: 800; }
 #hud .hcard .hacts { display: flex; align-items: center; gap: 8px; }
-#hud .hcard .hsay, #hud .hcard .hclose {
   min-width: 44px; height: 44px; padding: 0 14px; border-radius: 22px;
   display: flex; align-items: center; justify-content: center; gap: 6px;
   font-size: 13px; font-weight: 700; cursor: pointer; pointer-events: auto;
   border: 1.5px solid rgba(216,185,74,0.55); background: rgba(216,185,74,0.12); color: #f3f1e8;
 }
 #hud .hcard .hclose { background: #d8b94a; border-color: #d8b94a; color: #2a1419; }
-#hud .hcard .hsay.speaking { background: rgba(216,185,74,0.34); }
 /* running tally under the card — "that was number 7" */
 #hud .hcard .hcount { text-align: center; font-size: 12px; color: #c8bd96; margin: 12px 22px 0; letter-spacing: 0.4px; }
 #hud .hcard .hcount b { color: #e8c44f; }
@@ -645,9 +646,7 @@ const css = `
 /* an icon does not need a photo-sized frame — the locked card's art area is half
    height, or the glyph floats in an empty pane */
 #hud .hcard.locked-card .hpic { aspect-ratio: 16 / 7; }
-/* "Read it" was wrapping to "Read / it" on a phone, and the stamp was colliding
-   with the buttons */
-#hud .hcard .hsay, #hud .hcard .hclose { white-space: nowrap; flex: 0 0 auto; }
+/* the stamp used to collide with the action buttons on a phone */
 #hud .hcard .stamp { flex: 1 1 auto; min-width: 0; }
 @media (max-width: 520px) {
   #hud .hcard .hf { flex-wrap: wrap; gap: 8px; padding: 0 16px; }
@@ -798,12 +797,6 @@ const css = `
 }
 #hud .dlg.open { display: block; }
 /* 🔊 read-it-to-me — top-right of the card, a 44px target clear of tap-to-advance */
-#hud .dlg .dlg-say {
-  position: absolute; top: 2px; right: 4px; width: 44px; height: 44px;
-  display: flex; align-items: center; justify-content: center; font-size: 18px;
-  border-radius: 50%; cursor: pointer; opacity: 0.75;
-}
-#hud .dlg .dlg-say:hover { opacity: 1; background: rgba(216,185,74,0.14); }
 #hud .dlg .who { font-size: 11.5px; letter-spacing: 1.6px; color: #e8c44f; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; min-height: 13px; padding-right: 44px; }
 #hud .dlg .line { font-size: 15.5px; line-height: 1.45; color: #f3f1e8; min-height: 46px; }
 #hud .dlg .dlg-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 7px; }
@@ -1460,8 +1453,7 @@ export class Hud {
       <div class="board-panel"><div class="board-card"></div></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div>
         <h2><span class="tv-title">${TOWN.name}</span><span class="tv-back">‹ ${TOWN.name}</span></h2>
-        <div class="tv-here"><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div>
-          <div class="tv-switch">🗺 <b></b> more towns to explore <span>›</span></div></div>
+        <div class="tv-here"><div class="tv-switch">🗺 <span class="tv-sw-txt">Explore <b></b> other towns</span> <span class="tv-sw-arrow">›</span></div><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div></div>
         <div class="tv-towns"><div class="tt-hdr"><span>EXPLORE ANOTHER TOWN</span><span class="tt-count"></span></div><div class="tt-row"></div></div>
       </div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
@@ -1471,7 +1463,7 @@ export class Hud {
       <div class="race-timer"><span class="rt-cur"></span><span class="rt-best"></span><span class="rt-quit">✕</span><div class="rt-track"><div class="rt-fill"></div><span class="rt-ghost">👻</span><span class="rt-bike">🚴</span><span class="rt-flag">🏁</span></div></div>
       <div class="runtip"></div>
       <div class="streettip"></div>
-      <div class="dlg"><span class="dlg-say" title="Read it to me">🔊</span><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
+      <div class="dlg"><div class="who"></div><div class="line"></div><div class="dlg-foot"><span class="dlg-back">◂ Back</span><span class="dlg-next">Next ▸</span></div></div>
       <div class="talk-btn">💬 TALK</div>
       <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div><div class="namer"><input maxlength="12" placeholder="YOUR NAME"><button>SAVE</button></div></div>
       <div class="promo"><div class="promo-card"><div class="promo-x">✕</div><div class="promo-badge"></div><div class="promo-icon"></div><div class="promo-title"></div><div class="promo-body"></div><div class="promo-acts"><button class="promo-cta"></button><span class="promo-skip">Maybe later</span></div></div></div>
@@ -1481,7 +1473,7 @@ export class Hud {
         <div class="hpic"><span class="hpic-em">🏛</span></div>
         <div class="hbody"><div class="ht"></div><div class="hy"></div><div class="hb"></div></div>
         <div class="hcount"></div>
-        <div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="hacts"><div class="hsay" title="Read it to me">🔊 <span>Read it</span></div><div class="hclose">Got it ✓</div></div></div>
+        <div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="hacts"><div class="hclose">Got it ✓</div></div></div>
       </div></div></div>
       <div class="collect-btn" title="Your discoveries">🏛<span class="cb-n">0</span><span class="blab">DISCOVER</span></div>
       <div class="collect-panel"><div class="collect-card">
@@ -1535,12 +1527,6 @@ export class Hud {
       this.backDlg();
     });
     // 🔊 read-aloud: turns grade-4 dialog into something a 6-year-old can follow solo
-    const dlgSay = hud.querySelector('.dlg .dlg-say') as HTMLElement;
-    if (!('speechSynthesis' in window)) dlgSay.style.display = 'none';
-    dlgSay.addEventListener('pointerdown', (e) => {
-      e.stopPropagation();   // speaking is not advancing
-      this.sayLine();
-    });
 
     this.dlgEl.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
@@ -1557,12 +1543,6 @@ export class Hud {
     (hud.querySelector('.hcard .hclose') as HTMLElement).addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.closeHistoryCard();
-    });
-    const hsay = hud.querySelector('.hcard .hsay') as HTMLElement;
-    if (!('speechSynthesis' in window)) hsay.style.display = 'none';
-    hsay.addEventListener('pointerdown', (e) => {
-      e.stopPropagation();
-      this.sayCard();
     });
     // tap the objective pill to tuck the quest away (freelance mode is sacred)
     const obj = hud.querySelector('.objective') as HTMLElement;
@@ -2220,8 +2200,14 @@ export class Hud {
     if (want) panel.classList.remove('towns');
     const input = panel.querySelector('.travel-search') as HTMLInputElement | null;
     if (input) {
-      if (want) setTimeout(() => input.focus(), 30);
-      else {
+      if (want) {
+        // Focus SYNCHRONOUSLY, still inside the tap that opened the panel. The old
+        // setTimeout(30) broke the user-gesture chain, and iOS then refuses to raise
+        // the keyboard — the caret appeared but you could not type. The timeout is
+        // kept only as a second attempt for engines that need the paint first.
+        try { input.focus({ preventScroll: true }); } catch { input.focus(); }
+        setTimeout(() => { if (document.activeElement !== input) input.focus(); }, 40);
+      } else {
         input.value = '';
         input.blur();
         this.renderResults([]);
@@ -3001,14 +2987,10 @@ export class Hud {
     void el.offsetWidth;
     el.classList.toggle('fresh', !!opts?.fresh);
 
-    this.hushSay();
-    (el.querySelector('.hsay') as HTMLElement).classList.remove('speaking');
-    this.cardText = title + '. ' + body;
     back.classList.add('open');
     this.hcardOpen = true;
   }
 
-  private cardText = '';
 
   // The card for something you HAVEN'T found: same shape as the real one, so a slot
   // feels like a place rather than a dead square, but it withholds the payoff. You
@@ -3037,8 +3019,6 @@ export class Hud {
     (el.querySelector('.stamp') as HTMLElement).textContent = '★ STILL OUT THERE';
     el.classList.remove('fresh');
     el.classList.add('locked-card');
-    this.hushSay();
-    this.cardText = mk.title + '. ' + teaser;
     back.classList.add('open');
     this.hcardOpen = true;
   }
@@ -3169,25 +3149,6 @@ export class Hud {
     this.dlgCool = performance.now() + 280;
   }
 
-  // 🔊 read the card out loud. Third grade spans a very wide range of reading
-  // ability and these cards ARE the lesson — a kid who can't read this one yet
-  // still gets to collect it. Same Web Speech path the dialogue uses.
-  private sayCard() {
-    const btn = document.querySelector('#hud .hcard .hsay') as HTMLElement;
-    try {
-      if (window.speechSynthesis.speaking) {
-        this.hushSay();
-        btn.classList.remove('speaking');
-        return;
-      }
-      const u = new SpeechSynthesisUtterance(this.cardText);
-      u.lang = 'en-US';
-      u.rate = 0.9;
-      u.onend = () => btn.classList.remove('speaking');
-      btn.classList.add('speaking');
-      window.speechSynthesis.speak(u);
-    } catch { /* no voice here — the button just does nothing */ }
-  }
 
   // the secret count stays hidden until something has been found
   setSecretCount(found: number, total: number) {
@@ -3221,19 +3182,9 @@ export class Hud {
     this.renderDlg();
   }
 
-  // 🔊 speak the line on screen (Web Speech API — built into every phone, works
-  // offline). One tap per line; any navigation quiets it — no runaway narration.
-  private sayLine() {
-    try {
-      const l = this.dlgLines[this.dlgIdx];
-      if (!l) return;
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(l.text);
-      u.lang = 'en-US';
-      u.rate = 0.92;                 // a touch slower than default — read-along pace
-      window.speechSynthesis.speak(u);
-    } catch { /* no voice on this browser — the button is hidden at init anyway */ }
-  }
+  // Read-aloud was removed (7/28: the Web Speech voice is robotic enough that it hurt
+  // the cards more than it helped). This stays so any speech a previous build left
+  // running is silenced when a panel opens, and so the call sites don't all change.
   private hushSay() {
     try { window.speechSynthesis?.cancel(); } catch { /* fine */ }
   }
