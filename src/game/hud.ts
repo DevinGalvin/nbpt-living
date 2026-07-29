@@ -458,8 +458,8 @@ const css = `
 #hud .travel-grid .travel-item, #hud .travel-results .travel-item { border-radius: 12px; }
 #hud .travel-item .ti-em { line-height: 1; }
 #hud .tt-chip { transition: transform 0.12s ease, background 0.15s, border-color 0.15s; }
-#hud .tt-chip:not(.cur):hover { transform: translateY(-3px); }
-#hud .tt-chip:not(.cur):active { transform: scale(0.95); }
+#hud .tt-chip:hover { transform: translateY(-3px); }
+#hud .tt-chip:active { transform: scale(0.95); }
 #hud .travel-item .ti-tx { flex: 1; min-width: 0; }
 #hud .travel-item:hover { background: rgba(216, 185, 74, 0.18); }
 #hud .travel-item .tn { color: #f3f1e8; font-size: 14px; font-weight: 600; }
@@ -551,7 +551,8 @@ const css = `
 #hud .tt-row { display: grid; gap: 7px; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
 #hud .tt-chip { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 8px 5px; border-radius: 10px; background: rgba(243,241,232,0.07); border: 1px solid rgba(243,241,232,0.16); cursor: pointer; transition: background 0.15s, border-color 0.15s; }
 #hud .tt-chip:hover { background: rgba(216,185,74,0.18); border-color: rgba(216,185,74,0.5); }
-#hud .tt-chip.cur { background: rgba(216,185,74,0.16); border-color: #d8b94a; cursor: default; }
+#hud .tt-chip.cur { background: rgba(216,185,74,0.16); border-color: #d8b94a; }
+#hud .tt-chip.cur:hover { background: rgba(216,185,74,0.28); border-color: #ffdf87; }
 #hud .tt-emoji { font-size: 22px; line-height: 1; flex: none; }
 #hud .tt-info { line-height: 1.18; min-width: 0; }
 #hud .tt-name { color: #f3f1e8; font-size: 11.5px; font-weight: 700; }
@@ -2290,8 +2291,15 @@ export class Hud {
         chip.className = 'tt-chip' + (isCur ? ' cur' : '');
         chip.innerHTML = `<span class="tt-emoji">${t.emoji}</span><div class="tt-info"><div class="tt-name">${t.name}</div>`
           + `<div class="tt-tag">${t.tag}</div>${isCur ? '<div class="tt-here">you’re here</div>' : ''}</div>`;
-        chip.title = `${t.name} — ${t.tag}`;   // the tag is hidden on a phone; keep it reachable
-        if (!isCur) chip.addEventListener('click', () => { location.href = t.path; });
+        chip.title = isCur ? `Back to ${t.name}` : `${t.name} — ${t.tag}`;   // the tag is hidden on a phone; keep it reachable
+        // Every chip in this grid does something. The current town's used to be inert —
+        // the only way back to its landmarks was the small chevron in the title, and a
+        // kid who taps the big highlighted card with their own town on it expects it to
+        // take them there. It does: back to this town's list, not a page reload.
+        chip.addEventListener('click', () => {
+          if (isCur) panel.classList.remove('towns');
+          else location.href = t.path;
+        });
         ttRow.appendChild(chip);
       }
       stagger(ttRow);
