@@ -502,16 +502,19 @@ const css = `
    Same idea as a nav bar: the way back up lives top-left, the close lives top-right. */
 #hud .tv-switch {
   position: absolute; top: 6px; left: 8px; z-index: 3;
-  display: flex; align-items: center; gap: 5px;
-  height: 44px; padding: 0 12px 0 10px; border-radius: 22px; cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  height: 44px; padding: 0 13px 0 9px; border-radius: 22px; cursor: pointer;
   background: linear-gradient(140deg, rgba(180,100,63,0.55), rgba(109,47,63,0.55));
   border: 1.5px solid rgba(255, 214, 130, 0.45);
   overflow: hidden; color: #fff6e2;
+  font-size: 14px; font-weight: 800; letter-spacing: 0.2px;
   transition: transform 0.12s ease, filter 0.2s ease, border-color 0.15s ease;
 }
 #hud .tv-switch:hover { filter: brightness(1.18); border-color: #ffdf87; }
 #hud .tv-switch:active { transform: scale(0.93); }
-#hud .tv-sw-txt { display: none; }              /* the emoji stack says it better */
+/* A control needs a WORD. Emoji alone is decoration nobody can read, and a title
+   attribute is desktop-hover only — useless on the phone this is mostly played on. */
+#hud .tv-sw-txt { position: relative; z-index: 1; }
 /* a sheen so it still catches the eye without shouting over the title */
 #hud .tv-switch::after {
   content: ''; position: absolute; top: -60%; bottom: -60%; width: 26px; left: -50px;
@@ -527,10 +530,17 @@ const css = `
   animation: nbpt-face-bob 2.6s ease-in-out infinite;
 }
 @keyframes nbpt-face-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-#hud .tv-sw-arrow { position: relative; z-index: 1; color: #ffdf87; font-size: 17px; font-weight: 900; animation: nbpt-nudge 1.5s ease-in-out infinite; }
-@keyframes nbpt-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+/* The chevron points LEFT and sits on the LEFT, because this goes UP a level. It
+   was a right-pointing arrow on the right edge, which is the universal sign for
+   "forward, deeper in" — the exact opposite of what tapping it does. It nudges
+   leftward too, toward where it is taking you. */
+#hud .tv-sw-arrow { position: relative; z-index: 1; color: #ffdf87; font-size: 19px; font-weight: 900; animation: nbpt-nudge 1.6s ease-in-out infinite; }
+@keyframes nbpt-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }
+/* the emoji are a flourish behind the word, and the first thing to go when narrow */
+@media (max-width: 430px) { #hud .tv-sw-faces { display: none; } }
 /* the title is the hero — give it room between the two controls */
-#hud .travel-card h2 { padding: 0 56px; }
+#hud .travel-card h2 { padding: 0 56px; margin: 0 0 16px; }
+#hud .tv-here { padding-top: 4px; }
 #hud .travel-towns { margin: 0 0 14px; }
 #hud .tt-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 10.5px; letter-spacing: 1.5px; color: #c9a84e; font-weight: 700; margin: 0 0 8px; }
 #hud .tt-count { color: #9d9583; font-weight: 600; letter-spacing: 0.6px; }
@@ -1504,7 +1514,7 @@ export class Hud {
       <div class="board-panel"><div class="board-card"></div></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div>
         <h2><span class="tv-title">${TOWN.name}</span><span class="tv-back">‹ ${TOWN.name}</span></h2>
-        <div class="tv-switch" title="Explore other towns"><span class="tv-sw-faces"></span><span class="tv-sw-arrow">›</span></div>
+        <div class="tv-switch"><span class="tv-sw-arrow">‹</span><span class="tv-sw-txt">Towns</span><span class="tv-sw-faces"></span></div>
         <div class="tv-here"><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div></div>
         <div class="tv-towns"><div class="tt-hdr"><span>EXPLORE ANOTHER TOWN</span><span class="tt-count"></span></div><div class="tt-row"></div></div>
       </div></div>
@@ -2240,7 +2250,20 @@ export class Hud {
     egg.style.display = 'none';
     here.appendChild(egg);
 
-    document.querySelector('#hud .travel-btn')!.addEventListener('click', () => this.toggleTravel());
+    const travelBtn = document.querySelector('#hud .travel-btn')!;
+    // iOS will only raise the keyboard for a focus() that happens inside a live user
+    // gesture, and it is fussy about how far into one. Focusing on POINTERDOWN — the
+    // earliest possible moment, before any class toggles or layout — is what actually
+    // works on a phone; doing it later in the click handler leaves you with a caret
+    // and no keyboard. The panel is opacity-0 rather than display-none, so the input
+    // is already in layout and focusable at this point.
+    travelBtn.addEventListener('pointerdown', () => {
+      const panelEl = document.querySelector('#hud .travel-panel')!;
+      if (panelEl.classList.contains('open')) return;      // this tap is a close
+      const inp = panelEl.querySelector('.travel-search') as HTMLInputElement | null;
+      try { inp?.focus({ preventScroll: true }); } catch { inp?.focus(); }
+    });
+    travelBtn.addEventListener('click', () => this.toggleTravel());
     const panel = document.querySelector('#hud .travel-panel')!;
     panel.addEventListener('click', (e) => {
       if (e.target === panel) this.toggleTravel(false);
@@ -2269,6 +2292,7 @@ export class Hud {
         // setTimeout(30) broke the user-gesture chain, and iOS then refuses to raise
         // the keyboard — the caret appeared but you could not type. The timeout is
         // kept only as a second attempt for engines that need the paint first.
+        void (panel as HTMLElement).offsetWidth;    // flush layout before focusing
         try { input.focus({ preventScroll: true }); } catch { input.focus(); }
         setTimeout(() => { if (document.activeElement !== input) input.focus(); }, 40);
       } else {
