@@ -486,7 +486,7 @@ const css = `
 #hud .travel-panel.towns .tv-title { display: none; }
 #hud .travel-panel.towns .tv-switch { display: none; }
 #hud .travel-panel.towns .tv-back { display: inline; }
-#hud .tv-back:hover { color: #ffe9a3; }
+#hud .tv-back:hover { color: var(--gold-bright); }
 /* ---------- the way UP to the towns ----------
    HIERARCHY: the roster of twelve towns is a level ABOVE this one, so its control
    belongs in line with the title — mirroring the ✕ across the header — not as a
@@ -497,13 +497,17 @@ const css = `
   position: absolute; top: 6px; left: 8px; z-index: 3;
   display: flex; align-items: center; gap: 6px;
   height: 44px; padding: 0 13px 0 9px; border-radius: 22px; cursor: pointer;
-  background: linear-gradient(140deg, rgba(180,100,63,0.55), rgba(109,47,63,0.55));
-  border: 1.5px solid rgba(255, 214, 130, 0.45);
+  /* THEMED, not hardcoded. This was a fixed rust-to-maroon gradient — Newburyport's
+     palette — so in Salem it sat purple-on-rust and in Boston green-on-rust. It is now a
+     gold wash over the town's own chrome colour, so it stays a warm headline slab in
+     every town while belonging to that town. Swap a theme and this follows. */
+  background: linear-gradient(140deg, rgba(var(--gold-rgb), 0.30), rgba(var(--maroon-lt), 0.88));
+  border: 1.5px solid rgba(var(--gold-rgb), 0.5);
   overflow: hidden; color: #fff6e2;
   font-size: 14px; font-weight: 800; letter-spacing: 0.2px;
   transition: transform 0.12s ease, filter 0.2s ease, border-color 0.15s ease;
 }
-#hud .tv-switch:hover { filter: brightness(1.18); border-color: #ffdf87; }
+#hud .tv-switch:hover { filter: brightness(1.18); border-color: var(--gold-bright); }
 #hud .tv-switch:active { transform: scale(0.93); }
 /* A control needs a WORD. Emoji alone is decoration nobody can read, and a title
    attribute is desktop-hover only — useless on the phone this is mostly played on. */
@@ -535,7 +539,7 @@ const css = `
    was a right-pointing arrow on the right edge, which is the universal sign for
    "forward, deeper in" — the exact opposite of what tapping it does. It nudges
    leftward too, toward where it is taking you. */
-#hud .tv-sw-arrow { position: relative; z-index: 1; color: #ffdf87; font-size: 19px; font-weight: 900; }
+#hud .tv-sw-arrow { position: relative; z-index: 1; color: var(--gold-bright); font-size: 19px; font-weight: 900; }
 /* The one loop left in this panel, and it earns it: it is pointing at where the tap
    goes. Scoped to .open so it is not animating inside a closed panel forever. */
 #hud .travel-panel.open .tv-sw-arrow { animation: nbpt-nudge 1.6s ease-in-out infinite; }
@@ -784,7 +788,7 @@ const css = `
   border: 1px solid rgba(243,241,232,0.12); cursor: default;
 }
 #hud .ctile { cursor: pointer; }
-#hud .ctile.got { border-color: rgba(216,185,74,0.55); }
+#hud .ctile.got { border-color: rgba(var(--gold-rgb),0.55); }
 #hud .ctile .cpic { position: relative; width: 100%; aspect-ratio: 8 / 5; background: linear-gradient(155deg, #3a2d18, #241218); display: flex; align-items: center; justify-content: center; }
 #hud .ctile .cpic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 #hud .ctile .cpic .cem { font-size: 30px; opacity: 0.95; }
@@ -1432,8 +1436,8 @@ const css = `
 #hud .nb-chip, #hud .travel-item .ti-em, #hud .sp-mbtn .m-em, #hud .season-pop .sp-item .nb-chip {
   display: flex; align-items: center; justify-content: center;
   border-radius: 10px;
-  background: linear-gradient(150deg, rgba(255,222,140,0.22), rgba(216,185,74,0.07));
-  border: 1px solid rgba(216,185,74,0.28);
+  background: linear-gradient(150deg, rgba(var(--gold-rgb), 0.26), rgba(var(--gold-rgb), 0.07));
+  border: 1px solid rgba(var(--gold-rgb), 0.28);
   box-shadow: inset 0 1px 0 rgba(255,245,210,0.22);
 }
 #hud .travel-item .ti-em { flex: none; width: 34px; height: 34px; font-size: 19px; }
@@ -1469,8 +1473,8 @@ const css = `
 #hud .ctile:hover .cpic img { transform: scale(1.07); }
 #hud .ctile:hover .cpic .cem { transform: scale(1.12); }
 #hud .ctile.got:hover {
-  border-color: #e8c44f;
-  box-shadow: 0 9px 22px rgba(0,0,0,0.46), 0 0 0 1px rgba(216,185,74,0.55);
+  border-color: var(--gold-mid);
+  box-shadow: 0 9px 22px rgba(0,0,0,0.46), 0 0 0 1px rgba(var(--gold-rgb),0.55);
 }
 #hud .ctile.got:hover .cnm { color: #fff8e6; }
 /* a locked slot is clickable too (it opens the teaser + where to look), so it has to
