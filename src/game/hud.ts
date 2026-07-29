@@ -34,12 +34,13 @@ const css = `
   --gold: ${TOWN.theme.gold};           /* base accent (underlines, borders) */
   --gold-mid: ${TOWN.theme.goldMid};       /* labels / kickers */
   --gold-bright: ${TOWN.theme.goldBright};    /* brightest highlight / hovers */
-  /* ink (text on the dark panels) */
+  /* ink (text on the dark panels) — shared, NOT per-town: paper is paper */
   --ink: #f3f1e8;
+  --ink-rgb: 243, 241, 232;   /* for rgba(var(--ink-rgb), a) */
   --ink-dim: #c8bd96;
   /* shared chrome: round HUD buttons */
   --chrome-bg: rgba(var(--maroon), 0.6);
-  --chrome-bd: rgba(243, 241, 232, 0.4);
+  --chrome-bd: rgba(var(--ink-rgb), 0.4);
   /* radius scale */
   --r-sm: 9px; --r-md: 12px; --r-lg: 16px; --r-pill: 999px;
   /* material */
@@ -58,21 +59,21 @@ const css = `
   bottom: env(safe-area-inset-bottom, 0px); left: env(safe-area-inset-left, 0px); }
 #hud .pill {
   position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
-  background: rgba(var(--maroon-lt), 0.78); color: #f3f1e8; font-size: 13px; font-weight: 600;
+  background: rgba(var(--maroon-lt), 0.78); color: var(--ink); font-size: 13px; font-weight: 600;
   letter-spacing: 1.5px; padding: 7px 16px 7px 13px; border-radius: 16px;
   display: none; align-items: center; gap: 7px; white-space: nowrap;
 }
-#hud .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: #e8c44f; }
+#hud .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold-mid); }
 #hud .banner {
   position: absolute; top: 58px; left: 50%; transform: translate(-50%, -8px);
   background: rgba(var(--maroon), 0.84); border-radius: 12px; padding: 13px 34px 11px;
   text-align: center; opacity: 0; transition: opacity 0.45s ease, transform 0.45s ease;
-  border-bottom: 2px solid #d8b94a;
+  border-bottom: 2px solid var(--gold);
 }
 #hud .banner.show { opacity: 1; transform: translate(-50%, 0); }
-#hud .banner .name { font-family: Georgia, serif; font-size: 23px; color: #f6f3e8; letter-spacing: 0.5px; }
+#hud .banner .name { font-family: Georgia, serif; font-size: 23px; color: var(--ink); letter-spacing: 0.5px; }
 #hud .banner .sub { font-size: 12px; color: #d8cfa8; margin-top: 3px; letter-spacing: 1px; }
-#hud .corner { position: absolute; font-size: 11px; color: rgba(243, 241, 232, 0.9); bottom: 6px;
+#hud .corner { position: absolute; font-size: 11px; color: rgba(var(--ink-rgb), 0.9); bottom: 6px;
   text-shadow: 0 1px 3px rgba(20, 10, 14, 0.9), 0 0 6px rgba(20, 10, 14, 0.55); }
 #hud .help { left: 8px; }
 #hud .attr { right: 8px; font-size: 10px; }
@@ -88,22 +89,22 @@ const css = `
   position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
   font-size: 8px; font-weight: 800; letter-spacing: 0.6px; line-height: 1;
   padding: 2.5px 5.5px; border-radius: 7px;
-  background: rgba(26, 10, 16, 0.78); border: 1px solid rgba(243, 241, 232, 0.18);
-  color: rgba(243, 241, 232, 0.95);
+  background: rgba(26, 10, 16, 0.78); border: 1px solid rgba(var(--ink-rgb), 0.18);
+  color: rgba(var(--ink-rgb), 0.95);
   white-space: nowrap; pointer-events: none;
 }
 #hud .stick-base, #hud .stick-knob { position: absolute; border-radius: 50%; display: none; }
-#hud .stick-base { width: 128px; height: 128px; background: rgba(var(--maroon), 0.22); border: 2px solid rgba(243,241,232,0.5); }
-#hud .stick-knob { width: 44px; height: 44px; background: rgba(243,241,232,0.55); }
+#hud .stick-base { width: 128px; height: 128px; background: rgba(var(--maroon), 0.22); border: 2px solid rgba(var(--ink-rgb),0.5); }
+#hud .stick-knob { width: 44px; height: 44px; background: rgba(var(--ink-rgb),0.55); }
 #hud .compass {
   position: absolute; top: 14px; right: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(var(--ink-rgb),0.4);
   display: flex; align-items: center; justify-content: center;
 }
-#hud .compass .needle { font-size: 15px; font-weight: 700; color: #f0d27a; will-change: transform; }
+#hud .compass .needle { font-size: 15px; font-weight: 700; color: var(--gold-bright); will-change: transform; }
 #hud .travel-btn {
   position: absolute; top: 14px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(var(--ink-rgb),0.4);
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer;
 }
@@ -116,56 +117,56 @@ const css = `
    story toggle lives behind the gear; clears the moment they open Settings */
 #hud .settings-btn.pulse { animation: nbpt-gear-pulse 1.1s ease-in-out 3; }
 @keyframes nbpt-gear-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(232,196,79,0.0); }
-  50% { box-shadow: 0 0 0 7px rgba(232,196,79,0.32); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--gold-rgb),0.0); }
+  50% { box-shadow: 0 0 0 7px rgba(var(--gold-rgb),0.32); }
 }
 #hud .settings-hint {
   position: absolute; top: 84px; left: 66px; z-index: 41; max-width: 200px;
-  background: var(--panel); border: 1.5px solid rgba(216,185,74,0.6); border-radius: 10px;
-  padding: 8px 11px; font-size: 12px; line-height: 1.35; color: #f3f1e8;
+  background: var(--panel); border: 1.5px solid rgba(var(--gold-rgb),0.6); border-radius: 10px;
+  padding: 8px 11px; font-size: 12px; line-height: 1.35; color: var(--ink);
   box-shadow: 0 6px 18px rgba(0,0,0,0.4); pointer-events: none;
   opacity: 0; transform: translateX(-6px); transition: opacity 0.3s, transform 0.3s;
 }
 #hud .settings-hint::before {
   content: ''; position: absolute; top: 12px; left: -7px; width: 0; height: 0;
-  border: 6px solid transparent; border-right-color: rgba(216,185,74,0.6); border-left: 0;
+  border: 6px solid transparent; border-right-color: rgba(var(--gold-rgb),0.6); border-left: 0;
 }
 #hud .settings-hint.show { opacity: 1; transform: translateX(0); }
 #hud .settings-pop {
   position: absolute; top: 78px; left: 66px; min-width: 188px; max-width: 240px;
-  background: var(--panel); border: 1.5px solid rgba(216,185,74,0.5); border-radius: 12px;
+  background: var(--panel); border: 1.5px solid rgba(var(--gold-rgb),0.5); border-radius: 12px;
   padding: 7px; z-index: 40; display: none; pointer-events: auto;
   box-shadow: 0 8px 24px rgba(0,0,0,0.45);
 }
 #hud .settings-pop.open { display: block; }
-#hud .settings-pop .sp-hdr { font-size: 11px; color: #e8c44f; font-weight: 700; padding: 2px 5px 6px; letter-spacing: 0.3px; }
+#hud .settings-pop .sp-hdr { font-size: 11px; color: var(--gold-mid); font-weight: 700; padding: 2px 5px 6px; letter-spacing: 0.3px; }
 #hud .settings-pop .sp-row {
   display: flex; align-items: center; gap: 9px; padding: 8px 9px; border-radius: 8px;
   cursor: pointer; user-select: none; -webkit-user-select: none;
 }
-#hud .settings-pop .sp-row:hover { background: rgba(216,185,74,0.16); }
+#hud .settings-pop .sp-row:hover { background: rgba(var(--gold-rgb),0.16); }
 #hud .settings-pop .sp-label { flex: 1; min-width: 0; }
-#hud .settings-pop .sp-name { font-size: 13.5px; color: #f0ece0; font-weight: 700; }
+#hud .settings-pop .sp-name { font-size: 13.5px; color: var(--ink); font-weight: 700; }
 #hud .settings-pop .sp-sub { font-size: 11px; color: #9fb1c2; line-height: 1.35; margin-top: 2px; }
 /* a compact iOS-style switch — gold when on */
 #hud .settings-pop .sp-sw {
   position: relative; flex: 0 0 auto; width: 40px; height: 23px; border-radius: 12px;
-  background: rgba(243,241,232,0.18); border: 1px solid rgba(243,241,232,0.3); transition: background 0.18s ease;
+  background: rgba(var(--ink-rgb),0.18); border: 1px solid rgba(var(--ink-rgb),0.3); transition: background 0.18s ease;
 }
 #hud .settings-pop .sp-sw::after {
   content: ''; position: absolute; top: 2px; left: 2px; width: 17px; height: 17px; border-radius: 50%;
-  background: #f3f1e8; transition: transform 0.18s var(--ease-out);
+  background: var(--ink); transition: transform 0.18s var(--ease-out);
 }
-#hud .settings-pop .sp-row.on .sp-sw { background: rgba(216,185,74,0.85); border-color: #e8c44f; }
+#hud .settings-pop .sp-row.on .sp-sw { background: rgba(var(--gold-rgb),0.85); border-color: var(--gold-mid); }
 #hud .settings-pop .sp-row.on .sp-sw::after { transform: translateX(17px); }
 #hud .season-toggle {
   position: absolute; top: 270px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(var(--ink-rgb),0.4);
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
   transition: top 0.3s ease;
 }
-#hud .season-toggle:hover { border-color: #d8b94a; }
+#hud .season-toggle:hover { border-color: var(--gold); }
 /* the 🎒 backpack button (top:170) stays hidden until the player earns it; while it's
    absent, slide the season toggle (and its popover) up into that slot so the button sits
    flush under the compass instead of leaving a gap. Both ease back down once it appears. */
@@ -186,28 +187,28 @@ const css = `
 #hud .season-pop {
   position: absolute; top: 270px; left: 66px; min-width: 152px;
   transition: top 0.3s ease;
-  background: var(--panel); border: 1.5px solid rgba(216,185,74,0.5); border-radius: 12px;
+  background: var(--panel); border: 1.5px solid rgba(var(--gold-rgb),0.5); border-radius: 12px;
   padding: 7px; z-index: 40; display: none; pointer-events: auto;
   box-shadow: 0 8px 24px rgba(0,0,0,0.45);
 }
 #hud .season-pop.open { display: block; }
-#hud .season-pop .sp-hdr { font-size: 11px; color: #e8c44f; font-weight: 700; padding: 2px 5px 7px; letter-spacing: 0.3px; }
+#hud .season-pop .sp-hdr { font-size: 11px; color: var(--gold-mid); font-weight: 700; padding: 2px 5px 7px; letter-spacing: 0.3px; }
 #hud .season-pop .sp-item {
   display: flex; align-items: center; padding: 8px 10px; border-radius: 8px;
-  font-size: 13.5px; color: #f0ece0; cursor: pointer; white-space: nowrap;
+  font-size: 13.5px; color: var(--ink); cursor: pointer; white-space: nowrap;
 }
-#hud .season-pop .sp-item:hover { background: rgba(216,185,74,0.18); }
-#hud .season-pop .sp-item.cur { background: rgba(216,185,74,0.26); color: #fff; font-weight: 700; }
+#hud .season-pop .sp-item:hover { background: rgba(var(--gold-rgb),0.18); }
+#hud .season-pop .sp-item.cur { background: rgba(var(--gold-rgb),0.26); color: #fff; font-weight: 700; }
 #hud .season-pop.locked .sp-item { opacity: 0.45; cursor: default; }
 #hud .season-pop.locked .sp-item:hover { background: none; }
-#hud .season-pop .sp-lock { font-size: 11px; color: #c9a23e; padding: 7px 5px 2px; line-height: 1.45; max-width: 158px; }
+#hud .season-pop .sp-lock { font-size: 11px; color: var(--gold); padding: 7px 5px 2px; line-height: 1.45; max-width: 158px; }
 /* ---------- Races 🏁: always-visible button + course picker ----------
    Racing is front-door, not a secret: the 🏁 sits in the left column everywhere
    (story AND explore), and picking a course fades you straight to its start line.
    Column cascade mirrors the season toggle: slide up into whatever slots are empty. */
 #hud .race-btn {
   position: absolute; top: 334px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(var(--ink-rgb),0.4);
   display: none; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
   transition: top 0.3s ease;
@@ -217,24 +218,24 @@ const css = `
 #hud.no-story .race-btn { top: 206px !important; }
 #hud .race-pop {
   position: absolute; top: 334px; left: 66px; min-width: 210px; max-width: 260px;
-  background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-radius: 12px;
+  background: var(--panel); border: 1px solid rgba(var(--gold-rgb),0.55); border-radius: 12px;
   padding: 8px; display: none; pointer-events: auto; z-index: 40;
   transition: top 0.3s ease;
 }
 #hud .bag-btn:not(.show) ~ .race-pop { top: 270px; }
 #hud.no-story .race-pop { top: 206px !important; }
 #hud .race-pop.open { display: block; }
-#hud .race-pop .rp-hdr { font-size: 11px; color: #e8c44f; font-weight: 700; padding: 2px 5px 7px; letter-spacing: 0.3px; }
+#hud .race-pop .rp-hdr { font-size: 11px; color: var(--gold-mid); font-weight: 700; padding: 2px 5px 7px; letter-spacing: 0.3px; }
 #hud .race-pop .rp-item { padding: 8px 9px; border-radius: 8px; cursor: pointer; }
-#hud .race-pop .rp-item:hover { background: rgba(216,185,74,0.18); }
-#hud .race-pop .rp-name { font-size: 13px; font-weight: 700; color: #f3f1e8; }
+#hud .race-pop .rp-item:hover { background: rgba(var(--gold-rgb),0.18); }
+#hud .race-pop .rp-name { font-size: 13px; font-weight: 700; color: var(--ink); }
 #hud .race-pop .rp-sub { font-size: 11px; color: #9fb1c2; margin-top: 1px; }
-#hud .race-pop .rp-best { font-size: 11px; color: #f0d27a; font-weight: 700; margin-top: 3px; }
-#hud .race-pop .rp-hint { font-size: 10.5px; color: #c8bd96; padding: 7px 5px 2px; line-height: 1.4; border-top: 1px solid rgba(216,185,74,0.25); margin-top: 6px; }
+#hud .race-pop .rp-best { font-size: 11px; color: var(--gold-bright); font-weight: 700; margin-top: 3px; }
+#hud .race-pop .rp-hint { font-size: 10.5px; color: var(--ink-dim); padding: 7px 5px 2px; line-height: 1.4; border-top: 1px solid rgba(var(--gold-rgb),0.25); margin-top: 6px; }
 #hud .race-pop .rp-err { flex-basis: 100%; font-size: 11px; color: #e8a89a; padding-top: 3px; }
 #hud .race-pop .rp-err:empty { display: none; }
 #hud .race-pop .rp-cup { float: right; font-size: 15px; padding: 2px 6px; border-radius: 7px; cursor: pointer; }
-#hud .race-pop .rp-cup:hover { background: rgba(216,185,74,0.25); }
+#hud .race-pop .rp-cup:hover { background: rgba(var(--gold-rgb),0.25); }
 /* ---------- 🏆 the town leaderboard modal (post-race results + standings) ---------- */
 #hud .board-panel {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -244,36 +245,36 @@ const css = `
 #hud .board-panel.show { pointer-events: auto; opacity: 1; }
 #hud .board-card {
   width: min(400px, calc(100vw - 44px)); max-height: 76vh; overflow-y: auto;
-  background: var(--panel); border: 1px solid rgba(216,185,74,0.6); border-radius: 16px;
+  background: var(--panel); border: 1px solid rgba(var(--gold-rgb),0.6); border-radius: 16px;
   padding: 16px 18px 14px; box-shadow: 0 12px 44px rgba(0,0,0,0.55);
   transform: translateY(18px) scale(0.95); transition: transform 0.26s cubic-bezier(0.2, 0.85, 0.3, 1.12);
 }
 #hud .board-panel.show .board-card { transform: translateY(0) scale(1); }
 #hud .board-card .bd-x { float: right; cursor: pointer; color: #9fb1c2; font-size: 19px; padding: 12px 15px; margin: -8px -10px 0 0; border-radius: 12px; }
-#hud .board-card .bd-x:hover { color: #f3f1e8; background: rgba(216,185,74,0.18); }
-#hud .bd-kick { font-size: 11px; letter-spacing: 3px; color: #e8c44f; font-weight: 700; }
-#hud .bd-title { font-family: Georgia, serif; font-size: 22px; color: #f6f3e8; margin-top: 3px; }
+#hud .board-card .bd-x:hover { color: var(--ink); background: rgba(var(--gold-rgb),0.18); }
+#hud .bd-kick { font-size: 11px; letter-spacing: 3px; color: var(--gold-mid); font-weight: 700; }
+#hud .bd-title { font-family: Georgia, serif; font-size: 22px; color: var(--ink); margin-top: 3px; }
 #hud .bd-sub { font-size: 11px; color: #9fb1c2; margin-top: 2px; }
-#hud .bd-time { font: 800 34px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f0d27a; margin: 10px 0 1px; }
-#hud .bd-line { font-size: 12px; color: #c8bd96; margin: 2px 0 6px; }
+#hud .bd-time { font: 800 34px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--gold-bright); margin: 10px 0 1px; }
+#hud .bd-line { font-size: 12px; color: var(--ink-dim); margin: 2px 0 6px; }
 #hud .bd-rows { margin-top: 8px; }
 #hud .bd-row { display: flex; gap: 10px; align-items: center; padding: 7px 10px; border-radius: 9px; font-size: 14px; color: #e8e4d8; border: 1px solid transparent; }
 #hud .bd-row .bd-rank { width: 24px; color: #9fb1c2; font-weight: 800; font-size: 12px; }
 #hud .bd-row .bd-name { flex: 1; font-weight: 700; letter-spacing: 0.5px; }
-#hud .bd-row .bd-t { font: 700 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f0d27a; }
-#hud .bd-row.me { background: rgba(216,185,74,0.16); border-color: rgba(216,185,74,0.4); }
+#hud .bd-row .bd-t { font: 700 14px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--gold-bright); }
+#hud .bd-row.me { background: rgba(var(--gold-rgb),0.16); border-color: rgba(var(--gold-rgb),0.4); }
 #hud .bd-row.claim { background: rgba(207,234,255,0.07); border: 1px dashed rgba(207,234,255,0.35); padding: 9px 10px; }
 #hud .bd-row.claim input {
   flex: 1; min-width: 90px; width: 90px; padding: 7px 10px; border-radius: 8px;
-  border: 1px solid rgba(216,185,74,0.55); background: rgba(10,14,20,0.6);
-  color: #ffe9a6; font: 800 17px system-ui, sans-serif; letter-spacing: 1.5px;
+  border: 1px solid rgba(var(--gold-rgb),0.55); background: rgba(10,14,20,0.6);
+  color: var(--gold-bright); font: 800 17px system-ui, sans-serif; letter-spacing: 1.5px;
   outline: none; text-transform: uppercase;
 }
 #hud .bd-row.claim input::placeholder { font-size: 12px; letter-spacing: 0.5px; color: #9fb1c2; }
 #hud .bd-row.claim input.bad { border-color: #d85a4a; animation: nbpt-name-shake 0.3s ease; }
 #hud .bd-row.claim button {
   padding: 8px 13px; border-radius: 8px; border: none; cursor: pointer;
-  color: #2a1c0a; background: linear-gradient(180deg, #ffe9a6, #e8c44f);
+  color: rgb(var(--maroon)); background: linear-gradient(180deg, var(--gold-bright), var(--gold-mid));
   font: 800 13px system-ui, sans-serif; letter-spacing: 0.5px;
 }
 #hud .bd-empty { font-size: 12.5px; color: #9fb1c2; padding: 10px 4px 6px; }
@@ -281,7 +282,7 @@ const css = `
 #hud .bd-err:empty { display: none; }
 #hud .bd-again {
   display: block; width: 100%; margin-top: 14px; padding: 13px 10px; border: none; border-radius: 14px;
-  background: linear-gradient(180deg, #f6dd8a, #e8c44f); color: #2a1c0a; font-weight: 800; font-size: 16px;
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold-mid)); color: rgb(var(--maroon)); font-weight: 800; font-size: 16px;
   letter-spacing: 0.5px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
 }
 #hud .bd-again:active { transform: translateY(1px); }
@@ -305,10 +306,10 @@ const css = `
 #hud .race-pop .rp-rider {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 8px 10px; margin: 0 0 7px; cursor: pointer; border-radius: 9px;
-  background: rgba(216,185,74,0.13); border: 1px solid rgba(216,185,74,0.45);
-  font-size: 12px; color: #f0d27a; font-weight: 700;
+  background: rgba(var(--gold-rgb),0.13); border: 1px solid rgba(var(--gold-rgb),0.45);
+  font-size: 12px; color: var(--gold-bright); font-weight: 700;
 }
-#hud .race-pop .rp-rider b { font-size: 16px; font-weight: 800; color: #ffe9a6; letter-spacing: 1px; }
+#hud .race-pop .rp-rider b { font-size: 16px; font-weight: 800; color: var(--gold-bright); letter-spacing: 1px; }
 #hud .race-pop .rp-rider span { color: #9fb1c2; font-weight: 600; font-size: 11px; }
 /* the "switch rider" affix reads as a link, pushed to the banner's far edge — but the
    unnamed pitch ("add your name…") flows inline after the 🚴 */
@@ -316,8 +317,8 @@ const css = `
 #hud .race-pop .rp-rider:hover span { color: #e8e4d8; }
 #hud .race-pop .rp-rider input {
   flex: 1; width: 110px; min-width: 90px; padding: 5px 9px; border-radius: 7px;
-  border: 1px solid rgba(216,185,74,0.55); background: rgba(10,14,20,0.6);
-  color: #ffe9a6; font: 800 15px system-ui, sans-serif; letter-spacing: 1px;
+  border: 1px solid rgba(var(--gold-rgb),0.55); background: rgba(10,14,20,0.6);
+  color: var(--gold-bright); font: 800 15px system-ui, sans-serif; letter-spacing: 1px;
   outline: none; text-transform: uppercase;
 }
 #hud .race-pop .rp-rider input::placeholder { font-size: 11px; letter-spacing: 0.5px; color: #9fb1c2; }
@@ -325,20 +326,20 @@ const css = `
 @keyframes nbpt-name-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 #hud .run-btn {
   position: absolute; right: 18px; bottom: 52px; width: 58px; height: 58px; border-radius: 50%;
-  background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 2px solid rgba(var(--ink-rgb),0.4);
   display: none; align-items: center; justify-content: center; font-size: 26px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
 #hud .run-btn.show { display: flex; }
-#hud .run-btn.on { background: rgba(216, 185, 74, 0.45); border-color: #e8c44f; }
+#hud .run-btn.on { background: rgba(var(--gold-rgb), 0.45); border-color: var(--gold-mid); }
 #hud .bike-btn {
   position: absolute; right: 18px; bottom: 132px; width: 58px; height: 58px; border-radius: 50%;
-  background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 2px solid rgba(var(--ink-rgb),0.4);
   display: none; align-items: center; justify-content: center; font-size: 26px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
 #hud .bike-btn.show { display: flex; }
-#hud .bike-btn.on { background: rgba(216, 185, 74, 0.45); border-color: #e8c44f; }
+#hud .bike-btn.on { background: rgba(var(--gold-rgb), 0.45); border-color: var(--gold-mid); }
 /* LOOK UP — the chase camera aims about 26° DOWNWARD, which is right for
    following a kid down a street and hopeless for a city: from the sidewalk in
    Boston you could not see the top of a single tower. This tilts the view up
@@ -349,36 +350,36 @@ const css = `
    stacks RUN 52 · BIKE 132 · action 200 · LOOK UP 288. */
 #hud .look-btn {
   position: absolute; right: 18px; bottom: 288px; width: 58px; height: 58px; border-radius: 50%;
-  background: rgba(var(--maroon), 0.65); border: 2px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 2px solid rgba(var(--ink-rgb),0.4);
   display: none; align-items: center; justify-content: center; font-size: 26px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
 #hud .look-btn.show { display: flex; }
-#hud .look-btn.on { background: rgba(216, 185, 74, 0.45); border-color: #e8c44f; }
+#hud .look-btn.on { background: rgba(var(--gold-rgb), 0.45); border-color: var(--gold-mid); }
 #hud .look-btn .kc {
   position: absolute; right: -5px; bottom: -5px;
   min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box;
-  background: #f3f1e8; color: #2e161c;
+  background: var(--ink); color: rgb(var(--maroon));
   border-radius: 5px; border: 1px solid rgba(0,0,0,0.22);
   box-shadow: 0 1.5px 0 rgba(0,0,0,0.3);
   font: 800 11px/1 system-ui, sans-serif;
   display: none; align-items: center; justify-content: center; pointer-events: none;
 }
 #hud.keys .look-btn .kc { display: flex; }
-#hud .look-btn:hover { border-color: #d8b94a; }
+#hud .look-btn:hover { border-color: var(--gold); }
 #hud.indoors .look-btn { display: none !important; }
 /* desktop key-hint badge on the action buttons — only shown on keyboard (#hud.keys) */
 #hud .run-btn .kc, #hud .bike-btn .kc {
   position: absolute; right: -5px; bottom: -5px;
   min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box;
-  background: #f3f1e8; color: #2e161c;
+  background: var(--ink); color: rgb(var(--maroon));
   border-radius: 5px; border: 1px solid rgba(0,0,0,0.22);
   box-shadow: 0 1.5px 0 rgba(0,0,0,0.3);
   font: 800 11px/1 system-ui, sans-serif;
   display: none; align-items: center; justify-content: center; pointer-events: none;
 }
 #hud.keys .run-btn .kc, #hud.keys .bike-btn .kc { display: flex; }
-#hud .run-btn:hover, #hud .bike-btn:hover { border-color: #d8b94a; }
+#hud .run-btn:hover, #hud .bike-btn:hover { border-color: var(--gold); }
 /* indoors (tunnels + interiors) is walk-only — hide the run + bike buttons there */
 #hud.indoors .run-btn, #hud.indoors .bike-btn { display: none !important; }
 #hud .travel-panel {
@@ -389,7 +390,7 @@ const css = `
 #hud .travel-panel.open { pointer-events: auto; opacity: 1; }
 #hud .travel-card {
   position: relative;
-  background: var(--panel); border-radius: 14px; border-bottom: 3px solid #d8b94a;
+  background: var(--panel); border-radius: 14px; border-bottom: 3px solid var(--gold);
   padding: 18px 20px 14px; width: min(560px, 92vw); max-height: 78vh; overflow-y: auto;
 }
 /* a tappable close on every modal card — mobile has little backdrop to tap.
@@ -427,27 +428,27 @@ const css = `
 }
 #hud .waypoint.show { display: flex; }
 #hud .waypoint .wp-arrow {
-  font-size: 19px; line-height: 1; color: rgba(240,210,122,0.7); will-change: transform;
+  font-size: 19px; line-height: 1; color: rgba(var(--gold-rgb),0.7); will-change: transform;
   text-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
 #hud .travel-card h2 {
-  font-family: Georgia, serif; color: #f6f3e8; font-size: 21px; margin: 0 0 12px;
+  font-family: Georgia, serif; color: var(--ink); font-size: 21px; margin: 0 0 12px;
   letter-spacing: 1px; text-align: center;
 }
 #hud .travel-search {
   width: 100%; box-sizing: border-box; margin: 0 0 10px; padding: 10px 13px;
-  font: 600 15px system-ui, sans-serif; color: #f3f1e8;
-  background: rgba(243, 241, 232, 0.09); border: 1px solid rgba(243, 241, 232, 0.25);
+  font: 600 15px system-ui, sans-serif; color: var(--ink);
+  background: rgba(var(--ink-rgb), 0.09); border: 1px solid rgba(var(--ink-rgb), 0.25);
   border-radius: 9px; outline: none;
 }
-#hud .travel-search:focus { border-color: #d8b94a; }
+#hud .travel-search:focus { border-color: var(--gold); }
 #hud .travel-search::placeholder { color: rgba(216, 207, 168, 0.55); }
 #hud .travel-results { display: none; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 #hud .travel-results.has { display: flex; }
-#hud .travel-results .travel-item.sel { background: rgba(216, 185, 74, 0.24); }
+#hud .travel-results .travel-item.sel { background: rgba(var(--gold-rgb), 0.24); }
 #hud .travel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 #hud .travel-item {
-  background: rgba(243, 241, 232, 0.07); border: 1px solid rgba(243, 241, 232, 0.14);
+  background: rgba(var(--ink-rgb), 0.07); border: 1px solid rgba(var(--ink-rgb), 0.14);
   border-radius: 9px; padding: 9px 12px; cursor: pointer; transition: background 0.15s;
 }
 /* grid cards lead with a place-emoji (search results stay text-only) */
@@ -461,9 +462,9 @@ const css = `
 #hud .tt-chip:hover { transform: translateY(-3px); }
 #hud .tt-chip:active { transform: scale(0.95); }
 #hud .travel-item .ti-tx { flex: 1; min-width: 0; }
-#hud .travel-item:hover { background: rgba(216, 185, 74, 0.18); }
-#hud .travel-item .tn { color: #f3f1e8; font-size: 14px; font-weight: 600; }
-#hud .travel-item .ts { color: #c8bd96; font-size: 11px; margin-top: 2px; }
+#hud .travel-item:hover { background: rgba(var(--gold-rgb), 0.18); }
+#hud .travel-item .tn { color: var(--ink); font-size: 14px; font-weight: 600; }
+#hud .travel-item .ts { color: var(--ink-dim); font-size: 11px; margin-top: 2px; }
 /* town switcher — hop between Newburyport, Salem (and future towns), at the top of Fast Travel */
 /* The switcher started life with two towns and grew to twelve without its layout
    ever being revisited: initTravel computed a FIXED column count from the town
@@ -550,18 +551,18 @@ const css = `
 #hud .travel-card h2 { padding: 0 56px; margin: 0 0 16px; }
 #hud .tv-here { padding-top: 4px; }
 #hud .travel-towns { margin: 0 0 14px; }
-#hud .tt-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 10.5px; letter-spacing: 1.5px; color: #c9a84e; font-weight: 700; margin: 0 0 8px; }
+#hud .tt-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 10.5px; letter-spacing: 1.5px; color: var(--gold); font-weight: 700; margin: 0 0 8px; }
 #hud .tt-count { color: #9d9583; font-weight: 600; letter-spacing: 0.6px; }
 #hud .tt-row { display: grid; gap: 7px; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
-#hud .tt-chip { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 8px 5px; border-radius: 10px; background: rgba(243,241,232,0.07); border: 1px solid rgba(243,241,232,0.16); cursor: pointer; transition: background 0.15s, border-color 0.15s; }
-#hud .tt-chip:hover { background: rgba(216,185,74,0.18); border-color: rgba(216,185,74,0.5); }
-#hud .tt-chip.cur { background: rgba(216,185,74,0.16); border-color: #d8b94a; }
-#hud .tt-chip.cur:hover { background: rgba(216,185,74,0.28); border-color: #ffdf87; }
+#hud .tt-chip { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 8px 5px; border-radius: 10px; background: rgba(var(--ink-rgb),0.07); border: 1px solid rgba(var(--ink-rgb),0.16); cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+#hud .tt-chip:hover { background: rgba(var(--gold-rgb),0.18); border-color: rgba(var(--gold-rgb),0.5); }
+#hud .tt-chip.cur { background: rgba(var(--gold-rgb),0.16); border-color: var(--gold); }
+#hud .tt-chip.cur:hover { background: rgba(var(--gold-rgb),0.28); border-color: var(--gold-bright); }
 #hud .tt-emoji { font-size: 22px; line-height: 1; flex: none; }
 #hud .tt-info { line-height: 1.18; min-width: 0; }
-#hud .tt-name { color: #f3f1e8; font-size: 11.5px; font-weight: 700; }
-#hud .tt-tag { display: none; color: #c8bd96; font-size: 11px; margin-top: 1px; }
-#hud .tt-here { color: #e8c44f; font-size: 10px; font-weight: 700; margin-top: 2px; letter-spacing: 0.3px; }
+#hud .tt-name { color: var(--ink); font-size: 11.5px; font-weight: 700; }
+#hud .tt-tag { display: none; color: var(--ink-dim); font-size: 11px; margin-top: 1px; }
+#hud .tt-here { color: var(--gold-mid); font-size: 10px; font-weight: 700; margin-top: 2px; letter-spacing: 0.3px; }
 @media (min-width: 560px) {
   #hud .tt-row { grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); }
   #hud .tt-chip { flex-direction: row; text-align: left; gap: 10px; padding: 9px 11px; }
@@ -570,20 +571,20 @@ const css = `
 }
 /* the five lo-fi styles, as a row of chips inside Settings. Wraps rather than
    scrolls so all five are reachable on a phone without a hidden fifth. */
-#hud .sp-music { padding: 10px 12px 12px; border-top: 1px solid rgba(243,241,232,0.12); }
-#hud .sp-mhdr { font-size: 10.5px; letter-spacing: 1.4px; color: #c9a84e; font-weight: 700; margin: 0 0 8px; }
+#hud .sp-music { padding: 10px 12px 12px; border-top: 1px solid rgba(var(--ink-rgb),0.12); }
+#hud .sp-mhdr { font-size: 10.5px; letter-spacing: 1.4px; color: var(--gold); font-weight: 700; margin: 0 0 8px; }
 #hud .sp-mrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); gap: 6px; }
 #hud .sp-mbtn {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 7px 3px; border-radius: 9px; cursor: pointer;
-  background: rgba(243,241,232,0.07); border: 1px solid rgba(243,241,232,0.16);
+  background: rgba(var(--ink-rgb),0.07); border: 1px solid rgba(var(--ink-rgb),0.16);
   transition: background 0.15s, border-color 0.15s;
 }
-#hud .sp-mbtn:hover { background: rgba(216,185,74,0.18); border-color: rgba(216,185,74,0.5); }
-#hud .sp-mbtn.cur { background: rgba(216,185,74,0.22); border-color: #d8b94a; }
+#hud .sp-mbtn:hover { background: rgba(var(--gold-rgb),0.18); border-color: rgba(var(--gold-rgb),0.5); }
+#hud .sp-mbtn.cur { background: rgba(var(--gold-rgb),0.22); border-color: var(--gold); }
 #hud .sp-mbtn .m-em { font-size: 18px; line-height: 1; }
-#hud .sp-mbtn .m-nm { font-size: 9.5px; font-weight: 700; color: #f3f1e8; text-align: center; line-height: 1.15; }
-#hud .sp-msub { margin-top: 8px; font-size: 11.5px; color: #c8bd96; line-height: 1.35; min-height: 2.7em; }
+#hud .sp-mbtn .m-nm { font-size: 9.5px; font-weight: 700; color: var(--ink); text-align: center; line-height: 1.15; }
+#hud .sp-msub { margin-top: 8px; font-size: 11.5px; color: var(--ink-dim); line-height: 1.35; min-height: 2.7em; }
 #hud .fade {
   position: absolute; inset: 0; background: #0c1118; opacity: 0; pointer-events: none;
   transition: opacity 0.22s ease; z-index: 300;
@@ -621,15 +622,15 @@ const css = `
 #hud .hcard-wrap {
   position: relative; width: min(520px, 92vw); max-height: 88vh;
   border-radius: 18px; padding: 2px; overflow: hidden;
-  background: rgba(216, 185, 74, 0.34);       /* the rail the highlight rides */
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55), 0 0 30px rgba(216, 185, 74, 0.3);
+  background: rgba(var(--gold-rgb), 0.34);       /* the rail the highlight rides */
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55), 0 0 30px rgba(var(--gold-rgb), 0.3);
   animation: nbpt-card-in 0.42s cubic-bezier(0.18, 1.3, 0.42, 1) both;
 }
 #hud .hcard-wrap::before {
   content: ''; position: absolute; left: 50%; top: 50%;
   width: 240%; aspect-ratio: 1; translate: -50% -50%;
-  background: conic-gradient(rgba(216,185,74,0.3) 0deg, rgba(216,185,74,0.3) 165deg,
-    rgba(255,214,110,0.95) 232deg, #fffdf2 288deg, rgba(255,214,110,0.95) 344deg, rgba(216,185,74,0.3) 360deg);
+  background: conic-gradient(rgba(var(--gold-rgb),0.3) 0deg, rgba(var(--gold-rgb),0.3) 165deg,
+    rgba(var(--gold-rgb),0.95) 232deg, #fffdf2 288deg, rgba(var(--gold-rgb),0.95) 344deg, rgba(var(--gold-rgb),0.3) 360deg);
   animation: nbpt-trophy-shine 3.6s linear infinite;
 }
 @keyframes nbpt-trophy-shine { to { rotate: 360deg; } }
@@ -658,14 +659,14 @@ const css = `
 /* the "you just found one" banner — only on a first find, never on a re-read */
 #hud .hcard .hnew {
   display: none; text-align: center; font-size: 12px; font-weight: 800; letter-spacing: 2.4px;
-  color: #1d1207; background: linear-gradient(90deg, #e8c44f, #ffdf87 55%, #e8c44f);
+  color: #1d1207; background: linear-gradient(90deg, var(--gold-mid), var(--gold-bright) 55%, var(--gold-mid));
   padding: 8px 10px; border-radius: 16px 16px 0 0;
 }
 #hud .hcard.fresh .hnew { display: block; }
 /* the photo: the kid's own snapshot, or an illustrated fallback tile */
 #hud .hcard .hpic {
   position: relative; width: 100%; aspect-ratio: 8 / 5; overflow: hidden;
-  background: linear-gradient(155deg, #4a3a1c, #2a1419 70%);
+  background: linear-gradient(155deg, #4a3a1c, rgb(var(--maroon)) 70%);
   display: flex; align-items: center; justify-content: center;
 }
 #hud .hcard.fresh .hpic { animation: nbpt-pic-in 0.7s ease 0.15s both; }
@@ -677,11 +678,11 @@ const css = `
   background: linear-gradient(to bottom, transparent 55%, rgba(26,13,17,0.9));
 }
 #hud .hcard .hbody { padding: 14px 22px 0; }
-#hud .hcard .ht { font-family: Georgia, serif; font-size: 24px; color: #f6f3e8; line-height: 1.2; }
-#hud .hcard .hy { font-size: 11.5px; letter-spacing: 2px; color: #e8c44f; font-weight: 700; text-transform: uppercase; margin: 4px 0 12px; }
+#hud .hcard .ht { font-family: Georgia, serif; font-size: 24px; color: var(--ink); line-height: 1.2; }
+#hud .hcard .hy { font-size: 11.5px; letter-spacing: 2px; color: var(--gold-mid); font-weight: 700; text-transform: uppercase; margin: 4px 0 12px; }
 #hud .hcard .hb { font-size: 15px; line-height: 1.62; color: #e8e4d8; white-space: pre-line; }
 #hud .hcard .hf { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 16px; padding: 0 22px; }
-#hud .hcard .stamp { font-size: 11px; letter-spacing: 1.8px; color: #e8c44f; font-weight: 800; }
+#hud .hcard .stamp { font-size: 11px; letter-spacing: 1.8px; color: var(--gold-mid); font-weight: 800; }
 #hud .hcard .hacts { display: flex; align-items: center; gap: 8px; }
 /* The card's one button, a 44px pill. This rule used to be shared with a .hsay
    read-aloud button, and the first time read-aloud was pulled the whole SELECTOR LINE
@@ -694,11 +695,11 @@ const css = `
   display: flex; align-items: center; justify-content: center; gap: 6px;
   font-size: 13px; font-weight: 700; cursor: pointer; pointer-events: auto;
   white-space: nowrap; flex: 0 0 auto;
-  border: 1.5px solid #d8b94a; background: #d8b94a; color: #2a1419;
+  border: 1.5px solid var(--gold); background: var(--gold); color: rgb(var(--maroon));
 }
 /* running tally under the card — "that was number 7" */
-#hud .hcard .hcount { text-align: center; font-size: 12px; color: #c8bd96; margin: 12px 22px 0; letter-spacing: 0.4px; }
-#hud .hcard .hcount b { color: #e8c44f; }
+#hud .hcard .hcount { text-align: center; font-size: 12px; color: var(--ink-dim); margin: 12px 22px 0; letter-spacing: 0.4px; }
+#hud .hcard .hcount b { color: var(--gold-mid); }
 /* the not-yet-found treatment: same card, all the shine turned down */
 #hud .hcard.locked-card .hpic { background: linear-gradient(155deg, #322530, #1d1419); }
 #hud .hcard.locked-card .hpic .hpic-em { opacity: 0.55; filter: grayscale(0.6); }
@@ -706,7 +707,7 @@ const css = `
 #hud .hcard.locked-card .ht { color: #d9d3c4; }
 #hud .hcard.locked-card .stamp { color: #8b8678; }
 #hud .hcard .hmore { display: block; margin-top: 10px; font-size: 13.5px; color: #c8a24f; font-style: italic; }
-#hud .hcard.locked-card .hclose { background: rgba(216,185,74,0.18); border-color: rgba(216,185,74,0.5); color: #f3f1e8; }
+#hud .hcard.locked-card .hclose { background: rgba(var(--gold-rgb),0.18); border-color: rgba(var(--gold-rgb),0.5); color: var(--ink); }
 /* an icon does not need a photo-sized frame — the locked card's art area is half
    height, or the glyph floats in an empty pane */
 #hud .hcard.locked-card .hpic { aspect-ratio: 16 / 7; }
@@ -719,8 +720,8 @@ const css = `
   #hud .hcard .hbody { padding: 12px 16px 0; }
   #hud .hcard .hcount { margin: 10px 16px 0; }
 }
-#hud .hist-line { text-align: center; font-size: 12.5px; color: #c8bd96; margin-top: 12px; letter-spacing: 0.5px; }
-#hud .hist-line b { color: #e8c44f; }
+#hud .hist-line { text-align: center; font-size: 12.5px; color: var(--ink-dim); margin-top: 12px; letter-spacing: 0.5px; }
+#hud .hist-line b { color: var(--gold-mid); }
 
 /* ---------- 🏛 the collection ----------
    With the story spine retired this is the main thing to DO, so it gets a
@@ -729,7 +730,7 @@ const css = `
    cascade down past it (scoped to .has-collect so world-only towns are untouched). */
 #hud .collect-btn {
   position: absolute; top: 398px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(243,241,232,0.4);
+  background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(var(--ink-rgb),0.4);
   display: none; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
   transition: top 0.3s ease;
@@ -744,10 +745,10 @@ const css = `
    running number. Any future badge on a labelled button belongs up here. */
 #hud .collect-btn .cb-n {
   position: absolute; top: -3px; right: -3px; min-width: 20px; height: 18px; padding: 0 4px;
-  border-radius: 9px; background: #d8b94a; color: #2a1419;
+  border-radius: 9px; background: var(--gold); color: rgb(var(--maroon));
   font-size: 10.5px; font-weight: 800; line-height: 18px; text-align: center;
 }
-#hud .collect-btn.done { border-color: #ffd86a; box-shadow: 0 0 12px rgba(255,216,106,0.6); }
+#hud .collect-btn.done { border-color: var(--gold-mid); box-shadow: 0 0 12px rgba(var(--gold-rgb),0.6); }
 @keyframes nbpt-collect-pop { 0%,100% { transform: scale(1); } 40% { transform: scale(1.28); } }
 #hud .collect-btn.bump { animation: nbpt-collect-pop 0.5s ease; }
 
@@ -762,8 +763,8 @@ const css = `
    columns on narrow screens so shrinking the box doesn't mean endless scrolling. */
 #hud .collect-card {
   position: relative; width: min(560px, 88vw); max-height: 74vh; overflow-y: auto;
-  background: var(--panel); border-radius: 16px; border-bottom: 3px solid #d8b94a;
-  padding: 16px 16px 14px; color: #f3f1e8;
+  background: var(--panel); border-radius: 16px; border-bottom: 3px solid var(--gold);
+  padding: 16px 16px 14px; color: var(--ink);
   box-shadow: 0 22px 70px rgba(0,0,0,0.6);
 }
 /* clearing the album is destructive and rare — a quiet footer link, then a confirm */
@@ -775,17 +776,17 @@ const css = `
   color: #8b8678; cursor: pointer; letter-spacing: 0.4px;
   display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 14px;
 }
-#hud .collect-foot .cf-reset:hover { color: #c8bd96; }
+#hud .collect-foot .cf-reset:hover { color: var(--ink-dim); }
 #hud .collect-foot.arm .cf-reset { color: #e88b7a; font-weight: 700; }
-#hud .collect-card h2 { font-size: 14px; letter-spacing: 3px; color: #e8c44f; font-weight: 800; margin: 0 0 10px; }
-#hud .collect-prog { height: 10px; border-radius: 5px; background: rgba(243,241,232,0.13); overflow: hidden; margin: 2px 0 6px; }
-#hud .collect-prog i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #b98f2e, #ffd86a); transition: width 0.5s ease; }
-#hud .collect-tally { font-size: 13px; color: #c8bd96; margin-bottom: 14px; }
-#hud .collect-tally b { color: #e8c44f; font-size: 15px; }
+#hud .collect-card h2 { font-size: 14px; letter-spacing: 3px; color: var(--gold-mid); font-weight: 800; margin: 0 0 10px; }
+#hud .collect-prog { height: 10px; border-radius: 5px; background: rgba(var(--ink-rgb),0.13); overflow: hidden; margin: 2px 0 6px; }
+#hud .collect-prog i { display: block; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #b98f2e, var(--gold-mid)); transition: width 0.5s ease; }
+#hud .collect-tally { font-size: 13px; color: var(--ink-dim); margin-bottom: 14px; }
+#hud .collect-tally b { color: var(--gold-mid); font-size: 15px; }
 #hud .collect-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 9px; }
 #hud .ctile {
-  border-radius: 10px; overflow: hidden; background: rgba(243,241,232,0.06);
-  border: 1px solid rgba(243,241,232,0.12); cursor: default;
+  border-radius: 10px; overflow: hidden; background: rgba(var(--ink-rgb),0.06);
+  border: 1px solid rgba(var(--ink-rgb),0.12); cursor: default;
 }
 #hud .ctile { cursor: pointer; }
 #hud .ctile.got { border-color: rgba(var(--gold-rgb),0.55); }
@@ -805,12 +806,12 @@ const css = `
    the point is that you can go looking for it */
 #hud .ctile.locked .cnm { color: #b3ab95; }
 #hud .ctile .chint {
-  margin-top: 5px; font-size: 10.5px; color: #e8c44f; cursor: pointer;
-  border-top: 1px solid rgba(216,185,74,0.22); padding-top: 5px; min-height: 16px;
+  margin-top: 5px; font-size: 10.5px; color: var(--gold-mid); cursor: pointer;
+  border-top: 1px solid rgba(var(--gold-rgb),0.22); padding-top: 5px; min-height: 16px;
 }
-#hud .ctile .chint.shown { color: #c8bd96; cursor: default; }
-#hud .ctile .cyr { font-size: 10.5px; color: #c8bd96; letter-spacing: 0.6px; margin-top: 2px; }
-#hud .collect-empty { font-size: 13px; color: #c8bd96; line-height: 1.5; }
+#hud .ctile .chint.shown { color: var(--ink-dim); cursor: default; }
+#hud .ctile .cyr { font-size: 10.5px; color: var(--ink-dim); letter-spacing: 0.6px; margin-top: 2px; }
+#hud .collect-empty { font-size: 13px; color: var(--ink-dim); line-height: 1.5; }
 /* 88px (not 96) is deliberate: the card is 88vw with 16px padding, so 96 + gaps
    overflowed by a few px and collapsed to TWO columns — half the grid per screen. */
 @media (max-width: 520px) {
@@ -825,7 +826,7 @@ const css = `
 
 #hud .mini {
   position: absolute; top: 70px; right: 14px; opacity: 0.55; border-radius: 8px;
-  overflow: hidden; border: 1px solid rgba(243, 241, 232, 0.35); pointer-events: none;
+  overflow: hidden; border: 1px solid rgba(var(--ink-rgb), 0.35); pointer-events: none;
 }
 #hud .mini canvas { display: block; }
 #hud .mini .me {
@@ -840,15 +841,15 @@ const css = `
 }
 #hud .objective {
   position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
-  background: rgba(var(--maroon-lt), 0.84); border: 1px solid rgba(216, 185, 74, 0.55);
-  color: #f3f1e8; font-size: 12.5px; font-weight: 600; letter-spacing: 0.4px;
+  background: rgba(var(--maroon-lt), 0.84); border: 1px solid rgba(var(--gold-rgb), 0.55);
+  color: var(--ink); font-size: 12.5px; font-weight: 600; letter-spacing: 0.4px;
   padding: 8px 15px; border-radius: 16px; display: none; align-items: center; gap: 8px;
   /* sized to content, but never wider than the gap between the corner buttons */
   width: max-content; max-width: min(70vw, calc(100vw - 168px)); text-align: center; pointer-events: auto; cursor: pointer;
   user-select: none; -webkit-user-select: none;
 }
 #hud .objective.show { display: flex; }
-#hud .objective .q { color: #e8c44f; font-weight: 800; }
+#hud .objective .q { color: var(--gold-mid); font-weight: 800; }
 /* the pill's leading glyph is now a live steering arrow — it rotates toward the beacon */
 #hud .objective .wp-q { display: inline-block; transform-origin: 50% 50%; transition: transform 0.16s linear; font-size: 15px; }
 #hud .objective.min { padding: 8px 11px; opacity: 0.75; }
@@ -862,32 +863,32 @@ const css = `
 #hud .dlg {
   position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%);
   width: min(580px, 93vw); background: var(--panel); border-radius: 13px;
-  border-bottom: 3px solid #d8b94a; padding: 13px 17px 9px; display: none;
+  border-bottom: 3px solid var(--gold); padding: 13px 17px 9px; display: none;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
 #hud .dlg.open { display: block; }
-#hud .dlg .who { font-size: 11.5px; letter-spacing: 1.6px; color: #e8c44f; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; min-height: 13px; }
-#hud .dlg .line { font-size: 15.5px; line-height: 1.45; color: #f3f1e8; min-height: 46px; }
+#hud .dlg .who { font-size: 11.5px; letter-spacing: 1.6px; color: var(--gold-mid); font-weight: 800; text-transform: uppercase; margin-bottom: 4px; min-height: 13px; }
+#hud .dlg .line { font-size: 15.5px; line-height: 1.45; color: var(--ink); min-height: 46px; }
 #hud .dlg .dlg-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 7px; }
 /* secondary, ghosted next to the gold Next pill; hidden on the first line (no prior to
    go back to), pushed to the far left so Next stays anchored right */
 #hud .dlg .dlg-back {
   display: none; margin-right: auto; background: transparent; color: #cdbf9a;
   font-weight: 700; font-size: 13px; letter-spacing: 0.8px; padding: 6px 14px;
-  border-radius: 15px; border: 1.5px solid rgba(216,185,74,0.45); cursor: pointer;
+  border-radius: 15px; border: 1.5px solid rgba(var(--gold-rgb),0.45); cursor: pointer;
 }
 #hud .dlg .dlg-back.show { display: inline-block; }
-#hud .dlg .dlg-back:hover { background: rgba(216,185,74,0.14); color: #f0d27a; }
+#hud .dlg .dlg-back:hover { background: rgba(var(--gold-rgb),0.14); color: var(--gold-bright); }
 #hud .dlg .dlg-next {
-  display: inline-block; background: rgba(216,185,74,0.95); color: #1c2430;
+  display: inline-block; background: rgba(var(--gold-rgb),0.95); color: rgb(var(--maroon));
   font-weight: 800; font-size: 13px; letter-spacing: 0.8px; padding: 6px 17px;
-  border-radius: 15px; border: 1.5px solid #f0d27a;
+  border-radius: 15px; border: 1.5px solid var(--gold-bright);
 }
-#hud .dlg .dlg-next:hover { background: #f0d27a; }
+#hud .dlg .dlg-next:hover { background: var(--gold-bright); }
 #hud .talk-btn {
   position: absolute; right: 18px; bottom: 200px; min-width: 58px; height: 58px;
-  border-radius: 29px; background: rgba(216, 185, 74, 0.92); color: #1c2430;
-  border: 2px solid #f0d27a; display: none; align-items: center; justify-content: center;
+  border-radius: 29px; background: rgba(var(--gold-rgb), 0.92); color: rgb(var(--maroon));
+  border: 2px solid var(--gold-bright); display: none; align-items: center; justify-content: center;
   font-size: 14px; font-weight: 800; letter-spacing: 1px; padding: 0 16px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
@@ -897,12 +898,12 @@ const css = `
 #hud:has(.dlg.open) .talk-btn { bottom: 218px; transition: bottom 0.18s var(--ease-out); }
 #hud .journey-btn {
   position: absolute; top: 142px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(var(--maroon), 0.78); border: 1.5px solid rgba(216,185,74,0.6);
+  background: rgba(var(--maroon), 0.78); border: 1.5px solid rgba(var(--gold-rgb),0.6);
   display: flex; align-items: center; justify-content: center; font-size: 22px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
   z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
-#hud .journey-btn:hover { border-color: #e8c44f; }
+#hud .journey-btn:hover { border-color: var(--gold-mid); }
 /* the journey panel fades the backdrop + slides/scales its card in & out */
 #hud .journey-panel {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -915,15 +916,15 @@ const css = `
 /* ---------- Backpack 🎒: a button that springs in on your first item ---------- */
 #hud .bag-btn {
   position: absolute; top: 206px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
-  background: rgba(var(--maroon), 0.78); border: 1.5px solid rgba(216,185,74,0.6);
+  background: rgba(var(--maroon), 0.78); border: 1.5px solid rgba(var(--gold-rgb),0.6);
   display: none; align-items: center; justify-content: center; font-size: 22px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
   z-index: 2; box-shadow: 0 2px 8px rgba(0,0,0,0.35);
 }
 #hud .bag-btn.show { display: flex; }
-#hud .bag-btn:hover { border-color: #e8c44f; }
+#hud .bag-btn:hover { border-color: var(--gold-mid); }
 #hud .bag-badge {
-  position: absolute; top: -6px; right: -8px; background: #e8c44f; color: #1c2430;
+  position: absolute; top: -6px; right: -8px; background: var(--gold-mid); color: rgb(var(--maroon));
   font: 800 8.5px system-ui, sans-serif; letter-spacing: 0.5px; padding: 1px 4px;
   border-radius: 7px; display: none; pointer-events: none;
 }
@@ -935,9 +936,9 @@ const css = `
   100% { transform: scale(1) rotate(0); opacity: 1; }
 }
 @keyframes nbpt-bag-glow {
-  0%   { box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 0 0 0 rgba(232,196,79,0.85); }
-  60%  { box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 0 16px 11px rgba(232,196,79,0); }
-  100% { box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 0 0 0 rgba(232,196,79,0); }
+  0%   { box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 0 0 0 rgba(var(--gold-rgb),0.85); }
+  60%  { box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 0 16px 11px rgba(var(--gold-rgb),0); }
+  100% { box-shadow: 0 2px 8px rgba(0,0,0,0.35), 0 0 0 0 rgba(var(--gold-rgb),0); }
 }
 #hud .bag-btn.pop { animation: nbpt-bag-pop 0.7s cubic-bezier(0.2,0.85,0.3,1.2) both, nbpt-bag-glow 0.95s ease-out both; }
 @keyframes nbpt-bag-wiggle {
@@ -950,12 +951,12 @@ const css = `
 #hud .bag-btn.wiggle { animation: nbpt-bag-wiggle 0.55s ease-in-out; }
 #hud .bag-tip {
   position: absolute; top: 214px; left: 66px; background: rgba(var(--maroon-lt),0.94);
-  border: 1px solid rgba(216,185,74,0.55); color: #f3f1e8; font-size: 12.5px; font-weight: 600;
+  border: 1px solid rgba(var(--gold-rgb),0.55); color: var(--ink); font-size: 12.5px; font-weight: 600;
   padding: 7px 12px; border-radius: 14px; white-space: nowrap; pointer-events: none;
   opacity: 0; transform: translateX(-8px); z-index: 12;
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
-#hud .bag-tip b { color: #f0d27a; }
+#hud .bag-tip b { color: var(--gold-bright); }
 #hud .bag-tip.show { opacity: 1; transform: translateX(0); }
 /* the bag panel reuses the journey-panel modal pattern (full-screen on mobile) */
 #hud .bag-panel {
@@ -966,60 +967,60 @@ const css = `
 #hud .bag-panel.show { pointer-events: auto; opacity: 1; }
 #hud .bag-card {
   position: relative; width: min(420px, 90vw); max-height: 82vh; overflow: auto;
-  background: var(--panel); border-radius: 14px; border-bottom: 3px solid #d8b94a;
-  padding: 18px 20px 16px; color: #f3f1e8;
+  background: var(--panel); border-radius: 14px; border-bottom: 3px solid var(--gold);
+  padding: 18px 20px 16px; color: var(--ink);
   transform: translateY(18px) scale(0.95); transition: transform 0.26s cubic-bezier(0.2, 0.85, 0.3, 1.12);
 }
 #hud .bag-panel.show .bag-card { transform: translateY(0) scale(1); }
-#hud .bag-head { display: flex; align-items: center; gap: 10px; font-size: 14px; letter-spacing: 3px; color: #e8c44f; font-weight: 800; margin-bottom: 4px; }
+#hud .bag-head { display: flex; align-items: center; gap: 10px; font-size: 14px; letter-spacing: 3px; color: var(--gold-mid); font-weight: 800; margin-bottom: 4px; }
 #hud .bag-head .bag-emoji { font-size: 34px; line-height: 1; letter-spacing: 0; }
 #hud .bag-empty { font-size: 12.5px; color: #8b8678; line-height: 1.5; margin-top: 10px; }
 #hud .bag-sec.empty { display: none; }
-#hud .bag-sectitle { font-size: 11.5px; letter-spacing: 2px; color: #e8c44f; font-weight: 800; margin: 13px 0 7px; }
+#hud .bag-sectitle { font-size: 11.5px; letter-spacing: 2px; color: var(--gold-mid); font-weight: 800; margin: 13px 0 7px; }
 #hud .bag-grid { display: flex; flex-wrap: wrap; gap: 6px; }
 #hud .bag-grid .jitem {
   flex: 1 1 46%; min-width: 132px; display: flex; align-items: center; gap: 9px;
   border-radius: 9px; padding: 7px 10px; font-size: 11.5px; line-height: 1.3;
-  border: 1px solid rgba(216,185,74,0.4); background: rgba(216,185,74,0.08); color: #f3f1e8;
+  border: 1px solid rgba(var(--gold-rgb),0.4); background: rgba(var(--gold-rgb),0.08); color: var(--ink);
 }
 #hud .bag-grid .jitem .ic { font-size: 19px; flex: none; }
 #hud .bag-grid .jitem .tx { flex: 1; }
-#hud .bag-grid .jitem b { color: #f0d27a; }
+#hud .bag-grid .jitem b { color: var(--gold-bright); }
 #hud .bag-grid .jitem .cnt {
-  flex: none; font: 800 12px system-ui, sans-serif; color: #f0d27a;
-  background: rgba(216,185,74,0.16); border-radius: 8px; padding: 1px 8px;
+  flex: none; font: 800 12px system-ui, sans-serif; color: var(--gold-bright);
+  background: rgba(var(--gold-rgb),0.16); border-radius: 8px; padding: 1px 8px;
 }
 #hud .bag-grid .jitem.tappable { cursor: pointer; }
-#hud .bag-grid .jitem.tappable:hover { background: rgba(216,185,74,0.18); }
+#hud .bag-grid .jitem.tappable:hover { background: rgba(var(--gold-rgb),0.18); }
 #hud .bag-grid .jitem.fresh { animation: nbpt-item-flash 1.5s ease-out; }
 @keyframes nbpt-item-flash {
-  0%, 100% { border-color: rgba(216,185,74,0.4); background: rgba(216,185,74,0.08); }
-  25% { border-color: #ffd86a; background: rgba(216,185,74,0.22); }
+  0%, 100% { border-color: rgba(var(--gold-rgb),0.4); background: rgba(var(--gold-rgb),0.08); }
+  25% { border-color: var(--gold-mid); background: rgba(var(--gold-rgb),0.22); }
 }
 /* ---------- Missions cards: grouped, tappable, with a sub-step checklist ---------- */
-#hud .m-group { font-size: 11.5px; letter-spacing: 2px; color: #e8c44f; font-weight: 800; margin: 15px 0 7px; }
+#hud .m-group { font-size: 11.5px; letter-spacing: 2px; color: var(--gold-mid); font-weight: 800; margin: 15px 0 7px; }
 /* a named Level header above its chapters (Story tab) */
-#hud .m-level { font-size: 13.5px; color: #f0d27a; font-weight: 800; margin: 16px 0 8px; letter-spacing: 0.3px; border-bottom: 1px solid rgba(232,196,79,0.25); padding-bottom: 6px; }
+#hud .m-level { font-size: 13.5px; color: var(--gold-bright); font-weight: 800; margin: 16px 0 8px; letter-spacing: 0.3px; border-bottom: 1px solid rgba(var(--gold-rgb),0.25); padding-bottom: 6px; }
 #hud .m-level:first-child { margin-top: 4px; }
-#hud .m-level .m-lk { font-size: 10.5px; letter-spacing: 2px; color: #c9a84e; }
+#hud .m-level .m-lk { font-size: 10.5px; letter-spacing: 2px; color: var(--gold); }
 /* Story | Collections tab toggle */
 #hud .j-tabs { display: flex; gap: 6px; margin: 0 0 12px; }
-#hud .j-tab { flex: 1; text-align: center; padding: 7px 0; border-radius: 8px; font-size: 12.5px; letter-spacing: 0.6px; cursor: pointer; user-select: none; -webkit-user-select: none; border: 1px solid rgba(232,196,79,0.28); color: #cbb86a; }
-#hud .j-tab.on { background: rgba(232,196,79,0.16); border-color: #e8c44f; color: #f6e9b0; font-weight: 700; }
+#hud .j-tab { flex: 1; text-align: center; padding: 7px 0; border-radius: 8px; font-size: 12.5px; letter-spacing: 0.6px; cursor: pointer; user-select: none; -webkit-user-select: none; border: 1px solid rgba(var(--gold-rgb),0.28); color: var(--gold); }
+#hud .j-tab.on { background: rgba(var(--gold-rgb),0.16); border-color: var(--gold-mid); color: #f6e9b0; font-weight: 700; }
 #hud .m-card {
-  border: 1px solid rgba(216,185,74,0.28); background: rgba(216,185,74,0.06);
+  border: 1px solid rgba(var(--gold-rgb),0.28); background: rgba(var(--gold-rgb),0.06);
   border-radius: 10px; padding: 8px 11px; margin: 0 0 6px;
 }
-#hud .m-card.locked { opacity: 0.5; border-color: rgba(243,241,232,0.14); background: rgba(243,241,232,0.04); }
-#hud .m-card.active { border-color: #d8b94a; background: rgba(216,185,74,0.13); }
+#hud .m-card.locked { opacity: 0.5; border-color: rgba(var(--ink-rgb),0.14); background: rgba(var(--ink-rgb),0.04); }
+#hud .m-card.active { border-color: var(--gold); background: rgba(var(--gold-rgb),0.13); }
 #hud .m-card.done { border-color: rgba(158,201,138,0.4); }
 #hud .m-row { display: flex; align-items: center; gap: 8px; font-size: 13.5px; cursor: pointer; }
 #hud .m-card.locked .m-row { cursor: default; }
 #hud .m-dot { font-size: 12px; flex: none; }
-#hud .m-title { color: #f6f3e8; flex: 1; }
+#hud .m-title { color: var(--ink); flex: 1; }
 #hud .m-card.locked .m-title { color: #787e8a; }
 #hud .m-card.done .m-title { color: #c4ccbb; }
-#hud .m-prog { font: 800 12px system-ui, sans-serif; color: #f0d27a; flex: none; }
+#hud .m-prog { font: 800 12px system-ui, sans-serif; color: var(--gold-bright); flex: none; }
 #hud .m-rep { color: #e8a89a; font-size: 10.5px; font-weight: 600; letter-spacing: 0.3px; cursor: pointer; flex: none; white-space: nowrap; border: 1px solid rgba(216,90,74,0.45); border-radius: 7px; padding: 3px 8px; }
 #hud .m-rep:hover, #hud .m-rep[data-arm="1"] { background: rgba(216,90,74,0.2); border-color: rgba(216,90,74,0.7); }
 #hud .m-lrep { float: right; color: #e8a89a; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; cursor: pointer; white-space: nowrap; border: 1px solid rgba(216,90,74,0.45); border-radius: 7px; padding: 3px 9px; margin-top: -2px; }
@@ -1031,9 +1032,9 @@ const css = `
 #hud .m-card.expanded .m-steps { display: block; }
 #hud .m-step { font-size: 12.5px; line-height: 1.6; color: #9aa1ad; }
 #hud .m-step.done { color: #c4ccbb; }
-#hud .m-step b { color: #f0d27a; }
-#hud .m-reward { font-size: 11.5px; color: #c8bd96; margin: 6px 0 0 20px; }
-#hud .m-reward b { color: #f0d27a; }
+#hud .m-step b { color: var(--gold-bright); }
+#hud .m-reward { font-size: 11.5px; color: var(--ink-dim); margin: 6px 0 0 20px; }
+#hud .m-reward b { color: var(--gold-bright); }
 #hud .chapter {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; padding: 0 22px; pointer-events: none;
@@ -1041,22 +1042,22 @@ const css = `
   opacity: 0; transition: opacity 0.45s ease;
 }
 #hud .chapter.show { opacity: 1; }
-#hud .chapter .kick { font-size: 13px; letter-spacing: 4px; color: #e8c44f; font-weight: 700; margin-bottom: 10px; }
-#hud .chapter .big { font-family: Georgia, serif; font-size: clamp(30px, 6vw, 46px); color: #f6f3e8; }
-#hud .chapter .small { font-size: 13px; color: #c8bd96; margin-top: 12px; letter-spacing: 1px; }
+#hud .chapter .kick { font-size: 13px; letter-spacing: 4px; color: var(--gold-mid); font-weight: 700; margin-bottom: 10px; }
+#hud .chapter .big { font-family: Georgia, serif; font-size: clamp(30px, 6vw, 46px); color: var(--ink); }
+#hud .chapter .small { font-size: 13px; color: var(--ink-dim); margin-top: 12px; letter-spacing: 1px; }
 /* the finish card's name box (unnamed riders): the save-your-time moment IS the finish */
 #hud .chapter .namer { display: none; margin-top: 18px; gap: 8px; pointer-events: auto; }
 #hud .chapter .namer.show { display: flex; }
 #hud .chapter .namer input {
   width: 168px; padding: 9px 12px; border-radius: 10px;
-  border: 1px solid rgba(216,185,74,0.55); background: rgba(10,14,20,0.6);
-  color: #f3f1e8; font: 700 14px system-ui, sans-serif; letter-spacing: 0.5px;
+  border: 1px solid rgba(var(--gold-rgb),0.55); background: rgba(10,14,20,0.6);
+  color: var(--ink); font: 700 14px system-ui, sans-serif; letter-spacing: 0.5px;
   outline: none; text-transform: uppercase; text-align: center;
 }
 #hud .chapter .namer input.bad { border-color: #d85a4a; animation: nbpt-name-shake 0.3s ease; }
 #hud .chapter .namer button {
   padding: 9px 16px; border-radius: 10px; border: none; cursor: pointer;
-  color: #2a1c0a; background: linear-gradient(180deg, #ffe9a6, #e8c44f);
+  color: rgb(var(--maroon)); background: linear-gradient(180deg, var(--gold-bright), var(--gold-mid));
   font: 800 13px system-ui, sans-serif; letter-spacing: 0.6px;
 }
 #hud .chapter .namer button:hover { transform: scale(1.04); }
@@ -1069,7 +1070,7 @@ const css = `
 #hud .race-count.show { opacity: 1; }
 #hud .race-count .rc-num {
   font-family: Georgia, serif; font-size: clamp(72px, 18vw, 150px); font-weight: 700;
-  color: #f0d27a; text-shadow: 0 4px 30px rgba(0,0,0,0.65), 0 0 60px rgba(232,196,79,0.35);
+  color: var(--gold-bright); text-shadow: 0 4px 30px rgba(0,0,0,0.65), 0 0 60px rgba(var(--gold-rgb),0.35);
   animation: nbpt-race-pop 0.9s cubic-bezier(0.2, 0.85, 0.3, 1.15) both;
 }
 @keyframes nbpt-race-pop { 0% { transform: scale(1.7); opacity: 0; } 25% { opacity: 1; } 100% { transform: scale(0.92); opacity: 0.95; } }
@@ -1079,7 +1080,7 @@ const css = `
   position: absolute; top: max(10px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
   display: none; align-items: baseline; gap: 9px; flex-wrap: wrap;
   max-width: min(400px, calc(100vw - 24px));
-  background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-radius: 12px;
+  background: var(--panel); border: 1px solid rgba(var(--gold-rgb),0.55); border-radius: 12px;
   padding: 7px 14px 9px; pointer-events: none; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
 }
 #hud .race-timer.show { display: flex; }
@@ -1091,14 +1092,14 @@ const css = `
 }
 #hud .race-timer .rt-fill {
   position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
-  border-radius: 6px; background: linear-gradient(90deg, rgba(232,196,79,0.45), #e8c44f);
+  border-radius: 6px; background: linear-gradient(90deg, rgba(var(--gold-rgb),0.45), var(--gold-mid));
 }
 /* the 🚴 emoji faces LEFT in every emoji font — mirror it so it rides toward the 🏁 */
 #hud .race-timer .rt-bike { position: absolute; left: 0%; top: 50%; transform: translate(-55%, -56%) scaleX(-1); font-size: 16px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6)); }
 #hud .race-timer .rt-ghost { position: absolute; left: 0%; top: 50%; transform: translate(-50%, -56%); font-size: 12px; line-height: 1; opacity: 0.8; display: none; }
 #hud .race-timer .rt-flag { position: absolute; right: -3px; top: 50%; transform: translateY(-58%); font-size: 12px; line-height: 1; }
-#hud .race-timer .rt-cur { font: 800 20px ui-monospace, SFMono-Regular, Menlo, monospace; color: #f6f3e8; letter-spacing: 0.5px; }
-#hud .race-timer .rt-best { font: 600 11px system-ui, sans-serif; color: #c8bd96; letter-spacing: 0.4px; }
+#hud .race-timer .rt-cur { font: 800 20px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink); letter-spacing: 0.5px; }
+#hud .race-timer .rt-best { font: 600 11px system-ui, sans-serif; color: var(--ink-dim); letter-spacing: 0.4px; }
 /* the tap-out ✕: the one interactive part of the chip; arms red, second tap quits */
 #hud .race-timer .rt-quit {
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
@@ -1157,7 +1158,7 @@ const css = `
 #hud .levelpromo .lp-lvl {
   font-family: Georgia, serif; font-weight: 800; line-height: 0.95; white-space: nowrap;
   font-size: clamp(46px, 13vw, 92px); letter-spacing: 2px;
-  background: linear-gradient(180deg, #fff6db 0%, #f0cf72 50%, #c8962f 100%);
+  background: linear-gradient(180deg, #fff6db 0%, var(--gold-bright) 50%, var(--gold) 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
   filter: drop-shadow(0 4px 20px rgba(0,0,0,0.55)); animation: lpBloom 0.85s 0.2s cubic-bezier(.18,.9,.22,1) both;
 }
@@ -1174,8 +1175,8 @@ const css = `
      here would leave this invisible, screen-centered button eating touches and
      dead-zoning the joystick after the level-up promo is dismissed */
   margin-top: 24px; cursor: pointer; border: 0; font-family: inherit;
-  font-weight: 800; font-size: 16px; letter-spacing: 2px; color: #2a1c0a;
-  background: linear-gradient(180deg, #ffe9a6, #e8c44f); padding: 14px 32px; border-radius: 30px;
+  font-weight: 800; font-size: 16px; letter-spacing: 2px; color: rgb(var(--maroon));
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold-mid)); padding: 14px 32px; border-radius: 30px;
   animation: lpAppear 0.5s 0.92s both, lpBtn 2.2s 1.6s ease-in-out infinite; transition: transform 0.12s ease;
 }
 #hud .levelpromo .lp-go:hover { transform: scale(1.05); }
@@ -1187,7 +1188,7 @@ const css = `
 @keyframes lpUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes lpAppear { from { opacity: 0; } to { opacity: 1; } }
 @keyframes lpBloom { 0% { opacity: 0; transform: scale(0.6); } 62% { opacity: 1; transform: scale(1.06); } 100% { transform: scale(1); } }
-@keyframes lpBtn { 0%, 100% { box-shadow: 0 6px 18px rgba(0,0,0,0.4); } 50% { box-shadow: 0 0 24px rgba(232,196,79,0.65), 0 6px 18px rgba(0,0,0,0.4); } }
+@keyframes lpBtn { 0%, 100% { box-shadow: 0 6px 18px rgba(0,0,0,0.4); } 50% { box-shadow: 0 0 24px rgba(var(--gold-rgb),0.65), 0 6px 18px rgba(0,0,0,0.4); } }
 @media (prefers-reduced-motion: reduce) {
   #hud .levelpromo .lp-beam, #hud .levelpromo .lp-lamp, #hud .levelpromo .lp-snow i,
   #hud .levelpromo .lp-go { animation-duration: 0.01ms; animation-iteration-count: 1; }
@@ -1202,7 +1203,7 @@ const css = `
 #hud .promo.show { opacity: 1; pointer-events: auto; }
 #hud .promo-card {
   position: relative; width: min(380px, 92vw); text-align: center;
-  background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-bottom: 3px solid #d8b94a;
+  background: var(--panel); border: 1px solid rgba(var(--gold-rgb),0.55); border-bottom: 3px solid var(--gold);
   border-radius: 16px; padding: 20px 20px 16px; box-shadow: var(--shadow-card);
   transform: translateY(22px) scale(0.96); opacity: 0;
 }
@@ -1219,8 +1220,8 @@ const css = `
   cursor: pointer; user-select: none; -webkit-user-select: none;
 }
 #hud .promo-badge {
-  display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: 2px; color: #1c2430;
-  background: linear-gradient(180deg, #ffe9a6, #e8c44f); padding: 3px 11px; border-radius: 11px; margin-bottom: 10px;
+  display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: 2px; color: rgb(var(--maroon));
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold-mid)); padding: 3px 11px; border-radius: 11px; margin-bottom: 10px;
 }
 #hud .promo-icon { font-size: 40px; line-height: 1; margin-bottom: 8px; }
 #hud .promo-title {
@@ -1234,8 +1235,8 @@ const css = `
      dismissal and, sitting bottom-center, steals taps from the talk button
      (e.g. pressing RIBBIT teleported you to the airport). */
   cursor: pointer; border: 0; font-family: inherit; font-weight: 800;
-  font-size: 14.5px; letter-spacing: 0.6px; color: #2a1c0a;
-  background: linear-gradient(180deg, #ffe9a6, #e8c44f); padding: 12px 26px; border-radius: 24px;
+  font-size: 14.5px; letter-spacing: 0.6px; color: rgb(var(--maroon));
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold-mid)); padding: 12px 26px; border-radius: 24px;
   transition: transform 0.12s var(--ease-out); width: 100%; max-width: 260px; min-height: 44px;
 }
 #hud .promo-cta:hover { transform: scale(1.04); }
@@ -1257,7 +1258,7 @@ const css = `
 #hud .modepick.show { opacity: 1; pointer-events: auto; }
 #hud .modepick-card {
   position: relative; width: min(380px, 92vw); text-align: center;
-  background: var(--panel); border: 1px solid rgba(216,185,74,0.55); border-bottom: 3px solid #d8b94a;
+  background: var(--panel); border: 1px solid rgba(var(--gold-rgb),0.55); border-bottom: 3px solid var(--gold);
   border-radius: 16px; padding: 22px 20px 18px; box-shadow: var(--shadow-card);
   transform: translateY(22px) scale(0.96); opacity: 0;
 }
@@ -1276,34 +1277,34 @@ const css = `
    on a child overrides the dismissed parent's pointer-events:none) */
 #hud .modepick.show .modepick-acts button { pointer-events: auto; }
 #hud .modepick-acts button:active { transform: scale(0.97); }
-#hud .modepick-acts .mp-explore { color: #2a1c0a; background: linear-gradient(180deg, #ffe9a6, #e8c44f); }
+#hud .modepick-acts .mp-explore { color: rgb(var(--maroon)); background: linear-gradient(180deg, var(--gold-bright), var(--gold-mid)); }
 #hud .modepick-acts .mp-explore:hover { transform: scale(1.03); }
 #hud .modepick-acts .mp-story {
-  color: #f0ece0; background: rgba(243,241,232,0.06); border: 1.5px solid rgba(243,241,232,0.32);
+  color: var(--ink); background: rgba(var(--ink-rgb),0.06); border: 1.5px solid rgba(var(--ink-rgb),0.32);
 }
-#hud .modepick-acts .mp-story:hover { border-color: #d8b94a; }
+#hud .modepick-acts .mp-story:hover { border-color: var(--gold); }
 #hud .modepick-acts .mp-sub { display: block; font-weight: 600; font-size: 11.5px; opacity: 0.8; margin-top: 2px; letter-spacing: 0; }
 #hud .modepick-foot { font-size: 11px; color: #8b97a4; margin-top: 13px; line-height: 1.4; }
 /* one-time nudge that you can run — shown a few seconds into the first walk */
 #hud .runtip {
   position: absolute; bottom: 104px; left: 50%; transform: translate(-50%, 10px);
-  background: rgba(var(--maroon-lt),0.92); border: 1px solid rgba(216,185,74,0.55);
-  color: #f3f1e8; font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
+  background: rgba(var(--maroon-lt),0.92); border: 1px solid rgba(var(--gold-rgb),0.55);
+  color: var(--ink); font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
   padding: 9px 16px; border-radius: 18px; white-space: nowrap; pointer-events: none;
   opacity: 0; transition: opacity 0.35s ease, transform 0.35s ease; z-index: 12;
 }
-#hud .runtip b { color: #f0d27a; }
+#hud .runtip b { color: var(--gold-bright); }
 #hud .runtip.show { opacity: 1; transform: translate(-50%, 0); }
 /* first-visit nudge: the real map — tap to find your street (replaces the old welcome gate) */
 #hud .streettip {
   position: absolute; top: 60px; left: 50%; transform: translate(-50%, -8px);
   max-width: min(360px, 88vw); text-align: center;
-  background: var(--panel); border: 1px solid rgba(216,185,74,0.6); border-bottom: 3px solid #d8b94a;
-  color: #f3f1e8; font-size: 13px; font-weight: 600; letter-spacing: 0.3px; line-height: 1.5;
+  background: var(--panel); border: 1px solid rgba(var(--gold-rgb),0.6); border-bottom: 3px solid var(--gold);
+  color: var(--ink); font-size: 13px; font-weight: 600; letter-spacing: 0.3px; line-height: 1.5;
   padding: 11px 18px; border-radius: 14px; pointer-events: auto; cursor: pointer;
   opacity: 0; transition: opacity 0.4s ease, transform 0.4s ease; z-index: 30;
 }
-#hud .streettip b { color: #f0d27a; }
+#hud .streettip b { color: var(--gold-bright); }
 #hud .streettip.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -1369,7 +1370,7 @@ const css = `
 /* ── modal close: a real, high-contrast 44px target (kid-hand floor) ── */
 #hud .modal-x {
   width: 44px; height: 44px; font-size: 19px; color: var(--ink-dim);
-  background: rgba(0,0,0,0.3); border: 1px solid rgba(243,241,232,0.12);
+  background: rgba(0,0,0,0.3); border: 1px solid rgba(var(--ink-rgb),0.12);
   transition: transform 0.14s var(--ease-out), background 0.18s ease, color 0.18s ease;
 }
 #hud .modal-x:hover { background: rgba(var(--gold-rgb), 0.24); color: var(--gold-bright); border-color: rgba(var(--gold-rgb), 0.5); }
@@ -1481,7 +1482,7 @@ const css = `
    answer the pointer — just in cool grey rather than gold, keeping the found/unfound
    distinction intact even mid-hover */
 #hud .ctile.locked:hover {
-  border-color: rgba(243,241,232,0.4); background: rgba(243,241,232,0.1);
+  border-color: rgba(var(--ink-rgb),0.4); background: rgba(var(--ink-rgb),0.1);
   box-shadow: 0 8px 18px rgba(0,0,0,0.38);
 }
 #hud .ctile.locked:hover .cpic .cem { opacity: 0.78; filter: grayscale(0.35); }

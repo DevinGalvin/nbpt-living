@@ -119,7 +119,52 @@ Two mechanics that make "once, on open" work:
 - Reuse one keyframe across surfaces and vary it with a custom property
   (`nbpt-glint` takes `--glint-from`), rather than writing a second near-identical one.
 
-### 9. "On your first X" is invisible to everyone who already has an X
+### 9. Not every colour is a theme colour
+"Should anything be hardcoded?" — yes, about a third of it. The split is not by colour,
+it is by **what the colour means**. Three buckets:
+
+| bucket | rule | examples |
+|---|---|---|
+| **Identity** | token it | gold scale, chrome/maroon, panel |
+| **Meaning** | shared constant, **never per-town** | error red, the ping, cool secondary text |
+| **Physics** | hardcoded neutral | black shadows, white specular highlights |
+
+**Meaning is the one that breaks if you get it wrong.** These are doing semantic work:
+
+```css
+.rp-rider input.bad  { border-color: #d85a4a }   /* name rejected      */
+.collect-foot.arm    { color: #e88b7a }          /* "erase everything?" */
+@keyframes nbpt-meping { background: #ff2b2b }   /* you are here        */
+.sp-sub              { color: #9fb1c2 }          /* secondary text      */
+```
+
+If the error red followed `--gold-rgb`, then in a gold-accented town the *erase all your
+photos* warning would render in the same colour as every ordinary label and stop reading
+as danger. An error must look like an error in all twelve towns. The cool grey is the
+same idea inverted: it reads as "less important" precisely because it fights the warm
+panel, so theming it destroys the signal.
+
+**Ink is a fourth case**: one shared `--ink` / `--ink-rgb` / `--ink-dim`, the same in
+every town. Paper is paper.
+
+Current state: ~270 identity literals tokenized; the meaning and physics buckets are
+deliberately left alone. If you add a colour, decide its bucket first.
+
+### ⚠️ Scripted edits to `hud.ts`: `css.index('}')` does NOT find the end of `:root`
+The stylesheet is a template literal, so `:root` contains `${TOWN.theme.panel}` — and the
+first `}` after `:root {` is the one closing that **interpolation**, not the block. A
+script that "protects" `:root` this way protects one line, then happily rewrites the
+token definitions themselves into `--ink: var(--ink)`, a self-reference that CSS resolves
+to nothing. Text goes black on a black panel.
+
+It computes as an empty string, so check the tokens resolve, not just that the page loads:
+
+```js
+['--ink','--ink-rgb','--gold','--maroon'].filter(t =>
+  !getComputedStyle(document.documentElement).getPropertyValue(t).trim())   // must be []
+```
+
+### 10. "On your first X" is invisible to everyone who already has an X
 Any first-run nudge, badge, or promo is dead code for every existing player, because
 their save already passed the trigger. Decide what those players see, or gate it on
 something they can still reach.
