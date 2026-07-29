@@ -7,6 +7,7 @@ import { SEASON, seasonsUnlocked } from '../world/style';
 import { TOWN } from '@town';
 import { TOWNS } from '../towns/registry';
 import { loadShot } from './shots';
+import { canSpeak, primeVoice, speak, stopSpeaking } from './speech';
 
 // marker titles are authored copy, but they land in innerHTML — keep them literal
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -692,6 +693,14 @@ const css = `
   font-size: 13px; font-weight: 700; cursor: pointer; pointer-events: auto;
   border: 1.5px solid rgba(216,185,74,0.55); background: rgba(216,185,74,0.12); color: #f3f1e8;
 }
+#hud .hcard .hsay {
+  min-width: 44px; height: 44px; padding: 0 14px; border-radius: 22px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 13px; font-weight: 700; cursor: pointer; pointer-events: auto;
+  border: 1.5px solid rgba(216,185,74,0.55); background: rgba(216,185,74,0.12); color: #f3f1e8;
+}
+#hud .hcard .hsay.speaking { background: rgba(216,185,74,0.38); border-color: #d8b94a; }
+#hud .hcard .hsay, #hud .hcard .hclose { white-space: nowrap; flex: 0 0 auto; }
 #hud .hcard .hclose { background: #d8b94a; border-color: #d8b94a; color: #2a1419; }
 /* running tally under the card — "that was number 7" */
 #hud .hcard .hcount { text-align: center; font-size: 12px; color: #c8bd96; margin: 12px 22px 0; letter-spacing: 0.4px; }
@@ -1535,7 +1544,7 @@ export class Hud {
         <div class="hpic"><span class="hpic-em">🏛</span></div>
         <div class="hbody"><div class="ht"></div><div class="hy"></div><div class="hb"></div></div>
         <div class="hcount"></div>
-        <div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="hacts"><div class="hclose">Got it ✓</div></div></div>
+        <div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="hacts"><div class="hsay" title="Read it to me">🔊 <span>Read it</span></div><div class="hclose">Got it ✓</div></div></div>
       </div></div></div>
       <div class="collect-btn" title="Your discoveries">🏛<span class="cb-n">0</span><span class="blab">DISCOVER</span></div>
       <div class="collect-panel"><div class="collect-card">
@@ -1605,6 +1614,16 @@ export class Hud {
     (hud.querySelector('.hcard .hclose') as HTMLElement).addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.closeHistoryCard();
+    });
+    // read-aloud, back — but on a DELIBERATELY chosen voice now (see game/speech.ts).
+    // The platform default is Samantha on Apple, which is what "so robotic" meant.
+    const hsay = hud.querySelector('.hcard .hsay') as HTMLElement;
+    if (!canSpeak()) hsay.style.display = 'none'; else primeVoice();
+    hsay.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      if (hsay.classList.contains('speaking')) { stopSpeaking(); hsay.classList.remove('speaking'); return; }
+      hsay.classList.add('speaking');
+      speak(this.cardText, () => hsay.classList.remove('speaking'));
     });
     // tap the objective pill to tuck the quest away (freelance mode is sacred)
     const obj = hud.querySelector('.objective') as HTMLElement;
@@ -3074,6 +3093,7 @@ export class Hud {
     el.classList.remove('fresh', 'locked-card');
     void el.offsetWidth;
     el.classList.toggle('fresh', !!opts?.fresh);
+    this.cardText = title + '. ' + body;
 
     back.classList.add('open');
     this.hcardOpen = true;
@@ -3107,6 +3127,7 @@ export class Hud {
     (el.querySelector('.stamp') as HTMLElement).textContent = '★ STILL OUT THERE';
     el.classList.remove('fresh');
     el.classList.add('locked-card');
+    this.cardText = mk.title + '. ' + teaser;
     back.classList.add('open');
     this.hcardOpen = true;
   }
@@ -3228,11 +3249,15 @@ export class Hud {
     panel.classList.add('show');
   }
 
+  private cardText = '';
+
   private closeHistoryCard() {
     const back = document.querySelector('#hud .hcard-back') as HTMLElement;
     back.classList.remove('open');
     (back.querySelector('.hcard') as HTMLElement).classList.remove('fresh');
     this.hcardOpen = false;
+    stopSpeaking();
+    (document.querySelector('#hud .hcard .hsay') as HTMLElement | null)?.classList.remove('speaking');
     this.hushSay();
     this.dlgCool = performance.now() + 280;
   }
