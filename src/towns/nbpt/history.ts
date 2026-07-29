@@ -85,7 +85,7 @@ export const HISTORY: Site[] = [
   },
   {
     id: 'whitefield', x: 2624, z: 2790, icon: '🕯', title: 'The Preacher Underneath', year: '1770',
-    body: 'George Whitefield was the most famous preacher of his time. He died in Newburyport in 1770, and was buried in a crypt right under this pulpit. His arm spent years in a small wooden box, shown to visitors, before it was returned to the crypt. Every word of this is true.'
+    body: 'George Whitefield was the most famous preacher in the world in his day. He died in Newburyport in 1770, and he was buried in a crypt — a stone room under the floor — right beneath this pulpit. For years his arm was kept in a small wooden box and shown to visitors, before somebody finally put it back. Every word of this is true.'
   },
   {
     id: 'walking-light', x: 33230, z: -3300, icon: '🗼', title: 'The Walking Lighthouse', year: '1788',
@@ -132,8 +132,13 @@ export const HISTORY: Site[] = [
     body: 'Newburyport decided everything at town meetings until 1851, when it became one of the first cities in Massachusetts. This brick hall has held mayors, hearings, and several legendary arguments about parking. Democracy, in its natural habitat.'
   },
   {
-    id: 'morse-poltergeist', x: 64, z: 92, icon: '👻', title: 'The Market Square Poltergeist', year: '1679',
-    body: 'In 1679, the Morse house near this square filled with flying pots, walking chairs, and noises no one could explain. Neighbors cried witchcraft, and Elizabeth Morse barely escaped the gallows. Historians’ best suspect today: her grandson John, a bored teenager with excellent aim. The disturbances stopped when he moved out.'
+    // Retitled for eight-year-olds: "poltergeist" and "gallows" are hard words, and
+    // "escaped the gallows" asks a kid to know what hanging is before the joke lands.
+    // The story is the best one in the set — a haunted house that turned out to be a
+    // bored teenager — so it needed plainer words, not less of it. The injustice to
+    // Elizabeth stays; it is the reason the story matters.
+    id: 'morse-poltergeist', x: 64, z: 92, icon: '👻', title: 'The House That Threw Things', year: '1679',
+    body: 'In 1679 the Morse house, right by this square, went strange. Pots flew across rooms. Chairs moved on their own. Something banged in the walls at night. The neighbours decided a witch was doing it, and Elizabeth Morse — the grandmother who lived there — was very nearly put to death for something she had not done. Today most historians think they know who it really was: her grandson John, a bored teenager with very good aim. The house went quiet the year he moved out.'
   },
   {
     id: 'inn-street', x: -470, z: 600, icon: '🧱', title: 'The Street That Fought Back', year: '1970s',
