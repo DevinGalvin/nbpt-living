@@ -9,6 +9,7 @@
 // checked against the real neighbourhood boundary — see towns/charlestown/map.mjs.
 import type { TownPack, SpawnAnchor } from '../types';
 import { COURSES } from './courses';
+import { HISTORY } from './history';
 import cfg from '../../../towns/charlestown/town.json';
 
 export const TOWN: TownPack = {
@@ -20,6 +21,8 @@ export const TOWN: TownPack = {
   path: '/charlestown/',
 
   story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
+
+  history: HISTORY,   // 🏛 20 discovery markers — see ./history.ts. Independent of `story`.
 
   spawn: cfg.spawn as SpawnAnchor,   // the Bunker Hill Monument — the thing you can see from everywhere
 
