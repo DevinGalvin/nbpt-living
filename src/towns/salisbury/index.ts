@@ -7,6 +7,7 @@
 // checked against the real municipal boundary — see towns/salisbury/map.mjs.
 import type { TownPack, SpawnAnchor } from '../types';
 import { COURSES } from './courses';
+import { HISTORY } from './history';
 import cfg from '../../../towns/salisbury/town.json';
 
 export const TOWN: TownPack = {
@@ -18,6 +19,8 @@ export const TOWN: TownPack = {
   path: '/salisbury/',
 
   story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
+
+  history: HISTORY,   // 🏛 13 discovery markers — see ./history.ts. Independent of `story`.
 
   spawn: cfg.spawn as SpawnAnchor,   // Salisbury Beach Center — the boardwalk is the whole point
 
