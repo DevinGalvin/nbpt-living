@@ -7,6 +7,7 @@
 // checked against the real municipal boundary — see towns/rockport/map.mjs.
 import type { TownPack, SpawnAnchor } from '../types';
 import { COURSES } from './courses';
+import { HISTORY } from './history';
 import cfg from '../../../towns/rockport/town.json';
 
 export const TOWN: TownPack = {
@@ -18,6 +19,8 @@ export const TOWN: TownPack = {
   path: '/rockport/',
 
   story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
+
+  history: HISTORY,   // 🏛 17 discovery markers — see ./history.ts. Independent of `story`.
 
   spawn: cfg.spawn as SpawnAnchor,   // Dock Square — the heart, with Motif No. 1 a minute away (see town.json)
 
