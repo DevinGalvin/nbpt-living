@@ -7,6 +7,7 @@
 // be confirmed on the built world.json (on land, right feature) before ship.
 import type { TownPack, SpawnAnchor } from '../types';
 import { COURSES } from './courses';
+import { HISTORY } from './history';
 import cfg from '../../../towns/ipswich/town.json';
 
 export const TOWN: TownPack = {
@@ -18,6 +19,8 @@ export const TOWN: TownPack = {
   path: '/ipswich/',
 
   story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
+
+  history: HISTORY,   // 🏛 22 discovery markers — see ./history.ts. Independent of `story`.
 
   spawn: cfg.spawn as SpawnAnchor,   // downtown heart landmark (see town.json)
 
