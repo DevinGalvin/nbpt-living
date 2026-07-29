@@ -441,6 +441,31 @@ const css = `
 }
 /* grid cards lead with a place-emoji (search results stay text-only) */
 #hud .travel-grid .travel-item { display: flex; align-items: center; gap: 10px; }
+/* ---------- make the list feel like a game, not a directory ----------
+   Thirty flat identical rectangles read as a settings screen. Three cheap changes
+   do most of the work: the emoji gets a raised chip so it reads as an object, the
+   tiles POP IN one after another instead of all existing at once, and pressing one
+   physically presses. Nothing here costs layout — transform and opacity only. */
+#hud .travel-grid .travel-item, #hud .travel-results .travel-item {
+  border-radius: 12px;
+  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
+}
+#hud .travel-grid .travel-item .ti-em, #hud .travel-results .travel-item .ti-em {
+  flex: none; width: 34px; height: 34px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; font-size: 19px;
+  background: linear-gradient(150deg, rgba(255,222,140,0.22), rgba(216,185,74,0.07));
+  border: 1px solid rgba(216,185,74,0.28);
+  box-shadow: inset 0 1px 0 rgba(255,245,210,0.22);
+}
+#hud .travel-grid .travel-item:hover { transform: translateY(-2px); }
+#hud .travel-grid .travel-item:active { transform: scale(0.96); }
+#hud .travel-panel.open .travel-grid .travel-item { animation: nbpt-tile-in 0.34s cubic-bezier(0.2, 1.25, 0.4, 1) both; }
+@keyframes nbpt-tile-in { from { opacity: 0; transform: translateY(14px) scale(0.94); } to { opacity: 1; transform: none; } }
+/* the town chips get the same life */
+#hud .tt-chip { transition: transform 0.12s ease, background 0.15s, border-color 0.15s; }
+#hud .tt-chip:not(.cur):hover { transform: translateY(-3px); }
+#hud .tt-chip:not(.cur):active { transform: scale(0.95); }
+#hud .travel-panel.towns .tt-chip { animation: nbpt-tile-in 0.34s cubic-bezier(0.2, 1.25, 0.4, 1) both; }
 #hud .travel-item .ti-em { font-size: 21px; line-height: 1; flex: none; }
 #hud .travel-item .ti-tx { flex: 1; min-width: 0; }
 #hud .travel-item:hover { background: rgba(216, 185, 74, 0.18); }
@@ -468,18 +493,43 @@ const css = `
 #hud .travel-panel.towns .tv-title { display: none; }
 #hud .travel-panel.towns .tv-back { display: inline; }
 #hud .tv-back:hover { color: #ffe9a3; }
-/* The way through to the roster. It sits ABOVE the search, at the top of the panel,
-   and is styled as a real button — twelve towns is one of the best things about this
-   thing and a grey footer link buried under thirty landmarks hid it. */
+/* ---------- the towns button, as a headline act ----------
+   Twelve real towns is the biggest thing this app has, and it was reading as a
+   settings row. It now behaves like something in a game: a warm gradient slab with
+   a sheen travelling across it, the actual town emoji spilling out of the right
+   side so you SEE what is behind the tap, and an arrow that keeps nudging. */
 #hud .tv-switch {
-  margin: 0 0 12px; padding: 13px 15px; border-radius: 11px; cursor: pointer;
-  background: rgba(216,185,74,0.14); border: 1px solid rgba(216,185,74,0.5);
-  color: #f3f1e8; font-size: 14px; font-weight: 700;
-  display: flex; align-items: center; gap: 9px;
+  position: relative; overflow: hidden;
+  margin: 0 0 12px; padding: 14px 16px; border-radius: 14px; cursor: pointer;
+  background: linear-gradient(118deg, #6d2f3f 0%, #8d3f47 45%, #b4643f 100%);
+  border: 1.5px solid rgba(255, 214, 130, 0.55);
+  box-shadow: 0 6px 0 rgba(0,0,0,0.28), 0 10px 26px rgba(0,0,0,0.4);
+  color: #fff6e2; font-size: 15px; font-weight: 800; letter-spacing: 0.2px;
+  display: flex; align-items: center; gap: 10px;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.2s ease;
 }
-#hud .tv-switch b { color: #e8c44f; }
-#hud .tv-sw-arrow { margin-left: auto; color: #e8c44f; font-size: 18px; }
-#hud .tv-switch:hover { background: rgba(216,185,74,0.26); border-color: #d8b94a; }
+#hud .tv-switch:hover { filter: brightness(1.12); }
+/* chunky press — the whole slab drops onto its shadow */
+#hud .tv-switch:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,0.28), 0 4px 12px rgba(0,0,0,0.4); }
+#hud .tv-switch b { color: #ffdf87; font-size: 17px; }
+/* the sheen */
+#hud .tv-switch::after {
+  content: ''; position: absolute; top: -60%; bottom: -60%; width: 40px; left: -80px;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.42), transparent);
+  transform: skewX(-18deg); animation: nbpt-sheen 3.4s ease-in-out infinite;
+}
+@keyframes nbpt-sheen { 0% { left: -80px; } 55%, 100% { left: 130%; } }
+#hud .tv-sw-txt { position: relative; z-index: 1; }
+/* the real town emoji, overlapping like a stack of cards */
+#hud .tv-sw-faces { position: relative; z-index: 1; margin-left: auto; display: flex; align-items: center; }
+#hud .tv-sw-faces i {
+  font-style: normal; font-size: 19px; line-height: 1; margin-left: -7px;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+  animation: nbpt-face-bob 2.6s ease-in-out infinite;
+}
+@keyframes nbpt-face-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+#hud .tv-sw-arrow { position: relative; z-index: 1; margin-left: 8px; color: #ffdf87; font-size: 20px; font-weight: 900; animation: nbpt-nudge 1.5s ease-in-out infinite; }
+@keyframes nbpt-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(4px); } }
 #hud .travel-towns { margin: 0 0 14px; }
 #hud .tt-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 10.5px; letter-spacing: 1.5px; color: #c9a84e; font-weight: 700; margin: 0 0 8px; }
 #hud .tt-count { color: #9d9583; font-weight: 600; letter-spacing: 0.6px; }
@@ -1453,7 +1503,7 @@ export class Hud {
       <div class="board-panel"><div class="board-card"></div></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div>
         <h2><span class="tv-title">${TOWN.name}</span><span class="tv-back">‹ ${TOWN.name}</span></h2>
-        <div class="tv-here"><div class="tv-switch">🗺 <span class="tv-sw-txt">Explore <b></b> other towns</span> <span class="tv-sw-arrow">›</span></div><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div></div>
+        <div class="tv-here"><div class="tv-switch"><span class="tv-sw-txt">Explore <b></b> other towns</span><span class="tv-sw-faces"></span><span class="tv-sw-arrow">›</span></div><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div></div>
         <div class="tv-towns"><div class="tt-hdr"><span>EXPLORE ANOTHER TOWN</span><span class="tt-count"></span></div><div class="tt-row"></div></div>
       </div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
@@ -2064,6 +2114,15 @@ export class Hud {
       const cur = TOWNS.filter((t) => t.path !== '/').sort((a, b) => b.path.length - a.path.length)
         .find((t) => { const p = t.path.replace(/\/+$/, ''); return here === p || here.startsWith(p + '/'); })
         || TOWNS.find((t) => t.path === '/');
+      // show the actual towns' emoji, stacked like cards, so the button previews
+      // its own contents instead of just claiming a number
+      const faces = sw.querySelector('.tv-sw-faces') as HTMLElement;
+      TOWNS.filter((t) => t !== cur).slice(0, 5).forEach((t, i) => {
+        const e = document.createElement('i');
+        e.textContent = t.emoji;
+        e.style.animationDelay = (i * 0.16) + 's';
+        faces.appendChild(e);
+      });
       for (const t of TOWNS) {
         const isCur = t === cur;
         const chip = document.createElement('div');
@@ -2116,16 +2175,19 @@ export class Hud {
       for (const [re, em] of table) if (re.test(s)) return em;
       return '📍';
     };
-    for (const it of items) {
+    items.forEach((it, i) => {
       const el = document.createElement('div');
       el.className = 'travel-item';
+      // stagger the pop-in, but cap it: past ~14 tiles the wave is off-screen anyway
+      // and a 30-step delay would leave the bottom of the list visibly late.
+      el.style.animationDelay = Math.min(i, 14) * 0.028 + 's';
       el.innerHTML = `<span class="ti-em">${placeEmoji(it.name, it.sub)}</span><div class="ti-tx"><div class="tn">${it.name}</div><div class="ts">${it.sub}</div></div>`;
       el.addEventListener('click', () => {
         this.toggleTravel(false);
         onPick(it.id);
       });
       grid.appendChild(el);
-    }
+    });
     const card = document.querySelector('#hud .travel-card')!;
     // season picker — a left HUD icon (the current season's emoji) + popout menu, not
     // buried in Fast Travel. Post-game reward: roam any season once the finale's climax
