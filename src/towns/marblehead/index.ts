@@ -10,6 +10,7 @@
 // (The first lat/lon-estimated pass missed by up to 1.5 km; see map.mjs.)
 import type { TownPack, SpawnAnchor } from '../types';
 import { COURSES } from './courses';
+import { HISTORY } from './history';
 import cfg from '../../../towns/marblehead/town.json';
 
 export const TOWN: TownPack = {
@@ -21,6 +22,8 @@ export const TOWN: TownPack = {
   path: '/marblehead/',
 
   story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
+
+  history: HISTORY,   // 🏛 20 discovery markers — see ./history.ts. Independent of `story`.
 
   spawn: cfg.spawn as SpawnAnchor,   // Crocker Park — the harbor overlook in Old Town (see town.json)
 
