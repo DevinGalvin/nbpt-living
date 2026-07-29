@@ -7,10 +7,19 @@ import { SEASON, seasonsUnlocked } from '../world/style';
 import { TOWN } from '@town';
 import { TOWNS } from '../towns/registry';
 import { loadShot } from './shots';
-import { canSpeak, primeVoice, speak, stopSpeaking } from './speech';
 
 // marker titles are authored copy, but they land in innerHTML — keep them literal
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
+
+// Entrance stagger for any JS-built list — tiles land one after another instead of all
+// existing at once. Capped at 14 steps: past that the wave is off the bottom of the
+// screen and the tail only reads as lag. The animation itself is nbpt-tile-in, in the
+// LIVELY layer at the foot of the stylesheet; this just hands out the delays.
+// Call it after filling a container, and a new panel gets the wave for free.
+const stagger = (host: Element | HTMLElement[], step = 0.028) => {
+  const kids = Array.isArray(host) ? host : (Array.from(host.children) as HTMLElement[]);
+  kids.forEach((el, i) => { el.style.animationDelay = Math.min(i, 14) * step + 's'; });
+};
 
 const css = `
 /* ── Town theme tokens ─────────────────────────────────────────────
@@ -42,6 +51,7 @@ const css = `
   /* motion */
   --ease-spring: cubic-bezier(0.2, 0.85, 0.3, 1.12);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-pop: cubic-bezier(0.2, 1.25, 0.4, 1);   /* overshoots — the "tile lands" feel */
 }
 #hud { position: fixed; pointer-events: none; font-family: system-ui, sans-serif; z-index: 10;
   top: env(safe-area-inset-top, 0px); right: env(safe-area-inset-right, 0px);
@@ -442,32 +452,14 @@ const css = `
 }
 /* grid cards lead with a place-emoji (search results stay text-only) */
 #hud .travel-grid .travel-item { display: flex; align-items: center; gap: 10px; }
-/* ---------- make the list feel like a game, not a directory ----------
-   Thirty flat identical rectangles read as a settings screen. Three cheap changes
-   do most of the work: the emoji gets a raised chip so it reads as an object, the
-   tiles POP IN one after another instead of all existing at once, and pressing one
-   physically presses. Nothing here costs layout — transform and opacity only. */
-#hud .travel-grid .travel-item, #hud .travel-results .travel-item {
-  border-radius: 12px;
-  transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
-}
-#hud .travel-grid .travel-item .ti-em, #hud .travel-results .travel-item .ti-em {
-  flex: none; width: 34px; height: 34px; border-radius: 10px;
-  display: flex; align-items: center; justify-content: center; font-size: 19px;
-  background: linear-gradient(150deg, rgba(255,222,140,0.22), rgba(216,185,74,0.07));
-  border: 1px solid rgba(216,185,74,0.28);
-  box-shadow: inset 0 1px 0 rgba(255,245,210,0.22);
-}
-#hud .travel-grid .travel-item:hover { transform: translateY(-2px); }
-#hud .travel-grid .travel-item:active { transform: scale(0.96); }
-#hud .travel-panel.open .travel-grid .travel-item { animation: nbpt-tile-in 0.34s cubic-bezier(0.2, 1.25, 0.4, 1) both; }
-@keyframes nbpt-tile-in { from { opacity: 0; transform: translateY(14px) scale(0.94); } to { opacity: 1; transform: none; } }
-/* the town chips get the same life */
+/* The chip material, the pop-in and the lift/squash all live in the LIVELY layer at
+   the bottom of this stylesheet now — they started here, then every other panel
+   wanted them. Only the travel-specific bits stay. */
+#hud .travel-grid .travel-item, #hud .travel-results .travel-item { border-radius: 12px; }
+#hud .travel-item .ti-em { line-height: 1; }
 #hud .tt-chip { transition: transform 0.12s ease, background 0.15s, border-color 0.15s; }
 #hud .tt-chip:not(.cur):hover { transform: translateY(-3px); }
 #hud .tt-chip:not(.cur):active { transform: scale(0.95); }
-#hud .travel-panel.towns .tt-chip { animation: nbpt-tile-in 0.34s cubic-bezier(0.2, 1.25, 0.4, 1) both; }
-#hud .travel-item .ti-em { font-size: 21px; line-height: 1; flex: none; }
 #hud .travel-item .ti-tx { flex: 1; min-width: 0; }
 #hud .travel-item:hover { background: rgba(216, 185, 74, 0.18); }
 #hud .travel-item .tn { color: #f3f1e8; font-size: 14px; font-weight: 600; }
@@ -516,26 +508,37 @@ const css = `
 /* A control needs a WORD. Emoji alone is decoration nobody can read, and a title
    attribute is desktop-hover only — useless on the phone this is mostly played on. */
 #hud .tv-sw-txt { position: relative; z-index: 1; }
-/* a sheen so it still catches the eye without shouting over the title */
+/* One glint as the panel opens — same rule as the album (see the LIVELY layer): the
+   light crosses once and then the button holds still. It used to shimmer on a 3.8s
+   loop at nearly three times this opacity, which is decoration competing with the
+   title it sits behind. Scoped to .open so it replays on each open, not on a timer. */
 #hud .tv-switch::after {
-  content: ''; position: absolute; top: -60%; bottom: -60%; width: 26px; left: -50px;
-  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.38), transparent);
-  transform: skewX(-18deg); animation: nbpt-sheen 3.8s ease-in-out infinite;
+  content: ''; position: absolute; top: -60%; bottom: -60%; width: 26px; left: -80px;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.16), transparent);
+  transform: skewX(-18deg);
 }
-@keyframes nbpt-sheen { 0% { left: -50px; } 55%, 100% { left: 130%; } }
+#hud .travel-panel.open .tv-switch::after {
+  --glint-from: -80px;
+  animation: nbpt-glint 0.42s ease-out 0.22s 1 backwards;
+}
 /* the real town emoji, overlapping like a hand of cards — this IS the label */
 #hud .tv-sw-faces { position: relative; z-index: 1; display: flex; align-items: center; padding-left: 6px; }
 #hud .tv-sw-faces i {
   font-style: normal; font-size: 17px; line-height: 1; margin-left: -6px;
   filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
-  animation: nbpt-face-bob 2.6s ease-in-out infinite;
 }
-@keyframes nbpt-face-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+/* they deal themselves in once, then sit — the old version bobbed forever, which is
+   motion with nothing to say. The per-face delay is set in JS where they are built. */
+#hud .travel-panel.open .tv-sw-faces i { animation: nbpt-face-deal 0.36s var(--ease-pop) backwards; }
+@keyframes nbpt-face-deal { from { opacity: 0; transform: translateY(-7px) rotate(-8deg); } to { opacity: 1; transform: none; } }
 /* The chevron points LEFT and sits on the LEFT, because this goes UP a level. It
    was a right-pointing arrow on the right edge, which is the universal sign for
    "forward, deeper in" — the exact opposite of what tapping it does. It nudges
    leftward too, toward where it is taking you. */
-#hud .tv-sw-arrow { position: relative; z-index: 1; color: #ffdf87; font-size: 19px; font-weight: 900; animation: nbpt-nudge 1.6s ease-in-out infinite; }
+#hud .tv-sw-arrow { position: relative; z-index: 1; color: #ffdf87; font-size: 19px; font-weight: 900; }
+/* The one loop left in this panel, and it earns it: it is pointing at where the tap
+   goes. Scoped to .open so it is not animating inside a closed panel forever. */
+#hud .travel-panel.open .tv-sw-arrow { animation: nbpt-nudge 1.6s ease-in-out infinite; }
 @keyframes nbpt-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }
 /* the emoji are a flourish behind the word, and the first thing to go when narrow */
 @media (max-width: 430px) { #hud .tv-sw-faces { display: none; } }
@@ -576,19 +579,6 @@ const css = `
 #hud .sp-mbtn .m-em { font-size: 18px; line-height: 1; }
 #hud .sp-mbtn .m-nm { font-size: 9.5px; font-weight: 700; color: #f3f1e8; text-align: center; line-height: 1.15; }
 #hud .sp-msub { margin-top: 8px; font-size: 11.5px; color: #c8bd96; line-height: 1.35; min-height: 2.7em; }
-#hud .season-row { display: flex; gap: 8px; margin: 0 0 12px; }
-#hud .season-btn {
-  flex: 1; text-align: center; padding: 9px 4px; border-radius: 9px; cursor: pointer;
-  background: rgba(243, 241, 232, 0.07); border: 1px solid rgba(243, 241, 232, 0.14);
-  color: #f3f1e8; font-size: 13px; font-weight: 600; transition: background 0.15s;
-}
-#hud .season-btn:hover { background: rgba(216, 185, 74, 0.18); }
-#hud .season-btn.cur { background: rgba(216, 185, 74, 0.24); border-color: #d8b94a; }
-#hud .season-hdr { font-size: 12px; color: #c8bd96; margin: 0 0 7px; letter-spacing: 0.4px; text-align: center; }
-#hud .season-hdr b { color: #e8c44f; }
-#hud .season-row.locked { opacity: 0.5; }
-#hud .season-btn.locked { cursor: default; }
-#hud .season-btn.locked:hover { background: rgba(243, 241, 232, 0.07); }
 #hud .fade {
   position: absolute; inset: 0; background: #0c1118; opacity: 0; pointer-events: none;
   transition: opacity 0.22s ease; z-index: 300;
@@ -688,20 +678,19 @@ const css = `
 #hud .hcard .hf { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 16px; padding: 0 22px; }
 #hud .hcard .stamp { font-size: 11px; letter-spacing: 1.8px; color: #e8c44f; font-weight: 800; }
 #hud .hcard .hacts { display: flex; align-items: center; gap: 8px; }
+/* The card's one button, a 44px pill. This rule used to be shared with a .hsay
+   read-aloud button, and the first time read-aloud was pulled the whole SELECTOR LINE
+   went with it, orphaning these declarations. CSS gives no warning — the parser reads
+   an orphan as a rule prelude and swallows the NEXT rule too, so "Got it" shipped as
+   bare 17px text with no pill and no pointer cursor, and nobody saw it on a desktop.
+   That is why this is now a single ungrouped selector. See docs/UX-PRINCIPLES.md. */
+#hud .hcard .hclose {
   min-width: 44px; height: 44px; padding: 0 14px; border-radius: 22px;
   display: flex; align-items: center; justify-content: center; gap: 6px;
   font-size: 13px; font-weight: 700; cursor: pointer; pointer-events: auto;
-  border: 1.5px solid rgba(216,185,74,0.55); background: rgba(216,185,74,0.12); color: #f3f1e8;
+  white-space: nowrap; flex: 0 0 auto;
+  border: 1.5px solid #d8b94a; background: #d8b94a; color: #2a1419;
 }
-#hud .hcard .hsay {
-  min-width: 44px; height: 44px; padding: 0 14px; border-radius: 22px;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  font-size: 13px; font-weight: 700; cursor: pointer; pointer-events: auto;
-  border: 1.5px solid rgba(216,185,74,0.55); background: rgba(216,185,74,0.12); color: #f3f1e8;
-}
-#hud .hcard .hsay.speaking { background: rgba(216,185,74,0.38); border-color: #d8b94a; }
-#hud .hcard .hsay, #hud .hcard .hclose { white-space: nowrap; flex: 0 0 auto; }
-#hud .hcard .hclose { background: #d8b94a; border-color: #d8b94a; color: #2a1419; }
 /* running tally under the card — "that was number 7" */
 #hud .hcard .hcount { text-align: center; font-size: 12px; color: #c8bd96; margin: 12px 22px 0; letter-spacing: 0.4px; }
 #hud .hcard .hcount b { color: #e8c44f; }
@@ -773,8 +762,14 @@ const css = `
   box-shadow: 0 22px 70px rgba(0,0,0,0.6);
 }
 /* clearing the album is destructive and rare — a quiet footer link, then a confirm */
-#hud .collect-foot { margin-top: 14px; text-align: center; font-size: 11.5px; }
-#hud .collect-foot .cf-reset { color: #8b8678; cursor: pointer; letter-spacing: 0.4px; }
+#hud .collect-foot { margin-top: 2px; text-align: center; font-size: 11.5px; }
+/* Deliberately the quietest thing on the panel — but quiet is a COLOR decision, not a
+   hit-area one. It was a 14px-tall run of text: too small to hit on purpose and, with
+   the arm-then-confirm two-tap behind it, no safer for being hard to hit. */
+#hud .collect-foot .cf-reset {
+  color: #8b8678; cursor: pointer; letter-spacing: 0.4px;
+  display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 14px;
+}
 #hud .collect-foot .cf-reset:hover { color: #c8bd96; }
 #hud .collect-foot.arm .cf-reset { color: #e88b7a; font-weight: 700; }
 #hud .collect-card h2 { font-size: 14px; letter-spacing: 3px; color: #e8c44f; font-weight: 800; margin: 0 0 10px; }
@@ -866,8 +861,7 @@ const css = `
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
 #hud .dlg.open { display: block; }
-/* 🔊 read-it-to-me — top-right of the card, a 44px target clear of tap-to-advance */
-#hud .dlg .who { font-size: 11.5px; letter-spacing: 1.6px; color: #e8c44f; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; min-height: 13px; padding-right: 44px; }
+#hud .dlg .who { font-size: 11.5px; letter-spacing: 1.6px; color: #e8c44f; font-weight: 800; text-transform: uppercase; margin-bottom: 4px; min-height: 13px; }
 #hud .dlg .line { font-size: 15.5px; line-height: 1.45; color: #f3f1e8; min-height: 46px; }
 #hud .dlg .dlg-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 7px; }
 /* secondary, ghosted next to the gold Next pill; hidden on the first line (no prior to
@@ -1127,6 +1121,12 @@ const css = `
   transition: opacity 0.55s ease;
 }
 #hud .levelpromo.show { opacity: 1; pointer-events: auto; }
+/* This panel hides with opacity, NOT display:none — which means every animation inside
+   it ran from boot to quit on something nobody could see, including a 160vmax
+   mix-blend-mode conic gradient sweeping every 5.5s. Paused rather than removed so the
+   entrance still plays from frame one when .show lands (a paused animation holds its
+   currentTime, and these were parked at 0). Catches anything added here later too. */
+#hud .levelpromo:not(.show) * { animation-play-state: paused !important; }
 #hud .levelpromo .lp-beam {
   position: absolute; top: -6%; left: 50%; width: 160vmax; height: 160vmax;
   transform-origin: 50% 0; pointer-events: none; mix-blend-mode: screen;
@@ -1203,10 +1203,15 @@ const css = `
 }
 #hud .promo.show .promo-card { animation: nbpt-promo-in 0.4s var(--ease-spring) forwards; }
 @keyframes nbpt-promo-in { to { transform: translateY(0) scale(1); opacity: 1; } }
+/* Small on purpose, but only to LOOK at: the box is a full 44px target and the dark
+   circle is painted on the 30px content box inside it, so a thumb that lands near the
+   corner still closes the card. Visual size is a design choice, hit area never is. */
 #hud .promo-x {
-  position: absolute; top: 8px; right: 10px; width: 30px; height: 30px; border-radius: 50%;
+  position: absolute; top: 1px; right: 3px; width: 44px; height: 44px; padding: 7px;
+  box-sizing: border-box; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; font-size: 14px; line-height: 1;
-  color: #cdbf94; background: rgba(0,0,0,0.3); cursor: pointer; user-select: none; -webkit-user-select: none;
+  color: #cdbf94; background: rgba(0,0,0,0.3); background-clip: content-box;
+  cursor: pointer; user-select: none; -webkit-user-select: none;
 }
 #hud .promo-badge {
   display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: 2px; color: #1c2430;
@@ -1226,12 +1231,15 @@ const css = `
   cursor: pointer; border: 0; font-family: inherit; font-weight: 800;
   font-size: 14.5px; letter-spacing: 0.6px; color: #2a1c0a;
   background: linear-gradient(180deg, #ffe9a6, #e8c44f); padding: 12px 26px; border-radius: 24px;
-  transition: transform 0.12s var(--ease-out); width: 100%; max-width: 260px;
+  transition: transform 0.12s var(--ease-out); width: 100%; max-width: 260px; min-height: 44px;
 }
 #hud .promo-cta:hover { transform: scale(1.04); }
 #hud .promo-cta:active { transform: scale(0.96); }
+/* "Maybe later" stays visually quiet, but it is the escape hatch from a card that
+   covers the screen — it gets the same 44px of thumb as the CTA it sits under. */
 #hud .promo-skip {
-  font-size: 12px; font-weight: 700; letter-spacing: 0.4px; color: #9aa7b4; cursor: pointer; padding: 4px 8px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.4px; color: #9aa7b4; cursor: pointer;
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px;
 }
 #hud .promo-skip:hover { color: #cdbf9a; }
 /* first-run mode pick — explore vs play. Reuses the promo card look; two stacked
@@ -1332,7 +1340,7 @@ const css = `
   box-shadow: 0 4px 14px rgba(0,0,0,0.4), 0 0 22px rgba(var(--gold-rgb), 0.34);
   transition: transform 0.14s var(--ease-out), box-shadow 0.2s ease;
 }
-#hud .talk-btn.show { animation: nbpt-talk-in 0.34s var(--ease-spring) both; }
+#hud .talk-btn.show { animation: nbpt-talk-in 0.34s var(--ease-spring) backwards; }
 @keyframes nbpt-talk-in { from { transform: scale(0.55); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 /* ── modals: blur the world behind, unified scrim ──────────────────── */
@@ -1381,20 +1389,139 @@ const css = `
 #hud .dlg .dlg-next:active, #hud .dlg .dlg-back:active { transform: scale(0.94); }
 
 /* ── list rows everywhere: gentle press + smooth hover ─────────────── */
-#hud .travel-item, #hud .season-btn, #hud .sp-item, #hud .j-tab, #hud .bag-grid .jitem, #hud .m-row {
+#hud .travel-item, #hud .sp-item, #hud .j-tab, #hud .bag-grid .jitem, #hud .m-row {
   transition: background 0.15s ease, transform 0.1s var(--ease-out), border-color 0.15s ease;
 }
-#hud .travel-item:active, #hud .season-btn:active, #hud .sp-item:active,
+#hud .travel-item:active, #hud .sp-item:active,
 #hud .j-tab:active, #hud .bag-grid .jitem.tappable:active, #hud .m-row:active { transform: scale(0.98); }
 
 /* ── input focus: a clear gold ring ────────────────────────────────── */
 #hud .travel-search:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(var(--gold-rgb), 0.22); }
+
+/* ── the LIVELY layer: promoted out of the fast-travel panel ─────────
+   Fast travel got this vocabulary first (dc120da) and it was the panel Devin
+   actually liked, so it lives here now rather than in one panel's private CSS.
+   Four pieces, and every one is transform/opacity only — no layout thrash:
+
+     nbpt-tile-in   a list arrives one tile at a time instead of all at once
+     .nb-chip       an emoji in a raised rimmed box reads as an OBJECT, not text
+     lift + squash  hover raises, press physically presses
+     .nb-slab       a headline button: gradient, own shadow, sheen, chunky press
+
+   Anything grid-shaped should use all four. Stagger delays come from stagger()
+   in the class below, so a new panel gets the wave for free. */
+@keyframes nbpt-tile-in { from { opacity: 0; transform: translateY(14px) scale(0.94); } to { opacity: 1; transform: none; } }
+
+/* Every JS-built list/grid in the HUD, arriving.
+   backwards, NOT both: a forwards/both fill keeps the final keyframe applied forever,
+   and an animation outranks normal declarations — so "both" silently kills the
+   :hover lift and :active squash below. (It was doing exactly that to the travel
+   tiles.) backwards holds the from-state through the stagger delay, then lets go. */
+#hud .travel-panel.open .travel-grid .travel-item,
+#hud .travel-panel.towns .tt-chip,
+#hud .collect-panel.show .ctile,
+#hud .race-pop.open .rp-item,
+#hud .season-pop.open .sp-item,
+#hud .settings-pop.open .sp-row,
+#hud .settings-pop.open .sp-mbtn {
+  animation: nbpt-tile-in 0.34s var(--ease-pop) backwards;
+}
+
+/* the raised chip that turns an emoji into an object */
+#hud .nb-chip, #hud .travel-item .ti-em, #hud .sp-mbtn .m-em, #hud .season-pop .sp-item .nb-chip {
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px;
+  background: linear-gradient(150deg, rgba(255,222,140,0.22), rgba(216,185,74,0.07));
+  border: 1px solid rgba(216,185,74,0.28);
+  box-shadow: inset 0 1px 0 rgba(255,245,210,0.22);
+}
+#hud .travel-item .ti-em { flex: none; width: 34px; height: 34px; font-size: 19px; }
+#hud .sp-mbtn .m-em { width: 30px; height: 30px; font-size: 17px; margin: 0 auto; }
+#hud .season-pop .sp-item { display: flex; align-items: center; gap: 9px; }
+#hud .season-pop .sp-item .nb-chip { flex: none; width: 30px; height: 30px; font-size: 16px; }
+
+/* lift on hover, squash on press — the whole tactile family in one place */
+#hud .ctile, #hud .rp-item, #hud .sp-mbtn, #hud .sp-item, #hud .sp-row, #hud .travel-item {
+  transition: transform 0.13s var(--ease-out), background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+#hud .ctile:hover, #hud .rp-item:hover, #hud .sp-mbtn:hover, #hud .travel-item:hover,
+#hud .season-pop:not(.locked) .sp-item:hover, #hud .sp-row:hover { transform: translateY(-2px); }
+#hud .ctile:active, #hud .rp-item:active, #hud .sp-mbtn:active, #hud .travel-item:active,
+#hud .season-pop:not(.locked) .sp-item:active, #hud .sp-row:active { transform: scale(0.96); }
+
+/* ── the album, as a trophy case ─────────────────────────────────────
+   36 flat rectangles was a spreadsheet of the thing you collect. A FOUND tile sits on
+   a shadow and keeps its gold rim; a locked one stays deliberately quiet and flat, so
+   the difference between "mine" and "still out there" is visible across the room. */
+#hud .ctile.got {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,240,200,0.14);
+}
+#hud .ctile.got .cpic { position: relative; }
+/* ── picking a card up off the shelf ─────────────────────────────────
+   These are the main thing in the game you actually touch, so hovering one should
+   feel like reaching for it: the whole tile lifts (shared rule above), the picture
+   pushes in slightly under the frame, the rim warms, and the title brightens.
+   The zoom is on the picture's CONTENTS, not the .cpic box — scaling the box would
+   push it over the title underneath, since transforms do not re-flow. */
+#hud .ctile .cpic { overflow: hidden; }
+#hud .ctile .cpic img, #hud .ctile .cpic .cem { transition: transform 0.22s var(--ease-out); }
+#hud .ctile:hover .cpic img { transform: scale(1.07); }
+#hud .ctile:hover .cpic .cem { transform: scale(1.12); }
+#hud .ctile.got:hover {
+  border-color: #e8c44f;
+  box-shadow: 0 9px 22px rgba(0,0,0,0.46), 0 0 0 1px rgba(216,185,74,0.55);
+}
+#hud .ctile.got:hover .cnm { color: #fff8e6; }
+/* a locked slot is clickable too (it opens the teaser + where to look), so it has to
+   answer the pointer — just in cool grey rather than gold, keeping the found/unfound
+   distinction intact even mid-hover */
+#hud .ctile.locked:hover {
+  border-color: rgba(243,241,232,0.4); background: rgba(243,241,232,0.1);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.38);
+}
+#hud .ctile.locked:hover .cpic .cem { opacity: 0.78; filter: grayscale(0.35); }
+#hud .ctile.locked:hover .cnm { color: #ded7c4; }
+/* found tiles catch the light again on touch — one pass, and a SEPARATE keyframe name
+   from the arrival glint on purpose: re-declaring the same animation-name on :hover
+   would let the finished animation sit there, not restart it. */
+#hud .ctile.got:hover .cpic::before { animation: nbpt-glint-hover 0.45s ease-out backwards; }
+@keyframes nbpt-glint-hover { from { left: var(--glint-from, -50px); } to { left: 118%; } }
+/* ONE glint per tile, as it lands — never a loop.
+   A permanent shimmer is noise: 36 tiles quietly strobing behind whatever you are
+   actually reading. This fires once when the grid opens, chases each tile's own
+   entrance (--sheen-lag = that tile's stagger delay + a beat), and is over in a third
+   of a second. The point is that the wall catches the light as it arrives, then holds
+   still. Deliberately faint — if you can watch it, it is too strong. */
+#hud .ctile.got .cpic::before {
+  content: ''; position: absolute; top: -60%; bottom: -60%; width: 30px; left: -50px; z-index: 1;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.16), transparent);
+  transform: skewX(-18deg);
+  animation: nbpt-glint 0.34s ease-out var(--sheen-lag, 0s) 1 backwards;
+}
+@keyframes nbpt-glint { from { left: var(--glint-from, -50px); } to { left: 118%; } }
+/* the count is the payoff line — it lands after the card, not with it */
+#hud .hcard.fresh .hcount { animation: nbpt-tile-in 0.4s var(--ease-pop) 0.45s backwards; }
+/* and the progress bar fills rather than appearing already full */
+#hud .collect-prog i { transition: width 0.7s var(--ease-out); }
+
+/* ── the HUD arrives, instead of being there ─────────────────────────
+   First impression: the left column deals itself in like a hand of cards. One
+   time, on boot only — .booted is added a frame after the HUD mounts. */
+#hud.booted .travel-btn, #hud.booted .settings-btn, #hud.booted .collect-btn,
+#hud.booted .season-toggle, #hud.booted .race-btn, #hud.booted .compass {
+  animation: nbpt-chrome-in 0.42s var(--ease-pop) backwards;
+}
+@keyframes nbpt-chrome-in { from { opacity: 0; transform: scale(0.6) translateY(-8px); } to { opacity: 1; transform: none; } }
 
 /* ── respect reduced-motion ────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   #hud *, #hud *::before, #hud *::after {
     animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
     transition-duration: 0.08s !important;
+    /* stagger() writes inline animation-delay, and zeroing only the DURATION would
+       leave a reduced-motion user watching tiles snap in one at a time over 0.4s —
+       the cascade, just uglier. Kill the delay too, and the grid simply is there. */
+    animation-delay: 0s !important;
   }
 }
 `;
@@ -1544,7 +1671,7 @@ export class Hud {
         <div class="hpic"><span class="hpic-em">🏛</span></div>
         <div class="hbody"><div class="ht"></div><div class="hy"></div><div class="hb"></div></div>
         <div class="hcount"></div>
-        <div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="hacts"><div class="hsay" title="Read it to me">🔊 <span>Read it</span></div><div class="hclose">Got it ✓</div></div></div>
+        <div class="hf"><div class="stamp">★ A TRUE STORY</div><div class="hacts"><div class="hclose">Got it ✓</div></div></div>
       </div></div></div>
       <div class="collect-btn" title="Your discoveries">🏛<span class="cb-n">0</span><span class="blab">DISCOVER</span></div>
       <div class="collect-panel"><div class="collect-card">
@@ -1569,6 +1696,18 @@ export class Hud {
       <div class="fade"></div>
     `;
     document.body.appendChild(hud);
+    // The left column deals itself in on boot rather than simply being there — the
+    // first thing a kid sees the app do. Gated on a class added a frame LATER, and
+    // added once, so the entrance can never replay when a button is shown or hidden
+    // mid-session (the story chrome toggles .journey-btn / .bag-btn constantly).
+    requestAnimationFrame(() => {
+      const col = ['.travel-btn', '.settings-btn', '.collect-btn', '.season-toggle', '.race-btn', '.compass'];
+      col.forEach((sel, i) => {
+        const el = hud.querySelector(sel) as HTMLElement | null;
+        if (el) el.style.animationDelay = i * 0.055 + 's';
+      });
+      hud.classList.add('booted');
+    });
     // the bottom hint defaults to desktop keys; on a phone/tablet there's no
     // keyboard or mouse wheel, so show the on-screen touch controls instead.
     // Kept compact (icon + verb, no "Tap…to") so it clears the OSM attribution
@@ -1597,8 +1736,6 @@ export class Hud {
       e.stopPropagation();   // intercept before the dlg box's tap-to-advance handler
       this.backDlg();
     });
-    // 🔊 read-aloud: turns grade-4 dialog into something a 6-year-old can follow solo
-
     this.dlgEl.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.advanceDlg();
@@ -1614,16 +1751,6 @@ export class Hud {
     (hud.querySelector('.hcard .hclose') as HTMLElement).addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.closeHistoryCard();
-    });
-    // read-aloud, back — but on a DELIBERATELY chosen voice now (see game/speech.ts).
-    // The platform default is Samantha on Apple, which is what "so robotic" meant.
-    const hsay = hud.querySelector('.hcard .hsay') as HTMLElement;
-    if (!canSpeak()) hsay.style.display = 'none'; else primeVoice();
-    hsay.addEventListener('pointerdown', (e) => {
-      e.stopPropagation();
-      if (hsay.classList.contains('speaking')) { stopSpeaking(); hsay.classList.remove('speaking'); return; }
-      hsay.classList.add('speaking');
-      speak(this.cardText, () => hsay.classList.remove('speaking'));
     });
     // tap the objective pill to tuck the quest away (freelance mode is sacred)
     const obj = hud.querySelector('.objective') as HTMLElement;
@@ -2104,6 +2231,7 @@ export class Hud {
         pop.appendChild(it);
       }
       pop.appendChild(Object.assign(document.createElement('div'), { className: 'rp-hint', textContent: 'The flags show the way, but any route counts — first to the finish line. Shortcuts welcome.' }));
+      stagger(pop, 0.05);
     };
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -2148,12 +2276,14 @@ export class Hud {
       // show the actual towns' emoji, stacked like cards, so the button previews
       // its own contents instead of just claiming a number
       const faces = sw.querySelector('.tv-sw-faces') as HTMLElement;
-      TOWNS.filter((t) => t !== cur).slice(0, 5).forEach((t, i) => {
+      TOWNS.filter((t) => t !== cur).slice(0, 5).forEach((t) => {
         const e = document.createElement('i');
         e.textContent = t.emoji;
-        e.style.animationDelay = (i * 0.16) + 's';
         faces.appendChild(e);
       });
+      // 0.16s each was the old bob's phase offset, which as a deal-in would take most
+      // of a second for five faces. Fast enough to read as one gesture.
+      stagger(faces, 0.045);
       for (const t of TOWNS) {
         const isCur = t === cur;
         const chip = document.createElement('div');
@@ -2164,6 +2294,7 @@ export class Hud {
         if (!isCur) chip.addEventListener('click', () => { location.href = t.path; });
         ttRow.appendChild(chip);
       }
+      stagger(ttRow);
     }
     const grid = document.querySelector('#hud .travel-grid')!;
     // a picture on every destination card: pre-readers navigate by icon, and even
@@ -2209,9 +2340,6 @@ export class Hud {
     items.forEach((it, i) => {
       const el = document.createElement('div');
       el.className = 'travel-item';
-      // stagger the pop-in, but cap it: past ~14 tiles the wave is off-screen anyway
-      // and a 30-step delay would leave the bottom of the list visibly late.
-      el.style.animationDelay = Math.min(i, 14) * 0.028 + 's';
       el.innerHTML = `<span class="ti-em">${placeEmoji(it.name, it.sub)}</span><div class="ti-tx"><div class="tn">${it.name}</div><div class="ts">${it.sub}</div></div>`;
       el.addEventListener('click', () => {
         this.toggleTravel(false);
@@ -2219,6 +2347,7 @@ export class Hud {
       });
       grid.appendChild(el);
     });
+    stagger(grid);
     const card = document.querySelector('#hud .travel-card')!;
     // season picker — a left HUD icon (the current season's emoji) + popout menu, not
     // buried in Fast Travel. Post-game reward: roam any season once the finale's climax
@@ -2233,11 +2362,13 @@ export class Hud {
     sHdr.className = 'sp-hdr';
     sHdr.textContent = sUnlocked ? '🗓 Set the season' : '🔒 Seasons — locked';
     sPop.appendChild(sHdr);
-    const sList = [['spring', '\u{1F338} Spring'], ['summer', '☀️ Summer'], ['fall', '\u{1F383} Fall'], ['winter', '\u{1F384} Winter']] as const;
-    for (const [sn, label] of sList) {
+    // emoji and word are separate now: the emoji goes in a raised .nb-chip so each
+    // season reads as an object you pick up, not a line of text (see the LIVELY layer)
+    const sList = [['spring', '\u{1F338}', 'Spring'], ['summer', '☀️', 'Summer'], ['fall', '\u{1F383}', 'Fall'], ['winter', '\u{1F384}', 'Winter']] as const;
+    for (const [sn, em, label] of sList) {
       sPop.appendChild(Object.assign(document.createElement('div'), {
         className: 'sp-item' + (SEASON === sn ? ' cur' : ''),
-        textContent: label,
+        innerHTML: '<span class="nb-chip">' + em + '</span><span>' + label + '</span>',
         onclick: sUnlocked ? () => { if (SEASON !== sn) {
           // keep the player where they are: write a one-shot resume point (same as the
           // story's auto season-turn) so the reload continues here, not back at the start
@@ -2253,6 +2384,7 @@ export class Hud {
       lk.textContent = 'Finish Gram’s story to roam the seasons — she’s waiting in Market Square.';
       sPop.appendChild(lk);
     }
+    stagger(sPop, 0.045);
     sToggle.addEventListener('click', (e) => { e.stopPropagation(); sPop.classList.toggle('open'); });
     sPop.addEventListener('click', (e) => e.stopPropagation());
     window.addEventListener('click', () => sPop.classList.remove('open'));
@@ -2781,6 +2913,7 @@ export class Hud {
       b.addEventListener('click', (e) => { e.stopPropagation(); onPick(s.id); paint(s.id); });
       row.appendChild(b);
     }
+    stagger(row, 0.05);
     paint(current);
   }
 
@@ -2790,7 +2923,19 @@ export class Hud {
     const pop = document.querySelector('#hud .settings-pop') as HTMLElement;
     const row = document.querySelector('#hud .settings-pop .sp-row[data-set="story"]') as HTMLElement;
     this.setStoryRowState(on);
-    btn.addEventListener('click', (e) => { e.stopPropagation(); pop.classList.toggle('open'); });
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pop.classList.toggle('open');
+      // this panel is static markup, so nothing ever handed its rows a delay and the
+      // whole thing popped in as one block. Re-stagger on each open, not once at boot:
+      // the Story row is display:none in world-only towns, and a delay set on a hidden
+      // row would leave a visible gap in the wave.
+      if (pop.classList.contains('open')) {
+        const shown = (Array.from(pop.children) as HTMLElement[])
+          .filter((c) => getComputedStyle(c).display !== 'none');
+        stagger(shown, 0.05);
+      }
+    });
     // any tap outside the gear/pop closes it
     window.addEventListener('pointerdown', (e) => {
       if (!pop.classList.contains('open')) return;
@@ -3093,7 +3238,6 @@ export class Hud {
     el.classList.remove('fresh', 'locked-card');
     void el.offsetWidth;
     el.classList.toggle('fresh', !!opts?.fresh);
-    this.cardText = title + '. ' + body;
 
     back.classList.add('open');
     this.hcardOpen = true;
@@ -3127,7 +3271,6 @@ export class Hud {
     (el.querySelector('.stamp') as HTMLElement).textContent = '★ STILL OUT THERE';
     el.classList.remove('fresh');
     el.classList.add('locked-card');
-    this.cardText = mk.title + '. ' + teaser;
     back.classList.add('open');
     this.hcardOpen = true;
   }
@@ -3209,7 +3352,9 @@ export class Hud {
     const rd = this.collectRead();
     const total = this.histMarkers.length;
     const pct = total ? Math.round((rd.size / total) * 100) : 0;
-    (panel.querySelector('.collect-prog i') as HTMLElement).style.width = pct + '%';
+    const bar = panel.querySelector('.collect-prog i') as HTMLElement;
+    bar.style.width = '0%';
+    requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = pct + '%'; }));
     const tally = panel.querySelector('.collect-tally') as HTMLElement;
     tally.innerHTML = rd.size >= total && total > 0
       ? '<b>All ' + total + ' found</b> — you are the Town Historian.'
@@ -3217,11 +3362,14 @@ export class Hud {
 
     const grid = panel.querySelector('.collect-grid') as HTMLElement;
     grid.innerHTML = '';
-    for (const mk of this.histMarkers) {
+    this.histMarkers.forEach((mk, i) => {
       const got = rd.has(mk.id);
       const shot = got ? loadShot(mk.id) : null;
       const tile = document.createElement('div');
       tile.className = 'ctile' + (got ? ' got' : ' locked');
+      // the glint chases this tile's own entrance: same capped stagger as nbpt-tile-in,
+      // plus a beat so the light crosses a tile that has already landed
+      if (got) tile.style.setProperty('--sheen-lag', (Math.min(i, 14) * 0.022 + 0.16).toFixed(3) + 's');
       // the marker's own icon, whether locked or found-without-a-photo — never a
       // shared placeholder, so the grid reads as 36 different things to go and get
       const pic = shot
@@ -3245,19 +3393,16 @@ export class Hud {
         else this.lockedCard(mk);
       });
       grid.appendChild(tile);
-    }
+    });
+    stagger(grid, 0.022);
     panel.classList.add('show');
   }
-
-  private cardText = '';
 
   private closeHistoryCard() {
     const back = document.querySelector('#hud .hcard-back') as HTMLElement;
     back.classList.remove('open');
     (back.querySelector('.hcard') as HTMLElement).classList.remove('fresh');
     this.hcardOpen = false;
-    stopSpeaking();
-    (document.querySelector('#hud .hcard .hsay') as HTMLElement | null)?.classList.remove('speaking');
     this.hushSay();
     this.dlgCool = performance.now() + 280;
   }
@@ -3295,9 +3440,10 @@ export class Hud {
     this.renderDlg();
   }
 
-  // Read-aloud was removed (7/28: the Web Speech voice is robotic enough that it hurt
-  // the cards more than it helped). This stays so any speech a previous build left
-  // running is silenced when a panel opens, and so the call sites don't all change.
+  // Read-aloud is gone — removed twice on 7/28, the second time after a "better voice"
+  // pass that actually shipped one of Apple's NOVELTY voices. Don't rebuild it on
+  // speechSynthesis; see docs/UX-PRINCIPLES.md §7. This stays because a returning player
+  // can still be running a cached build that speaks, and it silences that on panel open.
   private hushSay() {
     try { window.speechSynthesis?.cancel(); } catch { /* fine */ }
   }

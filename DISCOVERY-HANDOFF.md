@@ -119,14 +119,29 @@ Ropes Mansion. The card got the **ship** instead, which it was always about.
 ## 5. Open items, ranked
 
 1. **Indigenous review** before classroom use. Blocking for the pilot.
-2. **Read-aloud is gone** and that reopened the reading-level accessibility gap — a third
-   grader who cannot read a card yet now gets nothing. It was removed because the default
-   Web Speech voice is robotic. The fix is *better audio, not none*: pick a real system
-   voice via `getVoices()`, or record a human. **In progress.**
+2. **Read-aloud is removed — twice now — and should not be rebuilt on Web Speech.**
+   The need is real (third graders, and the cards *are* the lesson), but
+   `speechSynthesis` can only offer what the device has installed. Attempt one used the
+   platform default: Samantha on Apple, correctly called robotic. Attempt two ranked
+   voices by name and picked `Flo` — which is **worse**, because Eddy, Flo, Grandma,
+   Grandpa, Reed, Rocko, Sandy and Shelley are Apple's ***Novelty*** voices, siblings of
+   Bubbles and Zarvox. The tell: those eight are the only voices whose names carry an
+   `(English (United States))` suffix, and `Grandma`/`Grandpa` were already in the
+   exclusion list.
+   The real finding is that a stock Mac's *entire* usable English set is Samantha plus
+   five dated regionals — no Enhanced, no Premium, no network voice — so ranking cannot
+   produce a good voice, only the best bad one. Devin's call, 7/28: **cut it, revisit if
+   it becomes a need.** `src/game/speech.ts` is deleted; recover from git if wanted.
+   If it comes back, the answer is **recorded human audio** for the flagship NBPT
+   markers, not a better sort order. (Chromebooks do get `Google US English`, which is
+   decent — so a school-only path exists if the pilot ever asks for one.)
+   Note `hushSay()` in `hud.ts` stays: it cancels any speech an older cached build left
+   running when a panel opens.
 3. **The other 10 towns have no markers.** Purely content now — write
    `src/towns/<id>/history.ts`, set `history:` in the pack, run `check_markers.mjs`.
 4. **Spice pass is one panel deep.** Fast travel has motion and depth; the discovery card
-   and the HUD buttons are still the old flat treatment.
+   and the HUD buttons are still the old flat treatment. Rules for any pass on them now
+   live in [docs/UX-PRINCIPLES.md](docs/UX-PRINCIPLES.md) — read it first.
 5. Photos are ~100 KB each in IndexedDB. Fine now; worth watching across 12 towns.
 
 ---
