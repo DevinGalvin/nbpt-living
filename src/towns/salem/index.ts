@@ -3,6 +3,7 @@
 // salem-experiment fork when the towns reunified.
 import type { TownPack, SpawnAnchor } from '../types';
 import { COURSES } from './courses';
+import { HISTORY } from './history';
 import cfg from '../../../towns/salem/town.json';
 
 export const TOWN: TownPack = {
@@ -14,6 +15,8 @@ export const TOWN: TownPack = {
   path: '/salem/',
 
   story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
+
+  history: HISTORY,   // 🏛 34 discovery markers — see ./history.ts. Independent of `story`.
 
   spawn: cfg.spawn as SpawnAnchor,   // Essex St pedestrian mall, by Lappin Park (heart landmark; see town.json)
 
