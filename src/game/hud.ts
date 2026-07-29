@@ -455,6 +455,28 @@ const css = `
    roster — and the tile shrinks to an emoji over a name on a phone, which is
    what makes three of them fit. Tags are charm, so they come back as soon as
    there is room for them, and the town you are in always says so. */
+/* ---------- fast travel: two views, not one long scroll ----------
+   The panel used to stack twelve town cards ON TOP of the ~30 landmarks and the
+   search, which buried the thing people actually use — travelling inside the town
+   they are already in — under a roster they touch once a session. Now the panel
+   opens on THIS town (named in the title, so you always know where you are) and the
+   town switcher is one tap away behind a footer row. Same panel, two faces. */
+#hud .tv-towns { display: none; }
+#hud .travel-panel.towns .tv-here { display: none; }
+#hud .travel-panel.towns .tv-towns { display: block; }
+#hud .tv-back { display: none; cursor: pointer; }
+#hud .travel-panel.towns .tv-title { display: none; }
+#hud .travel-panel.towns .tv-back { display: inline; }
+#hud .tv-back:hover { color: #ffe9a3; }
+/* the way through to the roster — reads as a destination, not a control */
+#hud .tv-switch {
+  margin-top: 14px; padding: 12px 14px; border-radius: 11px; cursor: pointer;
+  background: rgba(243,241,232,0.06); border: 1px solid rgba(243,241,232,0.16);
+  color: #c8bd96; font-size: 13px; display: flex; align-items: center; gap: 7px;
+}
+#hud .tv-switch b { color: #e8c44f; }
+#hud .tv-switch span { margin-left: auto; color: #e8c44f; font-size: 16px; }
+#hud .tv-switch:hover { background: rgba(216,185,74,0.16); border-color: rgba(216,185,74,0.5); color: #f3f1e8; }
 #hud .travel-towns { margin: 0 0 14px; }
 #hud .tt-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 10.5px; letter-spacing: 1.5px; color: #c9a84e; font-weight: 700; margin: 0 0 8px; }
 #hud .tt-count { color: #9d9583; font-weight: 600; letter-spacing: 0.6px; }
@@ -1436,7 +1458,12 @@ export class Hud {
       <div class="race-btn" title="Races">🏁<span class="blab">RACE</span></div>
       <div class="race-pop"></div>
       <div class="board-panel"><div class="board-card"></div></div>
-      <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div><h2>FAST TRAVEL</h2><div class="travel-towns"><div class="tt-hdr"><span>EXPLORE ANOTHER TOWN</span><span class="tt-count"></span></div><div class="tt-row"></div></div><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div></div></div>
+      <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div>
+        <h2><span class="tv-title">${TOWN.name}</span><span class="tv-back">‹ ${TOWN.name}</span></h2>
+        <div class="tv-here"><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div>
+          <div class="tv-switch">🗺 <b></b> more towns to explore <span>›</span></div></div>
+        <div class="tv-towns"><div class="tt-hdr"><span>EXPLORE ANOTHER TOWN</span><span class="tt-count"></span></div><div class="tt-row"></div></div>
+      </div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
       <div class="objective"><span class="q wp-q">➤</span><span class="otxt"></span></div>
       <div class="waypoint"><div class="wp-arrow">➤</div></div>
@@ -2036,6 +2063,8 @@ export class Hud {
   initTravel(items: { id: string; name: string; sub: string }[], onPick: (id: string) => void) {
     // town switcher row — current town highlighted, the others navigate on tap
     const ttRow = document.querySelector('#hud .tt-row') as HTMLElement | null;
+    const swRow = document.querySelector('#hud .tv-switch') as HTMLElement | null;
+    if (swRow && TOWNS.length <= 1) swRow.style.display = 'none';
     if (ttRow && TOWNS.length > 1) {
       // ⚠️ No inline gridTemplateColumns. This used to derive a fixed column
       // count from the number of towns (12 → 3), which is a roster property, not
@@ -2044,6 +2073,13 @@ export class Hud {
       // for, and keeps fitting as more towns are added.
       const cnt = document.querySelector('#hud .tt-count');
       if (cnt) cnt.textContent = `${TOWNS.length} TOWNS`;
+      // the footer row that leads to the roster, and the title that leads back
+      const panel = document.querySelector('#hud .travel-panel') as HTMLElement;
+      const sw = panel.querySelector('.tv-switch') as HTMLElement;
+      (sw.querySelector('b') as HTMLElement).textContent = String(TOWNS.length - 1);
+      sw.addEventListener('click', (e) => { e.stopPropagation(); panel.classList.add('towns'); });
+      (panel.querySelector('.tv-back') as HTMLElement)
+        .addEventListener('click', (e) => { e.stopPropagation(); panel.classList.remove('towns'); });
       const here = ((window as unknown as { __townPath?: string }).__townPath || location.pathname).replace(/\/+$/, '');
       const cur = TOWNS.filter((t) => t.path !== '/').sort((a, b) => b.path.length - a.path.length)
         .find((t) => { const p = t.path.replace(/\/+$/, ''); return here === p || here.startsWith(p + '/'); })
@@ -2147,14 +2183,18 @@ export class Hud {
     sToggle.addEventListener('click', (e) => { e.stopPropagation(); sPop.classList.toggle('open'); });
     sPop.addEventListener('click', (e) => e.stopPropagation());
     window.addEventListener('click', () => sPop.classList.remove('open'));
+    // These tallies count THIS town's markers and secrets, so they belong in the
+    // town view — appending them to the card put them under the roster of twelve
+    // other towns, where "1/36" reads as a fact about the wrong thing.
+    const here = card.querySelector('.tv-here') || card;
     const hist = document.createElement('div');
     hist.className = 'hist-line';
-    card.appendChild(hist);
+    here.appendChild(hist);
     // secrets line: invisible until the first one is found — that's the rule
     const egg = document.createElement('div');
     egg.className = 'hist-line egg-line';
     egg.style.display = 'none';
-    card.appendChild(egg);
+    here.appendChild(egg);
 
     document.querySelector('#hud .travel-btn')!.addEventListener('click', () => this.toggleTravel());
     const panel = document.querySelector('#hud .travel-panel')!;
@@ -2174,6 +2214,10 @@ export class Hud {
     const panel = document.querySelector('#hud .travel-panel')!;
     const want = force !== undefined ? force : !panel.classList.contains('open');
     panel.classList.toggle('open', want);
+    // reopening always lands on the town you are in — leaving it on the roster
+    // because that is where you were last time is disorienting, and the common
+    // case by far is travelling within this town
+    if (want) panel.classList.remove('towns');
     const input = panel.querySelector('.travel-search') as HTMLInputElement | null;
     if (input) {
       if (want) setTimeout(() => input.focus(), 30);
