@@ -12,6 +12,16 @@ import { TOWN } from '@town';
 
 const READ_KEY = townKey('history-read');
 const HISTORIAN_KEY = townKey('historian');
+const EPOCH_KEY = townKey('history-epoch');
+
+// Bump this to reset EVERY player's collection, once, on their next load.
+//
+// '2' (7/28): markers moved during the discovery rebuild — several coordinates
+// changed, the photos captured before the resolution fix were unusable, and Devin
+// wanted every browser back to zero for the school pilot. This is destructive and
+// deliberate: it clears read state, every photo, and the Town Historian badge.
+// It runs ONCE per epoch per town, never again, because the new value is stored.
+const COLLECTION_EPOCH = '2';
 
 export type Site = {
   id: string; x: number; z: number; title: string; year: string; body: string; stamp?: string;
@@ -67,6 +77,22 @@ export class HistoryRunner {
     this.audio = audio;
     this.index = index;
     this.shot = shot || null;
+
+    // One-time global wipe when COLLECTION_EPOCH moves. Do this BEFORE reading the
+    // saved set and before primeShots, or the legacy-photo migration would quietly
+    // resurrect the pictures we just deleted.
+    let stale = false;
+    try { stale = localStorage.getItem(EPOCH_KEY) !== COLLECTION_EPOCH; } catch { /* private mode */ }
+    if (stale) {
+      try {
+        localStorage.removeItem(READ_KEY);
+        localStorage.removeItem(HISTORIAN_KEY);
+        for (const id of SITES.map((k) => k.id)) localStorage.removeItem(townKey('shot-') + id);
+        localStorage.setItem(EPOCH_KEY, COLLECTION_EPOCH);
+      } catch { /* private mode — the wipe just repeats next load, which is harmless */ }
+      clearShots(SITES.map((k) => k.id));
+    }
+
     try {
       this.read = new Set(JSON.parse(localStorage.getItem(READ_KEY) || '[]'));
     } catch {
