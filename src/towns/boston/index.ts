@@ -12,6 +12,7 @@
 // dry-land-checked — see towns/boston/map.mjs and BOSTON-HANDOFF.md.
 import type { TownPack, SpawnAnchor } from '../types';
 import { COURSES } from './courses';
+import { HISTORY } from './history';
 import cfg from '../../../towns/boston/town.json';
 
 export const TOWN: TownPack = {
@@ -23,6 +24,8 @@ export const TOWN: TownPack = {
   path: '/boston/',
 
   story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
+
+  history: HISTORY,   // 🏛 38 discovery markers — see ./history.ts. Independent of `story`.
 
   spawn: cfg.spawn as SpawnAnchor,   // Faneuil Hall — Boston's market square, the place a local takes a visitor first
 
