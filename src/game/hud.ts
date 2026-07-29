@@ -491,45 +491,46 @@ const css = `
 #hud .travel-panel.towns .tv-towns { display: block; }
 #hud .tv-back { display: none; cursor: pointer; }
 #hud .travel-panel.towns .tv-title { display: none; }
+#hud .travel-panel.towns .tv-switch { display: none; }
 #hud .travel-panel.towns .tv-back { display: inline; }
 #hud .tv-back:hover { color: #ffe9a3; }
-/* ---------- the towns button, as a headline act ----------
-   Twelve real towns is the biggest thing this app has, and it was reading as a
-   settings row. It now behaves like something in a game: a warm gradient slab with
-   a sheen travelling across it, the actual town emoji spilling out of the right
-   side so you SEE what is behind the tap, and an arrow that keeps nudging. */
+/* ---------- the way UP to the towns ----------
+   HIERARCHY: the roster of twelve towns is a level ABOVE this one, so its control
+   belongs in line with the title — mirroring the ✕ across the header — not as a
+   full-width slab under it. A button below the town name reads as something INSIDE
+   Newburyport, which is the opposite of what it does. The town name stays the hero.
+   Same idea as a nav bar: the way back up lives top-left, the close lives top-right. */
 #hud .tv-switch {
-  position: relative; overflow: hidden;
-  margin: 0 0 12px; padding: 14px 16px; border-radius: 14px; cursor: pointer;
-  background: linear-gradient(118deg, #6d2f3f 0%, #8d3f47 45%, #b4643f 100%);
-  border: 1.5px solid rgba(255, 214, 130, 0.55);
-  box-shadow: 0 6px 0 rgba(0,0,0,0.28), 0 10px 26px rgba(0,0,0,0.4);
-  color: #fff6e2; font-size: 15px; font-weight: 800; letter-spacing: 0.2px;
-  display: flex; align-items: center; gap: 10px;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.2s ease;
+  position: absolute; top: 6px; left: 8px; z-index: 3;
+  display: flex; align-items: center; gap: 5px;
+  height: 44px; padding: 0 12px 0 10px; border-radius: 22px; cursor: pointer;
+  background: linear-gradient(140deg, rgba(180,100,63,0.55), rgba(109,47,63,0.55));
+  border: 1.5px solid rgba(255, 214, 130, 0.45);
+  overflow: hidden; color: #fff6e2;
+  transition: transform 0.12s ease, filter 0.2s ease, border-color 0.15s ease;
 }
-#hud .tv-switch:hover { filter: brightness(1.12); }
-/* chunky press — the whole slab drops onto its shadow */
-#hud .tv-switch:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,0.28), 0 4px 12px rgba(0,0,0,0.4); }
-#hud .tv-switch b { color: #ffdf87; font-size: 17px; }
-/* the sheen */
+#hud .tv-switch:hover { filter: brightness(1.18); border-color: #ffdf87; }
+#hud .tv-switch:active { transform: scale(0.93); }
+#hud .tv-sw-txt { display: none; }              /* the emoji stack says it better */
+/* a sheen so it still catches the eye without shouting over the title */
 #hud .tv-switch::after {
-  content: ''; position: absolute; top: -60%; bottom: -60%; width: 40px; left: -80px;
-  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.42), transparent);
-  transform: skewX(-18deg); animation: nbpt-sheen 3.4s ease-in-out infinite;
+  content: ''; position: absolute; top: -60%; bottom: -60%; width: 26px; left: -50px;
+  background: linear-gradient(100deg, transparent, rgba(255,255,255,0.38), transparent);
+  transform: skewX(-18deg); animation: nbpt-sheen 3.8s ease-in-out infinite;
 }
-@keyframes nbpt-sheen { 0% { left: -80px; } 55%, 100% { left: 130%; } }
-#hud .tv-sw-txt { position: relative; z-index: 1; }
-/* the real town emoji, overlapping like a stack of cards */
-#hud .tv-sw-faces { position: relative; z-index: 1; margin-left: auto; display: flex; align-items: center; }
+@keyframes nbpt-sheen { 0% { left: -50px; } 55%, 100% { left: 130%; } }
+/* the real town emoji, overlapping like a hand of cards — this IS the label */
+#hud .tv-sw-faces { position: relative; z-index: 1; display: flex; align-items: center; padding-left: 6px; }
 #hud .tv-sw-faces i {
-  font-style: normal; font-size: 19px; line-height: 1; margin-left: -7px;
+  font-style: normal; font-size: 17px; line-height: 1; margin-left: -6px;
   filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
   animation: nbpt-face-bob 2.6s ease-in-out infinite;
 }
 @keyframes nbpt-face-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-#hud .tv-sw-arrow { position: relative; z-index: 1; margin-left: 8px; color: #ffdf87; font-size: 20px; font-weight: 900; animation: nbpt-nudge 1.5s ease-in-out infinite; }
-@keyframes nbpt-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(4px); } }
+#hud .tv-sw-arrow { position: relative; z-index: 1; color: #ffdf87; font-size: 17px; font-weight: 900; animation: nbpt-nudge 1.5s ease-in-out infinite; }
+@keyframes nbpt-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+/* the title is the hero — give it room between the two controls */
+#hud .travel-card h2 { padding: 0 56px; }
 #hud .travel-towns { margin: 0 0 14px; }
 #hud .tt-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 10.5px; letter-spacing: 1.5px; color: #c9a84e; font-weight: 700; margin: 0 0 8px; }
 #hud .tt-count { color: #9d9583; font-weight: 600; letter-spacing: 0.6px; }
@@ -1503,7 +1504,8 @@ export class Hud {
       <div class="board-panel"><div class="board-card"></div></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div>
         <h2><span class="tv-title">${TOWN.name}</span><span class="tv-back">‹ ${TOWN.name}</span></h2>
-        <div class="tv-here"><div class="tv-switch"><span class="tv-sw-txt">Explore <b></b> other towns</span><span class="tv-sw-faces"></span><span class="tv-sw-arrow">›</span></div><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div></div>
+        <div class="tv-switch" title="Explore other towns"><span class="tv-sw-faces"></span><span class="tv-sw-arrow">›</span></div>
+        <div class="tv-here"><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div></div>
         <div class="tv-towns"><div class="tt-hdr"><span>EXPLORE ANOTHER TOWN</span><span class="tt-count"></span></div><div class="tt-row"></div></div>
       </div></div>
       <div class="mini"><canvas></canvas><div class="me"></div></div>
@@ -2106,7 +2108,7 @@ export class Hud {
       // the footer row that leads to the roster, and the title that leads back
       const panel = document.querySelector('#hud .travel-panel') as HTMLElement;
       const sw = panel.querySelector('.tv-switch') as HTMLElement;
-      (sw.querySelector('b') as HTMLElement).textContent = String(TOWNS.length - 1);
+      sw.title = `Explore ${TOWNS.length - 1} other towns`;
       sw.addEventListener('click', (e) => { e.stopPropagation(); panel.classList.add('towns'); });
       (panel.querySelector('.tv-back') as HTMLElement)
         .addEventListener('click', (e) => { e.stopPropagation(); panel.classList.remove('towns'); });
