@@ -105,8 +105,8 @@ after that is content polish, at whatever depth the town deserves.
   rider name, ghost pref, board-url (see the contract in src/game/race.ts).
 - **`story: false` is a real product.** The Newburyport quest line stays
   Newburyport's; new towns launch as world-only sandboxes (explore + vehicles +
-  racing + seasons) and can grow a story later. `?story` in the URL force-wires
-  the spine for development.
+  racing + seasons) and can grow a story later. The flag alone decides it —
+  Newburyport ships its spine, everyone else runs bare.
 - **The leaderboard is already multi-town.** One backend, partitioned by the
   pack's `raceTown` — nothing to deploy for a new town.
 

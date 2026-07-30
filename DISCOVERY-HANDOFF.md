@@ -3,9 +3,14 @@
 **Status: LIVE at clippertown.io.** 17 commits, `78b01cc` → `815a1f8`, all deployed and
 verified against `window.__build`.
 
-The Gram story spine is retired from the shipped game and the town's history became a
-**collectible** — the thing you actually do. Newburyport has 36 discoveries, Gloucester
-23. This document is what the next person needs to not repeat the mistakes.
+The town's history became a **collectible** — the thing you actually do. Newburyport has
+36 discoveries, Gloucester 23. This document is what the next person needs to not repeat
+the mistakes.
+
+> **Update 7/30:** the Gram spine is un-retired. It shipped behind `?story` for two days;
+> Newburyport now runs it again off the pack's `story` flag alone (`STORY` in `Game.ts`).
+> Nothing below changes — the collection never rode `story`, it rides `history`, and both
+> are live side by side. A fresh visitor still lands in explore mode and picks.
 
 ---
 
@@ -14,7 +19,7 @@ The Gram story spine is retired from the shipped game and the town's history bec
 | | before | now |
 |---|---|---|
 | Main activity | Gram's chaptered quest | 🏛 collecting the town's history |
-| Story mode | default | retired behind `?story`, nothing deleted |
+| Story mode | default | opt-in via the first-run pick + ⚙️ toggle (was behind `?story`; restored 7/30) |
 | Markers | 30, hardcoded to NBPT in `game/history.ts` | per-town `src/towns/<id>/history.ts` |
 | Find a marker | a card appears | town **freezes**, card lands, **your own photo** |
 | The album | found items only | every slot from second one, locked ones named |

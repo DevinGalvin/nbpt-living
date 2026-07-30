@@ -29,10 +29,11 @@ export interface TownPack {
   emoji: string;
   path: string;          // site path this town deploys under ('/', '/salem/')
 
-  // false = world-only sandbox: no eggs/interiors/drawbridge. NOTE this no longer
-  // gates history — the discovery collection is the main thing to do and rides
-  // `history` below. The authored Gram spine it used to enable is retired from the
-  // shipped game entirely; `?story` in the URL brings it back for development.
+  // false = world-only sandbox: no eggs/interiors/drawbridge. NOTE this does not
+  // gate history — the discovery collection rides `history` below, and every town
+  // ships one. true also enables the authored Gram spine (chapters, missions, the
+  // compass), which is live again as of 7/30 — Newburyport is the only town that
+  // has one written.
   story: boolean;
 
   // 🏛 the discovery collection — this town's true stories, each a bronze plaque at

@@ -25,12 +25,15 @@ import { TOWN } from '@town';
 // history markers / eggs / drawbridge / interiors chrome.
 const BARE = !TOWN.story;
 
-// The authored Gram spine (chapters, missions, the compass) is RETIRED from the
-// shipped game as of 7/28 — the history collection is the thing to do now, and it
-// is the part that scales to every town. None of the story content is deleted:
-// quest.ts and every chapter still live in the repo, and `?story` brings the whole
-// spine back for development. Do not re-enable it by default without a decision.
-const STORY = TOWN.story && new URLSearchParams(location.search).has('story');
+// The authored Gram spine (chapters, missions, the compass) ships again as of
+// 7/30 — it was retired behind `?story` on 7/28, and that call was reversed. It
+// rides the town pack's `story` flag alone, so it is on for Newburyport (the one
+// town with an authored spine) and stays off everywhere else. The history
+// collection is unaffected either way: it rides `history`, not this flag.
+// Nobody is forced into it — a fresh visitor still lands in explore mode and gets
+// the explore-vs-story pick (see showModePick below), and the ⚙️ toggle flips it
+// any time.
+const STORY = TOWN.story;
 
 const JOG = 200;     // world px/s (8 px = 1 m) — fast, gamey
 const SPRINT = 380;

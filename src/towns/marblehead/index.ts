@@ -21,7 +21,7 @@ export const TOWN: TownPack = {
   emoji: '🧭',
   path: '/marblehead/',
 
-  story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
+  story: false,   // world-only sandbox — no authored spine (Newburyport is the only town with one)
 
   history: HISTORY,   // 🏛 20 discovery markers — see ./history.ts. Independent of `story`.
 

@@ -19,7 +19,7 @@ export const TOWN: TownPack = {
   emoji: '🎣',
   path: '/gloucester/',
 
-  story: false,   // world-only sandbox — ?story force-enables the (NBPT) spine for dev
+  story: false,   // world-only sandbox — no authored spine (Newburyport is the only town with one)
   history: HISTORY,   // 🏛 23 discovery markers — see ./history.ts. Independent of `story`.
 
   spawn: cfg.spawn as SpawnAnchor,   // downtown heart landmark (see town.json) — research pass settles the exact spot
