@@ -249,6 +249,15 @@ export class Kid {
   private collarMesh!: THREE.Mesh;
   private digP = 0;
   private diggingNow = false;
+  private swimP = 0;
+  private swimmingNow = false;
+  private shakeT = 0;
+
+  /** 🏊 dog-paddle: Game flips this the moment Clipper is in water */
+  setSwimming(on: boolean) { this.swimmingNow = on; }
+
+  /** the full-body wet-dog shake, fired as he climbs out */
+  shake() { this.shakeT = 0.9; }
 
   /** the identity-neutral customization: your dog, your collar */
   setCollar(hex: string) { (this.collarMesh.material as THREE.MeshStandardMaterial).color.set(hex); }
@@ -679,6 +688,15 @@ export class Dog {
   private collarMesh!: THREE.Mesh;
   private digP = 0;
   private diggingNow = false;
+  private swimP = 0;
+  private swimmingNow = false;
+  private shakeT = 0;
+
+  /** 🏊 dog-paddle: Game flips this the moment Clipper is in water */
+  setSwimming(on: boolean) { this.swimmingNow = on; }
+
+  /** the full-body wet-dog shake, fired as he climbs out */
+  shake() { this.shakeT = 0.9; }
 
   /** the identity-neutral customization: your dog, your collar */
   setCollar(hex: string) { (this.collarMesh.material as THREE.MeshStandardMaterial).color.set(hex); }
@@ -711,7 +729,13 @@ export class Dog {
       this.faceAngle = lerpAngle(this.faceAngle, Math.atan2(vx, vz), Math.min(1, dt * 12));
       this.phase += dt * (6.5 + speed * 0.042);
       this.idleT = 0;
-      this.mode = this.forceSniff ? 'sniff' : 'stand';
+      this.mode = this.forceSniff && !this.swimmingNow ? 'sniff' : 'stand';
+    } else if (this.swimmingNow) {
+      // treading water: no sit, no sniff, just the paddle ticking over
+      const rest = Math.round(this.phase / Math.PI) * Math.PI;
+      this.phase = ease(this.phase, rest, dt, 9);
+      this.mode = 'stand';
+      this.idleT = 0;
     } else if (this.forceSniff) {
       const rest = Math.round(this.phase / Math.PI) * Math.PI;
       this.phase = ease(this.phase, rest, dt, 9);
@@ -834,6 +858,36 @@ export class Dog {
       this.trunk.rotation.x += this.digP * 0.26;      // rump up over the work
       this.headGroup.rotation.x += this.digP * 0.35;  // nose in the hole
       this.wagPhase += dt * 6 * this.digP;            // the tail cannot believe its luck
+    }
+
+    // 🏊 the dog-paddle: body level and low, all four legs churning in a rolling
+    // sequence, head held up out of the water, ears back, tail flat on the surface,
+    // the whole dog bobbing on the swell. Game lowers the root so the belly is under.
+    this.swimP = ease(this.swimP, this.swimmingNow ? 1 : 0, dt, 6);
+    if (this.swimP > 0.01) {
+      const sp = this.t * 9.5, w = this.swimP;
+      for (let i = 0; i < 4; i++) {
+        const paddle = Math.sin(sp + i * 1.6) * 0.55;
+        this.legs[i].rotation.x = this.legs[i].rotation.x * (1 - w) + paddle * w;
+        this.shins[i].rotation.x = this.shins[i].rotation.x * (1 - w) + (0.7 + Math.max(0, Math.sin(sp + i * 1.6 - 1.2)) * 0.5) * w;
+      }
+      this.trunk.position.y += Math.sin(this.t * 2.6) * 0.7 * w;   // the swell
+      this.trunk.rotation.x -= 0.14 * w;                            // nose up, rump down
+      this.headGroup.rotation.x -= 0.5 * w;                         // chin well clear
+      this.earL.rotation.x += 0.45 * w;                             // ears pinned back
+      this.earR.rotation.x += 0.45 * w;
+      this.tail.rotation.x = this.tail.rotation.x * (1 - w) + (-1.5) * w;   // flat on the water
+    }
+
+    // 💦 the wet-dog shake: a whole-body roll that rings out and dies
+    if (this.shakeT > 0) {
+      this.shakeT = Math.max(0, this.shakeT - dt);
+      const env = Math.sin(Math.min(1, this.shakeT / 0.9) * Math.PI);
+      this.heading.rotation.z = Math.sin(this.t * 42) * 0.26 * env;
+      this.earL.rotation.z = Math.sin(this.t * 42 + 1) * 0.5 * env;
+      this.earR.rotation.z = -Math.sin(this.t * 42 + 1) * 0.5 * env;
+    } else {
+      this.heading.rotation.z = 0;
     }
 
     // ears flop against the bounce

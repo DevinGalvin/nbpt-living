@@ -3141,10 +3141,11 @@ export class Hud {
   }
 
   /** 🕳 a spray of dirt out of the hole — a few clods per call, flung backwards */
-  dirt(x: number, y: number) {
+  dirt(x: number, y: number, color = '#7a5a3a') {
     for (let i = 0; i < 3; i++) {
       const el = document.createElement('div');
       el.className = 'dirtclod';
+      el.style.background = color;
       el.style.left = (x - 4 + (Math.random() - 0.5) * 18) + 'px';
       el.style.top = (y - 4) + 'px';
       el.style.setProperty('--dx', ((Math.random() - 0.5) * 70).toFixed(0) + 'px');

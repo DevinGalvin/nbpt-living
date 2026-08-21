@@ -300,6 +300,11 @@ export class Game {
   private dirtAcc = 0;
   private lastSpeed = 0;           // real px/s this frame — the dig gate wants "standing still"
   private bones: Set<string> = new Set();
+  private swimming = false;        // 🏊 in the water, on the dog's own four legs
+  private rippleAcc = 0;
+  private ripples: { m: THREE.Mesh; t: number }[] = [];
+  private rippleMat = new THREE.MeshBasicMaterial({ color: '#e8f4ff', transparent: true, opacity: 0.5, depthWrite: false });
+  private rippleGeo = new THREE.RingGeometry(5, 7, 20);
   private zoomAng = 0;
   private idleCalm = 0;            // quiet seconds — zoomies build up in here
   private townAcc = 0;
@@ -1108,6 +1113,29 @@ export class Game {
       }
     }
     return best;
+  }
+
+  // Swimmable here? Open water (no deck over it, not frozen) — OR the raster's
+  // shoreline band: a cell painted blocked with open water within 10 px. ONE
+  // definition, used by both the movement test and the swimming flag; when they
+  // disagreed the stuck-net "rescued" the dog out of the band every frame and he
+  // jittered at the tideline forever.
+  private wetAt(x: number, y: number): boolean {
+    const open = (ax: number, ay: number) =>
+      this.index.isWaterAt(ax, ay) && this.index.deckHeightAt(ax, ay) <= WATER_Y && !this.index.frozenWaterAt(ax, ay);
+    if (open(x, y)) return true;
+    return this.index.isBlocked(x, y) && (open(x + 10, y) || open(x - 10, y) || open(x, y + 10) || open(x, y - 10));
+  }
+
+  // a ring on the water at Clipper's chest, expanding and fading over a second
+  private spawnRipple(scale: number) {
+    const m = new THREE.Mesh(this.rippleGeo, this.rippleMat.clone());
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(this.px, WATER_Y + 0.6, this.pz);
+    m.scale.setScalar(scale);
+    m.renderOrder = 3;
+    this.scene.add(m);
+    this.ripples.push({ m, t: 0 });
   }
 
   private playerScreen(): [number, number] | null {
@@ -2016,7 +2044,7 @@ export class Game {
     // ~3 s of autonomous gallop in a circle, announced with a bark. Any input hands
     // the wheel straight back; the glance-off collision makes it uncrashable, the
     // same guarantee the flight mode leans on. Kids will stand still on purpose.
-    if (!LEGACY_KID && !this.riding && !this.kayaking && !this.boating && !this.flying
+    if (!LEGACY_KID && !this.riding && !this.kayaking && !this.boating && !this.flying && !this.swimming
         && !this.inside && !this.sniffing && !this.lookUp && !this.hud.dialogueOpen
         && !(this.race?.active) && !this.debugVec) {
       const quiet = Math.hypot(vx, vz) < 0.01;
@@ -2067,6 +2095,7 @@ export class Game {
     let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
     if (this.sniffing) speed *= 0.4;    // nose down = a careful, readable creep
+    if (this.swimming) speed = 115;     // the dog-paddle: one steady pace, sprint or not
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
     // streets are controllable. Kids kept overshooting into houses in the neighborhoods,
@@ -2100,15 +2129,23 @@ export class Game {
       ? (x: number, y: number) => this.tunnel!.free(x, y)
       : this.interior
       ? (x: number, y: number) => this.interior!.free(x, y)
-      : (x: number, y: number) =>
-        !this.index.isBlocked(x - half, y) && !this.index.isBlocked(x + half, y) && !this.index.isBlocked(x, y)
-        && !(this.life && this.life.obstacleAt(x, y))
-        // on foot you can't walk out onto open water — only dry land, a real deck
-        // (bridge/pier/boardwalk, where deckHeightAt rises above the waterline), or a
-        // frozen pond (winter ice you can walk clear across)
-        && (!this.index.isWaterAt(x, y) || this.index.deckHeightAt(x, y) > WATER_Y || this.index.frozenWaterAt(x, y))
-        // under a span: low-clearance slab and solid abutments/piers block; ON the deck never blocks
-        && !this.index.underDeckBlockedAt(x, y, this.kidY);
+      : (x: number, y: number) => {
+        // 🏊 DOG-PADDLE. The collision raster paints water as BLOCKED, so a walker's
+        // test died at isBlocked before the water clause was ever reached — water was
+        // a wall. For the dog, open water (no deck over it, not frozen) is simply
+        // swimmable: skip the wall test, keep only the life-obstacle one. The kid still
+        // can't swim; decks and winter ice still count as ground for both.
+        // ⚠️ The raster's water paint bleeds ~4 px past the water polygon, leaving a
+        // one-cell band along every shore that is BLOCKED but not isWaterAt — measured
+        // at a Gloucester beach: d=4 blocked+dry, d=8 blocked+wet. Without treating that
+        // band as wet the dog stops dead at the tideline. So a blocked cell with water
+        // within 10 px is the shoreline, and the shoreline is swimmable.
+        if (this.wetAt(x, y)) return !LEGACY_KID && !(this.life && this.life.obstacleAt(x, y));
+        return !this.index.isBlocked(x - half, y) && !this.index.isBlocked(x + half, y) && !this.index.isBlocked(x, y)
+          && !(this.life && this.life.obstacleAt(x, y))
+          // under a span: low-clearance slab and solid abutments/piers block; ON the deck never blocks
+          && !this.index.underDeckBlockedAt(x, y, this.kidY);
+      };
     // sub-step the move and GLANCE off walls so structures deflect you instead of
     // stopping you dead — better gameplay feel (Devin). A blocked axis doesn't just
     // get dropped (which bleeds your speed to the small free component and reads as
@@ -2149,7 +2186,12 @@ export class Game {
     // version only checked walls with tiny nudges, so a car (radius ~20) could pin
     // you with no escape. Now: push out to the nearest open ground, ringing outward
     // far enough to clear a car.
-    if (!this.inside && !this.onWater && !this.sweeping) {   // not while kayaking either — the collision
+    // ⚠️ the net must judge the cell you are ABOUT to stand in, not last frame's
+    // swimming flag: otherwise the first step into the water is "adrift", the net
+    // yanks you back to shore, the flag never flips, and the dog oscillates at the
+    // tideline forever (measured: +3 px in, −7 px out, every frame).
+    const enteringWater = !LEGACY_KID && this.wetAt(nx, nz);
+    if (!this.inside && !this.onWater && !this.swimming && !enteringWater && !this.sweeping) {   // not while kayaking (or swimming) — the collision
       // grid reads "blocked" out past the built chunks, which would shove the kayak back
       // from open sea (the invisible wall); on the water the isWaterAt free() is enough
       // (and never while pinned at the tower for the beam-sweep)
@@ -2185,6 +2227,37 @@ export class Game {
     this.px = nx;
     this.pz = nz;
     this.lastSpeed = Math.hypot(realVx, realVz);
+    // 🏊 in or out of the water this frame? Walking in starts the paddle — no button,
+    // the water just stops being a wall. Climbing out earns the wet-dog shake.
+    const wasSwimming = this.swimming;
+    this.swimming = !LEGACY_KID && !this.inside && !this.onWater && !this.flying && this.wetAt(this.px, this.pz);
+    if (this.swimming !== wasSwimming) {
+      const pl = this.player as Dog;
+      pl.setSwimming?.(this.swimming);
+      const sp = this.playerScreen();
+      if (this.swimming) {
+        if (this.riding) this.dismount();          // the bike stays on the beach
+        if (this.sniffing) this.endSniff();
+        this.audio.plink();
+        for (let i = 0; i < 3; i++) this.spawnRipple(0.25 + i * 0.45);
+        if (sp) this.hud.dirt(sp[0], sp[1] + 6, '#9fd0ee');
+      } else {
+        pl.shake?.();
+        if (sp) { this.hud.dirt(sp[0], sp[1], '#9fd0ee'); this.hud.dirt(sp[0] + 10, sp[1] - 6, '#9fd0ee'); }
+      }
+    }
+    if (this.swimming) {
+      this.rippleAcc += dt;
+      if (this.lastSpeed > 8 && this.rippleAcc > 0.32) { this.rippleAcc = 0; this.spawnRipple(1); }
+    }
+    for (let i = this.ripples.length - 1; i >= 0; i--) {
+      const r = this.ripples[i];
+      r.t += dt;
+      const k = r.t / 1.1;
+      if (k >= 1) { this.scene.remove(r.m); (r.m.material as THREE.Material).dispose(); this.ripples.splice(i, 1); continue; }
+      r.m.scale.setScalar(1 + k * 2.6);
+      (r.m.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - k);
+    }
     this.player.setPos(this.px, this.pz);
     this.player.update(dt, realVx, realVz, this.sprinting, this.riding, this.onWater);
     this.player.setBackpack(this.hud.hasBackpack());   // worn pack appears once the 🎒 is earned
@@ -2193,11 +2266,11 @@ export class Game {
     // Decks are entered where they meet the grade — passing beneath a raised
     // overpass keeps you on the ground under it, head safely below the span.
     const terrainY = this.inside ? 0 : this.onWater ? WATER_Y : this.terrain.heightAt(this.px, this.pz);
-    const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.index.surfaceYAt(this.px, this.pz, this.kidY);
+    const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.swimming ? WATER_Y - 5 : this.index.surfaceYAt(this.px, this.pz, this.kidY);
     this.kidY += (surfY - this.kidY) * Math.min(1, dt * 12);
     if (this.flying) this.kidY = this.flyY;   // ✈️ altitude overrides the terrain-follow
     // hop low fences/hedges (they no longer block) — a quick arc as you cross one
-    const nearFence = !this.inside && !this.onWater && this.index.lowBarrierNear(this.px, this.pz);
+    const nearFence = !this.inside && !this.onWater && !this.swimming && this.index.lowBarrierNear(this.px, this.pz);
     if (Math.hypot(realVx, realVz) > 4 && nearFence && !this.wasNearFence && this.hopT <= 0) this.hopT = 0.5;
     this.wasNearFence = nearFence;
     if (this.hopT > 0) this.hopT = Math.max(0, this.hopT - dt);
@@ -2341,7 +2414,7 @@ export class Game {
       // eggs speak last: quest beats, then race flags, then history markers, then secrets
       if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.flying || (this.quest?.nearActive ?? false) || raceBusy || (this.history ? this.history.nearActive : false));
     }
-    this.audio.update(dt, movingNow && !this.riding, this.sprinting, () =>
+    this.audio.update(dt, movingNow && !this.riding && !this.swimming, this.sprinting, () =>
       this.inside ? 'hard'
         : surfY > terrainY + 0.5 ? 'wood'
         : this.index.onPavedAt(this.px, this.pz) ? 'hard' : 'soft');
@@ -2428,7 +2501,7 @@ export class Game {
       // 🕳 hold the sniff, stand still on soft ground, and it becomes a DIG —
       // press length keeps being the only control: tap bark, hold sniff, keep
       // holding dig. Most holes are just holes; the seeded spots hold bones.
-      const canDig = this.lastSpeed < 6 && !this.onWater && !this.riding && !this.inside && !this.flying
+      const canDig = this.lastSpeed < 6 && !this.onWater && !this.swimming && !this.riding && !this.inside && !this.flying
         && !this.index.onPavedAt(this.px, this.pz);
       if (!canDig) {
         if (this.diggingNow) { this.diggingNow = false; this.digAnim = 0; (this.player as Dog).setDigging?.(false); }
