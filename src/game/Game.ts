@@ -2578,7 +2578,11 @@ export class Game {
       else if (this.kayaking) { if (this.landNear()) act = { label: '🛶 HOP OUT', cb: () => this.exitKayak() }; }
       else if (!this.inside && !this.boating && !this.sweeping) {
         if (this.flightEnabled && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
-        else if (this.kayakEarned && this.nearWater && !this.quest?.nearActive && !this.race?.nearActive && !this.hud.dialogueOpen) act = { label: '🛶 KAYAK', cb: () => this.enterKayak() };
+        // 🛶 the free-roam kayak is the KID's way onto the water; the dog swims, so
+        // the offer is retired for him (Devin: "just get rid of the kayak since the
+        // dog can swim now"). The one scripted kayak — Grandpa's, at the Joppa slip in
+        // Level 2 — still launches from its own story beat until the recast.
+        else if (LEGACY_KID && this.kayakEarned && this.nearWater && !this.quest?.nearActive && !this.race?.nearActive && !this.hud.dialogueOpen) act = { label: '🛶 KAYAK', cb: () => this.enterKayak() };
       }
       const actKey = act ? act.label : null;
       if (actKey !== this.flyAct) {
