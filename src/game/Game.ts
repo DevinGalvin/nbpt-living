@@ -2388,7 +2388,11 @@ export class Game {
       // swing the chase cam to look out at the mystery light (the birdwatcher reveal)
       this.camAz = lerpAngle(this.camAz, Math.atan2(this.cineLook.x - this.px, this.cineLook.z - this.pz), Math.min(1, dt * 2.4));
     } else if (this.chaseCam) {
-      if (movingNow) this.camAz = lerpAngle(this.camAz, Math.atan2(realVx, realVz), Math.min(1, dt * 2.2));
+      // the chase cam swings to follow the direction of motion — except during
+      // zoomies, where "the direction of motion" changes 11 rad/s and the camera
+      // chased it round and round (Devin: "it gets crazy"). The dog spins; the
+      // camera stays put and watches.
+      if (movingNow && this.zoomT <= 0) this.camAz = lerpAngle(this.camAz, Math.atan2(realVx, realVz), Math.min(1, dt * 2.2));
     } else {
       this.camAz = lerpAngle(this.camAz, Math.PI, Math.min(1, dt * 3));
     }
