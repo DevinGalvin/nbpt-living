@@ -960,11 +960,16 @@ export class Dog {
         this.shins[i].rotation.x = this.shins[i].rotation.x * (1 - w) + (0.7 + Math.max(0, Math.sin(sp + i * 1.6 - 1.2)) * 0.5) * w;
       }
       this.trunk.position.y += Math.sin(this.t * 2.6) * 0.7 * w;   // the swell
-      this.trunk.rotation.x -= 0.14 * w;                            // nose up, rump down
-      this.headGroup.rotation.x -= 0.5 * w;                         // chin well clear
+      // chest-deep: the FRONT end rides high — nose up, rump down — so the head,
+      // the paddling front paws and the tail break the surface while the belly
+      // and hind legs stay under. Nothing walks on water.
+      this.trunk.rotation.x -= 0.34 * w;                            // nose up, rump down
+      this.headGroup.rotation.x -= 0.55 * w;                        // chin well clear
       this.earL.rotation.x += 0.45 * w;                             // ears pinned back
       this.earR.rotation.x += 0.45 * w;
-      this.tail.rotation.x = this.tail.rotation.x * (1 - w) + (-1.5) * w;   // flat on the water
+      this.legs[0].rotation.x += 0.5 * w;                            // front paws reach forward, breaking the surface
+      this.legs[1].rotation.x += 0.5 * w;
+      this.tail.rotation.x = this.tail.rotation.x * (1 - w) + (-2.35) * w;   // tail UP like a flag, clear of the water
     }
 
     // 🛹 the skate stance. Crouched a touch, front paws planted forward on the

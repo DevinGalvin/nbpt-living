@@ -1132,6 +1132,12 @@ export class Game {
   // definition, used by both the movement test and the swimming flag; when they
   // disagreed the stuck-net "rescued" the dog out of the band every frame and he
   // jittered at the tideline forever.
+  // Where the water's surface actually is. Every water MESH is drawn at sea level
+  // (WATER_Y), but an inland pond on a hill is water PAINTED on the terrain — its
+  // mesh is underground — so swimming at sea level there put Clipper inside the
+  // hill (Devin: "in a pond i couldn't see him at all").
+  private swimSurfaceY(): number { return Math.max(WATER_Y, this.terrain.heightAt(this.px, this.pz)); }
+
   private wetAt(x: number, y: number): boolean {
     const open = (ax: number, ay: number) =>
       this.index.isWaterAt(ax, ay) && this.index.deckHeightAt(ax, ay) <= WATER_Y && !this.index.frozenWaterAt(ax, ay);
@@ -1143,7 +1149,7 @@ export class Game {
   private spawnRipple(scale: number) {
     const m = new THREE.Mesh(this.rippleGeo, this.rippleMat.clone());
     m.rotation.x = -Math.PI / 2;
-    m.position.set(this.px, WATER_Y + 0.6, this.pz);
+    m.position.set(this.px, this.swimSurfaceY() + 0.6, this.pz);
     m.scale.setScalar(scale);
     m.renderOrder = 3;
     this.scene.add(m);
@@ -2272,7 +2278,7 @@ export class Game {
     }
     if (this.swimming) {
       if (this.foam) {
-        this.foam.position.set(this.px, WATER_Y + 0.5, this.pz);
+        this.foam.position.set(this.px, this.swimSurfaceY() + 0.5, this.pz);
         const pulse = 1 + Math.sin(performance.now() / 260) * 0.08;
         this.foam.scale.setScalar(pulse * (this.lastSpeed > 8 ? 1.15 : 1));
       }
@@ -2297,7 +2303,7 @@ export class Game {
     // Decks are entered where they meet the grade — passing beneath a raised
     // overpass keeps you on the ground under it, head safely below the span.
     const terrainY = this.inside ? 0 : this.onWater ? WATER_Y : this.terrain.heightAt(this.px, this.pz);
-    const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.swimming ? WATER_Y - 1.5 : this.index.surfaceYAt(this.px, this.pz, this.kidY);
+    const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.swimming ? this.swimSurfaceY() - 6.5 : this.index.surfaceYAt(this.px, this.pz, this.kidY);
     this.kidY += (surfY - this.kidY) * Math.min(1, dt * 12);
     if (this.flying) this.kidY = this.flyY;   // ✈️ altitude overrides the terrain-follow
     // hop low fences/hedges (they no longer block) — a quick arc as you cross one

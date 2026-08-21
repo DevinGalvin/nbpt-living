@@ -1716,7 +1716,7 @@ export class Hud {
       <div class="stack">
       <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span><span class="blab">RUN</span></div>
       <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span><span class="blab">BIKE</span></div>
-      <div class="bark-btn" title="Bark (F) — hold to sniff"><svg viewBox="0 0 32 32" width="30" height="30" fill="#f3f1e8"><ellipse cx="9" cy="11" rx="3.2" ry="4.2"/><ellipse cx="23" cy="11" rx="3.2" ry="4.2"/><ellipse cx="4.5" cy="18" rx="2.8" ry="3.6"/><ellipse cx="27.5" cy="18" rx="2.8" ry="3.6"/><path d="M16 15.5c-4.6 0-8.4 3.7-8.4 7.4 0 2.6 1.9 4.1 4.1 4.1 1.6 0 2.7-.8 4.3-.8s2.7.8 4.3.8c2.2 0 4.1-1.5 4.1-4.1 0-3.7-3.8-7.4-8.4-7.4z"/></svg><span class="kc">F</span><span class="blab">BARK</span></div>
+      <div class="bark-btn" title="Bark (F) — hold to sniff">🐶<span class="kc">F</span><span class="blab">BARK</span></div>
       <div class="look-btn" title="Look up (V)">👀<span class="kc">V</span><span class="blab">LOOK UP</span></div>
       </div>
       <div class="season-toggle" title="Season"><span class="s-em">🍂</span><span class="blab">SEASON</span></div>
@@ -3112,13 +3112,12 @@ export class Hud {
   setDogControls() {
     const bark = document.querySelector('#hud .bark-btn') as HTMLElement | null;
     const ride = document.querySelector('#hud .bike-btn') as HTMLElement | null;
-    if (bark) { (bark.querySelector('.kc') as HTMLElement).textContent = 'B'; bark.title = 'Bark (B) — hold to sniff'; }
-    if (ride) {
-      ride.title = 'Skateboard (K)';
-      ride.innerHTML = '<svg viewBox="0 0 36 20" width="32" height="18" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
-        + '<path d="M3 7 Q5 10 8 10 L28 10 Q31 10 33 7"/><circle cx="11" cy="15" r="2.4"/><circle cx="25" cy="15" r="2.4"/></svg>'
-        + '<span class="kc">K</span><span class="blab">SKATE</span>';
-    }
+    // Every other button is a full-colour emoji; these match (Devin: "i dont love
+    // the skate and bark icons being monotone"). And RUN stops being a human.
+    const run = document.querySelector('#hud .run-btn') as HTMLElement | null;
+    if (run) run.innerHTML = '🐕<span class="kc">R</span><span class="blab">RUN</span>';
+    if (bark) { bark.innerHTML = '🐶<span class="kc">B</span><span class="blab">BARK</span>'; bark.title = 'Bark (B) — hold to sniff'; }
+    if (ride) { ride.title = 'Skateboard (K)'; ride.innerHTML = '🛹<span class="kc">K</span><span class="blab">SKATE</span>'; }
     const help = document.querySelector('#hud .corner.help') as HTMLElement | null;
     if (help) help.textContent = 'WASD / arrows · R run · Shift sprint · B bark (hold to sniff) · K skate · V look up · C camera · M travel & search · wheel zoom';
   }
