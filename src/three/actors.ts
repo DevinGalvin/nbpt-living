@@ -448,6 +448,7 @@ export function buildKayak(): THREE.Group {
 
 export class Dog {
   root = new THREE.Group();
+  private pack = new THREE.Group();    // worn saddle bags — hidden until earned (setBackpack)
   private heading = new THREE.Group();
   private trunk = new THREE.Group();   // pivots at the rear hips (sit, gallop pitch)
   private headGroup = new THREE.Group();
@@ -473,7 +474,7 @@ export class Dog {
   private earFlop = 0;
   private prevBounce = 0;
 
-  constructor(fur = '#cda169') {
+  constructor(fur = '#cda169', scale = 1) {
     const c = new THREE.Color(fur);
     const darker = '#' + c.clone().multiplyScalar(0.84).getHexString();
     const darkest = '#' + c.clone().multiplyScalar(0.72).getHexString();
@@ -615,7 +616,22 @@ export class Dog {
 
     this.heading.add(this.trunk);
     this.heading.rotation.y = this.faceAngle;
+    // the earned backpack, dog edition: twin saddle bags + a shoulder strap
+    const bag = (sx: number) => {
+      const b = rbox(2.6, 3.6, 4.8, 0.9, '#8f3b34');
+      b.position.set(sx * 5.0, 2.4, 4.6);
+      return b;
+    };
+    const strap = rbox(10.4, 0.7, 1.8, 0.3, '#5d4a33');
+    strap.position.set(0, 5.2, 4.6);
+    this.pack.add(bag(-1), bag(1), strap);
+    this.pack.visible = false;
+    this.trunk.add(this.pack);
+
     this.root.add(this.heading, blobShadow(7));
+    // Clipper as the PLAYER stands a touch taller than he did at heel — presence
+    // next to 36 px townsfolk — without touching any gait or collision numbers.
+    this.root.scale.setScalar(scale);
   }
 
   // face a fixed heading without walking (e.g. seated in the boat): drives the same
@@ -627,8 +643,62 @@ export class Dog {
     this.root.rotation.y = 0;
   }
 
-  // follows a target point (behind-left of the kid); no collision — dogs weave
-  update(dt: number, targetX: number, targetZ: number) {
+  /** snap the facing (no lerp) — same contract as Kid.face */
+  face(az: number) { this.faceTo(az); }
+
+  get facing(): number { return this.faceAngle; }
+
+  setPos(x: number, z: number) {
+    this.root.position.x = x;
+    this.root.position.z = z; // y managed by Game (bridge decks/docks)
+  }
+
+  setBackpack(on: boolean) { this.pack.visible = on; }
+
+  /** 🐕 PLAYER MODE — the same contract as Kid.update, so Game can drive either.
+   *  Velocity in, gait out; the follower brain in follow() is untouched. Mounted
+   *  (bike/kayak) Clipper sits — haunches down, tail going — and the vehicle moves. */
+  update(dt: number, vx: number, vz: number, _sprinting: boolean, riding = false, boating = false) {
+    this.t += dt;
+    const speed = Math.hypot(vx, vz);
+    const mounted = riding || boating;
+    const moving = speed > 6 && !mounted;
+    const norm = Math.min(1.2, speed / 300);
+    if (mounted) {
+      if (speed > 1) this.faceAngle = lerpAngle(this.faceAngle, Math.atan2(vx, vz), Math.min(1, dt * 12));
+      const rest = Math.round(this.phase / Math.PI) * Math.PI;
+      this.phase = ease(this.phase, rest, dt, 9);
+      this.mode = 'sit';
+      this.idleT = 0;
+    } else if (moving) {
+      this.faceAngle = lerpAngle(this.faceAngle, Math.atan2(vx, vz), Math.min(1, dt * 12));
+      this.phase += dt * (6.5 + speed * 0.042);
+      this.idleT = 0;
+      this.mode = 'stand';
+    } else {
+      const rest = Math.round(this.phase / Math.PI) * Math.PI;
+      this.phase = ease(this.phase, rest, dt, 9);
+      this.idleT += dt;
+      // stand a moment and Clipper gets comfortable: sniff around, or sit
+      if (this.mode === 'stand' && this.idleT > 2.2) {
+        if (Math.random() < 0.45) {
+          this.mode = 'sniff';
+          this.modeUntil = this.t + 1.6 + Math.random() * 1.2;
+        } else {
+          this.mode = 'sit';
+        }
+      }
+      if (this.mode === 'sniff' && this.t > this.modeUntil) {
+        this.mode = 'stand';
+        this.idleT = Math.random() * 1.4;
+      }
+    }
+    this.pose(dt, moving, norm, 0, 0, 0);
+  }
+
+  // follows a target point (behind-left of the kid); no collision — dogs weave.
+  // Companion brain (legacy ?kid mode) — the PLAYER path is update() above.
+  follow(dt: number, targetX: number, targetZ: number) {
     this.t += dt;
     const dx = targetX - this.root.position.x;
     const dz = targetZ - this.root.position.z;
@@ -669,6 +739,13 @@ export class Dog {
         this.idleT = Math.random() * 1.4; // linger, maybe sit next
       }
     }
+    this.pose(dt, moving, norm, dx, dz, dist);
+  }
+
+  // one body, two brains: everything below is pure pose, shared by the driven
+  // player and the heel-following companion. watch* = a point to glance at when
+  // idle (the kid, in companion mode); pass zeros to just look around.
+  private pose(dt: number, moving: boolean, norm: number, watchDx: number, watchDz: number, watchDist: number) {
     this.heading.rotation.y = this.faceAngle;
 
     // gait: trot blends into a rotary gallop as Clipper opens up
@@ -714,8 +791,8 @@ export class Dog {
       this.headGroup.rotation.x = -0.05 + Math.sin(p * 2 + 0.6) * 0.06 * a;
     } else {
       const want = THREE.MathUtils.clamp(
-        lerpAngle(0, Math.atan2(dx, dz) - this.faceAngle, 1), -0.75, 0.75);
-      this.lookY = ease(this.lookY, dist > 14 ? want : 0, dt, 4);
+        lerpAngle(0, Math.atan2(watchDx, watchDz) - this.faceAngle, 1), -0.75, 0.75);
+      this.lookY = ease(this.lookY, watchDist > 14 ? want : 0, dt, 4);
       this.headGroup.rotation.x = this.sniffP * 0.85 - this.sitP * 0.1
         + Math.sin(this.t * 1.9) * 0.03; // breathing
     }

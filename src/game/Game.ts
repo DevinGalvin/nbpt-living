@@ -24,6 +24,20 @@ import { TOWN } from '@town';
 // World-only sandbox: towns without an authored curated layer run bare — no
 // history markers / eggs / drawbridge / interiors chrome.
 const BARE = !TOWN.story;
+// 🐕 CLIPPER IS THE PLAYER. A Gloucester teacher asked "do I have to be a white
+// boy?" — and the answer is a town dog, who is nobody and everybody, needs no
+// character picker (instant drop-in stays sacred), and was half the protagonist
+// already. `?kid` keeps the previous kid-plus-companion pair for comparison.
+//
+// ⚠️ STORY MODE KEEPS THE KID FOR NOW. The Gram spine literally directs the
+// companion ("Clipper's run off — follow him" steers quest.dogTarget), so a
+// dog-player would soft-lock the grate beat. Until the story refactor recasts
+// it for Clipper, a story town runs the old pair; `?dog` previews the recast.
+const LEGACY_KID = (new URLSearchParams(location.search).has('kid') || !BARE)
+  && !new URLSearchParams(location.search).has('dog');
+// a dog stands a third the kid's height, so the closest zoom comes in closer —
+// at 0.55 Clipper was a speck on a phone; the chase cam scales are all zoom-linear
+const MIN_ZOOM = LEGACY_KID ? 0.55 : 0.42;
 
 // The authored Gram spine (chapters, missions, the compass) ships again as of
 // 7/30 — it was retired behind `?story` on 7/28, and that call was reversed. It
@@ -197,8 +211,10 @@ export class Game {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private camera: THREE.PerspectiveCamera;
-  private kid = new Kid();
-  private dog = new Dog();
+  // `player` satisfies one contract (root/setPos/face/facing/update/setBackpack)
+  // whichever body it wears; the companion exists only in legacy ?kid mode.
+  private player: Kid | Dog = LEGACY_KID ? new Kid() : new Dog('#cda169', 1.15);
+  private dog: Dog | null = LEGACY_KID ? new Dog() : null;
   private bike = new Bike();
   private riding = false;
   private hud = new Hud();
@@ -369,7 +385,8 @@ export class Game {
     this.sun.shadow.bias = -0.0004;
     this.sun.shadow.normalBias = 3;
     this.sun.shadow.camera.updateProjectionMatrix();
-    this.scene.add(this.hemi, this.sun, this.sun.target, this.kid.root, this.dog.root);
+    this.scene.add(this.hemi, this.sun, this.sun.target, this.player.root);
+    if (this.dog) this.scene.add(this.dog.root);
     // day–night cycle + weather; winter precipitation falls as snow
     // Halloween towns open at spooky dusk in fall (per-town knob)
     this.sky = new Sky(this.scene, { startTod: SEASON === 'fall' && TOWN.fall.duskStart ? 0.78 : 0.34, period: 420, snow: SEASON === 'winter' });
@@ -403,8 +420,8 @@ export class Game {
       this.lampLights.push(L);
       this.scene.add(L);
     }
-    this.kid.root.traverse((o) => { o.castShadow = true; });
-    this.dog.root.traverse((o) => { o.castShadow = true; });
+    this.player.root.traverse((o) => { o.castShadow = true; });
+    this.dog?.root.traverse((o) => { o.castShadow = true; });
 
     const water = buildWater(world);
     this.scene.add(water.mesh);
@@ -431,8 +448,8 @@ export class Game {
     const spawn = this.findFree(sx, sz);
     this.px = spawn.x;
     this.pz = spawn.y;
-    this.kid.setPos(this.px, this.pz);
-    this.dog.root.position.set(this.px - 22, 0, this.pz + 16);
+    this.player.setPos(this.px, this.pz);
+    this.dog?.root.position.set(this.px - 22, 0, this.pz + 16);
     this.ensureRect(true);
     this.impostor = this.buildImpostor();   // low-res whole-map LOD under the chunks (kills the yellow pop-in)
     this.updateCamera(0, true);
@@ -535,7 +552,7 @@ export class Game {
       // first thing a racer sees during the countdown is the way to go. Forward is
       // (sin az, cos az) (see updateCamera/movement), so az = atan2(dx, dz) — the old
       // -dx here mirrored east/west starts and pointed the camera sideways or backwards.
-      (dx, dz) => { this.camAz = Math.atan2(dx, dz); this.kid.face(this.camAz); this.updateCamera(0, true); },
+      (dx, dz) => { this.camAz = Math.atan2(dx, dz); this.player.face(this.camAz); this.updateCamera(0, true); },
       startRace);
     // 🏁 front door: pick a course anywhere in town → fade to its start line → countdown.
     // (The in-world start flag still works for players who ride up to it.)
@@ -551,7 +568,7 @@ export class Game {
     );
     if (!BARE) this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,
-      () => ({ x: this.dog.root.position.x, z: this.dog.root.position.z }),
+      () => { const r = (this.dog ?? this.player).root.position; return { x: r.x, z: r.z }; },
       () => this.goldenHoodie()
     );
 
@@ -599,12 +616,12 @@ export class Game {
       // scroll natively (panels are pointer-events:none when closed, so this only
       // matches while one is actually open)
       if ((e.target as HTMLElement)?.closest?.('.journey-panel, .bag-panel, .travel-panel, .album-panel')) return;
-      this.camZoom = Math.min(2.4, Math.max(0.55, this.camZoom * (1 + Math.sign(e.deltaY) * 0.09)));
+      this.camZoom = Math.min(2.4, Math.max(MIN_ZOOM, this.camZoom * (1 + Math.sign(e.deltaY) * 0.09)));
     }, { passive: true });
     // pinch is the wheel's touch equivalent — and on a phone it is also how you SEE far
     // enough ahead to steer, which is half of why a dense downtown felt uncontrollable.
     this.hud.onPinch = (mult) => {
-      this.camZoom = Math.min(2.4, Math.max(0.55, this.camZoom * mult));
+      this.camZoom = Math.min(2.4, Math.max(MIN_ZOOM, this.camZoom * mult));
     };
     // iOS fires its own pinch events on top of pointer events; without these Safari zooms
     // the PAGE (the meta viewport only covers the double-tap case).
@@ -635,7 +652,7 @@ export class Game {
       go: (x: number, y: number) => this.travelToXY(x, y),
       find: (q: string) => this.searchPlaces(q),
       pos: () => ({ x: this.px, y: this.pz }),
-      zoom: (z: number) => { this.camZoom = Math.min(2.4, Math.max(0.55, z)); },
+      zoom: (z: number) => { this.camZoom = Math.min(2.4, Math.max(MIN_ZOOM, z)); },
       walk: (x: number, y: number, ms: number) => { this.debugVec = { x, y, until: performance.now() + ms }; },
       season: (sn: string) => { location.search = '?season=' + sn; },   // dev override (works anytime)
       time: (t: number) => this.sky.setTod(t),            // 0=midnight 0.25=dawn 0.5=noon 0.75=dusk
@@ -1007,7 +1024,7 @@ export class Game {
    *  Replaces the always-on PET button — the dog's screen position is hit-tested. */
   private tryPetTap(sx: number, sy: number) {
     if (!this.eggs || this.hud.dialogueOpen) return;
-    const p = this.dog.root.position.clone();
+    const p = (this.dog ?? this.player).root.position.clone();
     p.y += 6;                       // aim at the dog's body, not his feet
     p.project(this.camera);
     if (p.z > 1) return;            // dog is behind the camera
@@ -1045,7 +1062,7 @@ export class Game {
     this.kayakAz = this.camAz;
     this.px = lx; this.pz = lz;
     this.kidY = WATER_Y;
-    this.kid.setPos(this.px, this.pz);
+    this.player.setPos(this.px, this.pz);
     this.audio.gull();
     this.quest?.refresh();
     this.updateCamera(0.016, true);
@@ -1060,8 +1077,8 @@ export class Game {
     if (this.kayak) this.kayak.visible = false;
     this.px = spot.x; this.pz = spot.y;
     this.kidY = Math.max(this.terrain.heightAt(this.px, this.pz), this.index.deckHeightAt(this.px, this.pz));
-    this.kid.setPos(this.px, this.pz);
-    this.dog.root.position.set(this.px - 20, this.kidY, this.pz + 12);
+    this.player.setPos(this.px, this.pz);
+    this.dog?.root.position.set(this.px - 20, this.kidY, this.pz + 12);
     this.quest?.refresh();
     this.updateCamera(0.016, true);
   }
@@ -1077,8 +1094,8 @@ export class Game {
     if (this.kayak) this.kayak.visible = false;
     this.px = spot.x; this.pz = spot.y;
     this.kidY = Math.max(this.terrain.heightAt(this.px, this.pz), this.index.deckHeightAt(this.px, this.pz));
-    this.kid.setPos(this.px, this.pz);
-    this.dog.root.position.set(this.px - 20, this.kidY, this.pz + 12);
+    this.player.setPos(this.px, this.pz);
+    this.dog?.root.position.set(this.px - 20, this.kidY, this.pz + 12);
     this.ensureRect(true);              // the slip is far from the light — stream its chunks now
     this.quest?.refresh();
     this.updateCamera(0.016, true);
@@ -1131,9 +1148,9 @@ export class Game {
     // stand just south of the tower, facing the harbor, so the beam rakes away from you
     this.px = TOWER_LOOK.x; this.pz = TOWER_LOOK.z;
     this.kidY = Math.max(this.terrain.heightAt(this.px, this.pz), this.index.deckHeightAt(this.px, this.pz));
-    this.kid.setPos(this.px, this.pz);
-    this.kid.root.rotation.y = Math.PI;    // face north
-    this.dog.root.position.set(this.px + 16, this.kidY, this.pz + 6);
+    this.player.setPos(this.px, this.pz);
+    this.player.face(Math.PI);    // face north
+    this.dog?.root.position.set(this.px + 16, this.kidY, this.pz + 6);
     this.sweeping = true;
     this.hud.sweeping = true;              // the quest yields its action button + reads beamAz
     this.hud.beamAz = this.beamAz;
@@ -1181,13 +1198,14 @@ export class Game {
       if (!this.tunnel) this.tunnel = new TunnelScene(this.hud, this.audio, () => this.exitTunnel());
       this.preTunnel = { x: this.px, z: this.pz };
       this.inTunnel = true;
-      this.tunnel.scene.add(this.kid.root, this.dog.root);
+      this.tunnel.scene.add(this.player.root);
+      if (this.dog) this.tunnel.scene.add(this.dog.root);
       this.px = TUNNEL_ENTRY.x;
       this.pz = TUNNEL_ENTRY.z;
-      this.kid.setPos(this.px, this.pz);
+      this.player.setPos(this.px, this.pz);
       this.kidY = 0;
       this.dogY = 0;
-      this.dog.root.position.set(this.px + 14, 0, this.pz - 8);
+      this.dog?.root.position.set(this.px + 14, 0, this.pz - 8);
       this.camAz = Math.PI; // face down the corridor
       this.dismount();
       this.audio.setUnderground(true);
@@ -1201,14 +1219,15 @@ export class Game {
   exitTunnel() {
     this.hud.fadeThrough(() => {
       this.inTunnel = false;
-      this.scene.add(this.kid.root, this.dog.root);
+      this.scene.add(this.player.root);
+    if (this.dog) this.scene.add(this.dog.root);
       this.px = this.preTunnel.x;
       this.pz = this.preTunnel.z;
-      this.kid.setPos(this.px, this.pz);
+      this.player.setPos(this.px, this.pz);
       const g = this.terrain.heightAt(this.px, this.pz);
       this.kidY = g;
       this.dogY = g;
-      this.dog.root.position.set(this.px - 20, g, this.pz + 12);
+      this.dog?.root.position.set(this.px - 20, g, this.pz + 12);
       this.audio.setUnderground(false);
       this.audio.stoneScrape();
       this.hud.setVignette(false);
@@ -1245,7 +1264,7 @@ export class Game {
     this.rideBoat.visible = true;
     this.px = 3481;
     this.pz = -221;
-    this.kid.setPos(this.px, this.pz);
+    this.player.setPos(this.px, this.pz);
     this.kidY = WATER_Y;
     if (this.riding) this.toggleBike();
     this.audio.gull();
@@ -1343,8 +1362,8 @@ export class Game {
     this.kidY = this.flyY;
     this.flySpeed = 0; this.flyPhase = 'roll';
     this.planeRoll = 0; this.planePitch = 0;
-    this.kid.root.visible = false; this.dog.root.visible = false;   // the plane is the avatar
-    this.kid.setPos(this.px, this.pz);
+    this.player.root.visible = false; if (this.dog) this.dog.root.visible = false;   // the plane is the avatar
+    this.player.setPos(this.px, this.pz);
     // phones: shed the ground-textured walking chunks so flight starts clean (decor-only + impostor)
     if (this.mobile) this.clearChunks();
     this.updateCamera(0, true);   // snap behind the plane, down the runway
@@ -1361,7 +1380,7 @@ export class Game {
       this.hud.flying = false;
       if (this.ridePlane) this.ridePlane.visible = false;
       if (this.skirt) this.skirt.visible = false;
-      this.kid.root.visible = true; this.dog.root.visible = true;
+      this.player.root.visible = true; if (this.dog) this.dog.root.visible = true;
       this.kidY = this.terrain.heightAt(this.px, this.pz);   // set down where you are
       this.flySpeed = 0;
       // phones: drop the decor-only flight chunks so full-detail ground streams back in (async,
@@ -1494,13 +1513,14 @@ export class Game {
     this.interior = scene;
     scene.nearTag = null;
     this.hud.showTalk(null);
-    scene.scene.add(this.kid.root, this.dog.root);
+    scene.scene.add(this.player.root);
+    if (this.dog) scene.scene.add(this.dog.root);
     this.px = 0;
     this.pz = -8;
-    this.kid.setPos(this.px, this.pz);
+    this.player.setPos(this.px, this.pz);
     this.kidY = 0;
     this.dogY = 0;
-    this.dog.root.position.set(this.px + 12, 0, this.pz - 6);
+    this.dog?.root.position.set(this.px + 12, 0, this.pz - 6);
     this.camAz = Math.PI;
     this.dismount();
     this.hud.setVignette(vignette);
@@ -1510,14 +1530,15 @@ export class Game {
   private exitInterior(returnTo: { x: number; z: number }) {
     this.interior = null;
     this.hud.showTalk(null);
-    this.scene.add(this.kid.root, this.dog.root);
+    this.scene.add(this.player.root);
+    if (this.dog) this.scene.add(this.dog.root);
     this.px = returnTo.x;
     this.pz = returnTo.z;
-    this.kid.setPos(this.px, this.pz);
+    this.player.setPos(this.px, this.pz);
     const g = this.terrain.heightAt(this.px, this.pz);
     this.kidY = g;
     this.dogY = g;
-    this.dog.root.position.set(this.px - 16, g, this.pz + 8);
+    this.dog?.root.position.set(this.px - 16, g, this.pz + 8);
     this.hud.setVignette(false);
     this.quest?.refresh();
     this.updateCamera(0.016, true);
@@ -2005,9 +2026,9 @@ export class Game {
     const realVx = dt > 0 ? (nx - this.px) / dt : 0, realVz = dt > 0 ? (nz - this.pz) / dt : 0;
     this.px = nx;
     this.pz = nz;
-    this.kid.setPos(this.px, this.pz);
-    this.kid.update(dt, realVx, realVz, this.sprinting, this.riding, this.onWater);
-    this.kid.setBackpack(this.hud.hasBackpack());   // worn pack appears once the 🎒 is earned
+    this.player.setPos(this.px, this.pz);
+    this.player.update(dt, realVx, realVz, this.sprinting, this.riding, this.onWater);
+    this.player.setBackpack(this.hud.hasBackpack());   // worn pack appears once the 🎒 is earned
 
     // ride the real terrain, bridge decks, and docks (the tunnel floor is flat).
     // Decks are entered where they meet the grade — passing beneath a raised
@@ -2022,10 +2043,10 @@ export class Game {
     this.wasNearFence = nearFence;
     if (this.hopT > 0) this.hopT = Math.max(0, this.hopT - dt);
     const hop = this.hopT > 0 ? Math.sin((1 - this.hopT / 0.5) * Math.PI) * 8 : 0;
-    this.kid.root.position.y = this.kidY + hop + (this.riding ? 2 : 0);
+    this.player.root.position.y = this.kidY + hop + (this.riding ? (LEGACY_KID ? 2 : 7) : 0);
     if (this.riding) {
       this.bike.root.position.set(this.px, this.kidY, this.pz);
-      this.bike.update(dt, Math.hypot(realVx, realVz), this.kid.facing);
+      this.bike.update(dt, Math.hypot(realVx, realVz), this.player.facing);
     }
     // boat ride: the hull steers toward your heading and rides the water; nearing
     // the door beaches you into the den
@@ -2052,14 +2073,14 @@ export class Game {
     const still = Math.hypot(realVx, realVz) < 1;
     if (this.flying) {
       // Clipper waits at the airport during the flight (hidden); rejoined on landing
-    } else if (this.onWater) {
+    } else if (this.onWater && this.dog) {
       // Clipper rides up in the bow, facing the water ahead (the hull's heading).
       // The kayak is slimmer + lower than the rowboat, so he sits a touch closer/lower.
       const waterAz = this.boating ? this.boatAz : this.kayakAz;
       const bowD = this.boating ? 17 : 13, bowY = this.boating ? 7.4 : 5.6;
       this.dog.root.position.set(this.px + Math.sin(waterAz) * bowD, this.kidY + bowY, this.pz + Math.cos(waterAz) * bowD);
       this.dog.faceTo(waterAz);
-    } else {
+    } else if (this.dog) {
       // dog heels behind-left of the kid's heading — unless the quest has
       // somewhere Clipper needs to be (the grate beat)
       const hAngle = Math.atan2(realVx, realVz);
@@ -2067,7 +2088,7 @@ export class Game {
       const qd = this.quest ? this.quest.dogTarget : null;
       const tx = qd ? qd.x : this.px - Math.sin(hAngle) * back - Math.cos(hAngle) * 16;
       const tz = qd ? qd.z : this.pz - Math.cos(hAngle) * back + Math.sin(hAngle) * 16;
-      this.dog.update(dt, tx, tz);
+      this.dog.follow(dt, tx, tz);
       const dogGround = this.inside ? 0
         : this.index.surfaceYAt(this.dog.root.position.x, this.dog.root.position.z, this.dogY);
       this.dogY += (dogGround - this.dogY) * Math.min(1, dt * 12);
@@ -2441,7 +2462,7 @@ export class Game {
       // desired spot; the first wall that would swallow the view pulls the
       // camera in just short of it — down to over-the-shoulder against a wall.
       // Two consecutive blocked samples required, so corner grazes don't twitch.
-      const lx = this.px, ly = this.kidY + 26, lz = this.pz;
+      const lx = this.px, ly = this.kidY + (LEGACY_KID ? 26 : 16), lz = this.pz;
       let want = 1, run = 0, firstS = 0;
       for (let s = 0.08; s <= 1.001; s += 0.045) {
         const top = this.index.buildingTopAt(lx + (tx - lx) * s, lz + (tz - lz) * s);
@@ -2750,13 +2771,13 @@ export class Game {
     this.pz = spot.y;
     this.kidY = Math.max(this.terrain.heightAt(this.px, this.pz), this.index.deckHeightAt(this.px, this.pz));
     this.dogY = this.kidY;
-    this.kid.setPos(this.px, this.pz);
-    this.kid.root.position.y = this.kidY;
-    this.dog.root.position.set(this.px - 22, this.kidY, this.pz + 16);
+    this.player.setPos(this.px, this.pz);
+    this.player.root.position.y = this.kidY;
+    this.dog?.root.position.set(this.px - 22, this.kidY, this.pz + 16);
     if (lookAt && Math.hypot(lookAt.x - this.px, lookAt.y - this.pz) > 4) {
       // face the destination and put the chase cam behind — you SEE the place
       const az = Math.atan2(lookAt.x - this.px, lookAt.y - this.pz);
-      this.kid.face(az);
+      this.player.face(az);
       this.camAz = az;
     }
     this.ensureRect(true);
@@ -2816,9 +2837,9 @@ export class Game {
   private goldenHoodie() {
     this.golden = !this.golden;
     const swap: Record<string, string> = this.golden
-      ? { b03a32: 'd4a92e', '922f29': 'b08c24', a23730: 'c89a28' }
-      : { d4a92e: 'b03a32', b08c24: '922f29', c89a28: 'a23730' };
-    this.kid.root.traverse((o) => {
+      ? { b03a32: 'd4a92e', '922f29': 'b08c24', a23730: 'c89a28', cda169: 'e8c231' }
+      : { d4a92e: 'b03a32', b08c24: '922f29', c89a28: 'a23730', e8c231: 'cda169' };
+    this.player.root.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;
       const m = mesh.material as THREE.MeshLambertMaterial;
