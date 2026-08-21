@@ -2116,7 +2116,7 @@ export class Game {
     let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
     if (this.sniffing) speed *= 0.4;    // nose down = a careful, readable creep
-    if (this.swimming) speed = 115;     // the dog-paddle: one steady pace, sprint or not
+    if (this.swimming) speed = 150;     // the dog-paddle: one steady pace, sprint or not
     if (this.zoomT > 0) speed = 230;    // zoomies: brisk, but slow enough to spin on a dime
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
@@ -2303,7 +2303,7 @@ export class Game {
     // Decks are entered where they meet the grade — passing beneath a raised
     // overpass keeps you on the ground under it, head safely below the span.
     const terrainY = this.inside ? 0 : this.onWater ? WATER_Y : this.terrain.heightAt(this.px, this.pz);
-    const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.swimming ? this.swimSurfaceY() - 6.5 : this.index.surfaceYAt(this.px, this.pz, this.kidY);
+    const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.swimming ? this.swimSurfaceY() - 8.5 : this.index.surfaceYAt(this.px, this.pz, this.kidY);
     this.kidY += (surfY - this.kidY) * Math.min(1, dt * 12);
     if (this.flying) this.kidY = this.flyY;   // ✈️ altitude overrides the terrain-follow
     // hop low fences/hedges (they no longer block) — a quick arc as you cross one

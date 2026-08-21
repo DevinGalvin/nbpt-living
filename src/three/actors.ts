@@ -242,7 +242,7 @@ export class Kid {
 
   // show/hide the worn backpack (earned via the 🎒). Idempotent — Game pushes this
   // every frame from hud.hasBackpack().
-  setBackpack(on: boolean) { this.pack.visible = on; }
+  setBackpack(_on: boolean) { /* a dog carries nothing — see constructor */ }
 
   private barkT = 0;
   private forceSniff = false;
@@ -531,7 +531,6 @@ export function buildKayak(): THREE.Group {
 
 export class Dog {
   root = new THREE.Group();
-  private pack = new THREE.Group();    // worn saddle bags — hidden until earned (setBackpack)
   private heading = new THREE.Group();
   private trunk = new THREE.Group();   // pivots at the rear hips (sit, gallop pitch)
   private headGroup = new THREE.Group();
@@ -700,17 +699,8 @@ export class Dog {
 
     this.heading.add(this.trunk);
     this.heading.rotation.y = this.faceAngle;
-    // the earned backpack, dog edition: twin saddle bags + a shoulder strap
-    const bag = (sx: number) => {
-      const b = rbox(2.6, 3.6, 4.8, 0.9, '#8f3b34');
-      b.position.set(sx * 5.0, 2.4, 4.6);
-      return b;
-    };
-    const strap = rbox(10.4, 0.7, 1.8, 0.3, '#5d4a33');
-    strap.position.set(0, 5.2, 4.6);
-    this.pack.add(bag(-1), bag(1), strap);
-    this.pack.visible = false;
-    this.trunk.add(this.pack);
+    // (no saddle bags: the kid's earned 🎒 has no dog edition — Devin: "we dont
+    // need them". setBackpack() stays a no-op so the shared player contract holds.)
 
     this.root.add(this.heading, blobShadow(7));
     // Clipper as the PLAYER stands a touch taller than he did at heel — presence
@@ -737,7 +727,7 @@ export class Dog {
     this.root.position.z = z; // y managed by Game (bridge decks/docks)
   }
 
-  setBackpack(on: boolean) { this.pack.visible = on; }
+  setBackpack(_on: boolean) { /* a dog carries nothing — see constructor */ }
 
   private barkT = 0;
   private forceSniff = false;
