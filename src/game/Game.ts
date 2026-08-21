@@ -307,6 +307,12 @@ export class Game {
   private ripples: { m: THREE.Mesh; t: number }[] = [];
   private rippleMat = new THREE.MeshBasicMaterial({ color: '#e8f4ff', transparent: true, opacity: 0.5, depthWrite: false });
   private rippleGeo = new THREE.RingGeometry(5, 7, 20);
+  // ⚠️ From the game's high camera a dog at WATER_Y−5 was a tan disc on a blue
+  // plane — "he looks like he's drowning" (Devin). Two fixes: he rides higher
+  // (−1.5, back/head/tail all clear of the surface), and he wears a persistent
+  // FOAM collar — the churn a paddling dog makes — so the water around him says
+  // "swimming" even when the silhouette alone can't.
+  private foam: THREE.Mesh | null = null;
   private zoomAng = 0;
   private idleCalm = 0;            // quiet seconds — zoomies build up in here
   private townAcc = 0;
@@ -2238,6 +2244,13 @@ export class Game {
       pl.setSwimming?.(this.swimming);
       const sp = this.playerScreen();
       if (this.swimming) {
+        if (!this.foam) {
+          this.foam = new THREE.Mesh(new THREE.RingGeometry(7, 15, 24),
+            new THREE.MeshBasicMaterial({ color: '#f2f8ff', transparent: true, opacity: 0.42, depthWrite: false }));
+          this.foam.rotation.x = -Math.PI / 2;
+          this.foam.renderOrder = 3;
+        }
+        this.scene.add(this.foam);
         if (this.riding) this.dismount();          // the bike stays on the beach
         if (this.sniffing) this.endSniff();
         this.audio.plink();
@@ -2245,12 +2258,20 @@ export class Game {
         if (sp) this.hud.dirt(sp[0], sp[1] + 6, '#9fd0ee');
       } else {
         pl.shake?.();
+        if (this.foam) this.scene.remove(this.foam);
         if (sp) { this.hud.dirt(sp[0], sp[1], '#9fd0ee'); this.hud.dirt(sp[0] + 10, sp[1] - 6, '#9fd0ee'); }
       }
     }
     if (this.swimming) {
+      if (this.foam) {
+        this.foam.position.set(this.px, WATER_Y + 0.5, this.pz);
+        const pulse = 1 + Math.sin(performance.now() / 260) * 0.08;
+        this.foam.scale.setScalar(pulse * (this.lastSpeed > 8 ? 1.15 : 1));
+      }
       this.rippleAcc += dt;
-      if (this.lastSpeed > 8 && this.rippleAcc > 0.32) { this.rippleAcc = 0; this.spawnRipple(1); }
+      // a wake when moving, a slow tread-water ring when still
+      const every = this.lastSpeed > 8 ? 0.2 : 0.9;
+      if (this.rippleAcc > every) { this.rippleAcc = 0; this.spawnRipple(this.lastSpeed > 8 ? 1.3 : 1); }
     }
     for (let i = this.ripples.length - 1; i >= 0; i--) {
       const r = this.ripples[i];
@@ -2268,7 +2289,7 @@ export class Game {
     // Decks are entered where they meet the grade — passing beneath a raised
     // overpass keeps you on the ground under it, head safely below the span.
     const terrainY = this.inside ? 0 : this.onWater ? WATER_Y : this.terrain.heightAt(this.px, this.pz);
-    const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.swimming ? WATER_Y - 5 : this.index.surfaceYAt(this.px, this.pz, this.kidY);
+    const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.swimming ? WATER_Y - 1.5 : this.index.surfaceYAt(this.px, this.pz, this.kidY);
     this.kidY += (surfY - this.kidY) * Math.min(1, dt * 12);
     if (this.flying) this.kidY = this.flyY;   // ✈️ altitude overrides the terrain-follow
     // hop low fences/hedges (they no longer block) — a quick arc as you cross one

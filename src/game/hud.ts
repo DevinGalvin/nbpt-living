@@ -339,6 +339,22 @@ const css = `
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
 #hud .bike-btn.show { display: flex; }
+/* THE STACK. The persistent verbs — RUN, BIKE, BARK, LOOK UP — are one
+   bottom-anchored flex column with no gaps: a hidden button takes no room,
+   so the column shrinks and grows instead of leaving a hole where a missing
+   button would sit (Devin: "i dont like having the gap"). Order is fixed and
+   anchored from the BOTTOM, so the two most-used — RUN and BIKE — never move;
+   the only ones that ever appear/disappear (LOOK UP, BIKE-before-earned) sit
+   at the top, where shifting displaces nothing a thumb has memorised. The
+   contextual pill (TALK / KAYAK / LAND / HOP OUT) is NOT in the stack: it is a
+   different kind of thing — "the action for HERE" — and gets its own spot
+   beside the column rather than a reserved slot that is usually empty. */
+#hud .stack {
+  position: absolute; right: 18px; bottom: 52px;
+  display: flex; flex-direction: column-reverse; align-items: center; gap: 22px;
+  pointer-events: none;
+}
+#hud .stack > div { position: relative; right: auto; bottom: auto; pointer-events: auto; }
 /* 🐾 BARK / hold-to-SNIFF — dog-player only (Game gates it). Tap = one woof;
    hold = nose down + the scent glow, so one thumb slot carries both verbs. */
 #hud .bark-btn {
@@ -933,7 +949,7 @@ const css = `
 }
 #hud .dlg .dlg-next:hover { background: var(--gold-bright); }
 #hud .talk-btn {
-  position: absolute; right: 18px; bottom: 200px; min-width: 58px; height: 58px;
+  position: absolute; right: 90px; bottom: 132px; min-width: 58px; height: 58px;
   border-radius: 29px; background: rgba(var(--gold-rgb), 0.92); color: rgb(var(--maroon));
   border: 2px solid var(--gold-bright); display: none; align-items: center; justify-content: center;
   font-size: 14px; font-weight: 800; letter-spacing: 1px; padding: 0 16px;
@@ -1697,10 +1713,12 @@ export class Hud {
           <div class="sp-crow"></div>
         </div>
       </div>
+      <div class="stack">
       <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span><span class="blab">RUN</span></div>
-      <div class="bark-btn" title="Bark (F) — hold to sniff">🐾<span class="kc">F</span><span class="blab">BARK</span></div>
       <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span><span class="blab">BIKE</span></div>
+      <div class="bark-btn" title="Bark (F) — hold to sniff"><svg viewBox="0 0 32 32" width="30" height="30" fill="#f3f1e8"><ellipse cx="9" cy="11" rx="3.2" ry="4.2"/><ellipse cx="23" cy="11" rx="3.2" ry="4.2"/><ellipse cx="4.5" cy="18" rx="2.8" ry="3.6"/><ellipse cx="27.5" cy="18" rx="2.8" ry="3.6"/><path d="M16 15.5c-4.6 0-8.4 3.7-8.4 7.4 0 2.6 1.9 4.1 4.1 4.1 1.6 0 2.7-.8 4.3-.8s2.7.8 4.3.8c2.2 0 4.1-1.5 4.1-4.1 0-3.7-3.8-7.4-8.4-7.4z"/></svg><span class="kc">F</span><span class="blab">BARK</span></div>
       <div class="look-btn" title="Look up (V)">👀<span class="kc">V</span><span class="blab">LOOK UP</span></div>
+      </div>
       <div class="season-toggle" title="Season"><span class="s-em">🍂</span><span class="blab">SEASON</span></div>
       <div class="season-pop"></div>
       <div class="race-btn" title="Races">🏁<span class="blab">RACE</span></div>
