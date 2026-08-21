@@ -134,6 +134,20 @@ export class HistoryRunner {
     );
   }
 
+  // 👃 the sniff mechanic asks: where is the nearest story I haven't found?
+  // Distance to the closest UNREAD marker — the dog's nose is the diegetic hint
+  // system for the collection, so this is deliberately the only signal it gives:
+  // a direction and a warmth, never a map pin.
+  nearestUnread(x: number, z: number): { x: number; z: number; d: number } | null {
+    let best: { x: number; z: number; d: number } | null = null;
+    for (const s of SITES) {
+      if (this.read.has(s.id)) continue;
+      const d = Math.hypot(s.x - x, s.z - z);
+      if (!best || d < best.d) best = { x: s.x, z: s.z, d };
+    }
+    return best;
+  }
+
   // Wipe the album back to nothing: read state, every photo, the Town Historian
   // badge, and — the easy one to forget — the gold glints floating over the markers
   // out in the world, which are what tells you a plaque is still unread.

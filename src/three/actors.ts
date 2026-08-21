@@ -244,6 +244,15 @@ export class Kid {
   // every frame from hud.hasBackpack().
   setBackpack(on: boolean) { this.pack.visible = on; }
 
+  private barkT = 0;
+  private forceSniff = false;
+
+  /** one bark: head thrown up, ears perked — the sound is the caller's job */
+  bark() { this.barkT = 0.38; }
+
+  /** hold-to-sniff: nose goes down and STAYS down, walking or not */
+  setSniffing(on: boolean) { this.forceSniff = on; }
+
   /** snap the facing (no lerp) — race starts point the rider down-course */
   face(az: number) {
     this.prevFace = this.faceAngle = az;
@@ -655,6 +664,15 @@ export class Dog {
 
   setBackpack(on: boolean) { this.pack.visible = on; }
 
+  private barkT = 0;
+  private forceSniff = false;
+
+  /** one bark: head thrown up, ears perked — the sound is the caller's job */
+  bark() { this.barkT = 0.38; }
+
+  /** hold-to-sniff: nose goes down and STAYS down, walking or not */
+  setSniffing(on: boolean) { this.forceSniff = on; }
+
   /** 🐕 PLAYER MODE — the same contract as Kid.update, so Game can drive either.
    *  Velocity in, gait out; the follower brain in follow() is untouched. Mounted
    *  (bike/kayak) Clipper sits — haunches down, tail going — and the vehicle moves. */
@@ -674,7 +692,13 @@ export class Dog {
       this.faceAngle = lerpAngle(this.faceAngle, Math.atan2(vx, vz), Math.min(1, dt * 12));
       this.phase += dt * (6.5 + speed * 0.042);
       this.idleT = 0;
-      this.mode = 'stand';
+      this.mode = this.forceSniff ? 'sniff' : 'stand';
+    } else if (this.forceSniff) {
+      const rest = Math.round(this.phase / Math.PI) * Math.PI;
+      this.phase = ease(this.phase, rest, dt, 9);
+      this.mode = 'sniff';
+      this.modeUntil = this.t + 99;
+      this.idleT = 0;
     } else {
       const rest = Math.round(this.phase / Math.PI) * Math.PI;
       this.phase = ease(this.phase, rest, dt, 9);
@@ -795,6 +819,14 @@ export class Dog {
       this.lookY = ease(this.lookY, watchDist > 14 ? want : 0, dt, 4);
       this.headGroup.rotation.x = this.sniffP * 0.85 - this.sitP * 0.1
         + Math.sin(this.t * 1.9) * 0.03; // breathing
+    }
+    if (this.barkT > 0) {
+      // the bark: muzzle thrown UP for a beat, ears snapped forward
+      this.barkT = Math.max(0, this.barkT - dt);
+      const b = Math.sin(Math.min(1, this.barkT / 0.38) * Math.PI);
+      this.headGroup.rotation.x -= b * 0.55;
+      this.earL.rotation.x -= b * 0.3;
+      this.earR.rotation.x -= b * 0.3;
     }
     this.headGroup.rotation.y = this.lookY;
     this.headGroup.position.z = 14.5 + this.sniffP * 1.5;

@@ -288,6 +288,13 @@ export class Game {
   private fpsAccum = 0; // seconds accumulated in the current FPS sample window
   private fpsFrames = 0; // frames counted in the current FPS sample window
   private pollAcc = 0;
+  // 🐾 bark / sniff / zoomies (dog player only)
+  private barkDownAt = 0;          // 0 = not pressed
+  private sniffHoldTimer = 0;
+  private sniffing = false;
+  private zoomT = 0;               // seconds of zoomies left
+  private zoomAng = 0;
+  private idleCalm = 0;            // quiet seconds — zoomies build up in here
   private townAcc = 0;
   private curTown: string | null = null;   // which municipality the player is in (banner on change)
   private townDwell = 0;                   // seconds inside curTown — see the banner watcher
@@ -574,6 +581,13 @@ export class Game {
 
     // tap (or click) Clipper to pet him — replaces the old always-on PET button
     this.hud.onTap = (sx, sy) => this.tryPetTap(sx, sy);
+    // 🐾 tap = bark, hold = sniff. One thumb slot, two dog verbs; F mirrors it on
+    // keys. Gated to the dog player — the legacy kid neither barks nor sniffs.
+    if (!LEGACY_KID) {
+      this.hud.initBark(() => this.barkPress(), () => this.barkRelease());
+      window.addEventListener('keydown', (e) => { if (e.code === 'KeyF' && !e.repeat && !this.hud.dialogueOpen) this.barkPress(); });
+      window.addEventListener('keyup', (e) => { if (e.code === 'KeyF') this.barkRelease(); });
+    }
 
     if (SEASON === 'winter') {
       // the big town tree (snow now falls from the Sky weather system)
@@ -1018,6 +1032,49 @@ export class Game {
     this.bike.root.visible = true;
     this.hud.setBikeState(true);
     this.audio.bell();
+  }
+
+  // ---------- 🐾 bark / sniff ----------
+  // Press starts a 300 ms fuse: release first and it was a BARK; let it burn and
+  // the press becomes a held SNIFF until release. The same brain serves the HUD
+  // button and the F key, so the two can never disagree.
+  private barkPress() {
+    if (this.barkDownAt || this.flying) return;
+    this.barkDownAt = performance.now();
+    this.sniffHoldTimer = window.setTimeout(() => this.startSniff(), 300);
+  }
+
+  private barkRelease() {
+    if (!this.barkDownAt) return;
+    clearTimeout(this.sniffHoldTimer);
+    const quick = performance.now() - this.barkDownAt < 300;
+    this.barkDownAt = 0;
+    if (this.sniffing) this.endSniff();
+    else if (quick) this.bark();
+  }
+
+  private bark() {
+    this.audio.bark();
+    const pl = this.player as Dog;
+    pl.bark?.();
+    // WOOF! at Clipper's screen spot — the same projection the pet-tap uses
+    const p = this.player.root.position.clone();
+    p.y += 14;
+    p.project(this.camera);
+    if (p.z < 1) this.hud.woof((p.x * 0.5 + 0.5) * window.innerWidth, (-p.y * 0.5 + 0.5) * window.innerHeight);
+  }
+
+  private startSniff() {
+    this.sniffing = true;
+    this.hud.setSniffState(true);
+    (this.player as Dog).setSniffing?.(true);
+  }
+
+  private endSniff() {
+    this.sniffing = false;
+    this.hud.setSniffState(false);
+    (this.player as Dog).setSniffing?.(false);
+    this.hud.sniffGlow(null, 0);
   }
 
   /** Tap-to-pet: a tap/click near Clipper on screen pets him (hearts + the secret).
@@ -1877,6 +1934,28 @@ export class Game {
       else { vx = this.debugVec.x; vz = this.debugVec.y; }
     }
     if (this.hud.dialogueOpen || this.cineLook) { vx = 0; vz = 0; }   // freeze during dialogue + the look-out-to-sea cutaway
+    // 💨 ZOOMIES. Stand quietly long enough and Clipper MIGHT take a victory lap —
+    // ~3 s of autonomous gallop in a circle, announced with a bark. Any input hands
+    // the wheel straight back; the glance-off collision makes it uncrashable, the
+    // same guarantee the flight mode leans on. Kids will stand still on purpose.
+    if (!LEGACY_KID && !this.riding && !this.kayaking && !this.boating && !this.flying
+        && !this.inside && !this.sniffing && !this.lookUp && !this.hud.dialogueOpen
+        && !(this.race?.active) && !this.debugVec) {
+      const quiet = Math.hypot(vx, vz) < 0.01;
+      if (!quiet) { this.idleCalm = 0; this.zoomT = 0; }
+      else if (this.zoomT > 0) {
+        this.zoomT -= dt;
+        this.zoomAng += dt * 3.0;                       // ~95 px radius at gallop
+        vx = Math.sin(this.zoomAng); vz = Math.cos(this.zoomAng);
+      } else {
+        this.idleCalm += dt;
+        if (this.idleCalm > 9 && Math.random() < dt / 7) {
+          this.zoomT = 2.8;
+          this.zoomAng = Math.random() * Math.PI * 2;
+          this.bark();
+        }
+      }
+    } else { this.idleCalm = 0; if (this.zoomT > 0 && (this.riding || this.flying || this.inside)) this.zoomT = 0; }
     // LOOK UP releases the moment you walk. At full tilt the kid is out of frame
     // — which is fine for a deliberate "look at THAT", and not fine to get stuck
     // in — so moving always returns you to a camera that has you in it.
@@ -1902,13 +1981,14 @@ export class Game {
     if (mag < 0.01) { this.aimX = 0; this.aimZ = 0; }  // crisp stop on release — no floaty glide
     vx = this.aimX; vz = this.aimZ;
 
-    this.sprinting = this.autoRun || k.has('ShiftLeft') || k.has('ShiftRight') || this.hud.sprintTouch;
+    this.sprinting = this.autoRun || k.has('ShiftLeft') || k.has('ShiftRight') || this.hud.sprintTouch || this.zoomT > 0;
     // indoors (tunnels + hand-built interiors) is walk-only: no run, no sprint,
     // no bike — the rooms are small and a kid mashing run shouldn't rocket around
     // them. Force a walk regardless of the run toggle or any stray riding state.
     if (this.inside) this.sprinting = false;
     let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
+    if (this.sniffing) speed *= 0.4;    // nose down = a careful, readable creep
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
     // streets are controllable. Kids kept overshooting into houses in the neighborhoods,
@@ -2251,6 +2331,18 @@ export class Game {
             this.hud.announce('🪧 Entering ' + now, TOWN.borderLore?.[now] ?? 'crossing the town line');
           }
         }
+      }
+    }
+
+    // 👃 the scent, while sniffing: a warm bloom on the screen edge toward the
+    // nearest UNREAD history marker. Strength is warmth — it saturates as you
+    // close in, and dies entirely once every story in town is found.
+    if (this.sniffing) {
+      const near = this.history?.nearestUnread(this.px, this.pz);
+      if (!near) this.hud.sniffGlow(null, 0);
+      else {
+        const rel = Math.atan2(near.x - this.px, near.z - this.pz) - this.camAz;
+        this.hud.sniffGlow(rel, Math.max(0.12, 1 - near.d / 6000));
       }
     }
 

@@ -339,6 +339,36 @@ const css = `
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
 #hud .bike-btn.show { display: flex; }
+/* 🐾 BARK / hold-to-SNIFF — dog-player only (Game gates it). Tap = one woof;
+   hold = nose down + the scent glow, so one thumb slot carries both verbs. */
+#hud .bark-btn {
+  position: absolute; right: 18px; bottom: 288px; width: 58px; height: 58px; border-radius: 50%;
+  background: rgba(var(--maroon), 0.65); border: 2px solid rgba(var(--ink-rgb),0.4);
+  display: none; align-items: center; justify-content: center; font-size: 26px;
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+#hud .bark-btn.show { display: flex; }
+#hud .bark-btn.on { background: rgba(var(--gold-rgb), 0.45); border-color: var(--gold-mid); }
+#hud.indoors .bark-btn { display: none !important; }
+/* the scent: a warm bloom pinned to the screen edge in the direction of the
+   nearest unfound story. Never a pin, never an arrow — a smell. */
+#hud .scent {
+  position: fixed; width: 240px; height: 240px; margin: -120px 0 0 -120px;
+  border-radius: 50%; pointer-events: none; opacity: 0; z-index: 40;
+  background: radial-gradient(circle, rgba(232,194,49,0.55), rgba(232,194,49,0.18) 45%, transparent 70%);
+  filter: blur(6px);
+  transition: opacity 0.25s ease;
+}
+#hud .scent.pulse { animation: scent-pulse 1.6s ease-in-out infinite; }
+@keyframes scent-pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+/* WOOF! — a bark's little rising shout at the dog's screen spot */
+#hud .woof {
+  position: fixed; pointer-events: none; z-index: 60; font-weight: 800; font-size: 20px;
+  color: #fff7df; text-shadow: 0 2px 8px rgba(0,0,0,0.55), 0 0 18px rgba(232,194,49,0.5);
+  animation: woof-rise 0.8s ease-out forwards;
+}
+@keyframes woof-rise { from { opacity: 1; transform: translateY(0) scale(0.7); }
+  30% { transform: translateY(-14px) scale(1.08); } to { opacity: 0; transform: translateY(-44px) scale(1); } }
 #hud .bike-btn.on { background: rgba(var(--gold-rgb), 0.45); border-color: var(--gold-mid); }
 /* LOOK UP — the chase camera aims about 26° DOWNWARD, which is right for
    following a kid down a street and hopeless for a city: from the sidewalk in
@@ -349,7 +379,7 @@ const css = `
    first version of this at 212 was drawn straight underneath it. The right rail
    stacks RUN 52 · BIKE 132 · action 200 · LOOK UP 288. */
 #hud .look-btn {
-  position: absolute; right: 18px; bottom: 288px; width: 58px; height: 58px; border-radius: 50%;
+  position: absolute; right: 18px; bottom: 364px; width: 58px; height: 58px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 2px solid rgba(var(--ink-rgb),0.4);
   display: none; align-items: center; justify-content: center; font-size: 26px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
@@ -369,7 +399,7 @@ const css = `
 #hud .look-btn:hover { border-color: var(--gold); }
 #hud.indoors .look-btn { display: none !important; }
 /* desktop key-hint badge on the action buttons — only shown on keyboard (#hud.keys) */
-#hud .run-btn .kc, #hud .bike-btn .kc {
+#hud .run-btn .kc, #hud .bike-btn .kc, #hud .bark-btn .kc {
   position: absolute; right: -5px; bottom: -5px;
   min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box;
   background: var(--ink); color: rgb(var(--maroon));
@@ -378,8 +408,8 @@ const css = `
   font: 800 11px/1 system-ui, sans-serif;
   display: none; align-items: center; justify-content: center; pointer-events: none;
 }
-#hud.keys .run-btn .kc, #hud.keys .bike-btn .kc { display: flex; }
-#hud .run-btn:hover, #hud .bike-btn:hover { border-color: var(--gold); }
+#hud.keys .run-btn .kc, #hud.keys .bike-btn .kc, #hud.keys .bark-btn .kc { display: flex; }
+#hud .run-btn:hover, #hud .bike-btn:hover, #hud .bark-btn:hover { border-color: var(--gold); }
 /* indoors (tunnels + interiors) is walk-only — hide the run + bike buttons there */
 #hud.indoors .run-btn, #hud.indoors .bike-btn { display: none !important; }
 #hud .travel-panel {
@@ -1331,13 +1361,13 @@ const css = `
 }
 #hud .travel-btn:active, #hud .settings-btn:active, #hud .season-toggle:active,
 #hud .journey-btn:active, #hud .bag-btn:active, #hud .race-btn:active,
-#hud .run-btn:active, #hud .bike-btn:active, #hud .talk-btn:active,
+#hud .run-btn:active, #hud .bike-btn:active, #hud .bark-btn:active, #hud .talk-btn:active,
 #hud .modal-x:active { transform: scale(0.9); }
 /* journey + bag open panels — keep their gold ring after the group reset above */
 #hud .journey-btn, #hud .bag-btn { border-color: rgba(var(--gold-rgb), 0.6); }
 
 /* ── action buttons (run / bike / talk): material + press ──────────── */
-#hud .run-btn, #hud .bike-btn {
+#hud .run-btn, #hud .bike-btn, #hud .bark-btn {
   -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
   box-shadow: var(--shadow-btn);
   transition: transform 0.14s var(--ease-out), border-color 0.18s ease, background 0.18s ease;
@@ -1616,7 +1646,7 @@ export class Hud {
     hud.innerHTML = `
       <div class="pill"><span class="dot"></span><span class="txt"></span></div>
       <div class="banner"><div class="name"></div><div class="sub"></div></div>
-      <div class="corner help">WASD / arrows · R run · Shift sprint · V look up · C camera · M travel &amp; search · wheel zoom</div>
+      <div class="corner help">WASD / arrows · R run · Shift sprint · F bark (hold to sniff) · V look up · C camera · M travel &amp; search · wheel zoom</div>
       <div class="corner attr">Map data © OpenStreetMap contributors</div>
       <div class="stick-base"></div><div class="stick-knob"></div>
       <div class="compass"><div class="needle">N</div></div>
@@ -1647,6 +1677,7 @@ export class Hud {
         </div>
       </div>
       <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span><span class="blab">RUN</span></div>
+      <div class="bark-btn" title="Bark (F) — hold to sniff">🐾<span class="kc">F</span><span class="blab">BARK</span></div>
       <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span><span class="blab">BIKE</span></div>
       <div class="look-btn" title="Look up (V)">👀<span class="kc">V</span><span class="blab">LOOK UP</span></div>
       <div class="season-toggle" title="Season"><span class="s-em">🍂</span><span class="blab">SEASON</span></div>
@@ -1791,7 +1822,7 @@ export class Hud {
 
   private onDown(e: PointerEvent) {
     const tgt = e.target as HTMLElement;
-    const onUI = !!tgt?.closest?.('.travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .talk-btn, .dlg, .objective, .hcard, .hcard-back, .collect-btn, .collect-panel, .race-btn, .race-pop');
+    const onUI = !!tgt?.closest?.('.bark-btn, .travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .talk-btn, .dlg, .objective, .hcard, .hcard-back, .collect-btn, .collect-panel, .race-btn, .race-pop');
     // run/bike sit right under the steering thumb: don't dead-zone them. A tap toggles (their own
     // click handler); a drag promotes to the joystick (handled in onMove). Defer either way.
     const onSoftBtn = !onUI && !!tgt?.closest?.('.run-btn, .bike-btn');
@@ -3013,6 +3044,54 @@ export class Hud {
       e.stopPropagation();
       this.setRunState(onToggle());
     });
+  }
+
+  // ---------- 🐾 bark / hold-to-sniff (dog player only) ----------
+  // One control, two verbs: press-and-release under 300 ms is a bark; crossing
+  // 300 ms commits to a sniff that lasts until the finger (or F key) lifts.
+  // Game owns that timing so the button and the key share one brain.
+  initBark(press: () => void, release: () => void) {
+    const btn = document.querySelector('#hud .bark-btn') as HTMLElement;
+    btn.classList.add('show');
+    btn.addEventListener('pointerdown', (e) => { e.stopPropagation(); press(); });
+    btn.addEventListener('pointerup', (e) => { e.stopPropagation(); release(); });
+    btn.addEventListener('pointercancel', () => release());
+    btn.addEventListener('pointerleave', () => release());
+  }
+
+  setSniffState(on: boolean) {
+    (document.querySelector('#hud .bark-btn') as HTMLElement | null)?.classList.toggle('on', on);
+  }
+
+  private scentEl: HTMLElement | null = null;
+  /** aim the scent bloom: rel = bearing relative to the camera (0 = dead ahead),
+   *  strength 0..1 (0 or null hides it). The bloom rides the screen edge. */
+  sniffGlow(rel: number | null, strength: number) {
+    if (!this.scentEl) {
+      this.scentEl = document.createElement('div');
+      this.scentEl.className = 'scent pulse';
+      document.querySelector('#hud')!.appendChild(this.scentEl);
+    }
+    const el = this.scentEl;
+    if (rel === null || strength <= 0) { el.style.opacity = '0'; return; }
+    // direction on screen: ahead = up. Push the bloom's centre out to the border.
+    const dx = Math.sin(rel), dy = -Math.cos(rel);
+    const w = window.innerWidth, h = window.innerHeight;
+    const k = 0.5 / Math.max(Math.abs(dx) / w, Math.abs(dy) / h, 1e-6) * 0.96;
+    el.style.left = (w / 2 + dx * Math.min(k, w * 0.48)) + 'px';
+    el.style.top = (h / 2 + dy * Math.min(k, h * 0.48)) + 'px';
+    el.style.opacity = String(0.25 + 0.75 * Math.min(1, strength));
+  }
+
+  /** a bark's WOOF! at a screen point */
+  woof(x: number, y: number) {
+    const el = document.createElement('div');
+    el.className = 'woof';
+    el.textContent = 'WOOF!';
+    el.style.left = (x - 26) + 'px';
+    el.style.top = (y - 30) + 'px';
+    document.querySelector('#hud')!.appendChild(el);
+    setTimeout(() => el.remove(), 850);
   }
 
   // ---------- look up (click or V toggles the raised camera) ----------
