@@ -25,17 +25,19 @@ import { TOWN } from '@town';
 // World-only sandbox: towns without an authored curated layer run bare — no
 // history markers / eggs / drawbridge / interiors chrome.
 const BARE = !TOWN.story;
-// 🐕 CLIPPER IS THE PLAYER. A Gloucester teacher asked "do I have to be a white
-// boy?" — and the answer is a town dog, who is nobody and everybody, needs no
-// character picker (instant drop-in stays sacred), and was half the protagonist
-// already. `?kid` keeps the previous kid-plus-companion pair for comparison.
+// 🐕 CLIPPER IS THE PLAYER — everywhere, story towns included. A Gloucester
+// teacher asked "do I have to be a white boy?" — and the answer is a town dog,
+// who is nobody and everybody, needs no character picker (instant drop-in stays
+// sacred), and was half the protagonist already. `?kid` keeps the previous
+// kid-plus-companion pair for comparison.
 //
-// ⚠️ STORY MODE KEEPS THE KID FOR NOW. The Gram spine literally directs the
-// companion ("Clipper's run off — follow him" steers quest.dogTarget), so a
-// dog-player would soft-lock the grate beat. Until the story refactor recasts
-// it for Clipper, a story town runs the old pair; `?dog` previews the recast.
-const LEGACY_KID = (new URLSearchParams(location.search).has('kid') || !BARE)
-  && !new URLSearchParams(location.search).has('dog');
+// Story mode was briefly held back on a soft-lock worry: the Gram spine sets
+// quest.dogTarget ("Clipper runs ahead to the grate"). Checked, not assumed:
+// every beat advances on the PLAYER's own position (step 4→5 fires within 290 px
+// of the grate; the grate is a LOOK tap) — dogTarget only tells a companion
+// where to stand. So the dog can play the whole spine today; the text still
+// says "take Clipper" to Clipper until the story is recast for him.
+const LEGACY_KID = new URLSearchParams(location.search).has('kid');
 // a dog stands a third the kid's height, so the closest zoom comes in closer —
 // at 0.55 Clipper was a speck on a phone; the chase cam scales are all zoom-linear
 const MIN_ZOOM = LEGACY_KID ? 0.55 : 0.42;
