@@ -2116,7 +2116,9 @@ export class Game {
     let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
     if (this.sniffing) speed *= 0.4;    // nose down = a careful, readable creep
-    if (this.swimming) speed = 150;     // the dog-paddle: one steady pace, sprint or not
+    // the dog-paddle: 200 cruising, 320 with RUN held — a harbor or a lake is a long
+    // way across at a paddle, and the run button should mean something in the water too
+    if (this.swimming) speed = this.sprinting ? 320 : 200;
     if (this.zoomT > 0) speed = 230;    // zoomies: brisk, but slow enough to spin on a dime
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
