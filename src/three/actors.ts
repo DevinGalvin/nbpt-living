@@ -558,34 +558,51 @@ export class Dog {
 
   constructor(fur = '#cda169', scale = 1) {
     const c = new THREE.Color(fur);
-    const darker = '#' + c.clone().multiplyScalar(0.84).getHexString();
-    const darkest = '#' + c.clone().multiplyScalar(0.72).getHexString();
-    // COUNTERSHADING — dark along the back, pale under the chin, chest, belly and
+    const darkest = '#' + c.clone().multiplyScalar(0.8).getHexString();   // ears: a richer gold, not near-brown
+    // COUNTERSHADING — deeper along the back, pale under the chin, chest, belly and
     // legs. Every real dog has it, and it does more for "this is an animal" than any
     // amount of extra geometry: a uniformly-coloured body always reads as a plush toy.
+    // A golden's version is all in the PALE half though — cream chest, belly and
+    // feathering on a self-coloured coat. The old 0.78 back / 0.84 chest darks cut
+    // hard two-tone seams across him, which is shepherd marking, not retriever.
     const lightest = '#' + c.clone().lerp(new THREE.Color('#ffffff'), 0.42).getHexString();
-    const backDk = '#' + c.clone().multiplyScalar(0.78).getHexString();
+    // feathering sits BETWEEN coat and cream — full cream on the breeches and tail
+    // fringe read as white patches stuck on, not as longer fur catching the light
+    const feather = '#' + c.clone().lerp(new THREE.Color('#ffffff'), 0.24).getHexString();
+    const backDk = '#' + c.clone().multiplyScalar(0.9).getHexString();
 
     // trunk pivot sits at the rear hips: (0, 8, -6.5) in heading space
     this.trunk.position.set(0, 8, -6.5);
     const body = capZ(4.1, 8.6, fur);
     body.position.set(0, 3, 6.5);
     body.scale.set(1.08, 0.94, 1);
-    const chest = sph(4.2, darker, 0.96, 0.98, 0.92);   // deep brisket
+    const chest = sph(4.2, fur, 0.96, 0.98, 0.92);   // deep brisket, self-coloured
     chest.position.set(0, 1.9, 11.0);
-    const rump = sph(3.9, fur, 0.98, 0.95, 0.92);
-    rump.position.set(0, 2.9, 1);
-    // a scruffy neck rising to the head + muscle over the shoulders and haunches, so
+    // HINDQUARTERS — one smooth croup, not a pair of cheeks. The old build hung two
+    // haunch balls off the BACK of the rump, and from any trailing view they read as
+    // a cartoon backside with a crease down the middle (Devin: "clippers butt is too
+    // much for a dog"). A real retriever seen from behind is a single rounded mass —
+    // the croup slopes off the topline into the tail set, and the width is thigh
+    // muscle lying FLAT along the sides. Nothing bulges past the tail.
+    const rump = sph(3.7, fur, 1.08, 0.95, 1.05);
+    rump.position.set(0, 2.9, 0.4);
+    const croup = sph(2.9, fur, 1.05, 0.75, 1.15);   // the gentle fall from spine to tail set
+    croup.position.set(0, 4.5, 0.6);
+    // a scruffy neck rising to the head + muscle over the shoulders and thighs, so
     // the body has anatomy (withers, brisket, thighs) instead of reading as one loaf
     const neck = capZ(2.9, 2.6, fur);
     neck.position.set(0, 4.2, 12.0); neck.rotation.x = -0.5;
-    const withers = sph(3.0, fur, 1.0, 0.95, 1.1);
-    withers.position.set(0, 4.6, 8.2);
-    const haunch = (sx: number) => { const h = sph(2.7, fur, 0.92, 1.0, 1.1); h.position.set(sx * 2.7, 3.2, -2.0); return h; };
+    const withers = sph(3.0, fur, 1.1, 0.85, 1.25);  // a soft rise in the topline, not a dome on it
+    withers.position.set(0, 4.6, 8.4);
+    const thigh = (sx: number) => { const h = sph(2.9, fur, 0.62, 1.05, 1.2); h.position.set(sx * 3.15, 2.4, -0.1); return h; };
+    // breeches: the feathering on the back of a golden's thighs — a soft near-coat
+    // tone hugging the thigh's rear edge, inside its silhouette, so it reads as
+    // longer fur rather than anatomy (or, worse, grey knee pads)
+    const breech = (sx: number) => { const b = sph(1.9, feather, 0.5, 1.15, 0.8); b.position.set(sx * 2.95, 1.6, -1.8); return b; };
     const shoulder = (sx: number) => { const s = sph(2.3, fur, 0.9, 1.0, 1.05); s.position.set(sx * 2.9, 2.6, 9.0); return s; };
     // the countershading itself: a dark saddle down the spine, a pale belly and bib
     const saddle = capZ(3.5, 8.0, backDk);
-    saddle.position.set(0, 4.4, 6.5); saddle.scale.set(1.0, 0.5, 1);
+    saddle.position.set(0, 4.7, 6.5); saddle.scale.set(1.0, 0.5, 1);
     const belly = capZ(3.2, 7.4, lightest);
     belly.position.set(0, 0.9, 6.6); belly.scale.set(0.94, 0.5, 1);
     const bib = sph(2.5, lightest, 0.85, 1.0, 0.7);
@@ -598,15 +615,18 @@ export class Dog {
     const skull = sph(3.1, fur, 1.06, 0.95, 1.0);    // rounder cranium above the eyes
     skull.position.set(0, 3.2, 1.4);
     const muzzleBridge = capZ(1.35, 1.4, fur);        // forehead-to-snout bridge (a real stop)
-    muzzleBridge.position.set(0, 1.0, 4.7);
-    // muzzle in the SAME fur as the head — the old darker snout drew a hard seam across
-    // the face. Countershading does the shaping instead: a pale chin/underjaw below.
-    const snout = capZ(1.72, 3.8, fur);
-    snout.position.set(0, -0.3, 7.2);
-    const underjaw = capZ(1.2, 3.2, lightest);
-    underjaw.position.set(0, -1.3, 7.3);
+    muzzleBridge.position.set(0, 1.2, 4.7);
+    // muzzle in the SAME fur as the head — the old darker snout drew a hard seam
+    // across the face. And it rides HIGH on the head sphere: the first cut hung a
+    // long fat tube off the head's lower half, which from the front read less
+    // "retriever" and more "elephant trunk". A golden's muzzle is deep but short,
+    // its topline running nearly level from the stop out to the nose.
+    const snout = capZ(1.6, 2.6, fur);
+    snout.position.set(0, 0.15, 6.8);
+    const underjaw = capZ(1.05, 2.2, lightest);
+    underjaw.position.set(0, -0.85, 6.7);
     const nose = sph(0.9, '#2b2420', 1.12, 0.9, 0.85);
-    nose.position.set(0, 0.3, 9.8);
+    nose.position.set(0, 0.7, 9.3);
     // eyes: smaller, SET INTO the skull rather than stuck on it, under a brow ridge and
     // a lid. Big glossy spheres on the surface were the single most toy-like thing here.
     const eyeL = sph(0.56, '#2a2320');
@@ -614,20 +634,24 @@ export class Dog {
     eyeL.position.set(-1.9, 2.6, 5.25);
     eyeR.position.set(1.9, 2.6, 5.25);
     for (const e of [eyeL, eyeR]) { const g = sph(0.19, '#ffffff'); g.position.set(-0.16, 0.24, 0.42); e.add(g); }
-    const lid = (sx: number) => { const l = sph(0.72, fur, 1, 0.5, 0.8); l.position.set(sx * 1.9, 3.16, 5.15); return l; };
-    const browSpot = (sx: number) => { const b = sph(0.42, lightest, 1.2, 0.5, 0.8); b.position.set(sx * 1.85, 3.6, 4.5); return b; };
+    // lids sit high so the eye is open and friendly — pulled low they hood the eye
+    // into a scowl, and a golden has never scowled at anything in its life
+    const lid = (sx: number) => { const l = sph(0.72, fur, 1, 0.45, 0.75); l.position.set(sx * 1.9, 3.3, 5.15); return l; };
+    const browSpot = (sx: number) => { const b = sph(0.42, feather, 1.2, 0.5, 0.8); b.position.set(sx * 1.85, 3.6, 4.5); return b; };
     // a happy lolling tongue hanging from the mouth
     const tongue = rbox(1.3, 0.42, 2.2, 0.38, '#e07f88');
-    tongue.position.set(0, -1.65, 7.9); tongue.rotation.x = 0.55;
-    // ears: proper retriever flaps — big, soft, hung from the side of the skull and
-    // falling PAST the jaw. The old ones were thumbnail-sized tabs on top of the head.
+    tongue.position.set(0, -1.3, 7.5); tongue.rotation.x = 0.55;
+    // ears: retriever flaps hung from the side of the skull, falling to the jawline
+    // and no further — the first pass swung to blanket-sized flaps that draped past
+    // the jaw and covered half the face. A golden's ear is modest: set level with
+    // the eye, lying close to the cheek, tip rounding off beside the jaw.
     const mkEar = (sx: number): THREE.Group => {
       const grp = new THREE.Group();
       grp.position.set(sx * 3.05, 4.9, 2.2);
-      const flap = sph(2.5, darkest, 0.42, 1.5, 0.9);
-      flap.position.set(sx * 0.25, -2.7, -0.2);
-      const tip = sph(1.5, darkest, 0.42, 1.0, 0.85);
-      tip.position.set(sx * 0.4, -5.1, -0.4);
+      const flap = sph(2.2, darkest, 0.46, 1.3, 0.75);
+      flap.position.set(sx * 0.3, -2.1, -0.1);
+      const tip = sph(1.25, darkest, 0.46, 0.9, 0.7);
+      tip.position.set(sx * 0.42, -4.2, -0.3);
       grp.add(flap, tip);
       grp.rotation.z = sx * 0.2;
       return grp;
@@ -637,15 +661,26 @@ export class Dog {
     this.headGroup.add(head, skull, muzzleBridge, snout, underjaw, nose, eyeL, eyeR,
       lid(-1), lid(1), browSpot(-1), browSpot(1), this.earL, this.earR, tongue);
 
-    // tail: two soft segments for a whippy wag
+    // tail: two soft segments for a whippy wag, rooted IN the croup (the old pivot
+    // floated above the back with daylight under it). Each segment is flattened
+    // side-to-side with a pale fringe along the underside — the feathered flag a
+    // golden carries, not a pair of sausages.
     this.tail = new THREE.Group();
-    this.tail.position.set(0, 7, -1.5);
-    const tailBase = cap(1.05, 2.4, fur, true);
+    this.tail.position.set(0, 5.6, -2.0);
+    const tailBase = cap(1.0, 2.6, fur, true);
+    tailBase.scale.set(0.78, 1, 1.3);
+    const baseFringe = cap(0.72, 2.6, feather, true);
+    baseFringe.scale.set(0.5, 1, 1.5);
+    baseFringe.position.set(0, -0.15, -0.5);
     this.tailTip = new THREE.Group();
-    this.tailTip.position.set(0, -4.2, 0);
-    const tipMesh = cap(0.85, 2, darker, true);
-    this.tailTip.add(tipMesh);
-    this.tail.add(tailBase, this.tailTip);
+    this.tailTip.position.set(0, -4.4, 0);
+    const tipMesh = cap(0.8, 2.1, fur, true);
+    tipMesh.scale.set(0.72, 1, 1.25);
+    const tipFringe = cap(0.55, 2.1, feather, true);
+    tipFringe.scale.set(0.48, 1, 1.45);
+    tipFringe.position.set(0, -0.2, -0.42);
+    this.tailTip.add(tipMesh, tipFringe);
+    this.tail.add(tailBase, baseFringe, this.tailTip);
     this.tail.rotation.x = -2.4;
 
     // a red collar with a little gold tag — Clipper's got an owner
@@ -653,8 +688,9 @@ export class Dog {
     collar.position.set(0, 4.0, 12.7); collar.scale.set(1.05, 0.9, 1);
     this.collarMesh = collar;
     const tag = sph(0.7, '#e8c44f'); tag.position.set(0, 0.9, 13.1);
-    this.trunk.add(body, chest, rump, neck, withers, saddle, belly, bib,
-      haunch(-1), haunch(1), shoulder(-1), shoulder(1), this.headGroup, this.tail, collar, tag);
+    this.trunk.add(body, chest, rump, croup, neck, withers, saddle, belly, bib,
+      thigh(-1), thigh(1), breech(-1), breech(1), shoulder(-1), shoulder(1),
+      this.headGroup, this.tail, collar, tag);
 
     // legs stay under the heading so the trunk can pitch without lifting paws. Each leg
     // is two segments: an upper that swings from the shoulder/hip + a lower shank that
