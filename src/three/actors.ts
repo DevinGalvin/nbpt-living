@@ -252,6 +252,14 @@ export class Kid {
   private swimP = 0;
   private swimmingNow = false;
   private shakeT = 0;
+  // 🛹 skating: rideP eases the stance in; pushLeft > 0 means a hind leg is
+  // kicking the ground; nextPushAt schedules the next kick while cruising
+  private rideP = 0;
+  private skating = false;
+  private pushLeft = 0;
+  private pushPhase = 0;
+  private nextPushAt = 0;
+  private skateBank = 0;
 
   /** 🏊 dog-paddle: Game flips this the moment Clipper is in water */
   setSwimming(on: boolean) { this.swimmingNow = on; }
@@ -448,6 +456,54 @@ export class Bike {
 // pointed bow/stern, an open cockpit, and a stowed paddle. Faces +z; the kid sits
 // in the cockpit. Shared by the kayak you ride AND the one tied at the Joppa slip,
 // so they're always the same boat. The caller adds it to the scene.
+// 🛹 Clipper's skateboard. Same contract as Bike (root + update(dt, speed,
+// heading)) so Game can hold either. Four wheels spin with ground speed; the
+// deck banks into turns, worked out from its own heading change so nothing
+// upstream has to know about it. A dog on a skateboard is a real thing kids
+// already know (Tillman, Otto) — a hoverboard would have broken the "real town,
+// real dog" spell.
+export class Skateboard {
+  root = new THREE.Group();
+  private wheels: THREE.Mesh[] = [];
+  private deck = new THREE.Group();
+  private prevHeading = 0;
+  private bank = 0;
+
+  constructor() {
+    const DECK = '#c98a3c', GRIP = '#2b2b2e', TRUCK = '#c9cdd2', WHEEL = '#efe7c8';
+    const board = new THREE.Mesh(new THREE.BoxGeometry(8.4, 1.1, 26), new THREE.MeshLambertMaterial({ color: DECK }));
+    board.position.y = 4.2; board.castShadow = true;
+    const grip = new THREE.Mesh(new THREE.BoxGeometry(7.6, 0.3, 24), new THREE.MeshLambertMaterial({ color: GRIP }));
+    grip.position.y = 4.9;
+    // kicked nose and tail
+    const kick = (z: number) => {
+      const k = new THREE.Mesh(new THREE.BoxGeometry(8.4, 1.1, 4.5), new THREE.MeshLambertMaterial({ color: DECK }));
+      k.position.set(0, 4.9, z); k.rotation.x = z > 0 ? -0.42 : 0.42; k.castShadow = true; return k;
+    };
+    const truck = (z: number) => {
+      const t = new THREE.Mesh(new THREE.BoxGeometry(7.8, 1.2, 1.4), new THREE.MeshLambertMaterial({ color: TRUCK }));
+      t.position.set(0, 2.8, z); return t;
+    };
+    const wheel = (x: number, z: number) => {
+      const w = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 1.9, 1.6, 12).rotateZ(Math.PI / 2), new THREE.MeshLambertMaterial({ color: WHEEL }));
+      w.position.set(x, 1.9, z); w.castShadow = true; this.wheels.push(w); return w;
+    };
+    this.deck.add(board, grip, kick(13.5), kick(-13.5), truck(8.5), truck(-8.5),
+      wheel(-4.2, 8.5), wheel(4.2, 8.5), wheel(-4.2, -8.5), wheel(4.2, -8.5));
+    this.root.add(this.deck);
+  }
+
+  update(dt: number, speed: number, heading: number) {
+    this.root.rotation.y = heading;
+    for (const w of this.wheels) w.rotation.x -= (speed * dt) / 1.9;
+    // lean into the turn: how fast the heading is swinging, eased
+    const turn = dt > 0 ? lerpAngle(0, heading - this.prevHeading, 1) / dt : 0;
+    this.prevHeading = heading;
+    this.bank = ease(this.bank, THREE.MathUtils.clamp(-turn * 0.09, -0.32, 0.32) * Math.min(1, speed / 200), dt, 7);
+    this.deck.rotation.z = this.bank;
+  }
+}
+
 export function buildKayak(): THREE.Group {
   const R = new THREE.Group();
   const RED = '#d8533a', RED2 = '#bf4630', DARK = '#2e2f28';
@@ -691,6 +747,14 @@ export class Dog {
   private swimP = 0;
   private swimmingNow = false;
   private shakeT = 0;
+  // 🛹 skating: rideP eases the stance in; pushLeft > 0 means a hind leg is
+  // kicking the ground; nextPushAt schedules the next kick while cruising
+  private rideP = 0;
+  private skating = false;
+  private pushLeft = 0;
+  private pushPhase = 0;
+  private nextPushAt = 0;
+  private skateBank = 0;
 
   /** 🏊 dog-paddle: Game flips this the moment Clipper is in water */
   setSwimming(on: boolean) { this.swimmingNow = on; }
@@ -719,18 +783,42 @@ export class Dog {
     const mounted = riding || boating;
     const moving = speed > 6 && !mounted;
     const norm = Math.min(1.2, speed / 300);
-    if (mounted) {
+    this.skating = riding;
+    if (riding) {
+      // 🛹 ON THE BOARD. Front paws stay planted on the deck. A hind leg kicks
+      // the ground to get going (~1.1 s of pushes from a standstill), then all
+      // four hop on and he coasts — with a fresh kick every few seconds to keep
+      // the speed up, the way a real skating dog does. Stopped: one hind paw
+      // rests on the ground beside the board.
+      const prevFace = this.faceAngle;
+      if (speed > 1) this.faceAngle = lerpAngle(this.faceAngle, Math.atan2(vx, vz), Math.min(1, dt * 10));
+      const turn = dt > 0 ? lerpAngle(0, this.faceAngle - prevFace, 1) / dt : 0;
+      this.skateBank = ease(this.skateBank, THREE.MathUtils.clamp(-turn * 0.1, -0.3, 0.3), dt, 6);
+      const rest = Math.round(this.phase / Math.PI) * Math.PI;
+      this.phase = ease(this.phase, rest, dt, 9);
+      if (speed > 20) {
+        if (this.nextPushAt === 0) { this.pushLeft = 1.1; this.nextPushAt = this.t + 1.1 + 2.4; }   // pushing off
+        else if (this.t >= this.nextPushAt) { this.pushLeft = 0.55; this.nextPushAt = this.t + 2.4 + Math.random() * 1.4; }
+        if (this.pushLeft > 0) { this.pushLeft -= dt; this.pushPhase += dt * 9; }
+      } else {
+        this.nextPushAt = 0; this.pushLeft = 0;
+      }
+      this.mode = 'stand';
+      this.idleT = 0;
+    } else if (mounted) {
       if (speed > 1) this.faceAngle = lerpAngle(this.faceAngle, Math.atan2(vx, vz), Math.min(1, dt * 12));
       const rest = Math.round(this.phase / Math.PI) * Math.PI;
       this.phase = ease(this.phase, rest, dt, 9);
       this.mode = 'sit';
       this.idleT = 0;
+      this.nextPushAt = 0;
     } else if (moving) {
       this.faceAngle = lerpAngle(this.faceAngle, Math.atan2(vx, vz), Math.min(1, dt * 12));
       this.phase += dt * (6.5 + speed * 0.042);
       this.idleT = 0;
       this.mode = this.forceSniff && !this.swimmingNow ? 'sniff' : 'stand';
     } else if (this.swimmingNow) {
+      this.nextPushAt = 0;
       // treading water: no sit, no sniff, just the paddle ticking over
       const rest = Math.round(this.phase / Math.PI) * Math.PI;
       this.phase = ease(this.phase, rest, dt, 9);
@@ -879,6 +967,32 @@ export class Dog {
       this.tail.rotation.x = this.tail.rotation.x * (1 - w) + (-1.5) * w;   // flat on the water
     }
 
+    // 🛹 the skate stance. Crouched a touch, front paws planted forward on the
+    // deck; hind legs either both on (coasting), one kicking (pushing), or one
+    // resting on the ground (stopped). Leans into the bank the board is carving.
+    this.rideP = ease(this.rideP, this.skating ? 1 : 0, dt, this.skating ? 7 : 9);
+    if (this.rideP > 0.01) {
+      const w = this.rideP;
+      const pushing = this.pushLeft > 0;
+      const kick = pushing ? (Math.sin(this.pushPhase) * 0.5 + 0.5) : 0;      // 0 = forward, 1 = swept back
+      const stopped = this.nextPushAt === 0;
+      this.trunk.position.y -= 1.4 * w;
+      this.trunk.rotation.x -= 0.06 * w;
+      this.legs[0].rotation.x = this.legs[0].rotation.x * (1 - w) + 0.28 * w;   // front paws planted, set forward
+      this.legs[1].rotation.x = this.legs[1].rotation.x * (1 - w) + 0.28 * w;
+      this.shins[0].rotation.x = this.shins[0].rotation.x * (1 - w) + 0.18 * w;
+      this.shins[1].rotation.x = this.shins[1].rotation.x * (1 - w) + 0.18 * w;
+      // left hind leg is the pusher; right hind stays on the deck
+      const pushLeg = pushing ? 0.75 - kick * 1.55 : stopped ? 0.55 : -0.05;
+      this.legs[2].rotation.x = this.legs[2].rotation.x * (1 - w) + pushLeg * w;
+      this.shins[2].rotation.x = this.shins[2].rotation.x * (1 - w) + (pushing ? 0.25 + kick * 0.35 : stopped ? 0.5 : 0.12) * w;
+      this.legs[3].rotation.x = this.legs[3].rotation.x * (1 - w) + (-0.05) * w;
+      this.shins[3].rotation.x = this.shins[3].rotation.x * (1 - w) + 0.12 * w;
+      this.trunk.position.y += (pushing ? Math.sin(this.pushPhase) * 0.6 : 0) * w;   // the body bobs with each push
+      this.heading.rotation.z = this.skateBank * w;                                // lean into the turn
+      this.headGroup.rotation.x -= 0.12 * w;                                       // eyes up the street
+    }
+
     // 💦 the wet-dog shake: a whole-body roll that rings out and dies
     if (this.shakeT > 0) {
       this.shakeT = Math.max(0, this.shakeT - dt);
@@ -886,7 +1000,7 @@ export class Dog {
       this.heading.rotation.z = Math.sin(this.t * 42) * 0.26 * env;
       this.earL.rotation.z = Math.sin(this.t * 42 + 1) * 0.5 * env;
       this.earR.rotation.z = -Math.sin(this.t * 42 + 1) * 0.5 * env;
-    } else {
+    } else if (this.rideP <= 0.01) {
       this.heading.rotation.z = 0;
     }
 

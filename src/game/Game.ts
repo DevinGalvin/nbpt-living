@@ -6,7 +6,7 @@ import { buildChunkDecor } from '../three/decor';
 import { detailTex } from '../three/textures';
 import { buildWater, WATER_Y } from '../three/water';
 import { Sky } from '../three/sky';
-import { Kid, Dog, Bike, buildKayak } from '../three/actors';
+import { Kid, Dog, Bike, Skateboard, buildKayak } from '../three/actors';
 import { Life } from './life';
 import { GillisBridge } from '../three/gillis';
 import { Hud } from './hud';
@@ -218,7 +218,8 @@ export class Game {
   // whichever body it wears; the companion exists only in legacy ?kid mode.
   private player: Kid | Dog = LEGACY_KID ? new Kid() : new Dog('#cda169', 1.15);
   private dog: Dog | null = LEGACY_KID ? new Dog() : null;
-  private bike = new Bike();
+  // the dog rides a skateboard; the legacy kid keeps the bike. Same contract.
+  private bike: Bike | Skateboard = LEGACY_KID ? new Bike() : new Skateboard();
   private riding = false;
   private hud = new Hud();
   private audio = new GameAudio();
@@ -613,8 +614,10 @@ export class Game {
         try { localStorage.setItem('nbpt-collar', hex); } catch { /* private mode */ }
       });
       this.hud.initBark(() => this.barkPress(), () => this.barkRelease());
-      window.addEventListener('keydown', (e) => { if (e.code === 'KeyF' && !e.repeat && !this.hud.dialogueOpen) this.barkPress(); });
-      window.addEventListener('keyup', (e) => { if (e.code === 'KeyF') this.barkRelease(); });
+      // B barks (Devin's pick); F stays as a quiet alias for anyone who learned it
+      window.addEventListener('keydown', (e) => { if ((e.code === 'KeyB' || e.code === 'KeyF') && !e.repeat && !this.hud.dialogueOpen) this.barkPress(); });
+      window.addEventListener('keyup', (e) => { if (e.code === 'KeyB' || e.code === 'KeyF') this.barkRelease(); });
+      this.hud.setDogControls();   // BARK = B, SKATE = K, skateboard icon, help line
     }
 
     if (SEASON === 'winter') {
@@ -645,7 +648,8 @@ export class Game {
         this.autoRun = !this.autoRun;
         this.hud.setRunState(this.autoRun);
       }
-      if (e.code === 'KeyB') this.toggleBike();
+      if (e.code === 'KeyB' && LEGACY_KID) this.toggleBike();   // dog mode: B is BARK (below)
+      if (e.code === 'KeyK') this.toggleBike();
       const n = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9'].indexOf(e.code);
       if (n >= 0) {
         const travel = ['market-square', 'boardwalk', 'frog-pond', 'marchs-hill', 'mbta', 'gillis', 'airport', 'pink-house', 'pi-light'];
@@ -2059,7 +2063,10 @@ export class Game {
       if (!quiet) { this.idleCalm = 0; this.zoomT = 0; }
       else if (this.zoomT > 0) {
         this.zoomT -= dt;
-        this.zoomAng += dt * 3.0;                       // ~95 px radius at gallop
+        // ⚠️ TIGHT. At 3 rad/s and gallop speed this was a 120 px lap — a jog round the
+        // yard, not zoomies (Devin: "basically just spinning"). 11 rad/s at a brisk
+        // 230 px/s is a ~20 px circle: a frantic spin with the gallop animation on top.
+        this.zoomAng += dt * 11;
         vx = Math.sin(this.zoomAng); vz = Math.cos(this.zoomAng);
       } else {
         this.idleCalm += dt;
@@ -2095,7 +2102,7 @@ export class Game {
     if (mag < 0.01) { this.aimX = 0; this.aimZ = 0; }  // crisp stop on release — no floaty glide
     vx = this.aimX; vz = this.aimZ;
 
-    this.sprinting = this.autoRun || k.has('ShiftLeft') || k.has('ShiftRight') || this.hud.sprintTouch || this.zoomT > 0;
+    this.sprinting = this.autoRun || k.has('ShiftLeft') || k.has('ShiftRight') || this.hud.sprintTouch;
     // indoors (tunnels + hand-built interiors) is walk-only: no run, no sprint,
     // no bike — the rooms are small and a kid mashing run shouldn't rocket around
     // them. Force a walk regardless of the run toggle or any stray riding state.
@@ -2104,6 +2111,7 @@ export class Game {
     if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
     if (this.sniffing) speed *= 0.4;    // nose down = a careful, readable creep
     if (this.swimming) speed = 115;     // the dog-paddle: one steady pace, sprint or not
+    if (this.zoomT > 0) speed = 230;    // zoomies: brisk, but slow enough to spin on a dime
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
     // streets are controllable. Kids kept overshooting into houses in the neighborhoods,
@@ -2298,7 +2306,7 @@ export class Game {
     this.wasNearFence = nearFence;
     if (this.hopT > 0) this.hopT = Math.max(0, this.hopT - dt);
     const hop = this.hopT > 0 ? Math.sin((1 - this.hopT / 0.5) * Math.PI) * 8 : 0;
-    this.player.root.position.y = this.kidY + hop + (this.riding ? (LEGACY_KID ? 2 : 7) : 0);
+    this.player.root.position.y = this.kidY + hop + (this.riding ? (LEGACY_KID ? 2 : 4.6) : 0);
     if (this.riding) {
       this.bike.root.position.set(this.px, this.kidY, this.pz);
       this.bike.update(dt, Math.hypot(realVx, realVz), this.player.facing);

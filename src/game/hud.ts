@@ -1679,7 +1679,7 @@ export class Hud {
     hud.innerHTML = `
       <div class="pill"><span class="dot"></span><span class="txt"></span></div>
       <div class="banner"><div class="name"></div><div class="sub"></div></div>
-      <div class="corner help">WASD / arrows · R run · Shift sprint · F bark (hold to sniff) · V look up · C camera · M travel &amp; search · wheel zoom</div>
+      <div class="corner help">WASD / arrows · R run · Shift sprint · V look up · C camera · M travel &amp; search · wheel zoom</div>
       <div class="corner attr">Map data © OpenStreetMap contributors</div>
       <div class="stick-base"></div><div class="stick-knob"></div>
       <div class="compass"><div class="needle">N</div></div>
@@ -3104,6 +3104,23 @@ export class Hud {
       e.stopPropagation();
       this.setRunState(onToggle());
     });
+  }
+
+  // ---------- dog-mode controls: the bike becomes a skateboard, B barks, K skates ----------
+  // The static markup is the legacy kid's (bike, B). Dog mode rewrites the two
+  // buttons and the help line in place: same elements, same slots, same handlers.
+  setDogControls() {
+    const bark = document.querySelector('#hud .bark-btn') as HTMLElement | null;
+    const ride = document.querySelector('#hud .bike-btn') as HTMLElement | null;
+    if (bark) { (bark.querySelector('.kc') as HTMLElement).textContent = 'B'; bark.title = 'Bark (B) — hold to sniff'; }
+    if (ride) {
+      ride.title = 'Skateboard (K)';
+      ride.innerHTML = '<svg viewBox="0 0 36 20" width="32" height="18" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+        + '<path d="M3 7 Q5 10 8 10 L28 10 Q31 10 33 7"/><circle cx="11" cy="15" r="2.4"/><circle cx="25" cy="15" r="2.4"/></svg>'
+        + '<span class="kc">K</span><span class="blab">SKATE</span>';
+    }
+    const help = document.querySelector('#hud .corner.help') as HTMLElement | null;
+    if (help) help.textContent = 'WASD / arrows · R run · Shift sprint · B bark (hold to sniff) · K skate · V look up · C camera · M travel & search · wheel zoom';
   }
 
   // ---------- 🐾 bark / hold-to-sniff (dog player only) ----------
