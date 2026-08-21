@@ -369,6 +369,23 @@ const css = `
 }
 @keyframes woof-rise { from { opacity: 1; transform: translateY(0) scale(0.7); }
   30% { transform: translateY(-14px) scale(1.08); } to { opacity: 0; transform: translateY(-44px) scale(1); } }
+#hud .dirtclod {
+  position: fixed; width: 7px; height: 7px; border-radius: 50%;
+  background: #7a5a3a; pointer-events: none; z-index: 55;
+  animation: dirt-fly 0.6s ease-out forwards;
+}
+@keyframes dirt-fly { from { opacity: 1; transform: translate(0, 0) scale(1); }
+  to { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.5); } }
+/* 🐕 collar picker — settings row, dog player only (initCollar reveals it) */
+#hud .sp-collar { display: none; padding: 10px 12px 12px; border-top: 1px solid rgba(var(--ink-rgb),0.12); }
+#hud .sp-collar.show { display: block; }
+#hud .sp-crow { display: flex; gap: 10px; }
+#hud .sp-cchip {
+  width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
+  border: 2px solid rgba(var(--ink-rgb),0.3); transition: transform 0.12s, border-color 0.15s;
+}
+#hud .sp-cchip:hover { transform: scale(1.12); }
+#hud .sp-cchip.cur { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(var(--gold-rgb),0.4); }
 #hud .bike-btn.on { background: rgba(var(--gold-rgb), 0.45); border-color: var(--gold-mid); }
 /* LOOK UP — the chase camera aims about 26° DOWNWARD, which is right for
    following a kid down a street and hopeless for a city: from the sidewalk in
@@ -1675,6 +1692,10 @@ export class Hud {
           <div class="sp-mrow"></div>
           <div class="sp-msub"></div>
         </div>
+        <div class="sp-collar">
+          <div class="sp-mhdr">🐕 CLIPPER'S COLLAR</div>
+          <div class="sp-crow"></div>
+        </div>
       </div>
       <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span><span class="blab">RUN</span></div>
       <div class="bark-btn" title="Bark (F) — hold to sniff">🐾<span class="kc">F</span><span class="blab">BARK</span></div>
@@ -2961,6 +2982,27 @@ export class Hud {
     paint(current);
   }
 
+  // your dog, your collar — the only customization, deliberately identity-neutral
+  initCollar(colors: string[], current: string, onPick: (hex: string) => void) {
+    const block = document.querySelector('#hud .sp-collar') as HTMLElement | null;
+    const row = document.querySelector('#hud .sp-crow') as HTMLElement | null;
+    if (!block || !row) return;
+    block.classList.add('show');
+    row.innerHTML = '';
+    const paint = (hex: string) => {
+      for (const el of Array.from(row.children)) el.classList.toggle('cur', (el as HTMLElement).dataset.c === hex);
+    };
+    for (const c of colors) {
+      const chip = document.createElement('div');
+      chip.className = 'sp-cchip';
+      chip.dataset.c = c;
+      chip.style.background = c;
+      chip.addEventListener('click', (e) => { e.stopPropagation(); onPick(c); paint(c); });
+      row.appendChild(chip);
+    }
+    paint(current);
+  }
+
   refreshSettings(storyOn: boolean) { this.setStoryRowState(storyOn); }
   initSettings(on: boolean, onToggle: (next: boolean) => boolean) {
     const btn = document.querySelector('#hud .settings-btn') as HTMLElement;
@@ -3066,7 +3108,7 @@ export class Hud {
   private scentEl: HTMLElement | null = null;
   /** aim the scent bloom: rel = bearing relative to the camera (0 = dead ahead),
    *  strength 0..1 (0 or null hides it). The bloom rides the screen edge. */
-  sniffGlow(rel: number | null, strength: number) {
+  sniffGlow(rel: number | null, strength: number, bone = false) {
     if (!this.scentEl) {
       this.scentEl = document.createElement('div');
       this.scentEl.className = 'scent pulse';
@@ -3074,6 +3116,10 @@ export class Hud {
     }
     const el = this.scentEl;
     if (rel === null || strength <= 0) { el.style.opacity = '0'; return; }
+    // a story smells GOLD; a buried bone smells BONE — the kid learns the difference
+    el.style.background = bone
+      ? 'radial-gradient(circle, rgba(240,234,214,0.6), rgba(240,234,214,0.2) 45%, transparent 70%)'
+      : 'radial-gradient(circle, rgba(232,194,49,0.55), rgba(232,194,49,0.18) 45%, transparent 70%)';
     // direction on screen: ahead = up. Push the bloom's centre out to the border.
     const dx = Math.sin(rel), dy = -Math.cos(rel);
     const w = window.innerWidth, h = window.innerHeight;
@@ -3083,15 +3129,29 @@ export class Hud {
     el.style.opacity = String(0.25 + 0.75 * Math.min(1, strength));
   }
 
-  /** a bark's WOOF! at a screen point */
-  woof(x: number, y: number) {
+  /** a bark's WOOF! (or any little shout — '🦴', '…') at a screen point */
+  woof(x: number, y: number, text = 'WOOF!') {
     const el = document.createElement('div');
     el.className = 'woof';
-    el.textContent = 'WOOF!';
+    el.textContent = text;
     el.style.left = (x - 26) + 'px';
     el.style.top = (y - 30) + 'px';
     document.querySelector('#hud')!.appendChild(el);
     setTimeout(() => el.remove(), 850);
+  }
+
+  /** 🕳 a spray of dirt out of the hole — a few clods per call, flung backwards */
+  dirt(x: number, y: number) {
+    for (let i = 0; i < 3; i++) {
+      const el = document.createElement('div');
+      el.className = 'dirtclod';
+      el.style.left = (x - 4 + (Math.random() - 0.5) * 18) + 'px';
+      el.style.top = (y - 4) + 'px';
+      el.style.setProperty('--dx', ((Math.random() - 0.5) * 70).toFixed(0) + 'px');
+      el.style.setProperty('--dy', (-30 - Math.random() * 50).toFixed(0) + 'px');
+      document.querySelector('#hud')!.appendChild(el);
+      setTimeout(() => el.remove(), 620);
+    }
   }
 
   // ---------- look up (click or V toggles the raised camera) ----------

@@ -246,6 +246,15 @@ export class Kid {
 
   private barkT = 0;
   private forceSniff = false;
+  private collarMesh!: THREE.Mesh;
+  private digP = 0;
+  private diggingNow = false;
+
+  /** the identity-neutral customization: your dog, your collar */
+  setCollar(hex: string) { (this.collarMesh.material as THREE.MeshStandardMaterial).color.set(hex); }
+
+  /** front paws flying — Game decides when a held sniff becomes a dig */
+  setDigging(on: boolean) { this.diggingNow = on; }
 
   /** one bark: head thrown up, ears perked — the sound is the caller's job */
   bark() { this.barkT = 0.38; }
@@ -578,6 +587,7 @@ export class Dog {
     // a red collar with a little gold tag — Clipper's got an owner
     const collar = new THREE.Mesh(new THREE.TorusGeometry(3.7, 0.55, 8, 18), mat('#b5402f'));
     collar.position.set(0, 4.0, 12.7); collar.scale.set(1.05, 0.9, 1);
+    this.collarMesh = collar;
     const tag = sph(0.7, '#e8c44f'); tag.position.set(0, 0.9, 13.1);
     this.trunk.add(body, chest, rump, neck, withers, saddle, belly, bib,
       haunch(-1), haunch(1), shoulder(-1), shoulder(1), this.headGroup, this.tail, collar, tag);
@@ -666,6 +676,15 @@ export class Dog {
 
   private barkT = 0;
   private forceSniff = false;
+  private collarMesh!: THREE.Mesh;
+  private digP = 0;
+  private diggingNow = false;
+
+  /** the identity-neutral customization: your dog, your collar */
+  setCollar(hex: string) { (this.collarMesh.material as THREE.MeshStandardMaterial).color.set(hex); }
+
+  /** front paws flying — Game decides when a held sniff becomes a dig */
+  setDigging(on: boolean) { this.diggingNow = on; }
 
   /** one bark: head thrown up, ears perked — the sound is the caller's job */
   bark() { this.barkT = 0.38; }
@@ -801,6 +820,21 @@ export class Dog {
     this.legs[3].rotation.x += this.sitP * 1.0;
     this.shins[2].rotation.x += this.sitP * 1.7;
     this.shins[3].rotation.x += this.sitP * 1.7;
+
+    // 🕳 digging: the front paws alternate in a fast scratch, rump up, nose right
+    // down at the hole. Blended over whatever the gait was doing so it eases in.
+    this.digP = ease(this.digP, this.diggingNow ? 1 : 0, dt, this.diggingNow ? 7 : 9);
+    if (this.digP > 0.01) {
+      const dp = this.t * 15;
+      const f0 = 0.55 + Math.sin(dp) * 0.7, f1 = 0.55 + Math.sin(dp + Math.PI) * 0.7;
+      this.legs[0].rotation.x = this.legs[0].rotation.x * (1 - this.digP) + f0 * this.digP;
+      this.legs[1].rotation.x = this.legs[1].rotation.x * (1 - this.digP) + f1 * this.digP;
+      this.shins[0].rotation.x = this.shins[0].rotation.x * (1 - this.digP) + Math.max(0, Math.sin(dp - 0.9)) * 0.9 * this.digP;
+      this.shins[1].rotation.x = this.shins[1].rotation.x * (1 - this.digP) + Math.max(0, Math.sin(dp + Math.PI - 0.9)) * 0.9 * this.digP;
+      this.trunk.rotation.x += this.digP * 0.26;      // rump up over the work
+      this.headGroup.rotation.x += this.digP * 0.35;  // nose in the hole
+      this.wagPhase += dt * 6 * this.digP;            // the tail cannot believe its luck
+    }
 
     // ears flop against the bounce
     const earTarget = THREE.MathUtils.clamp((bounce - this.prevBounce) * -2.2 / Math.max(dt, 0.001) * 0.016, -0.45, 0.45);

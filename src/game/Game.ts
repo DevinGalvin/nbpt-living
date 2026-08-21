@@ -17,6 +17,7 @@ import { HistoryRunner, SITES } from './history';
 import { RaceRunner, COURSES, refreshBoards, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles, courseEstSeconds, ghostEnabled, setGhostEnabled } from './race';
 import { EggRunner } from './eggs';
 import { GameAudio, MUSIC_STYLES } from './audio';
+import { townKey } from './saves';
 import { STYLE, SEASON } from '../world/style';
 import { startCrashWatch, mountDiagOverlay, heapMB, type DiagStats, type CrashRecord } from './diag';
 import { TOWN } from '@town';
@@ -293,6 +294,12 @@ export class Game {
   private sniffHoldTimer = 0;
   private sniffing = false;
   private zoomT = 0;               // seconds of zoomies left
+  private digHold = 0;             // held-sniff seconds toward a dig (negative = cooldown)
+  private digAnim = 0;             // seconds into the dig itself
+  private diggingNow = false;
+  private dirtAcc = 0;
+  private lastSpeed = 0;           // real px/s this frame — the dig gate wants "standing still"
+  private bones: Set<string> = new Set();
   private zoomAng = 0;
   private idleCalm = 0;            // quiet seconds — zoomies build up in here
   private townAcc = 0;
@@ -584,6 +591,14 @@ export class Game {
     // 🐾 tap = bark, hold = sniff. One thumb slot, two dog verbs; F mirrors it on
     // keys. Gated to the dog player — the legacy kid neither barks nor sniffs.
     if (!LEGACY_KID) {
+      try { this.bones = new Set(JSON.parse(localStorage.getItem(townKey('bones')) || '[]')); } catch { this.bones = new Set(); }
+      // the collar survives across towns — it is the same dog everywhere
+      const collar = localStorage.getItem('nbpt-collar') || '#b5402f';
+      (this.player as Dog).setCollar(collar);
+      this.hud.initCollar(['#b5402f', '#2a63c8', '#e8c231', '#2f7a4f', '#8f52a8', '#3a3f45'], collar, (hex) => {
+        (this.player as Dog).setCollar(hex);
+        try { localStorage.setItem('nbpt-collar', hex); } catch { /* private mode */ }
+      });
       this.hud.initBark(() => this.barkPress(), () => this.barkRelease());
       window.addEventListener('keydown', (e) => { if (e.code === 'KeyF' && !e.repeat && !this.hud.dialogueOpen) this.barkPress(); });
       window.addEventListener('keyup', (e) => { if (e.code === 'KeyF') this.barkRelease(); });
@@ -1064,6 +1079,67 @@ export class Game {
     if (p.z < 1) this.hud.woof((p.x * 0.5 + 0.5) * window.innerWidth, (-p.y * 0.5 + 0.5) * window.innerHeight);
   }
 
+  // ---------- 🦴 buried bones ----------
+  // Deterministic, data-free: one candidate per 800 px cell, a hash decides
+  // whether the cell holds a bone and where in it. The world seeds itself, every
+  // town gets treasure for free, and two kids on two iPads dig up the same spots
+  // (their own found-sets live in localStorage per town).
+  private boneAt(cx: number, cy: number): { x: number; z: number } | null {
+    let h = (Math.imul(cx, 374761393) + Math.imul(cy, 668265263) + 1442695041) >>> 0;
+    h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0;
+    h ^= h >>> 16;
+    if (h % 3 !== 0) return null;
+    return { x: cx * 800 + 120 + (h % 560), z: cy * 800 + 120 + ((h >>> 8) % 560) };
+  }
+
+  private nearestBone(px: number, pz: number, rad: number): { x: number; z: number; d: number } | null {
+    const c = Math.ceil(rad / 800);
+    const cx0 = Math.floor(px / 800), cy0 = Math.floor(pz / 800);
+    let best: { x: number; z: number; d: number } | null = null;
+    for (let cy = cy0 - c; cy <= cy0 + c; cy++) {
+      for (let cx = cx0 - c; cx <= cx0 + c; cx++) {
+        if (this.bones.has(cx + ',' + cy)) continue;
+        const b = this.boneAt(cx, cy);
+        if (!b) continue;
+        // a bone under pavement or water might as well not exist
+        if (this.index.onPavedAt(b.x, b.z) || this.index.isWaterAt(b.x, b.z)) continue;
+        const d = Math.hypot(b.x - px, b.z - pz);
+        if (d <= rad && (!best || d < best.d)) best = { ...b, d };
+      }
+    }
+    return best;
+  }
+
+  private playerScreen(): [number, number] | null {
+    const p = this.player.root.position.clone();
+    p.y += 8;
+    p.project(this.camera);
+    if (p.z >= 1) return null;
+    return [(p.x * 0.5 + 0.5) * window.innerWidth, (-p.y * 0.5 + 0.5) * window.innerHeight];
+  }
+
+  private endDig(found: boolean) {
+    this.diggingNow = false;
+    this.digAnim = 0;
+    (this.player as Dog).setDigging?.(false);
+    const sp = this.playerScreen();
+    if (found) {
+      const cx = Math.floor(this.px / 800), cy = Math.floor(this.pz / 800);
+      // the found key is the CELL of the bone actually dug — recompute from the spot
+      const b = this.nearestBone(this.px, this.pz, 80);
+      if (b) this.bones.add(Math.floor(b.x / 800) + ',' + Math.floor(b.z / 800));
+      else this.bones.add(cx + ',' + cy);
+      try { localStorage.setItem(townKey('bones'), JSON.stringify([...this.bones])); } catch { /* private mode */ }
+      this.audio.jingle();
+      if (sp) this.hud.woof(sp[0], sp[1] - 10, '🦴');
+      this.hud.announce('🦴 A buried bone!', `that's ${this.bones.size} dug up in ${TOWN.name}`);
+    } else {
+      this.audio.pop();
+      if (sp) this.hud.woof(sp[0], sp[1] - 10, '…');
+    }
+    this.digHold = -1.4;             // a beat before the next dig can wind up
+  }
+
   private startSniff() {
     this.sniffing = true;
     this.hud.setSniffState(true);
@@ -1071,6 +1147,8 @@ export class Game {
   }
 
   private endSniff() {
+    if (this.diggingNow) { this.diggingNow = false; this.digAnim = 0; (this.player as Dog).setDigging?.(false); }
+    this.digHold = 0;
     this.sniffing = false;
     this.hud.setSniffState(false);
     (this.player as Dog).setSniffing?.(false);
@@ -2106,6 +2184,7 @@ export class Game {
     const realVx = dt > 0 ? (nx - this.px) / dt : 0, realVz = dt > 0 ? (nz - this.pz) / dt : 0;
     this.px = nx;
     this.pz = nz;
+    this.lastSpeed = Math.hypot(realVx, realVz);
     this.player.setPos(this.px, this.pz);
     this.player.update(dt, realVx, realVz, this.sprinting, this.riding, this.onWater);
     this.player.setBackpack(this.hud.hasBackpack());   // worn pack appears once the 🎒 is earned
@@ -2338,11 +2417,39 @@ export class Game {
     // nearest UNREAD history marker. Strength is warmth — it saturates as you
     // close in, and dies entirely once every story in town is found.
     if (this.sniffing) {
-      const near = this.history?.nearestUnread(this.px, this.pz);
-      if (!near) this.hud.sniffGlow(null, 0);
-      else {
-        const rel = Math.atan2(near.x - this.px, near.z - this.pz) - this.camAz;
-        this.hud.sniffGlow(rel, Math.max(0.12, 1 - near.d / 6000));
+      // two smells, one nose: an unread story (gold) or a buried bone (bone-white).
+      // The bone wins only up close — the collection stays the headline act.
+      const near = this.history?.nearestUnread(this.px, this.pz) ?? null;
+      const bone = this.nearestBone(this.px, this.pz, 900);
+      if (bone && (!near || bone.d < near.d)) this.hud.sniffGlow(Math.atan2(bone.x - this.px, bone.z - this.pz) - this.camAz, Math.max(0.2, 1 - bone.d / 900), true);
+      else if (near) this.hud.sniffGlow(Math.atan2(near.x - this.px, near.z - this.pz) - this.camAz, Math.max(0.12, 1 - near.d / 6000));
+      else this.hud.sniffGlow(null, 0);
+
+      // 🕳 hold the sniff, stand still on soft ground, and it becomes a DIG —
+      // press length keeps being the only control: tap bark, hold sniff, keep
+      // holding dig. Most holes are just holes; the seeded spots hold bones.
+      const canDig = this.lastSpeed < 6 && !this.onWater && !this.riding && !this.inside && !this.flying
+        && !this.index.onPavedAt(this.px, this.pz);
+      if (!canDig) {
+        if (this.diggingNow) { this.diggingNow = false; this.digAnim = 0; (this.player as Dog).setDigging?.(false); }
+        this.digHold = Math.min(this.digHold, 0);
+      } else if (!this.diggingNow) {
+        this.digHold += dt;
+        if (this.digHold > 1.2) {
+          this.diggingNow = true;
+          this.digAnim = 0;
+          this.dirtAcc = 0;
+          (this.player as Dog).setDigging?.(true);
+        }
+      } else {
+        this.digAnim += dt;
+        this.dirtAcc += dt;
+        if (this.dirtAcc > 0.13) {
+          this.dirtAcc = 0;
+          const sp = this.playerScreen();
+          if (sp) this.hud.dirt(sp[0], sp[1] + 8);
+        }
+        if (this.digAnim > 1.6) this.endDig(!!this.nearestBone(this.px, this.pz, 80));
       }
     }
 
