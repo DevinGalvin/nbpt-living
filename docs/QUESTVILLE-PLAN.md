@@ -56,18 +56,27 @@ everything, client ships dark until a URL is configured. QuestVille gets a sibli
 `infra/classroom` — speaking an equally small protocol:
 
 ```
-POST /class        {teacherKey, roster:[names]}         -> {code}          create/update a class
-GET  /class?code=  ...                                  -> {roster, week}  student boot: the name-tap list
-POST /found        {code, student, site, quiz?}         -> {ok}            a kid found a place / answered
-GET  /live?code=&teacherKey=                            -> {grid}          the live view, polled every ~5s
-POST /week         {code, teacherKey, week}             -> {ok}            teacher picks the active part
+POST /class          {adminKey, name, roster:[names]}   -> {code, teacherKey}  admin creates a class
+GET  /classes?adminKey=                                 -> {classes}           admin room: every class + its keys
+DELETE /class        {adminKey, code}                   -> {ok}                admin-only: the data-deletion story
+GET  /class?code=    ...                                -> {roster, week}      student boot: the name-tap list
+POST /found          {code, student, site, quiz?}       -> {ok}                a kid found a place / answered
+GET  /live?code=&key=                                   -> {grid}              live view (teacher or admin key)
+POST /week           {code, key, week}                  -> {ok}                pick the active part
 ```
 
-The "teacher sign-in" of P8 is a **teacher key** — a long random string in the class
-link we hand the teacher, not an account system. One classroom of 25 polling every 5s
-for 30 min/week is ~9k requests/week: free tier holds this a hundred times over.
-Apps Script stays on the bench as the fallback (its Sheet-as-admin-panel trick is
-tempting for rosters, but the live view wants sub-second latency).
+**No accounts — two kinds of key** (Devin's call, 8/22: classes are admin-created).
+**Admin keys** are held by Devin, Joe, and selected teachers, provisioned out of band
+(a wrangler secret, not an endpoint); an admin creates classes, mints teacher keys,
+opens any dashboard, and deletes. A **teacher key** is minted per class at creation,
+handed to the teacher (printed handout), and opens exactly that class. A lost teacher
+key is an admin re-showing it — nothing ever needs recreating. The "teacher sign-in"
+of P8 is that key, pasted once per device.
+
+One classroom of 25 polling every 5s for 30 min/week is ~9k requests/week: free tier
+holds this a hundred times over. Apps Script stays on the bench as the fallback (its
+Sheet-as-admin-panel trick is tempting for rosters, but the live view wants
+sub-second latency).
 
 ### D3. Cloud progress is the source of truth *in school mode only*
 This is the sneaky-critical one. **Chromebook carts mean a kid gets a different
@@ -116,19 +125,31 @@ page. Growth between the two attempts is the number the teacher shows their prin
 - [ ] Low-spec mode if the Chromebook spike (§4) demands it: shadows off, fewer
       pedestrians/cars/dogs, shorter draw distance — a `?lite` flag first, auto later
 
-### Teacher page — `public/teach/` (static, plain, no game engine)
-- [ ] Create class / paste roster (first names only; the kid-safe name filter from
-      `race.ts`/`worker.js` runs here too — third grade will test it)
-- [ ] Pick the active part/week; copy the class link
-- [ ] Live view: roster × places grid, polled; "needs a nudge" = red-flagged rows
-- [ ] Quiz controls: open pre-quiz / open post-quiz / see results side by side
-- [ ] Print: one-page results summary per class
+### The 🏫 gate — teacher + admin UI lives in-game (wireframed 8/22)
+Not a separate `/teach/` page after all: one schoolhouse button in the slimmed
+top-left (travel · settings · 🏫; the 🏁 button hidden, the 🍂 season picker folded
+into ⚙️ settings). Tapping it branches on who you are: a public device gets an inert
+"School" sheet with a single key box behind "I'm a teacher"; a saved teacher key
+opens that class's dashboard; a saved admin key opens the admin room; a kid on a
+class link gets their week's panel with a tiny "Teachers ▸" in the corner.
+- [ ] HUD slim-down: hide the race button (system stays in code), move seasons into
+      the settings popover, add 🏫
+- [ ] The School sheet + key box (one box takes either kind of key)
+- [ ] Admin room: class list (open any dashboard / re-show a teacher key / delete),
+      create class — paste roster (first names only; the kid-safe name filter from
+      `race.ts`/`worker.js` runs here too — third grade will test it), hand-off
+      panel with link/code/teacher key + printed handout
+- [ ] Teacher dashboard, four tabs: **Live** (roster × places grid, polled;
+      zero-progress kids float to the top flagged), **Week** (pick the active part;
+      free-roam option), **Quiz** (open pre/post, results side by side), **Class**
+      (roster edit + merge for wrong-name taps, share link, print)
 
 ### Worker — `infra/classroom/`
-- [ ] The five endpoints from D2, KV-backed, CORS-pinned to clippertown.io
+- [ ] The endpoints from D2, KV-backed, CORS-pinned to clippertown.io
+- [ ] Admin keys as a wrangler secret; teacher keys minted per class
 - [ ] Name filter server-side (never trust the client — house rule)
 - [ ] Rate limits per class code; roster cap (~35); body-size caps
-- [ ] Delete-a-class endpoint = the entire data-deletion story (P11)
+- [ ] Admin-only delete-a-class = the entire data-deletion story (P11)
 
 ### Content
 - [ ] Tag all 36 markers with strands; write `ask` for each (~36 questions)
@@ -176,7 +197,8 @@ worker makes it a real engineering constraint:
 - No cookies, no fingerprinting, no third-party requests from school mode.
 - "Find your own street" is the kid steering Clipper there. We never ask where they
   live and nothing about the task stores it.
-- Deleting the class code deletes everything. Offer it to the teacher as a button.
+- Deleting the class deletes everything. It's one button in the admin room
+  (Devin, Joe, selected teachers); teachers ask an admin.
 - Write the one-page privacy note for teachers/families **before** the September
   demo — it's the first question a good teacher asks, and handing them a printed
   answer is how a two-person outfit looks trustworthy.
@@ -215,9 +237,9 @@ the real filter; dry run with one actual kid on one actual Chromebook, timed aga
 a 30-minute block. These two weeks are also the schedule's slack — the build can spill
 into them if it must.
 
-**Week 9 · Oct 19–23 — onboarding.** Teacher creates the real class, pastes the real
-roster, gets the real link. On-site tech check. Family letter goes home if the school
-wants one.
+**Week 9 · Oct 19–23 — onboarding.** An admin (Devin or Joe) creates the real
+classes and hands each teacher their key and printed handout. On-site tech check.
+Family letter goes home if the school wants one.
 
 **Week 10 · Oct 26+ — start**, on the school's calendar. During the unit: the live
 view doubles as our telemetry (where kids stall is a design bug), same-week fix
@@ -265,7 +287,8 @@ which is why it starts in Week 0.
   curriculum), indifferent on races — ask the teachers in Week 2.
 - **Quiz authorship:** we draft, teachers edit — confirm they want that pen.
 - **Which school/teachers exactly, and how many classes?** Sizes the roster cap and
-  the onboarding week.
+  the onboarding week. Related: which teachers get admin keys beyond Devin and Joe —
+  "selected teachers" needs names before Week 9.
 - **Worker domain:** `class.clippertown.io` vs the workers.dev URL — decide before
   the IT whitelist email, so we only ask them once.
 
