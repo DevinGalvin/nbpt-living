@@ -1089,6 +1089,8 @@ export class Game {
     this.audio.bark();
     const pl = this.player as Dog;
     pl.bark?.();
+    // a bark carries — any deer in earshot bolts, no wary step in between
+    if (this.life && !this.inside) this.life.scare(this.px, this.pz);
     // WOOF! at Clipper's screen spot — the same projection the pet-tap uses
     const p = this.player.root.position.clone();
     p.y += 14;

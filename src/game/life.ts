@@ -1122,6 +1122,19 @@ export class Life {
     }
   }
 
+  // 🐕 WOOF — a bark carries: any deer group with a member in earshot bolts
+  // straight to flight, skipping the wary freeze. (Wired from Game.bark. The
+  // leashed pups are made of sterner stuff and stay at heel.)
+  scare(x: number, z: number) {
+    for (const g of this.deerG) {
+      if (!g.active) continue;
+      for (const m of g.members) {
+        const dx = m.root.position.x - x, dz = m.root.position.z - z;
+        if (dx * dx + dz * dz < 450 * 450) { g.mood = 'flee'; break; }
+      }
+    }
+  }
+
   // the player can't walk through cars or people (and they step around the player)
   obstacleAt(x: number, z: number): boolean {
     for (const c of this.cars) {
