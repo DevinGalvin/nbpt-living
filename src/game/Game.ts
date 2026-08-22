@@ -15,7 +15,7 @@ import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
 import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
 import { initSchool } from './school';
-import { RaceRunner, COURSES, refreshBoards, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles, courseEstSeconds, ghostEnabled, setGhostEnabled } from './race';
+import { RaceRunner, COURSES, refreshBoards, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles, courseEstSeconds } from './race';
 import { EggRunner } from './eggs';
 import { GameAudio, MUSIC_STYLES } from './audio';
 import { townKey } from './saves';
@@ -568,7 +568,8 @@ export class Game {
     // `history` array in its pack gets the collection; a town without one simply
     // has none, with no 🏛 button and no plaques.
     if (SITES.length) this.history = new HistoryRunner(this.scene, this.index, this.hud, this.audio, (cb) => this.captureShot(cb));
-    this.hud.initGhost(ghostEnabled(), () => setGhostEnabled(!ghostEnabled()));
+    // (the 👻 ghost-rider settings row left with the 8/22 slim-down — in-world races
+    // still run ghosts off the stored pref in race.ts, they just lost their switch)
     // fade to a course's start line and begin — the picker path AND the results
     // card's RACE AGAIN both ride this
     const startRace = (id: string) => {

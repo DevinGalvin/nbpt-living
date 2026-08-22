@@ -1693,10 +1693,6 @@ export class Hud {
           <div class="sp-label"><div class="sp-name">🔊 Sound</div><div class="sp-sub">Music &amp; effects</div></div>
           <div class="sp-sw"></div>
         </div>
-        <div class="sp-row" data-set="ghost">
-          <div class="sp-label"><div class="sp-name">👻 Ghost rider</div><div class="sp-sub">Race the town's best line. Off = just you and the clock.</div></div>
-          <div class="sp-sw"></div>
-        </div>
         <div class="sp-season">
           <div class="sp-mhdr">🍂 SEASON</div>
           <div class="sp-srow"></div>
@@ -2939,17 +2935,6 @@ export class Hud {
     row.addEventListener('click', (e) => {
       e.stopPropagation();   // toggling sound keeps the popover open
       paint(onToggle());
-    });
-  }
-
-  // ---------- ghost-rider toggle (lives inside the ⚙️ settings popover) ----------
-
-  initGhost(on: boolean, onToggle: () => boolean) {
-    const row = document.querySelector('#hud .settings-pop .sp-row[data-set="ghost"]') as HTMLElement;
-    row.classList.toggle('on', on);
-    row.addEventListener('click', (e) => {
-      e.stopPropagation();   // keep the popover open, same as the sound row
-      row.classList.toggle('on', onToggle());
     });
   }
 
