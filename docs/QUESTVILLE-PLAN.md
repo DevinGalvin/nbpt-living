@@ -150,9 +150,13 @@ sentence we get to say in the privacy conversation with the district.
 
 ## 4. QA gates — each one blocks something
 
+> **Devin's call, 8/22:** no external Indigenous review. The pilot proceeds on the
+> dossier's published-source citations (`docs/research/indigenous-newbury.md`); the
+> dossier's open questions stay open, and the reading-level and fact bars below still
+> apply to those six cards like any others. (DISCOVERY-HANDOFF §5.1 records the same.)
+
 | Gate | Blocks | Status / move |
 |---|---|---|
-| **Indigenous review** of the 6 leading cards (Museum of Old Newbury, Newbury Historical Commission, ideally an Abenaki/Pennacook reviewer) | classroom start | **Longest lead time in the whole plan. Outreach emails go out this week — see §6, Week 0.** Already flagged blocking in DISCOVERY-HANDOFF §5.1 |
 | **Chromebook perf** on the actual school model | the demo being honest (P2) | Borrow/buy the school's model in Week 0; run the real game on it Week 1; decide if `?lite` is needed |
 | **School IT** | everything | District must not block clippertown.io + the worker domain; ask what student-data paperwork they need (MA districts commonly require a signed Student Data Privacy Agreement). First name + progress only (P11) is our whole case — start the conversation now, these move at district speed |
 | **Reading level** | any new copy shipping | The §3 bar from DISCOVERY-HANDOFF holds: plainer words, same weight; hard words explained in place; grep before shipping. Questions and quiz items count as copy |
@@ -181,10 +185,10 @@ worker makes it a real engineering constraint:
 
 ## 6. Timeline — back from "late October"
 
-**Week 0 · now (Aug 22–24) — the three emails.** (1) Indigenous-review outreach.
-(2) School contact: which Chromebook model, whitelist request, what privacy paperwork.
-(3) Line up the demo date with the teachers for the week of Sep 1. Get a
-school-model Chromebook in hand. *Nothing here is code and all of it is critical path.*
+**Week 0 · now (Aug 22–24) — the two emails.** (1) School contact: which Chromebook
+model, whitelist request, what privacy paperwork. (2) Line up the demo date with the
+teachers for the week of Sep 1. Get a school-model Chromebook in hand. *Nothing here
+is code and all of it is critical path.*
 
 **Week 1 · Aug 25–29 — scaffolding + the perf verdict.** School boot path, name-tap
 screen, `ask`/`strand` on `Site`, worker v0 (class/roster/found/live), Chromebook
@@ -206,9 +210,10 @@ teacher-page polish, teacher feedback folded in. Content freeze at the end of We
 Standards doc finalized with verified codes. Quiz reviewed by the teachers. Worker
 rate limits, roster caps, delete-class. Wrong-name/shared-device flows tested.
 
-**Weeks 7–8 · Oct 5–16 — external reality.** Indigenous review lands (deadline
-Oct 10 for fixes to fit); in-school test on the real network with the real filter;
-dry run with one actual kid on one actual Chromebook, timed against a 30-minute block.
+**Weeks 7–8 · Oct 5–16 — external reality.** In-school test on the real network with
+the real filter; dry run with one actual kid on one actual Chromebook, timed against
+a 30-minute block. These two weeks are also the schedule's slack — the build can spill
+into them if it must.
 
 **Week 9 · Oct 19–23 — onboarding.** Teacher creates the real class, pastes the real
 roster, gets the real link. On-site tech check. Family letter goes home if the school
@@ -220,33 +225,33 @@ cadence, weekly teacher check-in. Post-quiz at the end; debrief scored against t
 own Week-2 definition of success.
 
 **Slack in the plan:** the demo needs Weeks 0–2 only; the classroom needs everything.
-If the build runs long, Weeks 7–8 compress; the Indigenous review and school IT do
-not — which is why both start in Week 0.
+If the build runs long, Weeks 7–8 compress; the school IT conversation does not —
+which is why it starts in Week 0.
 
 ---
 
 ## 7. Risks, ranked
 
-1. **Indigenous review slips** — external, unhurryable, already flagged as blocking.
-   *Mitigation:* Week-0 start, an honorarium offered, and a hard decision date
-   (Oct 10). If it truly can't land: the call on whether the unit starts without
-   those six cards is Devin's + the reviewers' + the teacher's, made in October with
-   eyes open — not defaulted into by a deadline.
-2. **District IT / privacy paperwork stalls** — external, slow by design.
+1. **District IT / privacy paperwork stalls** — external, slow by design.
    *Mitigation:* Week-0 ask; the no-accounts/no-PII architecture *is* the fast path
    through most district checklists.
-3. **Chromebook performance** — a Three.js town with shadows and 30 live agents on
+2. **Chromebook performance** — a Three.js town with shadows and 30 live agents on
    a $220 laptop. *Mitigation:* Week-1 spike on the real model; `?lite` mode is a
    day's work if needed; demo on their hardware so nobody is surprised in November.
-4. **Content volume underestimated** — ~12 new markers, ~44 questions, 8 quiz items,
+3. **Content volume underestimated** — ~12 new markers, ~44 questions, 8 quiz items,
    a standards doc, all at the reading-level bar, all placement-checked.
    *Mitigation:* it's scheduled as three full weeks, and Newburyport Then ships the
    demo without a word of new story.
-5. **Shared devices scramble identities** — wrong-name taps, two classes on one cart.
+4. **Shared devices scramble identities** — wrong-name taps, two classes on one cart.
    *Mitigation:* confirm screen, teacher-side reassign/merge on the live view.
-6. **Scope creep in the classroom layer** — the worker wants to become an LMS.
+5. **Scope creep in the classroom layer** — the worker wants to become an LMS.
    *Mitigation:* the D2 protocol is the fence; anything not expressible in those five
    endpoints waits for a second pilot.
+6. **A challenge to the Indigenous cards' accuracy lands mid-unit** — with no external
+   review, the dossier's citations are the whole defense. *Mitigation:* the citations
+   are real and in-repo (`docs/research/indigenous-newbury.md`); if a teacher, parent,
+   or historical society raises something, the dossier answers it or the card gets
+   corrected same-week like any other bug.
 
 ---
 
@@ -268,5 +273,5 @@ not — which is why both start in Week 0.
 
 *The teacher-facing promise this plan serves:*
 *[docs/questville-teacher-overview.pdf](questville-teacher-overview.pdf).*
-*The content-quality bars it inherits: DISCOVERY-HANDOFF.md §3 (reading level) and
-§5.1 (Indigenous review). The infra pattern it copies: infra/leaderboard/README.md.*
+*The content-quality bar it inherits: DISCOVERY-HANDOFF.md §3 (reading level).
+The infra pattern it copies: infra/leaderboard/README.md.*

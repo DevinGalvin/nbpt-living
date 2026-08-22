@@ -107,9 +107,10 @@ begin in 1635. Dossier with citations and open questions:
 Masconomet), then Stage Fort, the Cut, the Man at the Wheel, the sea serpent, Dogtown.
 
 > ⚠️ **The Indigenous cards have NOT been reviewed by an Indigenous reader.** Everything
-> is from published sources with citations, but before a classroom uses this it should be
-> read by the Museum of Old Newbury, the Newbury Historical Commission, and ideally an
-> Abenaki/Pennacook reviewer. This is the single most important open item.
+> is from published sources with citations. An external review (Museum of Old Newbury,
+> the Newbury Historical Commission, an Abenaki/Pennacook reader) was recommended here
+> as blocking; **Devin decided on 8/22 not to pursue one** — see §5.1. The dossiers'
+> citations are the record of where every claim comes from.
 
 **Heroes built this pass:** the Garrison statue (added to the map by hand — OSM has no
 node), Old South Presbyterian, Whale's Jaw, all 21 Babson boulders, the Timothy Dexter
@@ -123,7 +124,11 @@ Ropes Mansion. The card got the **ship** instead, which it was always about.
 
 ## 5. Open items, ranked
 
-1. **Indigenous review** before classroom use. Blocking for the pilot.
+1. ~~**Indigenous review** before classroom use. Blocking for the pilot.~~
+   **Devin's call, 8/22: no external review.** The pilot proceeds on the dossiers'
+   published-source citations (`docs/research/indigenous-newbury.md`,
+   `docs/research/indigenous-salem.md`); their open questions stay open, and the
+   reading-level bar (§3) applies to those cards like any others.
 2. **Read-aloud is removed — twice now — and should not be rebuilt on Web Speech.**
    The need is real (third graders, and the cards *are* the lesson), but
    `speechSynthesis` can only offer what the device has installed. Attempt one used the
