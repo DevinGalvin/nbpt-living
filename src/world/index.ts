@@ -2714,7 +2714,7 @@ function pointInRing(x: number, y: number, pts: number[]): boolean {
   return inside;
 }
 
-function pointInPoly(x: number, y: number, poly: Poly): boolean {
+export function pointInPoly(x: number, y: number, poly: Poly): boolean {
   if (!pointInRing(x, y, poly.p)) return false;
   if (poly.h) for (const h of poly.h) if (pointInRing(x, y, h)) return false;
   return true;

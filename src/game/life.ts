@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { WorldIndex, CHUNK } from '../world/index';
+import { WorldIndex, CHUNK, pointInPoly, distToPolylineSq } from '../world/index';
 import { hash32, mulberry32, SEASON } from '../world/style';
 import { WATER_Y } from '../three/water';
 import { TOWN } from '@town';
@@ -40,6 +40,25 @@ const COSTUMES = ['witch', 'pumpkin', 'vampire', 'devil'];   // fall trick-or-tr
 const ROAM_GHOSTS = 5;   // fall: translucent ghosts drifting the streets at dusk
 const CATS = 3;          // fall: black cats slinking the sidewalks
 const GRAVEYARD = TOWN.attractions.graveyard;   // graveyard mist + the witch circles here (per-town)
+
+// 🐕 the town's pet dogs, out on their leashes in every season. Every breed
+// here is SMALLER than Clipper, and none is a golden — he stays the only
+// golden retriever in town.
+const PUPS = 4;
+const PUP_BREEDS = [
+  { fur: '#2a2722', belly: '#3a362e', ear: '#1e1c18', size: 1.25, stretch: 1.0, leg: 1.0 },   // black lab
+  { fur: '#b9885a', belly: '#e9e0cc', ear: '#5c4028', size: 1.0, stretch: 1.0, leg: 0.9 },    // beagle
+  { fur: '#e6e0d0', belly: '#e6e0d0', ear: '#d6cdb8', size: 0.8, stretch: 0.9, leg: 0.8 },    // little white terrier
+  { fur: '#5e3d26', belly: '#7a5638', ear: '#472e1c', size: 0.9, stretch: 1.55, leg: 0.5 },   // dachshund
+];
+
+// 🦌 white-tailed deer browsing where deer actually browse: the mapped woods,
+// reserves and open greens, shy of the pavement. Small family groups — a doe
+// with fawns in the green half of the year, mixed groups (the odd buck still
+// carrying antlers) in the cold half.
+const DEER_GROUPS = 3;
+const DEER_LAND = new Set(['wood', 'reserve', 'scrub', 'park', 'cemetery', 'grass']);
+const DEER_COAT = SEASON === 'summer' || SEASON === 'spring' ? '#a3794f' : '#8d7862';   // red summer coat, grey-brown winter
 
 const matCache = new Map<string, THREE.MeshLambertMaterial>();
 function mat(hex: string): THREE.MeshLambertMaterial {
@@ -140,6 +159,7 @@ class Walker {
   speed = 30 + Math.random() * 22;
   sepX = 0;          // persistent side-step so walkers never overlap
   sepZ = 0;
+  size = 1;          // the body scale — a leashed dog strings its leash to the hand
 
   constructor(seed: number, costume?: string) {
     const rng = mulberry32(seed);
@@ -186,13 +206,16 @@ class Walker {
       } else if (costume === 'devil') {
         for (const sx of [-1, 1]) { const horn = cone(0.7, 2.4, '#6e1a16'); horn.position.set(sx * 2.1, 30.4, 0); horn.rotation.z = sx * -0.3; this.heading.add(horn); }
       }
-      this.heading.scale.setScalar(0.6 + rng() * 0.1);
+      this.size = 0.6 + rng() * 0.1;
     } else {
-      this.heading.scale.setScalar(0.92 + rng() * 0.18);
+      this.size = 0.92 + rng() * 0.18;
     }
+    this.heading.scale.setScalar(this.size);
     this.heading.rotation.y = this.face;
     this.root.add(this.heading);
   }
+
+  get facing(): number { return this.face; }
 
   // returns true when the end of the current path is reached
   advance(dt: number, groundY: number): boolean {
@@ -508,6 +531,281 @@ class Cat {
   }
 }
 
+const _up = new THREE.Vector3(0, 1, 0);
+const _dir = new THREE.Vector3();
+
+// a pet dog at heel beside its walker, on the end of a real leash. The dog
+// chases a point at its person's side; every so often a sniff-stop pins its
+// nose to the ground until the slack runs out, then it trots to catch up.
+class LeashDog {
+  root = new THREE.Group();
+  leash: THREE.Mesh;                    // scene-level: re-strung hand → collar every frame
+  private heading = new THREE.Group();
+  private headGrp = new THREE.Group();  // pitches down for the sniff
+  private legs: THREE.Mesh[] = [];
+  private tailM: THREE.Mesh;
+  private phase = Math.random() * 6;
+  private face = Math.random() * Math.PI * 2;
+  private sniffT = 0;
+  private nextSniff: number;
+  private side: number;                 // which side of the walker this dog heels on
+  private collarY: number;
+
+  constructor(seed: number) {
+    const rng = mulberry32(seed);
+    const B = PUP_BREEDS[Math.floor(rng() * PUP_BREEDS.length)];
+    const bodyLen = 4.4 * B.stretch, legLen = 3.4 * B.leg;
+    const bodyY = 2.6 + legLen;
+    const body = cap(2.1, bodyLen, B.fur); body.rotation.x = Math.PI / 2; body.position.set(0, bodyY, 0);
+    const belly = cap(1.6, bodyLen * 0.8, B.belly); belly.rotation.x = Math.PI / 2; belly.position.set(0, bodyY - 1, 0.2);
+    this.headGrp.position.set(0, bodyY + 1.6, bodyLen / 2 + 1.2);
+    const head = sph(2, B.fur, 1, 0.95, 0.95); head.position.set(0, 0.6, 0.4);
+    const snout = cap(1, 1.2, B.belly); snout.rotation.x = Math.PI / 2; snout.position.set(0, 0.1, 2.2);
+    const nose = sph(0.5, '#26211c'); nose.position.set(0, 0.35, 3.2);
+    for (const sx of [-1, 1]) {
+      const ear = sph(1.05, B.ear, 0.4, 1.15, 0.8); ear.position.set(sx * 1.7, 1.4, 0.2);
+      this.headGrp.add(ear);
+    }
+    this.headGrp.add(head, snout, nose);
+    this.tailM = cap(0.55, 2.2, B.fur, true);
+    this.tailM.position.set(0, bodyY + 1.2, -(bodyLen / 2 + 1.2));
+    this.tailM.rotation.x = 2.4;        // up and back, mid-wag most of the day
+    for (const [lx, lz] of [[-1.4, bodyLen / 2 - 0.4], [1.4, bodyLen / 2 - 0.4], [-1.4, -(bodyLen / 2 - 0.4)], [1.4, -(bodyLen / 2 - 0.4)]]) {
+      const leg = cap(0.62, legLen, B.fur, true); leg.position.set(lx, bodyY + 0.6, lz);
+      this.legs.push(leg); this.heading.add(leg);
+    }
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.3, 6, 12), mat(['#8a3a2e', '#3e5c84', '#54652c'][Math.floor(rng() * 3)]));
+    collar.rotation.x = Math.PI / 2 - 0.35; collar.position.set(0, bodyY + 1, bodyLen / 2 - 0.3);
+    collar.castShadow = true;
+    this.heading.add(body, belly, this.headGrp, this.tailM, collar);
+    const sc = B.size * (0.92 + rng() * 0.16);
+    this.heading.scale.setScalar(sc);
+    this.root.add(this.heading);
+    this.side = rng() < 0.5 ? -1 : 1;
+    this.nextSniff = 2 + rng() * 6;
+    this.collarY = (bodyY + 1.3) * sc;
+    const lg = new THREE.CylinderGeometry(0.22, 0.22, 1, 5);
+    lg.translate(0, 0.5, 0);            // pivot at one end so position+scale strings it
+    this.leash = new THREE.Mesh(lg, mat('#4a3a2c'));
+  }
+
+  follow(dt: number, w: Walker, gy: number) {
+    // heel point: beside the near hand, half a stride back
+    const wf = w.facing;
+    const fx = Math.sin(wf), fz = Math.cos(wf);
+    const rx = fz * this.side, rz = -fx * this.side;
+    const tx = w.root.position.x + rx * 7.5 - fx * 4.5;
+    const tz = w.root.position.z + rz * 7.5 - fz * 4.5;
+    let dx = tx - this.root.position.x, dz = tz - this.root.position.z;
+    let dist = Math.hypot(dx, dz);
+    if (dist > 260) {   // the walker was recycled offscreen — pop over with them
+      this.root.position.set(tx, gy, tz);
+      this.face = wf;
+      dx = 0; dz = 0; dist = 0;
+    }
+    this.nextSniff -= dt;
+    if (this.sniffT > 0) {
+      this.sniffT -= dt;
+      if (dist > 24) this.sniffT = 0;               // out of slack — moving on
+    } else if (this.nextSniff <= 0 && dist < 14) {
+      this.sniffT = 0.9 + (this.phase % 1);         // something smells important
+      this.nextSniff = 4 + ((this.phase * 7) % 9);
+    }
+    const chase = this.sniffT > 0 ? 0 : Math.min(95, Math.max(0, (dist - 2) * 4));
+    if (dist > 0.5 && chase > 0) {
+      this.root.position.x += (dx / dist) * chase * dt;
+      this.root.position.z += (dz / dist) * chase * dt;
+      this.face = lerpAngle(this.face, Math.atan2(dx, dz), Math.min(1, dt * 7));
+    } else {
+      this.face = lerpAngle(this.face, wf, Math.min(1, dt * 3));
+    }
+    this.phase += dt * (3 + chase * 0.14);
+    const s = Math.sin(this.phase) * Math.min(1, chase / 26) * 0.6;
+    this.legs[0].rotation.x = s; this.legs[3].rotation.x = s;      // diagonal pairs
+    this.legs[1].rotation.x = -s; this.legs[2].rotation.x = -s;
+    const sn = this.sniffT > 0 ? 0.8 : 0;
+    this.headGrp.rotation.x += (sn - this.headGrp.rotation.x) * Math.min(1, dt * 8);
+    this.tailM.rotation.z = Math.sin(this.phase * 1.6) * (0.3 + (sn ? 0.25 : 0));
+    this.heading.rotation.y = this.face;
+    this.root.position.y += (gy - this.root.position.y) * Math.min(1, dt * 10);
+    // re-string the leash from the hand to the collar
+    const hs = w.size;
+    const hx = w.root.position.x + rx * 5.9 * hs;
+    const hy = w.root.position.y + 14.5 * hs;      // the bottom of the swinging arm
+    const hz = w.root.position.z + rz * 5.9 * hs;
+    const cx = this.root.position.x + Math.sin(this.face) * 2.2;
+    const cy = this.root.position.y + this.collarY;
+    const cz = this.root.position.z + Math.cos(this.face) * 2.2;
+    _dir.set(cx - hx, cy - hy, cz - hz);
+    const ll = _dir.length();
+    this.leash.position.set(hx, hy, hz);
+    this.leash.scale.set(1, Math.max(0.001, ll), 1);
+    if (ll > 0.001) this.leash.quaternion.setFromUnitVectors(_up, _dir.multiplyScalar(1 / ll));
+  }
+}
+
+// a white-tailed deer. The look lives in the big ears and the tail; the life
+// lives in the flight response — graze head-down, freeze head-UP as the player
+// closes in, then bound away with the white flag raised. (You play a DOG:
+// of course they run.) Groups share one mood — see the deer loop in Life.
+class Deer {
+  root = new THREE.Group();
+  face = Math.random() * Math.PI * 2;
+  fawn: boolean;
+  blocked: (x: number, z: number) => boolean = () => false;   // wired by Life at spawn
+  private heading = new THREE.Group();
+  private neck = new THREE.Group();     // pitches: down to the grass, up on alert
+  private tail = new THREE.Group();     // pitches up to flash the white
+  private legs: THREE.Mesh[] = [];
+  private phase = Math.random() * 6;
+  private headDown = 0;
+  private grazeT = 1 + Math.random() * 2;
+  private grazing = true;
+  private wx = 0; private wz = 0;       // idle amble target inside the clearing
+
+  constructor(seed: number, kind: 'doe' | 'buck' | 'fawn') {
+    const rng = mulberry32(seed);
+    this.fawn = kind === 'fawn';
+    const coat = this.fawn ? '#b08a58' : DEER_COAT;
+    const pale = '#e7dfcb';
+    const legLen = 9, bodyY = 13;
+    const body = cap(3.1, 7.6, coat); body.rotation.x = Math.PI / 2; body.position.set(0, bodyY, -0.4);
+    const chest = sph(3.2, coat, 0.95, 1, 0.9); chest.position.set(0, bodyY + 0.4, 3.6);
+    const rump = sph(2.9, coat, 1, 0.95, 0.9); rump.position.set(0, bodyY + 0.4, -4.6);
+    const rumpPatch = sph(2.2, pale, 0.9, 0.8, 0.5); rumpPatch.position.set(0, bodyY + 0.7, -6.9);
+    const belly = cap(2.2, 6, pale); belly.rotation.x = Math.PI / 2; belly.position.set(0, bodyY - 1.4, 0);
+    // the neck leaves the chest leaning FORWARD — a deer carries its head ahead
+    // of the shoulders, never straight up on a post (straight up reads as a llama).
+    // It's also LONG: the graze pitch below has to reach the head down to the grass.
+    this.neck.position.set(0, bodyY + 1.4, 4.4);
+    const neckM = cap(1.3, 3.6, coat); neckM.position.set(0, 2.2, 2.1); neckM.rotation.x = 0.72;
+    // a long wedge of a head, angled down-forward off the neck's top
+    const head = sph(1.65, coat, 0.9, 1, 1.4); head.position.set(0, 4.6, 4.6); head.rotation.x = 0.5;
+    const snout = cap(0.8, 1.9, coat); snout.rotation.x = Math.PI / 2 - 0.5; snout.position.set(0, 3.9, 6.1);
+    const nose = sph(0.48, '#241f1a'); nose.position.set(0, 3.4, 7);
+    const chin = sph(0.75, pale, 1, 0.7, 1); chin.position.set(0, 3.3, 5.9);
+    this.neck.add(neckM, head, snout, nose, chin);
+    for (const sx of [-1, 1]) {
+      // the ears are half the deer: big, wide-set, tipped outward
+      const ear = sph(1.5, coat, 0.42, 1.25, 0.7); ear.position.set(sx * 2, 6.2, 3.2);
+      ear.rotation.z = sx * 0.7;
+      const earIn = sph(1, pale, 0.3, 1.1, 0.55); earIn.position.set(sx * 2.1, 6.2, 3.5);
+      earIn.rotation.z = sx * 0.7;
+      const eye = sph(0.42, '#221d18'); eye.position.set(sx * 1.1, 5.1, 4.6);
+      this.neck.add(ear, earIn, eye);
+    }
+    if (kind === 'buck') {
+      const ant = '#b09a78';
+      for (const sx of [-1, 1]) {
+        // one clean beam sweeping up-and-out with a single tine — a readable rack
+        // beats an accurate tangle at this size
+        const beam = cap(0.3, 4.2, ant); beam.position.set(sx * 1.5, 7.4, 3); beam.rotation.z = sx * 0.5; beam.rotation.x = 0.2;
+        const tine = cap(0.22, 2.2, ant); tine.position.set(sx * 2.5, 8.8, 3.2); tine.rotation.z = sx * 1.1;
+        this.neck.add(beam, tine);
+      }
+    }
+    // the tail: coat on the outside, white beneath — the flag is this group
+    // pitching up so the white shows to whatever is chasing
+    this.tail.position.set(0, bodyY + 1.6, -6.7);
+    const tailW = cap(0.7, 1.8, pale, true); tailW.position.z = 0.22;
+    const tailD = cap(0.62, 1.7, coat, true); tailD.position.z = -0.22;
+    this.tail.add(tailW, tailD);
+    this.tail.rotation.x = 0.25;
+    for (const [lx, lz] of [[-1.9, 2.8], [1.9, 2.8], [-1.9, -3.6], [1.9, -3.6]]) {
+      const leg = cap(0.6, legLen, coat, true); leg.position.set(lx, bodyY + 1, lz);
+      this.legs.push(leg); this.heading.add(leg);
+    }
+    if (this.fawn) {
+      for (let i = 0; i < 10; i++) {    // the spots — nothing says fawn faster. ON the
+        const sx = rng() < 0.5 ? -1 : 1; // coat surface, not buried inside the body
+        const a = rng() * 1.1;           // 0 = straight up the spine, 1.1 = down the flank
+        const spot = sph(0.36, pale);
+        spot.position.set(sx * Math.sin(a) * 3.1, bodyY + Math.cos(a) * 3.1, (rng() - 0.5) * 6.8);
+        this.heading.add(spot);
+      }
+    }
+    this.heading.add(body, chest, rump, rumpPatch, belly, this.neck, this.tail);
+    this.heading.scale.setScalar((kind === 'buck' ? 1.25 : kind === 'fawn' ? 0.62 : 1.15) * (0.96 + rng() * 0.08));
+    this.root.add(this.heading);
+  }
+
+  step(dt: number, mood: 'calm' | 'wary' | 'flee', hx: number, hz: number, px: number, pz: number, gy: number) {
+    const x = this.root.position.x, z = this.root.position.z;
+    if (mood === 'flee') {
+      // bound straight away from the player, veering off anything solid
+      const ax = x - px, az = z - pz;
+      const d = Math.hypot(ax, az) || 1;
+      let want = Math.atan2(ax / d, az / d);
+      for (const off of [0, 0.7, -0.7, 1.4, -1.4]) {
+        if (!this.blocked(x + Math.sin(want + off) * 34, z + Math.cos(want + off) * 34)) { want += off; break; }
+      }
+      this.face = lerpAngle(this.face, want, Math.min(1, dt * 6));
+      const spd = this.fawn ? 235 : 265;
+      this.root.position.x += Math.sin(this.face) * spd * dt;
+      this.root.position.z += Math.cos(this.face) * spd * dt;
+      this.phase += dt * 6.5;
+      const hop = Math.abs(Math.sin(this.phase));
+      this.root.position.y = gy + hop * 5.2;                     // the bounding arc
+      this.heading.rotation.x = Math.cos(this.phase) * -0.22;    // nose rises into each leap
+      const g = Math.sin(this.phase) * 0.9;
+      this.legs[0].rotation.x = -0.4 + g; this.legs[1].rotation.x = -0.4 + g * 0.9;
+      this.legs[2].rotation.x = 0.5 - g; this.legs[3].rotation.x = 0.5 - g * 0.9;
+      this.neck.rotation.x += (-0.15 - this.neck.rotation.x) * Math.min(1, dt * 8);
+      this.tail.rotation.x += (-2 - this.tail.rotation.x) * Math.min(1, dt * 8);   // white flag UP
+      this.heading.rotation.y = this.face;
+      return;
+    }
+    this.root.position.y += (gy - this.root.position.y) * Math.min(1, dt * 10);
+    this.heading.rotation.x *= Math.max(0, 1 - dt * 6);
+    this.tail.rotation.x += (0.25 - this.tail.rotation.x) * Math.min(1, dt * 4);
+    this.tail.rotation.z = Math.sin(this.phase * 1.3) * 0.22;    // the idle swish
+    if (mood === 'wary') {
+      // frozen mid-chew: head snaps up, eyes and ears on the player
+      this.face = lerpAngle(this.face, Math.atan2(px - x, pz - z), Math.min(1, dt * 5));
+      this.headDown += (0 - this.headDown) * Math.min(1, dt * 9);
+      for (const l of this.legs) l.rotation.x *= Math.max(0, 1 - dt * 8);
+    } else {
+      this.grazeT -= dt;
+      if (this.grazeT <= 0) {
+        this.grazing = !this.grazing;
+        if (this.grazing) {
+          this.grazeT = 2.2 + Math.random() * 2.6;
+        } else {
+          this.grazeT = 1.6 + Math.random() * 2;
+          // amble to fresh grass — stay near the family, skip anything solid
+          for (let tries = 0; tries < 3; tries++) {
+            const a = Math.random() * Math.PI * 2, r = 30 + Math.random() * 110;
+            const nx = hx + Math.cos(a) * r, nz = hz + Math.sin(a) * r;
+            if (!this.blocked(nx, nz)) { this.wx = nx; this.wz = nz; break; }
+          }
+        }
+      }
+      if (this.grazing) {
+        this.headDown += (1 - this.headDown) * Math.min(1, dt * 5);
+        for (const l of this.legs) l.rotation.x *= Math.max(0, 1 - dt * 8);
+      } else {
+        this.headDown += (0.3 - this.headDown) * Math.min(1, dt * 5);
+        const dx = this.wx - x, dz = this.wz - z;
+        const dd = Math.hypot(dx, dz);
+        if (dd > 7) {
+          this.face = lerpAngle(this.face, Math.atan2(dx, dz), Math.min(1, dt * 4));
+          this.root.position.x += Math.sin(this.face) * 24 * dt;
+          this.root.position.z += Math.cos(this.face) * 24 * dt;
+          this.phase += dt * 5;
+          const s = Math.sin(this.phase) * 0.35;
+          this.legs[0].rotation.x = s; this.legs[3].rotation.x = s;
+          this.legs[1].rotation.x = -s; this.legs[2].rotation.x = -s;
+        }
+      }
+    }
+    // headDown drives the neck: 0 = the built-in forward carriage (head AHEAD of
+    // the shoulders — pulling it more upright reads llama, not deer), 1 = muzzle
+    // swung right down into the grass
+    this.neck.rotation.x += ((this.headDown * 1.9 - 0.12) - this.neck.rotation.x) * Math.min(1, dt * 6);
+    this.heading.rotation.y = this.face;
+  }
+}
+
 // a witch on a broomstick crossing the night sky (fall) — a high silhouette, like the bats
 class Witch {
   root = new THREE.Group();
@@ -718,6 +1016,8 @@ export class Life {
   private cats: Cat[] = [];            // fall: black cats slinking the sidewalks
   private witch: Witch | null = null;  // fall: a witch crossing the night sky
   private mist: GraveMist | null = null;   // fall: graveyard mist at Old Hill
+  private pups: { d: LeashDog; w: Walker }[] = [];   // pet dogs at heel on their leashes
+  private deerG: { members: Deer[]; cx: number; cz: number; mood: 'calm' | 'wary' | 'flee'; active: boolean }[] = [];
 
   constructor(scene: THREE.Scene, index: WorldIndex) {
     this.index = index;
@@ -729,6 +1029,28 @@ export class Life {
       p.root.position.set(0, 0, 1e7);
       this.peds.push(p);
       scene.add(p.root);
+    }
+    // a few of the walkers head out with the dog — leash, sniff-stops and all
+    for (let i = 0; i < PUPS; i++) {
+      const d = new LeashDog(i * 389 + 5);
+      d.root.position.set(0, 0, 1e7);
+      this.pups.push({ d, w: this.peds[(i * 5 + 2) % PEDS] });
+      scene.add(d.root, d.leash);
+    }
+    // deer families, parked offscreen until update() finds them a clearing
+    for (let i = 0; i < DEER_GROUPS; i++) {
+      const rng = mulberry32(i * 811 + 41);
+      const fawns = SEASON === 'spring' || SEASON === 'summer';
+      const buck = !fawns && rng() < 0.45;
+      const members: Deer[] = [new Deer(i * 131 + 7, buck ? 'buck' : 'doe')];
+      const extra = 1 + Math.floor(rng() * 2);
+      for (let j = 0; j < extra; j++) members.push(new Deer(i * 131 + 17 + j * 29, fawns ? 'fawn' : 'doe'));
+      for (const m of members) {
+        m.blocked = (x, z) => this.index.isBlocked(x, z) || this.index.isWaterAt(x, z);
+        m.root.position.set(0, 0, 1e7);
+        scene.add(m.root);
+      }
+      this.deerG.push({ members, cx: 0, cz: 1e7, mood: 'calm', active: false });
     }
     for (let i = 0; i < CARS; i++) {
       const car = new TrafficCar(i * 569 + 7);
@@ -987,6 +1309,53 @@ export class Life {
       a.root.position.z += a.sepZ;
     }
 
+    // the pet dogs heel beside their walkers — after separation, so the leash
+    // strings to where the person actually ended up standing
+    for (const { d, w } of this.pups) {
+      d.follow(dt, w, this.groundAt(d.root.position.x, d.root.position.z, d.root.position.y));
+    }
+
+    // deer families browse the mapped woods and greens. One mood per group:
+    // calm → wary (heads up, frozen) as the player closes in → flight (white
+    // flags, bounding) if the dog keeps coming. Recycled far away, never in view.
+    for (const g of this.deerG) {
+      const gdx = g.cx - px, gdz = g.cz - pz;
+      if (!g.active || gdx * gdx + gdz * gdz > 2300 * 2300) {
+        g.active = false;
+        const spot = this.deerSpot(px, pz, fx, fz, rng);
+        if (spot) {
+          g.cx = spot.x; g.cz = spot.z; g.mood = 'calm'; g.active = true;
+          for (const m of g.members) {
+            let mx = spot.x, mz = spot.z;
+            for (let tries = 0; tries < 5; tries++) {   // fan the family out over the clearing
+              const a = rng() * Math.PI * 2, r = 14 + rng() * 42;
+              const tx = spot.x + Math.cos(a) * r, tz = spot.z + Math.sin(a) * r;
+              if (!this.index.isBlocked(tx, tz) && !this.index.isWaterAt(tx, tz)) { mx = tx; mz = tz; break; }
+            }
+            m.root.position.set(mx, this.index.heightAtPx(mx, mz), mz);
+            m.face = rng() * Math.PI * 2;
+          }
+        }
+        continue;
+      }
+      let nearSq = Infinity;
+      for (const m of g.members) {
+        const mdx = m.root.position.x - px, mdz = m.root.position.z - pz;
+        nearSq = Math.min(nearSq, mdx * mdx + mdz * mdz);
+      }
+      if (g.mood !== 'flee' && nearSq < 150 * 150) g.mood = 'flee';
+      else if (g.mood === 'calm' && nearSq < 300 * 300) g.mood = 'wary';
+      else if (g.mood === 'wary' && nearSq > 380 * 380) g.mood = 'calm';
+      else if (g.mood === 'flee' && nearSq > 700 * 700) g.mood = 'wary';   // pulled up, looking back
+      for (const m of g.members) {
+        m.step(dt, g.mood, g.cx, g.cz, px, pz, this.index.heightAtPx(m.root.position.x, m.root.position.z));
+      }
+      if (g.mood === 'flee') {   // the anchor runs with them, so recycling measures from where they ended up
+        g.cx = g.members[0].root.position.x;
+        g.cz = g.members[0].root.position.z;
+      }
+    }
+
     for (const c of this.cars) {
       const dx = c.root.position.x - px, dz = c.root.position.z - pz;
       if (dx * dx + dz * dz > 2700 * 2700 || !c.pts.length) {
@@ -1156,6 +1525,35 @@ export class Life {
     // fall: the witch circles the old burying ground (after dark); the mist drifts there
     if (this.witch) this.witch.glide(dt, t, night);
     if (this.mist) this.mist.update(dt, t, night);
+  }
+
+  // deer country: inside a mapped wood/reserve/green, on open ground, and shy
+  // of the pavement — no clearing within ~15 m of a road
+  private deerLandAt(x: number, z: number): boolean {
+    if (this.index.isWaterAt(x, z) || this.index.isBlocked(x, z)) return false;
+    const bucket = this.index.buckets.get(Math.floor(x / CHUNK) + ',' + Math.floor(z / CHUNK));
+    if (!bucket) return false;
+    let on = false;
+    for (const pi of bucket.polys) {
+      const poly = this.index.world.polys[pi];
+      if (DEER_LAND.has(poly.k) && pointInPoly(x, z, poly)) { on = true; break; }
+    }
+    if (!on) return false;
+    for (const ri of bucket.roads) {
+      if (distToPolylineSq(x, z, this.index.world.roads[ri].p) < 120 * 120) return false;
+    }
+    return true;
+  }
+
+  private deerSpot(px: number, pz: number, fx: number, fz: number, rng: () => number): { x: number; z: number } | null {
+    for (let tries = 0; tries < 12; tries++) {
+      const a = rng() * Math.PI * 2, d = 560 + rng() * 950;
+      const x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d;
+      if (!this.okToSpawn(x, z, px, pz, fx, fz, 520, 1800)) continue;
+      if (!this.deerLandAt(x, z)) continue;
+      return { x, z };
+    }
+    return null;
   }
 
   // spawns snap to the top surface (a ped placed on a bridge belongs ON it);
