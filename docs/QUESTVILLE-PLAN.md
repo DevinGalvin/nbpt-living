@@ -116,8 +116,9 @@ page. Growth between the two attempts is the number the teacher shows their prin
 ## 3. What gets built (the work, itemized)
 
 ### Engine (school mode) — `src/game/school.ts` + touches
-- [ ] Boot path: `?class=` → fetch roster → name-tap screen ("You are **Maya** — right?"
-      confirm, because shared devices + 8-year-olds = taps on the wrong name)
+- [x] Boot path: `?class=` → roster → name-tap screen with the "You're **Maya** —
+      right?" confirm (shared devices + 8-year-olds = wrong-name taps); the join
+      eats the query param so reloads don't replay it. Mock roster until the worker
 - [ ] `Site.ask` + `Site.strand`; question UI on the discovery card; answers sync
 - [ ] School save namespace + server merge (D3)
 - [ ] Find-list panel for the active week ("this week: How the Town Works — 4 of 9 found")
@@ -132,17 +133,22 @@ into ⚙️ settings). Tapping it branches on who you are: a public device gets 
 "School" sheet with a single key box behind "I'm a teacher"; a saved teacher key
 opens that class's dashboard; a saved admin key opens the admin room; a kid on a
 class link gets their week's panel with a tiny "Teachers ▸" in the corner.
-- [ ] HUD slim-down: hide the race button (system stays in code), move seasons into
-      the settings popover, add 🏫
-- [ ] The School sheet + key box (one box takes either kind of key)
-- [ ] Admin room: class list (open any dashboard / re-show a teacher key / delete),
-      create class — paste roster (first names only; the kid-safe name filter from
-      `race.ts`/`worker.js` runs here too — third grade will test it), hand-off
-      panel with link/code/teacher key + printed handout
-- [ ] Teacher dashboard, four tabs: **Live** (roster × places grid, polled;
-      zero-progress kids float to the top flagged), **Week** (pick the active part;
-      free-roam option), **Quiz** (open pre/post, results side by side), **Class**
-      (roster edit + merge for wrong-name taps, share link, print)
+- [x] HUD slim-down: race button hidden + its promo held (`RACES_UI` in `hud.ts` —
+      system stays in code), seasons moved into the settings popover (same unlock
+      rules), 🍎 CLASS added (apple won the icon vote 8/22; label CLASS)
+- [x] The School sheet + key box (one box takes either kind of key) — live behind
+      the 🍎, NBPT only, on mock keys `DEMO-TEACH` / `DEMO-ADMIN` until the worker
+- [x] Admin room *shell*: class list (open any dashboard / re-show a teacher key /
+      arm-to-delete), create class — roster paste through the kid-safe filter
+      (`nameIsClean`, now exported from `race.ts`), hand-off panel with link/code/
+      teacher key. Mock: created classes live in this device's localStorage
+- [x] Teacher dashboard *shell*, four tabs: **Live** (roster × places grid, demo
+      numbers, zero-progress floats up flagged), **Week** (pick the part — the three
+      strands ride preview lists of EXISTING markers, so found-progress is real),
+      **Quiz** (placeholder until the backend), **Class** (roster edit, share link)
+- [ ] Print handout; roster merge for wrong-name taps; real polling once the
+      worker exists (everything above swaps mock→worker inside `school.ts`'s MOCK
+      section, nothing else changes)
 
 ### Worker — `infra/classroom/`
 - [ ] The endpoints from D2, KV-backed, CORS-pinned to clippertown.io

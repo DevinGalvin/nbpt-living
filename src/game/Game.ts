@@ -9,11 +9,12 @@ import { Sky } from '../three/sky';
 import { Kid, Dog, Bike, Skateboard, buildKayak } from '../three/actors';
 import { Life } from './life';
 import { GillisBridge } from '../three/gillis';
-import { Hud } from './hud';
+import { Hud, RACES_UI } from './hud';
 import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
 import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
+import { initSchool } from './school';
 import { RaceRunner, COURSES, refreshBoards, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles, courseEstSeconds, ghostEnabled, setGhostEnabled } from './race';
 import { EggRunner } from './eggs';
 import { GameAudio, MUSIC_STYLES } from './audio';
@@ -594,6 +595,8 @@ export class Game {
       // opening the 🏁 picker freshens every course's town board from the cloud
       (onFresh) => refreshBoards(COURSES.map((c) => c.id), onFresh),
     );
+    // 🍎 QuestVille: the class gate (pilot towns only — a no-op everywhere else)
+    initSchool();
     if (!BARE) this.eggs = new EggRunner(
       this.scene, this.index, this.hud, this.audio,
       () => { const r = (this.dog ?? this.player).root.position; return { x: r.x, z: r.z }; },
@@ -822,9 +825,11 @@ export class Game {
   // else is on screen — never lands on top of a dialogue, modal, or cutaway.
   private promoBusy(): boolean {
     return this.inside || this.flying || this.onWater || this.hud.dialogueOpen || (this.race?.active ?? false)
-      || !!document.querySelector('#hud .chapter.show, #hud .levelpromo.show, #hud .streettip.show, #hud .modepick.show, #hud .travel-panel.open, #hud .journey-panel.show, #hud .bag-panel.show, #hud .hcard-back.open, #hud .collect-panel.show, #hud .board-panel.show');
+      || !!document.querySelector('#hud .chapter.show, #hud .levelpromo.show, #hud .streettip.show, #hud .modepick.show, #hud .travel-panel.open, #hud .journey-panel.show, #hud .bag-panel.show, #hud .hcard-back.open, #hud .collect-panel.show, #hud .board-panel.show, #hud .school-veil.show');
   }
   private tryRacePromo() {
+    // racing's front door is closed (see RACES_UI in hud.ts) — don't advertise it either
+    if (!RACES_UI) { this.tryFlightPromo(); return; }
     if (localStorage.getItem('nbpt-promo-race') === '1') { this.tryFlightPromo(); return; }
     if (this.promoBusy()) { setTimeout(() => this.tryRacePromo(), 2500); return; }
     const featured = COURSES.find((c) => c.id === TOWN.racePromo.course);

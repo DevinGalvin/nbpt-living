@@ -85,7 +85,9 @@ const BAD_SUB = [
   'asshat', 'asshole', 'arsehole', 'arse', 'dumbass', 'jackass', 'butthole', 'buttcrack',
 ];
 const BAD_WORD = ['ass', 'sex', 'cum', 'tit', 'hoe', 'anal', 'spic', 'meth'];
-function nameIsClean(raw: string): boolean {
+// exported for school.ts: a pasted class roster runs through the same filter as
+// racer names (the worker re-checks server-side when it lands — never trust a client)
+export function nameIsClean(raw: string): boolean {
   let s = raw.toLowerCase().replace(/[0134578@$!+]/g, (c) => LEET[c] || c);
   s = s.replace(/[^a-z ]/g, '');
   const stripped = s.replace(/ /g, '');

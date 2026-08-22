@@ -2,6 +2,12 @@ import type { Landmark, WorldData } from '../world/types';
 import type { BagItem, Mission } from './items';
 import { SEASON, seasonsUnlocked } from '../world/style';
 
+// QuestVille slim-down (8/22): the left column is travel · settings · class. The 🏁
+// race button is the one casualty — the whole racing system stays (courses, ghosts,
+// boards, in-world start flags); flip this back on to reopen its front door.
+// (Exported so Game.ts also holds the race PROMO card while the door is closed.)
+export const RACES_UI = false;
+
 // DOM HUD: street pill, landmark banner, help, attribution, virtual joystick.
 
 import { TOWN } from '@town';
@@ -159,19 +165,22 @@ const css = `
 }
 #hud .settings-pop .sp-row.on .sp-sw { background: rgba(var(--gold-rgb),0.85); border-color: var(--gold-mid); }
 #hud .settings-pop .sp-row.on .sp-sw::after { transform: translateX(17px); }
-#hud .season-toggle {
+/* 🍎 the class button — QuestVille's one piece of world chrome. Hidden until
+   initSchool() deals it in (has-class, pilot towns only), it takes the slot the
+   season toggle held before seasons moved into ⚙️ Settings (8/22 slim-down). */
+#hud .class-btn {
   position: absolute; top: 270px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(var(--ink-rgb),0.4);
-  display: flex; align-items: center; justify-content: center; font-size: 20px;
+  display: none; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
   transition: top 0.3s ease;
 }
-#hud .season-toggle:hover { border-color: var(--gold); }
+#hud.has-class .class-btn { display: flex; }
+#hud .class-btn:hover { border-color: var(--gold); }
 /* the 🎒 backpack button (top:170) stays hidden until the player earns it; while it's
-   absent, slide the season toggle (and its popover) up into that slot so the button sits
-   flush under the compass instead of leaving a gap. Both ease back down once it appears. */
-#hud .bag-btn:not(.show) ~ .season-toggle,
-#hud .bag-btn:not(.show) ~ .season-pop { top: 206px; }
+   absent, slide the 🍎 class button up into that slot so the column sits flush under
+   the compass instead of leaving a gap. It eases back down once the bag appears. */
+#hud .bag-btn:not(.show) ~ .class-btn { top: 206px; }
 /* explore mode (Story mode off): the story-progress chrome is hidden — the top-right
    compass dial, the 🧭 missions log, and the 🎒 backpack. Travel + settings + season
    stay, and the 🍂 season toggle slides up under ⚙️ settings (the now-empty 🧭 slot) so
@@ -179,29 +188,18 @@ const css = `
 #hud.no-story .compass,
 #hud.no-story .journey-btn,
 #hud.no-story .bag-btn { display: none !important; }
-#hud.no-story .season-toggle,
-#hud.no-story .season-pop { top: 142px !important; }
+#hud.no-story .class-btn { top: 142px !important; }
 /* world-only towns (.bare, set once at boot): no story spine at all → also hide
    the Story-mode settings row + its hint. Layout slides reuse .no-story above. */
 #hud.bare .settings-pop .sp-row[data-set="story"], #hud.bare .settings-hint { display: none !important; }
-#hud .season-pop {
-  position: absolute; top: 270px; left: 66px; min-width: 152px;
-  transition: top 0.3s ease;
-  background: var(--panel); border: 1.5px solid rgba(var(--gold-rgb),0.5); border-radius: 12px;
-  padding: 7px; z-index: 40; display: none; pointer-events: auto;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
-}
-#hud .season-pop.open { display: block; }
-#hud .season-pop .sp-hdr { font-size: 11px; color: var(--gold-mid); font-weight: 700; padding: 2px 5px 7px; letter-spacing: 0.3px; }
-#hud .season-pop .sp-item {
-  display: flex; align-items: center; padding: 8px 10px; border-radius: 8px;
-  font-size: 13.5px; color: var(--ink); cursor: pointer; white-space: nowrap;
-}
-#hud .season-pop .sp-item:hover { background: rgba(var(--gold-rgb),0.18); }
-#hud .season-pop .sp-item.cur { background: rgba(var(--gold-rgb),0.26); color: #fff; font-weight: 700; }
-#hud .season-pop.locked .sp-item { opacity: 0.45; cursor: default; }
-#hud .season-pop.locked .sp-item:hover { background: none; }
-#hud .season-pop .sp-lock { font-size: 11px; color: var(--gold); padding: 7px 5px 2px; line-height: 1.45; max-width: 158px; }
+/* 🍂 Season — a Settings section since the 8/22 slim-down (was its own left-column
+   button). Same picker, same unlock rules, one row down in the gear. */
+#hud .sp-season { padding: 10px 12px 12px; border-top: 1px solid rgba(var(--ink-rgb),0.12); }
+#hud .sp-srow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+#hud .sp-season.locked .sp-mbtn { opacity: 0.45; cursor: default; }
+#hud .sp-season.locked .sp-mbtn:hover { background: rgba(var(--ink-rgb),0.06); border-color: transparent; transform: none; }
+#hud .sp-slock { font-size: 11px; color: var(--gold); padding: 7px 0 0; line-height: 1.45; max-width: 200px; }
+#hud .sp-slock:empty { display: none; }
 /* ---------- Races 🏁: always-visible button + course picker ----------
    Racing is front-door, not a secret: the 🏁 sits in the left column everywhere
    (story AND explore), and picking a course fades you straight to its start line.
@@ -800,7 +798,7 @@ const css = `
 }
 #hud .collect-btn.show { display: flex; }
 #hud.no-story .collect-btn { top: 142px !important; }
-#hud.no-story.has-collect .season-toggle, #hud.no-story.has-collect .season-pop { top: 206px !important; }
+#hud.no-story.has-collect .class-btn { top: 206px !important; }
 #hud.no-story.has-collect .race-btn, #hud.no-story.has-collect .race-pop { top: 270px !important; }
 /* The gold count rides the TOP-right rim. It used to sit bottom-right, where the
    .blab pill (which is centred on the bottom rim and painted after it) covered it
@@ -1376,7 +1374,7 @@ const css = `
    depth), the *tactile feel* (hover/press), and *cohesive motion*. */
 
 /* ── round chrome buttons: one shared material + feel ──────────────── */
-#hud .compass, #hud .travel-btn, #hud .settings-btn, #hud .season-toggle,
+#hud .compass, #hud .travel-btn, #hud .settings-btn, #hud .class-btn,
 #hud .journey-btn, #hud .bag-btn, #hud .race-btn {
   background: var(--chrome-bg);
   border: 1.5px solid var(--chrome-bd);
@@ -1386,13 +1384,13 @@ const css = `
     background 0.18s ease, box-shadow 0.18s ease, top 0.3s ease;
 }
 /* the 5 interactive ones lift on hover + press in on tap (compass is read-only) */
-#hud .travel-btn:hover, #hud .settings-btn:hover, #hud .season-toggle:hover,
+#hud .travel-btn:hover, #hud .settings-btn:hover, #hud .class-btn:hover,
 #hud .journey-btn:hover, #hud .bag-btn:hover, #hud .race-btn:hover {
   transform: scale(1.07); border-color: var(--gold);
   background: rgba(var(--maroon), 0.82);
   box-shadow: 0 6px 18px rgba(0,0,0,0.46), 0 0 0 1px rgba(var(--gold-rgb), 0.28);
 }
-#hud .travel-btn:active, #hud .settings-btn:active, #hud .season-toggle:active,
+#hud .travel-btn:active, #hud .settings-btn:active, #hud .class-btn:active,
 #hud .journey-btn:active, #hud .bag-btn:active, #hud .race-btn:active,
 #hud .run-btn:active, #hud .bike-btn:active, #hud .bark-btn:active, #hud .talk-btn:active,
 #hud .modal-x:active { transform: scale(0.9); }
@@ -1427,7 +1425,6 @@ const css = `
 
 /* ── cards: unified depth + a soft-spring popover ──────────────────── */
 #hud .hcard, #hud .bag-card, #hud .journey-card, #hud .streettip { box-shadow: var(--shadow-card); }
-#hud .season-pop { box-shadow: var(--shadow-card); transform-origin: top left; animation: nbpt-pop-in 0.2s var(--ease-spring); }
 @keyframes nbpt-pop-in { from { transform: scale(0.86) translateY(-4px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
 
 /* ── modal close: a real, high-contrast 44px target (kid-hand floor) ── */
@@ -1490,14 +1487,13 @@ const css = `
 #hud .travel-panel.towns .tt-chip,
 #hud .collect-panel.show .ctile,
 #hud .race-pop.open .rp-item,
-#hud .season-pop.open .sp-item,
 #hud .settings-pop.open .sp-row,
 #hud .settings-pop.open .sp-mbtn {
   animation: nbpt-tile-in 0.34s var(--ease-pop) backwards;
 }
 
 /* the raised chip that turns an emoji into an object */
-#hud .nb-chip, #hud .travel-item .ti-em, #hud .sp-mbtn .m-em, #hud .season-pop .sp-item .nb-chip {
+#hud .nb-chip, #hud .travel-item .ti-em, #hud .sp-mbtn .m-em {
   display: flex; align-items: center; justify-content: center;
   border-radius: 10px;
   background: linear-gradient(150deg, rgba(var(--gold-rgb), 0.26), rgba(var(--gold-rgb), 0.07));
@@ -1506,17 +1502,15 @@ const css = `
 }
 #hud .travel-item .ti-em { flex: none; width: 34px; height: 34px; font-size: 19px; }
 #hud .sp-mbtn .m-em { width: 30px; height: 30px; font-size: 17px; margin: 0 auto; }
-#hud .season-pop .sp-item { display: flex; align-items: center; gap: 9px; }
-#hud .season-pop .sp-item .nb-chip { flex: none; width: 30px; height: 30px; font-size: 16px; }
 
 /* lift on hover, squash on press — the whole tactile family in one place */
-#hud .ctile, #hud .rp-item, #hud .sp-mbtn, #hud .sp-item, #hud .sp-row, #hud .travel-item {
+#hud .ctile, #hud .rp-item, #hud .sp-mbtn, #hud .sp-row, #hud .travel-item {
   transition: transform 0.13s var(--ease-out), background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 #hud .ctile:hover, #hud .rp-item:hover, #hud .sp-mbtn:hover, #hud .travel-item:hover,
-#hud .season-pop:not(.locked) .sp-item:hover, #hud .sp-row:hover { transform: translateY(-2px); }
+#hud .sp-row:hover { transform: translateY(-2px); }
 #hud .ctile:active, #hud .rp-item:active, #hud .sp-mbtn:active, #hud .travel-item:active,
-#hud .season-pop:not(.locked) .sp-item:active, #hud .sp-row:active { transform: scale(0.96); }
+#hud .sp-row:active { transform: scale(0.96); }
 
 /* ── the album, as a trophy case ─────────────────────────────────────
    36 flat rectangles was a spreadsheet of the thing you collect. A FOUND tile sits on
@@ -1577,7 +1571,7 @@ const css = `
    First impression: the left column deals itself in like a hand of cards. One
    time, on boot only — .booted is added a frame after the HUD mounts. */
 #hud.booted .travel-btn, #hud.booted .settings-btn, #hud.booted .collect-btn,
-#hud.booted .season-toggle, #hud.booted .race-btn, #hud.booted .compass {
+#hud.booted .class-btn, #hud.booted .compass {
   animation: nbpt-chrome-in 0.42s var(--ease-pop) backwards;
 }
 @keyframes nbpt-chrome-in { from { opacity: 0; transform: scale(0.6) translateY(-8px); } to { opacity: 1; transform: none; } }
@@ -1703,6 +1697,11 @@ export class Hud {
           <div class="sp-label"><div class="sp-name">👻 Ghost rider</div><div class="sp-sub">Race the town's best line. Off = just you and the clock.</div></div>
           <div class="sp-sw"></div>
         </div>
+        <div class="sp-season">
+          <div class="sp-mhdr">🍂 SEASON</div>
+          <div class="sp-srow"></div>
+          <div class="sp-slock"></div>
+        </div>
         <div class="sp-music">
           <div class="sp-mhdr">🎵 MUSIC</div>
           <div class="sp-mrow"></div>
@@ -1719,8 +1718,7 @@ export class Hud {
       <div class="bark-btn" title="Bark (F) — hold to sniff">🐶<span class="kc">F</span><span class="blab">BARK</span></div>
       <div class="look-btn" title="Look up (V)">👀<span class="kc">V</span><span class="blab">LOOK UP</span></div>
       </div>
-      <div class="season-toggle" title="Season"><span class="s-em">🍂</span><span class="blab">SEASON</span></div>
-      <div class="season-pop"></div>
+      <div class="class-btn" title="Class">🍎<span class="blab">CLASS</span></div>
       <div class="race-btn" title="Races">🏁<span class="blab">RACE</span></div>
       <div class="race-pop"></div>
       <div class="board-panel"><div class="board-card"></div></div>
@@ -1741,7 +1739,7 @@ export class Hud {
       <div class="talk-btn">💬 TALK</div>
       <div class="chapter"><div class="kick"></div><div class="big"></div><div class="small"></div><div class="namer"><input maxlength="12" placeholder="YOUR NAME"><button>SAVE</button></div></div>
       <div class="promo"><div class="promo-card"><div class="promo-x">✕</div><div class="promo-badge"></div><div class="promo-icon"></div><div class="promo-title"></div><div class="promo-body"></div><div class="promo-acts"><button class="promo-cta"></button><span class="promo-skip">Maybe later</span></div></div></div>
-      <div class="levelpromo"><div class="lp-beam"></div><div class="lp-lamp"></div><div class="lp-snow"></div><div class="lp-inner"><div class="lp-kick">✦ LEVEL 1 COMPLETE ✦</div><div class="lp-lvl">LEVEL 2</div><div class="lp-title">The Light That Walks</div><div class="lp-tag">A lamp walks the shore at night, and the winter harbor needs its keeper. Your story sails on.</div><button class="lp-go">BEGIN ❄️</button><div class="lp-hint">❄️ Winter has come · change the season any time from the 🎄 button</div></div></div>
+      <div class="levelpromo"><div class="lp-beam"></div><div class="lp-lamp"></div><div class="lp-snow"></div><div class="lp-inner"><div class="lp-kick">✦ LEVEL 1 COMPLETE ✦</div><div class="lp-lvl">LEVEL 2</div><div class="lp-title">The Light That Walks</div><div class="lp-tag">A lamp walks the shore at night, and the winter harbor needs its keeper. Your story sails on.</div><button class="lp-go">BEGIN ❄️</button><div class="lp-hint">❄️ Winter has come · change the season any time under ⚙️ Settings</div></div></div>
       <div class="hcard-back"><div class="hcard-wrap"><div class="hcard">
         <div class="hnew">✦ NEW DISCOVERY ✦</div>
         <div class="hpic"><span class="hpic-em">🏛</span></div>
@@ -1777,7 +1775,7 @@ export class Hud {
     // added once, so the entrance can never replay when a button is shown or hidden
     // mid-session (the story chrome toggles .journey-btn / .bag-btn constantly).
     requestAnimationFrame(() => {
-      const col = ['.travel-btn', '.settings-btn', '.collect-btn', '.season-toggle', '.race-btn', '.compass'];
+      const col = ['.travel-btn', '.settings-btn', '.collect-btn', '.class-btn', '.compass'];
       col.forEach((sel, i) => {
         const el = hud.querySelector(sel) as HTMLElement | null;
         if (el) el.style.animationDelay = i * 0.055 + 's';
@@ -1861,7 +1859,7 @@ export class Hud {
 
   private onDown(e: PointerEvent) {
     const tgt = e.target as HTMLElement;
-    const onUI = !!tgt?.closest?.('.bark-btn, .travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .talk-btn, .dlg, .objective, .hcard, .hcard-back, .collect-btn, .collect-panel, .race-btn, .race-pop');
+    const onUI = !!tgt?.closest?.('.bark-btn, .travel-btn, .travel-panel, .journey-btn, .journey-panel, .bag-btn, .bag-panel, .bag-tip, .settings-btn, .settings-pop, .modepick, .talk-btn, .dlg, .objective, .hcard, .hcard-back, .collect-btn, .collect-panel, .race-btn, .race-pop, .class-btn, .school-veil');
     // run/bike sit right under the steering thumb: don't dead-zone them. A tap toggles (their own
     // click handler); a drag promotes to the joystick (handled in onMove). Defer either way.
     const onSoftBtn = !onUI && !!tgt?.closest?.('.run-btn, .bike-btn');
@@ -2229,7 +2227,10 @@ export class Hud {
     if (!rows().length) return;                       // townless build: keep the button hidden
     const btn = this.root.querySelector('.race-btn') as HTMLElement;
     const pop = this.root.querySelector('.race-pop') as HTMLElement;
-    btn.classList.add('show');
+    // 8/22 slim-down: the 🏁 front door stays closed (RACES_UI) but everything behind
+    // it stays wired — the in-world start flags still begin races, so the timer's
+    // quit button and the results board below must keep working.
+    if (RACES_UI) btn.classList.add('show');
     // the race clock's ✕: arm on the first tap (so a stray tap can't kill a 2-minute
     // run), quit on the second; auto-disarms after a beat
     const quit = this.root.querySelector('.race-timer .rt-quit') as HTMLElement;
@@ -2432,27 +2433,23 @@ export class Hud {
     });
     stagger(grid);
     const card = document.querySelector('#hud .travel-card')!;
-    // season picker — a left HUD icon (the current season's emoji) + popout menu, not
-    // buried in Fast Travel. Post-game reward: roam any season once the finale's climax
-    // is reached; during the story it follows the spine.
+    // season picker — a SETTINGS section since the 8/22 slim-down (was its own
+    // left-column button; the column is travel · settings · class now). Same rules
+    // as ever: post-game reward — roam any season once the finale's climax is
+    // reached; during the story it follows the spine.
     const seasonEmoji: Record<string, string> = { spring: '🌸', summer: '☀️', fall: '🎃', winter: '🎄' };
-    const sToggle = document.querySelector('#hud .season-toggle') as HTMLElement;
-    const sPop = document.querySelector('#hud .season-pop') as HTMLElement;
+    const sSec = document.querySelector('#hud .sp-season') as HTMLElement;
+    const sRow = sSec.querySelector('.sp-srow') as HTMLElement;
     const sUnlocked = seasonsUnlocked();
-    (sToggle.querySelector('.s-em') as HTMLElement).textContent = seasonEmoji[SEASON] || '🍂';   // swap only the emoji — the BLAB label lives next to it
-    sPop.classList.toggle('locked', !sUnlocked);
-    const sHdr = document.createElement('div');
-    sHdr.className = 'sp-hdr';
-    sHdr.textContent = sUnlocked ? '🗓 Set the season' : '🔒 Seasons — locked';
-    sPop.appendChild(sHdr);
-    // emoji and word are separate now: the emoji goes in a raised .nb-chip so each
-    // season reads as an object you pick up, not a line of text (see the LIVELY layer)
+    sSec.classList.toggle('locked', !sUnlocked);
+    (sSec.querySelector('.sp-mhdr') as HTMLElement).textContent =
+      sUnlocked ? (seasonEmoji[SEASON] || '🍂') + ' SEASON' : '🔒 SEASON';
     const sList = [['spring', '\u{1F338}', 'Spring'], ['summer', '☀️', 'Summer'], ['fall', '\u{1F383}', 'Fall'], ['winter', '\u{1F384}', 'Winter']] as const;
     for (const [sn, em, label] of sList) {
-      sPop.appendChild(Object.assign(document.createElement('div'), {
-        className: 'sp-item' + (SEASON === sn ? ' cur' : ''),
-        innerHTML: '<span class="nb-chip">' + em + '</span><span>' + label + '</span>',
-        onclick: sUnlocked ? () => { if (SEASON !== sn) {
+      sRow.appendChild(Object.assign(document.createElement('div'), {
+        className: 'sp-mbtn' + (SEASON === sn ? ' cur' : ''),
+        innerHTML: '<span class="m-em">' + em + '</span><span class="m-nm">' + label + '</span>',
+        onclick: sUnlocked ? (e: MouseEvent) => { e.stopPropagation(); if (SEASON !== sn) {
           // keep the player where they are: write a one-shot resume point (same as the
           // story's auto season-turn) so the reload continues here, not back at the start
           localStorage.setItem('nbpt-resume-pos', JSON.stringify({ x: Math.round(this.lastKnownPos.x), z: Math.round(this.lastKnownPos.z) }));
@@ -2461,16 +2458,10 @@ export class Hud {
       }));
     }
     if (!sUnlocked) {
-      const lk = document.createElement('div');
-      lk.className = 'sp-lock';
       // actionable for explore-mode kids too: name where the story starts, not just "the story"
-      lk.textContent = 'Finish Gram’s story to roam the seasons — she’s waiting in Market Square.';
-      sPop.appendChild(lk);
+      (sSec.querySelector('.sp-slock') as HTMLElement).textContent =
+        'Finish Gram’s story to roam the seasons — she’s waiting in Market Square.';
     }
-    stagger(sPop, 0.045);
-    sToggle.addEventListener('click', (e) => { e.stopPropagation(); sPop.classList.toggle('open'); });
-    sPop.addEventListener('click', (e) => e.stopPropagation());
-    window.addEventListener('click', () => sPop.classList.remove('open'));
     // These tallies count THIS town's markers and secrets, so they belong in the
     // town view — appending them to the card put them under the roster of twelve
     // other towns, where "1/36" reads as a fact about the wrong thing.
@@ -3871,7 +3862,6 @@ export class Hud {
     if (this.hcardOpen) this.closeHistoryCard();
     document.querySelector('#hud .collect-panel')?.classList.remove('show');
     document.querySelector('#hud .race-pop')?.classList.remove('open');
-    document.querySelector('#hud .season-pop')?.classList.remove('open');
     document.querySelector('#hud .settings-pop')?.classList.remove('open');
     document.querySelector('#hud .streettip')?.classList.remove('show');
   }
