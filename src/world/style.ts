@@ -17,23 +17,19 @@ const isSeason = (s: string | null): s is Season => s === 'fall' || s === 'winte
 export function storySeason(): Season {
   return 'summer';
 }
-// The season picker (the post-game reward) unlocks — AND a manual pick is honored, AND
-// SEASON defaults to winter — the moment the "Seasons Unlocked" reward fires (finishing
-// Level 1). ONE gate for everything season-related: the picker UI (hud), whether SEASON
-// honors the saved pick (below), and the winter-vs-summer default. They must agree.
-export function seasonsUnlocked(): boolean {
-  try { return localStorage.getItem('nbpt-seasons-rewarded') === '1'; } catch { return false; }
-}
-
+// The season on screen. Devin's call, 8/22: the picker is open to EVERYONE — no
+// story gate (it used to be Level 1's reward). A manual pick from ⚙️ Settings
+// always wins; with no pick, finishing Level 1 still turns the town to the
+// finale's winter (nbpt-seasons-rewarded, set in Game.unlockSeasons — the flag
+// also still gates Level 2 in quest.ts); before that the story's season stands.
 export const SEASON: Season = (() => {
   try {
     const url = new URLSearchParams(location.search).get('season');   // dev/test absolute override
     if (isSeason(url)) return url;
-    if (seasonsUnlocked()) {                                          // post-climax: the unlocked picker
-      const p = localStorage.getItem('nbpt-season');
-      return isSeason(p) ? p : 'winter';                             // default to the finale's winter
-    }
-    return storySeason();                                            // mid-story: follow progress
+    const p = localStorage.getItem('nbpt-season');
+    if (isSeason(p)) return p;                                        // anyone's pick is honored
+    if (localStorage.getItem('nbpt-seasons-rewarded') === '1') return 'winter';   // the finale's beat
+    return storySeason();                                             // otherwise: the story's season
   } catch {
     return 'summer';
   }

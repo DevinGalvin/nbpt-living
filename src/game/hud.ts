@@ -1,6 +1,6 @@
 import type { Landmark, WorldData } from '../world/types';
 import type { BagItem, Mission } from './items';
-import { SEASON, seasonsUnlocked } from '../world/style';
+import { SEASON } from '../world/style';
 
 // QuestVille slim-down (8/22): the left column is travel · settings · class. The 🏁
 // race button is the one casualty — the whole racing system stays (courses, ghosts,
@@ -193,13 +193,9 @@ const css = `
    the Story-mode settings row + its hint. Layout slides reuse .no-story above. */
 #hud.bare .settings-pop .sp-row[data-set="story"], #hud.bare .settings-hint { display: none !important; }
 /* 🍂 Season — a Settings section since the 8/22 slim-down (was its own left-column
-   button). Same picker, same unlock rules, one row down in the gear. */
+   button), open to everyone since the same day (the story-finale lock is gone). */
 #hud .sp-season { padding: 10px 12px 12px; border-top: 1px solid rgba(var(--ink-rgb),0.12); }
 #hud .sp-srow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-#hud .sp-season.locked .sp-mbtn { opacity: 0.45; cursor: default; }
-#hud .sp-season.locked .sp-mbtn:hover { background: rgba(var(--ink-rgb),0.06); border-color: transparent; transform: none; }
-#hud .sp-slock { font-size: 11px; color: var(--gold); padding: 7px 0 0; line-height: 1.45; max-width: 200px; }
-#hud .sp-slock:empty { display: none; }
 /* ---------- Races 🏁: always-visible button + course picker ----------
    Racing is front-door, not a secret: the 🏁 sits in the left column everywhere
    (story AND explore), and picking a course fades you straight to its start line.
@@ -1696,7 +1692,6 @@ export class Hud {
         <div class="sp-season">
           <div class="sp-mhdr">🍂 SEASON</div>
           <div class="sp-srow"></div>
-          <div class="sp-slock"></div>
         </div>
         <div class="sp-music">
           <div class="sp-mhdr">🎵 MUSIC</div>
@@ -2430,33 +2425,25 @@ export class Hud {
     stagger(grid);
     const card = document.querySelector('#hud .travel-card')!;
     // season picker — a SETTINGS section since the 8/22 slim-down (was its own
-    // left-column button; the column is travel · settings · class now). Same rules
-    // as ever: post-game reward — roam any season once the finale's climax is
-    // reached; during the story it follows the spine.
+    // left-column button; the column is travel · settings · class now), and open
+    // to everyone since the same day (it used to be Level 1's reward — Devin's
+    // call: no story gate on the weather).
     const seasonEmoji: Record<string, string> = { spring: '🌸', summer: '☀️', fall: '🎃', winter: '🎄' };
     const sSec = document.querySelector('#hud .sp-season') as HTMLElement;
     const sRow = sSec.querySelector('.sp-srow') as HTMLElement;
-    const sUnlocked = seasonsUnlocked();
-    sSec.classList.toggle('locked', !sUnlocked);
-    (sSec.querySelector('.sp-mhdr') as HTMLElement).textContent =
-      sUnlocked ? (seasonEmoji[SEASON] || '🍂') + ' SEASON' : '🔒 SEASON';
+    (sSec.querySelector('.sp-mhdr') as HTMLElement).textContent = (seasonEmoji[SEASON] || '🍂') + ' SEASON';
     const sList = [['spring', '\u{1F338}', 'Spring'], ['summer', '☀️', 'Summer'], ['fall', '\u{1F383}', 'Fall'], ['winter', '\u{1F384}', 'Winter']] as const;
     for (const [sn, em, label] of sList) {
       sRow.appendChild(Object.assign(document.createElement('div'), {
         className: 'sp-mbtn' + (SEASON === sn ? ' cur' : ''),
         innerHTML: '<span class="m-em">' + em + '</span><span class="m-nm">' + label + '</span>',
-        onclick: sUnlocked ? (e: MouseEvent) => { e.stopPropagation(); if (SEASON !== sn) {
+        onclick: (e: MouseEvent) => { e.stopPropagation(); if (SEASON !== sn) {
           // keep the player where they are: write a one-shot resume point (same as the
           // story's auto season-turn) so the reload continues here, not back at the start
           localStorage.setItem('nbpt-resume-pos', JSON.stringify({ x: Math.round(this.lastKnownPos.x), z: Math.round(this.lastKnownPos.z) }));
           localStorage.setItem('nbpt-season', sn); location.reload();
-        } } : null,
+        } },
       }));
-    }
-    if (!sUnlocked) {
-      // actionable for explore-mode kids too: name where the story starts, not just "the story"
-      (sSec.querySelector('.sp-slock') as HTMLElement).textContent =
-        'Finish Gram’s story to roam the seasons — she’s waiting in Market Square.';
     }
     // These tallies count THIS town's markers and secrets, so they belong in the
     // town view — appending them to the card put them under the roster of twelve
