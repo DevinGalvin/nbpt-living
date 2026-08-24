@@ -120,11 +120,19 @@ const css = `
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer;
 }
+/* the ⚙️ sits LAST in the column (8/24: verbs first, wrench last — map, quests,
+   bag, discover, class are things you DO; settings is where you rarely go).
+   Like everything in the column it slides up into whatever slots are empty. */
 #hud .settings-btn {
-  position: absolute; top: 78px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  position: absolute; top: 334px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: top 0.3s ease;
 }
+#hud .bag-btn:not(.show) ~ .settings-btn { top: 270px; }
+#hud.no-story .settings-btn { top: 206px !important; }
+#hud.no-story:not(.has-class) .settings-btn { top: 142px !important; }
+#hud.no-story:not(.has-collect) .settings-btn { top: 78px !important; }
 /* a one-time nudge after a fresh visitor picks "just explore", so they know the
    story toggle lives behind the gear; clears the moment they open Settings */
 #hud .settings-btn.pulse { animation: nbpt-gear-pulse 1.1s ease-in-out 3; }
@@ -132,8 +140,10 @@ const css = `
   0%, 100% { box-shadow: 0 0 0 0 rgba(var(--gold-rgb),0.0); }
   50% { box-shadow: 0 0 0 7px rgba(var(--gold-rgb),0.32); }
 }
+/* the hint tracks the gear, which now sits at the column's foot — its explore-mode
+   spot depends on whether the 🍎 class button is dealt in above it */
 #hud .settings-hint {
-  position: absolute; top: 84px; left: 66px; z-index: 41; max-width: 200px;
+  position: absolute; top: 212px; left: 66px; z-index: 41; max-width: 200px;
   background: var(--panel); border: 1.5px solid rgba(var(--gold-rgb),0.6); border-radius: 10px;
   padding: 8px 11px; font-size: 12px; line-height: 1.35; color: var(--ink);
   box-shadow: 0 6px 18px rgba(0,0,0,0.4); pointer-events: none;
@@ -144,8 +154,13 @@ const css = `
   border: 6px solid transparent; border-right-color: rgba(var(--gold-rgb),0.6); border-left: 0;
 }
 #hud .settings-hint.show { opacity: 1; transform: translateX(0); }
+#hud:not(.has-class) .settings-hint { top: 148px; }
+/* the popover stays anchored to the COLUMN'S top, not the gear (which now lives at
+   the column's foot) — this panel is tall, and hanging it off a bottom button
+   would push it under the screen edge on phones */
 #hud .settings-pop {
   position: absolute; top: 78px; left: 66px; min-width: 188px; max-width: 240px;
+  max-height: calc(100vh - 96px); overflow-y: auto;
   background: var(--panel); border: 1.5px solid rgba(var(--gold-rgb),0.5); border-radius: 12px;
   padding: 7px; z-index: 40; display: none; pointer-events: auto;
   box-shadow: 0 8px 24px rgba(0,0,0,0.45);
@@ -205,7 +220,8 @@ const css = `
 /* ---------- Races 🏁: always-visible button + course picker ----------
    Racing is front-door, not a secret: the 🏁 sits in the left column everywhere
    (story AND explore), and picking a course fades you straight to its start line.
-   Column cascade mirrors the season toggle: slide up into whatever slots are empty. */
+   ⚠️ Dormant since the 8/22 slim-down (RACES_UI) — the tops below predate the 8/24
+   reorder (settings sits last now), so re-slot them before flipping it back on. */
 #hud .race-btn {
   position: absolute; top: 334px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(var(--ink-rgb),0.4);
@@ -792,16 +808,15 @@ const css = `
    takes the slot the missions log used to hold, and the season/race buttons
    cascade down past it (scoped to .has-collect so world-only towns are untouched). */
 #hud .collect-btn {
-  position: absolute; top: 398px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  position: absolute; top: 206px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(var(--maroon), 0.65); border: 1.5px solid rgba(var(--ink-rgb),0.4);
   display: none; align-items: center; justify-content: center; font-size: 20px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
   transition: top 0.3s ease;
 }
 #hud .collect-btn.show { display: flex; }
-#hud.no-story .collect-btn { top: 142px !important; }
-#hud.no-story.has-collect .class-btn { top: 206px !important; }
-#hud.no-story.has-collect .race-btn, #hud.no-story.has-collect .race-pop { top: 270px !important; }
+#hud .bag-btn:not(.show) ~ .collect-btn { top: 142px; }
+#hud.no-story .collect-btn { top: 78px !important; }
 /* The gold count rides the TOP-right rim. It used to sit bottom-right, where the
    .blab pill (which is centred on the bottom rim and painted after it) covered it
    completely — the number was invisible on the one button whose whole point is a
@@ -960,7 +975,7 @@ const css = `
    lift it clear of the dialogue card instead of letting them overlap */
 #hud:has(.dlg.open) .talk-btn { bottom: 218px; transition: bottom 0.18s var(--ease-out); }
 #hud .journey-btn {
-  position: absolute; top: 142px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  position: absolute; top: 78px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(var(--maroon), 0.78); border: 1.5px solid rgba(var(--gold-rgb),0.6);
   display: flex; align-items: center; justify-content: center; font-size: 22px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
@@ -978,7 +993,7 @@ const css = `
 #hud .journey-panel.show .journey-card { transform: translateY(0) scale(1); }
 /* ---------- Backpack 🎒: a button that springs in on your first item ---------- */
 #hud .bag-btn {
-  position: absolute; top: 206px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  position: absolute; top: 142px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
   background: rgba(var(--maroon), 0.78); border: 1.5px solid rgba(var(--gold-rgb),0.6);
   display: none; align-items: center; justify-content: center; font-size: 22px;
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
@@ -1013,7 +1028,7 @@ const css = `
 }
 #hud .bag-btn.wiggle { animation: nbpt-bag-wiggle 0.55s ease-in-out; }
 #hud .bag-tip {
-  position: absolute; top: 214px; left: 66px; background: rgba(var(--maroon-lt),0.94);
+  position: absolute; top: 150px; left: 66px; background: rgba(var(--maroon-lt),0.94);
   border: 1px solid rgba(var(--gold-rgb),0.55); color: var(--ink); font-size: 12.5px; font-weight: 600;
   padding: 7px 12px; border-radius: 14px; white-space: nowrap; pointer-events: none;
   opacity: 0; transform: translateX(-8px); z-index: 12;
@@ -1772,7 +1787,7 @@ export class Hud {
     // added once, so the entrance can never replay when a button is shown or hidden
     // mid-session (the story chrome toggles .journey-btn / .bag-btn constantly).
     requestAnimationFrame(() => {
-      const col = ['.travel-btn', '.settings-btn', '.collect-btn', '.class-btn', '.compass'];
+      const col = ['.travel-btn', '.collect-btn', '.class-btn', '.settings-btn', '.compass'];
       col.forEach((sel, i) => {
         const el = hud.querySelector(sel) as HTMLElement | null;
         if (el) el.style.animationDelay = i * 0.055 + 's';
