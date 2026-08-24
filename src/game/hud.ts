@@ -605,16 +605,6 @@ const css = `
   --glint-from: -80px;
   animation: nbpt-glint 0.42s ease-out 0.22s 1 backwards;
 }
-/* the real town emoji, overlapping like a hand of cards — this IS the label */
-#hud .tv-sw-faces { position: relative; z-index: 1; display: flex; align-items: center; padding-left: 6px; }
-#hud .tv-sw-faces i {
-  font-style: normal; font-size: 17px; line-height: 1; margin-left: -6px;
-  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
-}
-/* they deal themselves in once, then sit — the old version bobbed forever, which is
-   motion with nothing to say. The per-face delay is set in JS where they are built. */
-#hud .travel-panel.open .tv-sw-faces i { animation: nbpt-face-deal 0.36s var(--ease-pop) backwards; }
-@keyframes nbpt-face-deal { from { opacity: 0; transform: translateY(-7px) rotate(-8deg); } to { opacity: 1; transform: none; } }
 /* The chevron points LEFT and sits on the LEFT, because this goes UP a level. It
    was a right-pointing arrow on the right edge, which is the universal sign for
    "forward, deeper in" — the exact opposite of what tapping it does. It nudges
@@ -624,8 +614,6 @@ const css = `
    goes. Scoped to .open so it is not animating inside a closed panel forever. */
 #hud .travel-panel.open .tv-sw-arrow { animation: nbpt-nudge 1.6s ease-in-out infinite; }
 @keyframes nbpt-nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }
-/* the emoji are a flourish behind the word, and the first thing to go when narrow */
-@media (max-width: 430px) { #hud .tv-sw-faces { display: none; } }
 /* the title is the hero — give it room between the two controls */
 #hud .travel-card h2 { padding: 0 56px; margin: 0 0 16px; }
 #hud .tv-here { padding-top: 4px; }
@@ -1736,7 +1724,7 @@ export class Hud {
       <div class="board-panel"><div class="board-card"></div></div>
       <div class="travel-panel"><div class="travel-card"><div class="modal-x">✕</div>
         <h2><span class="tv-title">${TOWN.name}</span><span class="tv-back">‹ ${TOWN.name}</span></h2>
-        <div class="tv-switch"><span class="tv-sw-arrow">‹</span><span class="tv-sw-txt">Towns</span><span class="tv-sw-faces"></span></div>
+        <div class="tv-switch"><span class="tv-sw-arrow">‹</span><span class="tv-sw-txt">Towns</span></div>
         <div class="tv-here"><input class="travel-search" type="text" placeholder="${TOWN.searchPlaceholder}" /><div class="travel-results"></div><div class="travel-grid"></div></div>
         <div class="tv-towns"><div class="tt-hdr"><span>EXPLORE ANOTHER TOWN</span><span class="tt-count"></span></div><div class="tt-row"></div></div>
       </div></div>
@@ -2362,17 +2350,8 @@ export class Hud {
       const cur = TOWNS.filter((t) => t.path !== '/').sort((a, b) => b.path.length - a.path.length)
         .find((t) => { const p = t.path.replace(/\/+$/, ''); return here === p || here.startsWith(p + '/'); })
         || TOWNS.find((t) => t.path === '/');
-      // show the actual towns' emoji, stacked like cards, so the button previews
-      // its own contents instead of just claiming a number
-      const faces = sw.querySelector('.tv-sw-faces') as HTMLElement;
-      TOWNS.filter((t) => t !== cur).slice(0, 5).forEach((t) => {
-        const e = document.createElement('i');
-        e.textContent = t.emoji;
-        faces.appendChild(e);
-      });
-      // 0.16s each was the old bob's phase offset, which as a deal-in would take most
-      // of a second for five faces. Fast enough to read as one gesture.
-      stagger(faces, 0.045);
+      // (the button used to preview the towns as a fan of their emoji — cut 8/24,
+      // Devin's call: just "‹ Towns", the roster inside shows the faces)
       for (const t of TOWNS) {
         const isCur = t === cur;
         const chip = document.createElement('div');
