@@ -70,15 +70,21 @@ const css = `
   display: none; align-items: center; gap: 7px; white-space: nowrap;
 }
 #hud .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold-mid); }
+/* the landmark banner — a caption, not a curtain (slimmed 8/23: it was eating the
+   top of the screen, and on a phone most of it) */
 #hud .banner {
   position: absolute; top: 58px; left: 50%; transform: translate(-50%, -8px);
-  background: rgba(var(--maroon), 0.84); border-radius: 12px; padding: 13px 34px 11px;
+  background: rgba(var(--maroon), 0.84); border-radius: 11px; padding: 8px 22px 7px;
   text-align: center; opacity: 0; transition: opacity 0.45s ease, transform 0.45s ease;
-  border-bottom: 2px solid var(--gold);
+  border-bottom: 2px solid var(--gold); pointer-events: none;
 }
 #hud .banner.show { opacity: 1; transform: translate(-50%, 0); }
-#hud .banner .name { font-family: Georgia, serif; font-size: 23px; color: var(--ink); letter-spacing: 0.5px; }
-#hud .banner .sub { font-size: 12px; color: #d8cfa8; margin-top: 3px; letter-spacing: 1px; }
+#hud .banner .name { font-family: Georgia, serif; font-size: 17px; color: var(--ink); letter-spacing: 0.4px; }
+#hud .banner .sub { font-size: 11px; color: #d8cfa8; margin-top: 2px; letter-spacing: 0.8px; }
+/* phones: a slim strip tucked at the very top, out of the world's way */
+#hud.touch .banner { top: 12px; padding: 5px 13px 4px; border-radius: 9px; border-bottom-width: 1.5px; }
+#hud.touch .banner .name { font-size: 13.5px; }
+#hud.touch .banner .sub { font-size: 9.5px; margin-top: 1px; letter-spacing: 0.5px; }
 #hud .corner { position: absolute; font-size: 11px; color: rgba(var(--ink-rgb), 0.9); bottom: 6px;
   text-shadow: 0 1px 3px rgba(20, 10, 14, 0.9), 0 0 6px rgba(20, 10, 14, 0.55); }
 #hud .help { left: 8px; }
@@ -1640,6 +1646,7 @@ export class Hud {
   private stickBase: HTMLElement;
   private stickKnob: HTMLElement;
   private lastShown = new Map<string, number>();
+  private lastLmBanner = -1e9;   // when ANY landmark banner last showed — the global spacing gate
   private joyId = -1;
   private joyBaseX = 0;
   private joyBaseY = 0;
@@ -3872,16 +3879,21 @@ export class Hud {
   // `force` skips the 90-second ambient cooldown: walking past a place twice in a
   // minute should not re-announce it, but deliberately fast-travelling to it must
   // ALWAYS say where you have arrived.
+  // The landmark banner, tamed (8/23): skating laps around downtown was a slideshow
+  // — every landmark re-announced itself every 90s. Now each place introduces
+  // itself ONCE per visit (session), and no two ambient banners land within 25s of
+  // each other. A deliberate travel-to (force) always says where it took you.
   maybeShowLandmark(lm: Landmark, force = false): boolean {
     const now = performance.now();
-    const last = this.lastShown.get(lm.id) || -1e9;
-    if (!force && now - last < 90_000) return false;
+    if (!force && (this.lastShown.has(lm.id) || now - this.lastLmBanner < 25_000)) return false;
     this.lastShown.set(lm.id, now);
+    this.lastLmBanner = now;
     this.bannerName.textContent = lm.name;
     this.bannerSub.textContent = lm.sub;
     this.banner.classList.add('show');
     clearTimeout(this.bannerTimer);
-    this.bannerTimer = window.setTimeout(() => this.banner.classList.remove('show'), 3400);
+    // an ambient drive-by reads in a beat; only the travelled-to banner lingers
+    this.bannerTimer = window.setTimeout(() => this.banner.classList.remove('show'), force ? 3400 : 2600);
     return true;
   }
 }
