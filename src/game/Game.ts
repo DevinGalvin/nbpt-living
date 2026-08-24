@@ -2067,9 +2067,10 @@ export class Game {
     }
     if (this.hud.dialogueOpen || this.cineLook) { vx = 0; vz = 0; }   // freeze during dialogue + the look-out-to-sea cutaway
     // 💨 ZOOMIES. Stand quietly long enough and Clipper MIGHT take a victory lap —
-    // ~3 s of autonomous gallop in a circle, announced with a bark. Any input hands
-    // the wheel straight back; the glance-off collision makes it uncrashable, the
-    // same guarantee the flight mode leans on. Kids will stand still on purpose.
+    // ~3 s of autonomous gallop in a circle, silently (it barked once; the beep got
+    // annoying — cut 8/24). Any input hands the wheel straight back; the glance-off
+    // collision makes it uncrashable, the same guarantee the flight mode leans on.
+    // Kids will stand still on purpose.
     if (!LEGACY_KID && !this.riding && !this.kayaking && !this.boating && !this.flying && !this.swimming
         && !this.inside && !this.sniffing && !this.lookUp && !this.hud.dialogueOpen
         && !(this.race?.active) && !this.debugVec) {
@@ -2087,7 +2088,8 @@ export class Game {
         if (this.idleCalm > 9 && Math.random() < dt / 7) {
           this.zoomT = 2.8;
           this.zoomAng = Math.random() * Math.PI * 2;
-          this.bark();
+          // no bark: the zoomies used to announce themselves and Devin found the
+          // beep annoying (8/24) — the spin IS the announcement. Silent delight.
         }
       }
     } else { this.idleCalm = 0; if (this.zoomT > 0 && (this.riding || this.flying || this.inside)) this.zoomT = 0; }
