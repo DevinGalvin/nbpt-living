@@ -77,10 +77,11 @@ export const MUSIC_STYLES: MusicStyle[] = [
   }
 ];
 
+// One tune for the whole town (8/24 simplification): the style picker is gone
+// and any saved 'nbpt-music' pick is deliberately ignored — everyone hears the
+// porch. The other style definitions above stay as data; recover the picker
+// from git if a reason for it ever appears.
 export const DEFAULT_STYLE = 'porch';
-export function savedStyle(): string {
-  try { return localStorage.getItem('nbpt-music') || DEFAULT_STYLE; } catch { return DEFAULT_STYLE; }
-}
 
 // The season still colours whatever style is playing — a whole step down and a
 // slower bar in winter, a step up and a livelier one in spring.
@@ -111,7 +112,7 @@ export class GameAudio {
   private musicLP: BiquadFilterNode | null = null;
   private nextDrip = 3;
   // the playing style, and the numbers derived from it (season-coloured)
-  private st: MusicStyle = MUSIC_STYLES.find((m) => m.id === savedStyle()) ?? MUSIC_STYLES[0];
+  private st: MusicStyle = MUSIC_STYLES.find((m) => m.id === DEFAULT_STYLE) ?? MUSIC_STYLES[0];
   private get bar(): number { return this.st.bar * SEASON_BAR; }
   private get base(): number { return C3 * this.st.key * SEASON_KEY; }
 
@@ -135,16 +136,6 @@ export class GameAudio {
     }
     return this.enabled;
   }
-
-  // Switch the music. The next bar picks the new numbers up on its own — there is
-  // nothing to stop and restart, because every bar is scheduled from scratch.
-  setMusicStyle(id: string): MusicStyle {
-    this.st = MUSIC_STYLES.find((m) => m.id === id) ?? MUSIC_STYLES[0];
-    try { localStorage.setItem('nbpt-music', this.st.id); } catch { /* private mode */ }
-    if (this.ctx && this.enabled) this.boot();
-    return this.st;
-  }
-  get musicStyle(): MusicStyle { return this.st; }
 
   setNearWater(b: boolean) {
     this.nearWater = b;

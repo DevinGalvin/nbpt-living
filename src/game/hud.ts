@@ -408,16 +408,6 @@ const css = `
 }
 @keyframes dirt-fly { from { opacity: 1; transform: translate(0, 0) scale(1); }
   to { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.5); } }
-/* 🐕 collar picker — settings row, dog player only (initCollar reveals it) */
-#hud .sp-collar { display: none; padding: 10px 12px 12px; border-top: 1px solid rgba(var(--ink-rgb),0.12); }
-#hud .sp-collar.show { display: block; }
-#hud .sp-crow { display: flex; gap: 10px; }
-#hud .sp-cchip {
-  width: 28px; height: 28px; border-radius: 50%; cursor: pointer;
-  border: 2px solid rgba(var(--ink-rgb),0.3); transition: transform 0.12s, border-color 0.15s;
-}
-#hud .sp-cchip:hover { transform: scale(1.12); }
-#hud .sp-cchip.cur { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(var(--gold-rgb),0.4); }
 #hud .bike-btn.on { background: rgba(var(--gold-rgb), 0.45); border-color: var(--gold-mid); }
 /* LOOK UP — the chase camera aims about 26° DOWNWARD, which is right for
    following a kid down a street and hopeless for a city: from the sidewalk in
@@ -637,10 +627,10 @@ const css = `
   #hud .tt-tag { display: block; }
 }
 /* the five lo-fi styles, as a row of chips inside Settings. Wraps rather than
-   scrolls so all five are reachable on a phone without a hidden fifth. */
-#hud .sp-music { padding: 10px 12px 12px; border-top: 1px solid rgba(var(--ink-rgb),0.12); }
+   (sp-mhdr / sp-mbtn survive the 8/24 simplification — the SEASON section wears
+   them; the music picker and collar picker they were built for are gone: one
+   town, one tune, one red collar.) */
 #hud .sp-mhdr { font-size: 10.5px; letter-spacing: 1.4px; color: var(--gold); font-weight: 700; margin: 0 0 8px; }
-#hud .sp-mrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(56px, 1fr)); gap: 6px; }
 #hud .sp-mbtn {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 7px 3px; border-radius: 9px; cursor: pointer;
@@ -651,7 +641,6 @@ const css = `
 #hud .sp-mbtn.cur { background: rgba(var(--gold-rgb),0.22); border-color: var(--gold); }
 #hud .sp-mbtn .m-em { font-size: 18px; line-height: 1; }
 #hud .sp-mbtn .m-nm { font-size: 9.5px; font-weight: 700; color: var(--ink); text-align: center; line-height: 1.15; }
-#hud .sp-msub { margin-top: 8px; font-size: 11.5px; color: var(--ink-dim); line-height: 1.35; min-height: 2.7em; }
 #hud .fade {
   position: absolute; inset: 0; background: #0c1118; opacity: 0; pointer-events: none;
   transition: opacity 0.22s ease; z-index: 300;
@@ -1701,15 +1690,6 @@ export class Hud {
         <div class="sp-season">
           <div class="sp-mhdr">🍂 SEASON</div>
           <div class="sp-srow"></div>
-        </div>
-        <div class="sp-music">
-          <div class="sp-mhdr">🎵 MUSIC</div>
-          <div class="sp-mrow"></div>
-          <div class="sp-msub"></div>
-        </div>
-        <div class="sp-collar">
-          <div class="sp-mhdr">🐕 CLIPPER'S COLLAR</div>
-          <div class="sp-crow"></div>
         </div>
       </div>
       <div class="stack">
@@ -2936,53 +2916,9 @@ export class Hud {
     row?.classList.toggle('on', on);
   }
   // keep the gear's switch in sync when story mode is changed from elsewhere (the first-run pick)
-  // the five lo-fi styles. Picking one takes effect on the NEXT bar, so it is a
-  // fade between moods rather than a cut — which is also why there is nothing to
-  // stop and restart when it changes.
-  initMusicStyles(styles: { id: string; name: string; sub: string; emoji: string }[],
-                  current: string, onPick: (id: string) => void) {
-    const row = document.querySelector('#hud .sp-mrow') as HTMLElement | null;
-    const sub = document.querySelector('#hud .sp-msub') as HTMLElement | null;
-    if (!row) return;
-    row.innerHTML = '';
-    const paint = (id: string) => {
-      for (const el of Array.from(row.children)) el.classList.toggle('cur', (el as HTMLElement).dataset.m === id);
-      const s = styles.find((x) => x.id === id);
-      if (sub && s) sub.textContent = s.sub;
-    };
-    for (const s of styles) {
-      const b = document.createElement('div');
-      b.className = 'sp-mbtn';
-      b.dataset.m = s.id;
-      b.title = `${s.name} — ${s.sub}`;
-      b.innerHTML = `<span class="m-em">${s.emoji}</span><span class="m-nm">${s.name}</span>`;
-      b.addEventListener('click', (e) => { e.stopPropagation(); onPick(s.id); paint(s.id); });
-      row.appendChild(b);
-    }
-    stagger(row, 0.05);
-    paint(current);
-  }
-
-  // your dog, your collar — the only customization, deliberately identity-neutral
-  initCollar(colors: string[], current: string, onPick: (hex: string) => void) {
-    const block = document.querySelector('#hud .sp-collar') as HTMLElement | null;
-    const row = document.querySelector('#hud .sp-crow') as HTMLElement | null;
-    if (!block || !row) return;
-    block.classList.add('show');
-    row.innerHTML = '';
-    const paint = (hex: string) => {
-      for (const el of Array.from(row.children)) el.classList.toggle('cur', (el as HTMLElement).dataset.c === hex);
-    };
-    for (const c of colors) {
-      const chip = document.createElement('div');
-      chip.className = 'sp-cchip';
-      chip.dataset.c = c;
-      chip.style.background = c;
-      chip.addEventListener('click', (e) => { e.stopPropagation(); onPick(c); paint(c); });
-      row.appendChild(chip);
-    }
-    paint(current);
-  }
+  // (the 🎵 music-style picker and 🐕 collar picker lived here until the 8/24
+  // simplification — one town, one tune, one red collar. Recover from git if a
+  // second pilot ever asks for them back.)
 
   refreshSettings(storyOn: boolean) { this.setStoryRowState(storyOn); }
   initSettings(on: boolean, onToggle: (next: boolean) => boolean) {

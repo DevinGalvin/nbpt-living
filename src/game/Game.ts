@@ -17,7 +17,7 @@ import { HistoryRunner, SITES } from './history';
 import { initSchool } from './school';
 import { RaceRunner, COURSES, refreshBoards, getRaceName, setRaceName, hasRaceName, getBoard, courseMiles, courseEstSeconds } from './race';
 import { EggRunner } from './eggs';
-import { GameAudio, MUSIC_STYLES } from './audio';
+import { GameAudio } from './audio';
 import { townKey } from './saves';
 import { STYLE, SEASON } from '../world/style';
 import { startCrashWatch, mountDiagOverlay, heapMB, type DiagStats, type CrashRecord } from './diag';
@@ -527,7 +527,6 @@ export class Game {
       })
     );
     this.hud.initSound(this.audio.enabled, () => this.audio.toggle());
-    this.hud.initMusicStyles(MUSIC_STYLES, this.audio.musicStyle.id, (id) => this.audio.setMusicStyle(id));
     this.hud.initRun(() => {
       this.autoRun = !this.autoRun;
       return this.autoRun;
@@ -610,13 +609,8 @@ export class Game {
     // keys. Gated to the dog player — the legacy kid neither barks nor sniffs.
     if (!LEGACY_KID) {
       try { this.bones = new Set(JSON.parse(localStorage.getItem(townKey('bones')) || '[]')); } catch { this.bones = new Set(); }
-      // the collar survives across towns — it is the same dog everywhere
-      const collar = localStorage.getItem('nbpt-collar') || '#b5402f';
-      (this.player as Dog).setCollar(collar);
-      this.hud.initCollar(['#b5402f', '#2a63c8', '#e8c231', '#2f7a4f', '#8f52a8', '#3a3f45'], collar, (hex) => {
-        (this.player as Dog).setCollar(hex);
-        try { localStorage.setItem('nbpt-collar', hex); } catch { /* private mode */ }
-      });
+      // one red collar for every Clipper — the picker went with the 8/24 simplification
+      (this.player as Dog).setCollar('#b5402f');
       this.hud.initBark(() => this.barkPress(), () => this.barkRelease());
       // B barks (Devin's pick); F stays as a quiet alias for anyone who learned it
       window.addEventListener('keydown', (e) => { if ((e.code === 'KeyB' || e.code === 'KeyF') && !e.repeat && !this.hud.dialogueOpen) this.barkPress(); });
