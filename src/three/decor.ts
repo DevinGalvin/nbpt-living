@@ -697,7 +697,7 @@ function bayWindow(buckets: Bucket[], wallBk: Bucket, fs: { x: number; z: number
   if (y1 - y0 < 34) return;
   walls(wallBk, ring, y0, y1, wallHex);
   flatRoof(buckets[PLAIN], ring, y1, '#5f5b55');
-  walls(buckets[PLAIN], ring, y1 - 2.6, y1 + 1.6, look.lintel ?? STYLE.building.trim, 0);   // the bay's own cornice
+  walls(buckets[PLAIN], expandRing(ring, 0.4), y1 - 2.6, y1 + 1.6, look.lintel ?? STYLE.building.trim, 0);   // the bay's own cornice
   // Three lights per floor: the wide front sash between two narrow cheek ones —
   // that ratio is what makes a bay read as a bay rather than a bump.
   const p = buckets[PLAIN];
@@ -1607,23 +1607,14 @@ function buildStadium(buckets: Bucket[], L: { cx: number; cz: number; ang: numbe
 function houseTrim(plain: Bucket, ring: number[], eaveH: number, baseY: number) {
   const v = ringToVec2(ring);
   if (v.length > 8) return;
-  tmp.set(STYLE.building.trim);
-  const r = tmp.r, g = tmp.g, b = tmp.b;
   for (const p of v) {
     plain.box(p.x, -p.y, 1.1, 1.1, baseY, eaveH - 0.5, STYLE.building.trim);
   }
-  // fascia: thin white band at the eave, slightly proud of the wall
-  for (let i = 0; i < v.length; i++) {
-    const a = v[i], bb = v[(i + 1) % v.length];
-    const ex = bb.x - a.x, ey = bb.y - a.y;
-    const len = Math.hypot(ex, ey);
-    if (len < 0.01) continue;
-    const nx = ey / len, nz = ex / len;
-    plain.quad(
-      a.x + nx * 0.4, eaveH - 2.4, -(a.y - nz * 0.4 * 0), bb.x + nx * 0.4, eaveH - 2.4, -bb.y, bb.x + nx * 0.4, eaveH, -bb.y, a.x + nx * 0.4, eaveH, -a.y,
-      nx, 0, nz, r, g, b
-    );
-  }
+  // fascia: thin white band at the eave, proud of the wall via expandRing — the
+  // old hand-rolled push offset X only (and its Z term was literally `* 0`), so
+  // every north/south-facing fascia sat exactly in the wall's plane and
+  // FLICKERED while the camera moved. Same z-fight family as the cornice bands.
+  walls(plain, expandRing(ring, 0.4), eaveH - 2.4, eaveH, STYLE.building.trim, 0);
 }
 
 // an oriented rectangular post (bridge pier / abutment): a box turned to the span
@@ -2450,21 +2441,10 @@ function octRing(cx: number, cz: number, r: number): number[] {
 function buildNHS(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   const wingTop = g + 50;
   walls(buckets[BRICK], b.p, g - 8, wingTop, '#fdfcf8');
-  const v = ringToVec2(b.p);
   const band = (y0: number, y1: number) => {
-    tmp.set(STYLE.building.trim);
-    for (let i = 0; i < v.length; i++) {
-      const a = v[i], bb = v[(i + 1) % v.length];
-      const ex = bb.x - a.x, ey = bb.y - a.y;
-      const len = Math.hypot(ex, ey);
-      if (len < 0.01) continue;
-      const nx = ey / len, nz = ex / len;
-      buckets[PLAIN].quad(
-        a.x + nx * 0.5, y0, -a.y, bb.x + nx * 0.5, y0, -bb.y,
-        bb.x + nx * 0.5, y1, -bb.y, a.x + nx * 0.5, y1, -a.y,
-        nx, 0, nz, tmp.r, tmp.g, tmp.b
-      );
-    }
+    // proud via expandRing — the old hand-rolled push offset X but not Z, so
+    // bands on north/south-facing walls z-fought the wall behind them
+    walls(buckets[PLAIN], expandRing(b.p, 0.5), y0, y1, STYLE.building.trim, 0);
   };
   band(g + 22, g + 24);          // beltline between floors
   band(wingTop - 3, wingTop);    // cornice
@@ -2745,7 +2725,7 @@ function buildMill(buckets: Bucket[], b: Building, g: number, index: WorldIndex)
   // says 1), and a mill is not a bungalow.
   const top = g + 96;
   walls(buckets[BRICK], b.p, g - 6, top, brick);
-  walls(buckets[PLAIN], b.p, top - 3, top, trim, 0);            // corbelled cornice band
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), top - 3, top, trim, 0);            // corbelled cornice band
   flatRoof(buckets[PLAIN], b.p, top, '#4f4a44');
   // storefront=false: these are work floors, ranks of identical tall windows all the
   // way up. Passing true gave it shop glazing and left the long face blank.
@@ -2755,7 +2735,7 @@ function buildMill(buckets: Bucket[], b: Building, g: number, index: WorldIndex)
   const ts = Math.min(9, obb.hw * 0.8);
   const ring = [obb.cx - ts, obb.cz - ts, obb.cx + ts, obb.cz - ts, obb.cx + ts, obb.cz + ts, obb.cx - ts, obb.cz + ts];
   walls(buckets[BRICK], ring, top - 4, top + 20, brick);
-  walls(buckets[PLAIN], ring, top + 18, top + 20, trim, 0);
+  walls(buckets[PLAIN], expandRing(ring, 0.4), top + 18, top + 20, trim, 0);
   buckets[PLAIN].box(obb.cx, obb.cz, ts + 1.4, ts + 1.4, top + 20, top + 31, '#3b3a3c');   // dark mansard
   buckets[PLAIN].box(obb.cx, obb.cz, ts - 1, ts - 1, top + 31, top + 33.5, '#46454a');
   for (const [dx, dz] of [[0, -(ts + 1.2)], [0, ts + 1.2], [-(ts + 1.2), 0], [ts + 1.2, 0]]) {
@@ -2825,7 +2805,7 @@ function buildCustomHouse(buckets: Bucket[], b: Building, g: number, index: Worl
 // white bell cupola never existed — the real rooftop is the fire-station tower)
 function buildFirehouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   walls(buckets[BRICK], b.p, g - 6, g + 40, '#fdfcf8');
-  walls(buckets[PLAIN], b.p, g + 37, g + 40, '#f4f1e6', 0);          // entablature
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 37, g + 40, '#f4f1e6', 0);          // entablature
   const obb = obbOf(b.p);
   gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, g + 40, 9, 3, '#544f4a', '#f4f1e6');
   facades(buckets[PLAIN], b.p, g + 40, 2, 1448, true, false, true, g, 40);
@@ -2861,7 +2841,7 @@ function buildCityHall(buckets: Bucket[], b: Building, g: number, index: WorldIn
   const obb = obbOf(b.p);
   // photo-audited 7/6: Italianate — BROWNSTONE trim (not white) and NO cupola
   // (the 1873 tower proposal was never built; one was rendering here for weeks)
-  walls(buckets[PLAIN], b.p, g + 50, g + 54, '#6b4a3a', 0); // bracketed brownstone cornice
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 50, g + 54, '#6b4a3a', 0); // bracketed brownstone cornice
   gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, g + 54, 8, 3, '#504c48', '#6b4a3a');
   facades(buckets[PLAIN], b.p, g + 54, 3, 5334, true, false, false, g, 60);
   const f = frontSegment(b, index);
@@ -2880,7 +2860,7 @@ function buildStoneTower(buckets: Bucket[], b: Building, g: number) {
   const stone = '#8d8678';
   walls(buckets[PLAIN], b.p, g - 4, g + 6, '#7c766a', 0);
   walls(buckets[PLAIN], b.p, g + 6, g + 74, stone, 0);
-  walls(buckets[PLAIN], b.p, g + 70, g + 74, '#817b6e', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 70, g + 74, '#817b6e', 0);
   // crenellated parapet: merlons on alternating rim vertices
   for (let i = 0; i < b.p.length; i += 4) {
     buckets[PLAIN].box(b.p[i], b.p[i + 1], 2, 2, g + 74, g + 80, stone);
@@ -2900,7 +2880,7 @@ function buildStoneTower(buckets: Bucket[], b: Building, g: number) {
 // ("golf ball on a tee") is a follow-up — color fixed now.
 function buildWaterTower(buckets: Bucket[], b: Building, g: number) {
   walls(buckets[PLAIN], b.p, g - 2, g + 100, '#eef0ee', 0);
-  walls(buckets[PLAIN], b.p, g + 92, g + 100, '#d8dad6', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 92, g + 100, '#d8dad6', 0);
   const [cx, cz] = centroidOf(b.p);
   const obb = obbOf(b.p);
   tmp.set('#e4e6e2');
@@ -3005,7 +2985,7 @@ function archWindows(plain: Bucket, ring: number[], y0: number, h: number, gapMi
 // Federal mansion on High Street, paired end chimneys, white door surround
 function buildCushing(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   walls(buckets[BRICK], b.p, g - 6, g + 52, '#fdfcf8');
-  walls(buckets[PLAIN], b.p, g + 49, g + 52, '#faf8f0', 0);          // cornice
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 49, g + 52, '#faf8f0', 0);          // cornice
   const obb = obbOf(b.p);
   gableRoof(buckets[SHINGLE], buckets[PLAIN], b.p, obb, g + 52, 6, 3, '#4a4540', '#faf8f0');
   facades(buckets[PLAIN], b.p, g + 52, 3, 1808, false, true, false, g, 40);
@@ -3034,7 +3014,7 @@ function buildCushing(buckets: Bucket[], b: Building, g: number, index: WorldInd
 // Newburyport Public Library (Tracy Mansion, 1771 + modern wing) — State Street
 function buildLibrary(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   walls(buckets[BRICK], b.p, g - 8, g + 48, '#fdfcf8');
-  walls(buckets[PLAIN], b.p, g + 45, g + 48, '#faf8f0', 0);          // cornice
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 45, g + 48, '#faf8f0', 0);          // cornice
   complexGable(buckets[SHINGLE], buckets[PLAIN], b.p, g + 48, '#4c4843', '#faf8f0');
   facades(buckets[PLAIN], b.p, g + 48, 3, 1771, false, false, false, g, 70);
   const f = heroFront(b, index, { road: 'State Street' });
@@ -3066,7 +3046,7 @@ function buildLibrary(buckets: Bucket[], b: Building, g: number, index: WorldInd
 // arch (the white temple front never existed); pediments = brick gable ends
 function buildCourthouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   walls(buckets[BRICK], b.p, g - 6, g + 46, '#fdfcf8');
-  walls(buckets[PLAIN], b.p, g + 43, g + 46, '#faf8f0', 0);          // bracketed cornice
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 43, g + 46, '#faf8f0', 0);          // bracketed cornice
   const obb = obbOf(b.p);
   gableRoof(buckets[SHINGLE], buckets[BRICK], b.p, obb, g + 46, 7, 3, '#4a4641', '#fdfcf8');
   facades(buckets[PLAIN], b.p, g + 46, 3, 1805, false, false, false, g, 60); // 6/6 sashes
@@ -3163,7 +3143,7 @@ function buildOldJail(buckets: Bucket[], b: Building, g: number) {
 // Garrison Inn (1809) — four-story brick Federal block on Brown Square
 function buildGarrisonInn(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   walls(buckets[BRICK], b.p, g - 6, g + 72, '#fdfcf8');
-  walls(buckets[PLAIN], b.p, g + 68, g + 72, '#faf8f0', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 68, g + 72, '#faf8f0', 0);
   flatRoof(buckets[PLAIN], b.p, g + 72, '#494744');
   facades(buckets[PLAIN], b.p, g + 72, 4, 1809, true, false, false, g, 60);
   const obb = obbOf(b.p);
@@ -3184,7 +3164,7 @@ function buildBank(buckets: Bucket[], b: Building, g: number, index: WorldIndex)
   // brownstone era") — it was rendering as pale grey ashlar
   walls(buckets[PLAIN], b.p, g - 6, g + 5, '#6f4636', 0);              // base course
   walls(buckets[PLAIN], b.p, g + 5, g + 44, '#8a5a45', 0);             // brownstone ashlar
-  walls(buckets[PLAIN], b.p, g + 40, g + 44, '#9c6e58', 0);            // deep carved cornice
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 40, g + 44, '#9c6e58', 0);            // deep carved cornice
   complexGable(buckets[SHINGLE], buckets[PLAIN], b.p, g + 44, '#45423e', '#9c6e58');
   archWindows(buckets[PLAIN], b.p, g + 20, 13, 28);
   const f = heroFront(b, index, { road: 'State Street' });
@@ -4466,7 +4446,7 @@ function buildGazebo(buckets: Bucket[], b: Building, g: number) {
 // fire stations — brick, white bay doors, red trim: instantly "fire station"
 function buildFireStation(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   walls(buckets[BRICK], b.p, g - 6, g + 30, '#fdfcf8');
-  walls(buckets[PLAIN], b.p, g + 27, g + 30, '#faf8f0', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 27, g + 30, '#faf8f0', 0);
   flatRoof(buckets[PLAIN], b.p, g + 30, '#54514c');
   const f = heroFront(b, index, { minLen: 90 });
   // apparatus bays scaled to the facade: white doors, glass rows, red posts
@@ -4510,7 +4490,7 @@ function buildFireStation(buckets: Bucket[], b: Building, g: number, index: Worl
 // Newburyport Police Department — brick civic block with the navy entry band
 function buildPolice(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   walls(buckets[BRICK], b.p, g - 6, g + 32, '#fdfcf8');
-  walls(buckets[PLAIN], b.p, g + 29, g + 32, '#faf8f0', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 29, g + 32, '#faf8f0', 0);
   flatRoof(buckets[PLAIN], b.p, g + 32, '#54514c');
   facades(buckets[PLAIN], b.p, g + 32, 2, 1011, false, false, false, g, 40);
   const f = heroFront(b, index);
@@ -4539,20 +4519,10 @@ function buildHospital(buckets: Bucket[], b: Building, g: number, index: WorldIn
   const top = g + 60;
   walls(buckets[BRICK], b.p, g - 14, top, '#f6ece2');           // real brick texture, warm tint
   // white trim: a water table at grade, two beltlines between floors, a cornice
-  const v = ringToVec2(b.p);
+  // — proud via expandRing (the old hand-rolled push offset X but not Z, so
+  // bands on north/south-facing walls z-fought the brick behind them)
   const band = (y0: number, y1: number) => {
-    tmp.set(STYLE.building.trim);
-    for (let i = 0; i < v.length; i++) {
-      const a = v[i], bb = v[(i + 1) % v.length];
-      const ex = bb.x - a.x, ey = bb.y - a.y, len = Math.hypot(ex, ey);
-      if (len < 0.01) continue;
-      const nx = ey / len, nz = ex / len;
-      buckets[PLAIN].quad(
-        a.x + nx * 0.5, y0, -a.y, bb.x + nx * 0.5, y0, -bb.y,
-        bb.x + nx * 0.5, y1, -bb.y, a.x + nx * 0.5, y1, -a.y,
-        nx, 0, nz, tmp.r, tmp.g, tmp.b
-      );
-    }
+    walls(buckets[PLAIN], expandRing(b.p, 0.5), y0, y1, STYLE.building.trim, 0);
   };
   band(g - 14, g - 9);    // white water table at grade
   band(g + 15, g + 17);   // beltline between floors
@@ -4586,7 +4556,7 @@ function buildHospital(buckets: Bucket[], b: Building, g: number, index: WorldIn
 // Brown School (1923) — the big brick schoolhouse on Milk Street
 function buildBrownSchool(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   walls(buckets[BRICK], b.p, g - 6, g + 46, '#fdfcf8');
-  walls(buckets[PLAIN], b.p, g + 43, g + 46, '#faf8f0', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 43, g + 46, '#faf8f0', 0);
   flatRoof(buckets[PLAIN], b.p, g + 46, '#504d49');
   facades(buckets[PLAIN], b.p, g + 46, 3, 1923, false, false, false, g, 70);
   const f = heroFront(b, index, { road: 'Milk Street' });
@@ -4762,8 +4732,8 @@ function firstPeriod(buckets: Bucket[], b: Building, g: number, index: WorldInde
   const FW = front * (W + 1.4), BW = -front * (W + 1.4);
   const eaveH = g + (o.eave ?? 26);
   clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
-  walls(buckets[PLAIN], b.p, g + 11, g + 12.4, o.jetty ?? '#25272a', 0);
-  walls(buckets[PLAIN], b.p, eaveH - 1.3, eaveH, o.jetty ?? '#25272a', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 11, g + 12.4, o.jetty ?? '#25272a', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), eaveH - 1.3, eaveH, o.jetty ?? '#25272a', 0);
   if (o.chimney !== 'none') { const cc = pt(0, 0, 0), cw = o.chimney === 'big' ? 5 : 3.7; buckets[BRICK].box(cc[0], cc[2], cw, cw - 0.5, eaveH + 6, eaveH + (o.chimney === 'big' ? 42 : 32), '#6f4636', 1); }
   const n = o.nGables ?? 3, gw = L / n;
   const ridges: [number, number][] = [];   // [center, ridgeY] for window placement
@@ -5168,7 +5138,7 @@ function yinYuTang(buckets: Bucket[], b: Building, g: number, index: WorldIndex)
   const WHITE = '#e9e6dc', GREY = '#cbc7bc', TILE = '#333436';
   const eaveH = g + 34;
   walls(buckets[PLAIN], b.p, g - 3, eaveH, WHITE, 0);                   // tall plain lime-plaster walls
-  walls(buckets[PLAIN], b.p, g - 3, g + 6, GREY, 0);                    // grimier weathered base
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g - 3, g + 6, GREY, 0);                    // grimier weathered base
   flatRoof(buckets[SHINGLE], b.p, eaveH + 2, TILE);                     // low dark inward-pitch tile roof
   const seg = [[0, 0.34, 25], [0.34, 0.67, 17], [0.67, 1, 9]] as const; // stepped horse-head gable on each end
   for (const sx of [1, -1] as const) for (const sz of [1, -1] as const) for (const [z0, z1, h] of seg) {
@@ -6919,7 +6889,7 @@ function massStateHouse(buckets: Bucket[], b: Building, g: number, index: WorldI
   // read as a blank pale slab with a dome behind it. They are Classical Revival
   // buildings: three ranks of tall windows between pilasters, under a real
   // entablature, over a rusticated base.
-  walls(buckets[PLAIN], b.p, eave - 3.4, eave - 1.2, '#d8d4c6', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), eave - 3.4, eave - 1.2, '#d8d4c6', 0);
   walls(buckets[PLAIN], b.p, g - 3, g + 12 * FT, '#dbd7c9', 0);              // rusticated base storey
   const mSeed = Math.round(obb.cx * 5 + obb.cz);
   // the pilasters first, so the windows sit between them
@@ -6999,7 +6969,7 @@ function faneuilHall(buckets: Bucket[], b: Building, g: number, index: WorldInde
   };
   for (const s of [1, -1] as const) for (let i = 0; i <= 6; i++) pil(-L * 0.86 + (L * 1.72) * (i / 6), s);
   // string course under the eaves
-  walls(buckets[PLAIN], b.p, eave - 3.2, eave - 1.4, TRIM, 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), eave - 3.2, eave - 1.4, TRIM, 0);
 
   // ── the cupola, at the EAST end of the ridge ──
   // "East" here = whichever end of the long axis faces further east in world x.
@@ -7095,7 +7065,7 @@ function oldStateHouse(buckets: Bucket[], b: Building, g: number, index: WorldIn
   walls(buckets[BRICK], b.p, g - 3, eave, BRICKRED);
   const ridgeRise = Math.min(W * 0.34, 22), ridge = eave + ridgeRise;
   gableRoof(buckets[SHINGLE], buckets[BRICK], b.p, obb, eave, ridgeRise, 1.3, '#4e5157', BRICKRED);
-  walls(buckets[PLAIN], b.p, eave - 3, eave - 1.2, WHITE, 0);         // cornice
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), eave - 3, eave - 1.2, WHITE, 0);         // cornice
 
   // east gable end: balcony + lion and unicorn
   const eSign = (ca >= 0) ? 1 : -1;
@@ -7616,7 +7586,7 @@ function glassTower(buckets: Bucket[], b: Building, g: number, o: { ft: number; 
   // the mechanical band the setback sits behind, then the roof
   const every = o.bandEvery ?? 40;
   for (let y = g + every * FT; y < top - 6; y += every * FT)
-    walls(buckets[PLAIN], b.p, y, y + 2.2, o.band, 0);
+    walls(buckets[PLAIN], expandRing(b.p, 0.4), y, y + 2.2, o.band, 0);
   walls(buckets[PLAIN], b.p, top, top + 6, o.band, 0);
   flatRoof(buckets[PLAIN], b.p, top + 6, '#6e6a64');
   const [cx, cz] = centroidOf(b.p);
@@ -7870,7 +7840,7 @@ function greekTemple(buckets: Bucket[], b: Building, g: number, index: WorldInde
   roofClutter(buckets, b.p, top, Math.round(obb.cx * 5 + obb.cz), ringAreaM2(b.p), false);
   // opt-in: a top-lit gallery has skylights, a concert hall does not
   if (o.skylit) skylights(buckets, obb, top, '#cfe2ea', 3, 5);
-  walls(buckets[PLAIN], b.p, top - 5, top - 1.6, '#d9d5c8', 0);            // entablature
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), top - 5, top - 1.6, '#d9d5c8', 0);            // entablature
   // Tall arched bays between pilasters — a Beaux-Arts institution's window, and
   // the reason the MFA and Symphony Hall read as buildings rather than slabs.
   const gStoreys = Math.max(2, Math.round((top - g) / (18 * FT)));
@@ -7939,7 +7909,7 @@ function mansardBlock(buckets: Bucket[], b: Building, g: number, o: { wall: stri
   const obb = obbOf(b.p);
   const eave = g + o.storeyFt * FT;
   walls(buckets[PLAIN], b.p, g - 3, eave, o.wall, 0);
-  walls(buckets[PLAIN], b.p, eave - 4, eave - 1, '#e2ded0', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), eave - 4, eave - 1, '#e2ded0', 0);
   // Second Empire fenestration: tall segmental-arched windows in heavy hooded
   // architraves, one rank per storey under the mansard.
   const mStoreys = Math.max(2, Math.round(o.storeyFt / 13));
