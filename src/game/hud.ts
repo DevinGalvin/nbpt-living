@@ -1646,7 +1646,6 @@ export class Hud {
   private stickBase: HTMLElement;
   private stickKnob: HTMLElement;
   private lastShown = new Map<string, number>();
-  private lastLmBanner = -1e9;   // when ANY landmark banner last showed — the global spacing gate
   private joyId = -1;
   private joyBaseX = 0;
   private joyBaseY = 0;
@@ -3881,13 +3880,15 @@ export class Hud {
   // ALWAYS say where you have arrived.
   // The landmark banner, tamed (8/23): skating laps around downtown was a slideshow
   // — every landmark re-announced itself every 90s. Now each place introduces
-  // itself ONCE per visit (session), and no two ambient banners land within 25s of
-  // each other. A deliberate travel-to (force) always says where it took you.
+  // itself ONCE per visit (session) — one rule, no cross-place state. (An earlier
+  // pass also spaced banners 25s apart globally; Devin's call 8/24: that read as
+  // ARBITRARY — same action at two spots, different result — so it's gone. The
+  // real fix for invasiveness was the size.) A deliberate travel-to (force)
+  // always says where it took you.
   maybeShowLandmark(lm: Landmark, force = false): boolean {
     const now = performance.now();
-    if (!force && (this.lastShown.has(lm.id) || now - this.lastLmBanner < 25_000)) return false;
+    if (!force && this.lastShown.has(lm.id)) return false;
     this.lastShown.set(lm.id, now);
-    this.lastLmBanner = now;
     this.bannerName.textContent = lm.name;
     this.bannerSub.textContent = lm.sub;
     this.banner.classList.add('show');
