@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { WorldData, Building, Poly } from '../world/types';
 import { WorldIndex, CHUNK, centroidOf, walkLine as walkLineD, obbOf, type OBB, distToPolylineSq, floatOutForWinter } from '../world/index';
 import { STYLE, SEASON, TREES, pick, hash32, mulberry32 } from '../world/style';
-import { clapboardTex, shingleTex, brickTex, plankTex } from './textures';
+import { clapboardTex, shingleTex, brickTex, plankTex, normalFromTexture } from './textures';
 import { WATER_Y } from './water';
 import { GFX } from '../gfx';
 import { gillisCenter } from './gillis';
@@ -78,6 +78,12 @@ class Bucket {
     this.norm.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
   }
 
+  // stamp a scalar into uv.x of the last quad pushed (the night-window material reads
+  // its turn-on threshold from there; those quads have no texture to need the uv)
+  tagLast(v: number) {
+    for (let k = this.uv.length - 12; k < this.uv.length; k += 2) this.uv[k] = v;
+  }
+
   quadUV(ax: number, ay: number, az: number, bx: number, by: number, bz: number,
          cx: number, cy: number, cz: number, dx: number, dy: number, dz: number,
          nx: number, ny: number, nz: number, r: number, g: number, b: number,
@@ -125,7 +131,30 @@ class Bucket {
   }
 }
 
-const PLAIN = 0, CLAP = 1, BRICK = 2, SHINGLE = 3, PLANK = 4, GLOW = 5;
+const PLAIN = 0, CLAP = 1, BRICK = 2, SHINGLE = 3, PLANK = 4, GLOW = 5, WINDOW = 6;
+
+// Windows that light up as night falls. Every window emitter drops a warm quad into
+// this bucket, just proud of the glass, with a per-window turn-on threshold in uv.x;
+// the WINDOW material fades each one in as `night` passes its threshold, so a street
+// comes on house by house through dusk rather than all at once. Set per chunk build.
+let winGlow: Bucket | null = null;
+const WIN_WARM = new THREE.Color('#ffc978');
+function windowGlow(x: number, y2: number, nx: number, nz: number, ux: number, uy: number,
+                    hw: number, hh: number, yC: number, rng: () => number, dayLit: boolean) {
+  if (!winGlow) return;
+  const r = rng();
+  if (!dayLit && r > 0.42) return;                // a bit under half the windows ever light
+  const th = dayLit ? 0.08 : 0.16 + rng() * 0.7;  // the ones lit by day are first on at dusk
+  const w = 0.82 + rng() * 0.18;                  // slight warmth variation between rooms
+  billboard(winGlow, x, y2, nx, nz, ux, uy, hw, hh, yC, 1.15, WIN_WARM.r * w, WIN_WARM.g * w, WIN_WARM.b * w);
+  winGlow.tagLast(th);
+}
+
+let winUniforms: { uNight: { value: number } } | null = null;
+/** night 0..1 from the sky; drives every lit window in every chunk */
+export function setWindowNight(n: number) {
+  if (winUniforms) winUniforms.uNight.value = n;
+}
 
 function ringToVec2(ring: number[]): THREE.Vector2[] {
   const v: THREE.Vector2[] = [];
@@ -688,6 +717,7 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
         billboard(plain, wx, wy, nx, nz, ux, uy, winW, winH, yC, 0.5, tr, tg, tb);
         if (lit) tmp.set(STYLE.building.glassLit); else tmp.copy(glassJit);
         billboard(plain, wx, wy, nx, nz, ux, uy, winW - 1.2, winH - 1.2, yC, 0.9, tmp.r, tmp.g, tmp.b);
+        windowGlow(wx, wy, nx, nz, ux, uy, winW - 1.2, winH - 1.2, yC, rng, lit);
         // The lintel is two extra quads per opening. On an ordinary block that
         // is nothing; on a footprint big enough to spend the whole window budget
         // it would triple the building's geometry, so it stops after the first
@@ -2317,6 +2347,7 @@ function gridWindows(bk: Bucket, ring: number[], rows: number, o: {
         billboard(bk, wx, wy, nx, nz, ux, uy, hw + 1.1, hh + 1.1, yC, 0.45, tr, tg, tb);   // reveal / architrave
         billboard(bk, wx, wy, nx, nz, ux, uy, hw, hh, yC, 0.85,
           lit ? lr : gr, lit ? lg : gg, lit ? lb : gb);
+        windowGlow(wx, wy, nx, nz, ux, uy, hw, hh, yC, rng, lit);
         if (o.arch) {
           // a round head, as three narrowing courses — cheaper than a real arc
           // and reads correctly at every distance the game shows a building from
@@ -2416,6 +2447,9 @@ function curtainWall(bk: Bucket, glow: Bucket, ring: number[], g: number, top: n
       const h2 = f === 0 ? bandH * 1.5 : bandH;
       billboard(bk, mx, my, nx, nz, ux, uy, half, h2, yC, 0.7,
         (lit ? lr : gr) * shade, (lit ? lg : gg) * shade, (lit ? lb : gb) * shade);
+      // an office floor at night is a strip, not a window — one glow band per lit floor,
+      // plus a few more floors that only come on after dark
+      if (lit || rng() < 0.22) windowGlow(mx, my, nx, nz, ux, uy, half, h2 * 0.9, yC, rng, true);
     }
     // mullions: full-height slivers, one quad each, standing proud of the glass
     const step = skin.era === 'glass' ? 11 : 15;
@@ -9032,7 +9066,8 @@ function styledHouse(buckets: Bucket[], b: Building, g: number, index: WorldInde
 }
 
 export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): THREE.Mesh | null {
-  const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
+  const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
+  winGlow = GFX.nightWindows ? buckets[WINDOW] : null;
   const [ckx, cky] = key.split(',').map(Number);
   const ox = ckx * CHUNK, oy = cky * CHUNK;
 
@@ -10069,15 +10104,59 @@ function flatRoofPlank(bk: Bucket, ring: number[], h: number) {
 let _mats: THREE.Material[] | null = null;
 function decorMaterials(): THREE.Material[] {
   if (!_mats) {
-    const mk = (map: THREE.Texture | null) => {
+    // normal-map strength per surface: mortar and plank gaps are deep, clapboard and
+    // shingle courses are shallow steps
+    const mk = (map: THREE.CanvasTexture | null, bump = 0) => {
       const m = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
       if (map) m.map = map;
+      if (map && bump > 0 && GFX.normalMaps) {
+        m.normalMap = normalFromTexture(map, bump);
+        m.normalScale.set(0.55, 0.55);
+      }
       m.shadowSide = THREE.DoubleSide; // open quads must still write shadow depth
       return m;
     };
     // group 5 is unlit: holiday string lights read as glowing bulbs at dusk
-    _mats = [mk(null), mk(clapboardTex()), mk(brickTex()), mk(shingleTex()), mk(plankTex()),
-             new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })];
+    // group 6 is the night windows (see windowGlow): additive, faded in by `night`
+    winUniforms = { uNight: { value: 0 } };
+    const windows = new THREE.ShaderMaterial({
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, winUniforms]),
+      vertexColors: true, transparent: true, depthWrite: false, fog: true,
+      blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      vertexShader: `
+        varying vec3 vColor;
+        varying float vTh;
+        #include <fog_pars_vertex>
+        void main() {
+          vColor = color;
+          vTh = uv.x;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          gl_Position = projectionMatrix * mvPosition;
+          #include <fog_vertex>
+        }`,
+      fragmentShader: `
+        uniform float uNight;
+        varying vec3 vColor;
+        varying float vTh;
+        #include <fog_pars_fragment>
+        void main() {
+          float on = smoothstep(vTh - 0.06, vTh + 0.06, uNight);
+          if (on <= 0.002) discard;
+          vec3 c = vColor * on;
+          #ifdef USE_FOG
+            // additive light fades with distance rather than blending toward the fog colour
+            c *= 1.0 - smoothstep(fogNear, fogFar, vFogDepth);
+          #endif
+          gl_FragColor = vec4(c, 1.0);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`
+    });
+    // the merged uniforms object is a copy — point the setter at the live one
+    winUniforms = windows.uniforms as { uNight: { value: number } };
+    _mats = [mk(null), mk(clapboardTex(), 0.9), mk(brickTex(), 1.6), mk(shingleTex(), 0.9), mk(plankTex(), 1.4),
+             new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }),
+             windows];
   }
   return _mats;
 }

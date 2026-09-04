@@ -9,8 +9,20 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 // soft PBR skin for the hero actors — a gentle roughness so the rounded forms
 // catch a believable terminator + faint highlight from the sun/hemi rig (the flat
 // Lambert town reads as facets; this reads as rounded). metalness 0 = no hotspots.
+// One material per colour, shared across every part that wears it: the kid and the dog
+// are ~45 meshes each, and a material apiece meant ~90 PBR programs' worth of state
+// changes a frame. Parts that mutate their material (collar recolour, translucent
+// cheeks) clone theirs first.
+const matCache = new Map<string, THREE.MeshStandardMaterial>();
 function mat(color: string): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0 });
+  let m = matCache.get(color);
+  if (!m) { m = new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0 }); matCache.set(color, m); }
+  return m;
+}
+function ownMat(mesh: THREE.Mesh): THREE.MeshStandardMaterial {
+  const m = (mesh.material as THREE.MeshStandardMaterial).clone();
+  mesh.material = m;
+  return m;
 }
 
 // vertical capsule; pivotTop hangs it from its top tip
@@ -32,7 +44,9 @@ function capZ(r: number, len: number, color: string): THREE.Mesh {
 }
 
 function sph(r: number, color: string, sx = 1, sy = 1, sz = 1): THREE.Mesh {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), mat(color));
+  // eyes, catchlights and tags are a pixel or two on screen; they don't need 864 triangles
+  const fine = r >= 1.6;
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, fine ? 24 : 10, fine ? 18 : 8), mat(color));
   m.scale.set(sx, sy, sz);
   return m;
 }
@@ -188,7 +202,7 @@ export class Kid {
     const knose = sph(0.58, '#e3a878', 1, 0.86, 1); knose.position.set(0, 2.3, 4.95);
     const smile = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.2, 6, 12, Math.PI), mat('#8a4b40'));
     smile.rotation.z = Math.PI; smile.position.set(0, 1.2, 4.5);
-    const cheek = (sx: number) => { const c = sph(0.9, '#e89a86', 1, 0.62, 0.42); c.position.set(sx * 3.05, 1.8, 4.0); const m = c.material as THREE.MeshStandardMaterial; m.transparent = true; m.opacity = 0.55; return c; };
+    const cheek = (sx: number) => { const c = sph(0.9, '#e89a86', 1, 0.62, 0.42); c.position.set(sx * 3.05, 1.8, 4.0); const m = ownMat(c); m.transparent = true; m.opacity = 0.55; return c; };
     this.headGrp.add(head, jaw, hair, fringe, part, sideTuft(-1), sideTuft(1), nape,
       ear(-1), ear(1), this.eyeL, this.eyeR, lid(-1), lid(1),
       brow(-1), brow(1), knose, smile, cheek(-1), cheek(1));
@@ -686,6 +700,7 @@ export class Dog {
     // a red collar with a little gold tag — Clipper's got an owner
     const collar = new THREE.Mesh(new THREE.TorusGeometry(3.7, 0.55, 8, 18), mat('#b5402f'));
     collar.position.set(0, 4.0, 12.7); collar.scale.set(1.05, 0.9, 1);
+    ownMat(collar);   // setCollar recolours it; keep that off the shared red
     this.collarMesh = collar;
     const tag = sph(0.7, '#e8c44f'); tag.position.set(0, 0.9, 13.1);
     this.trunk.add(body, chest, rump, croup, neck, withers, saddle, belly, bib,

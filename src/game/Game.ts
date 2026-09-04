@@ -3,7 +3,7 @@ import { GFX } from '../gfx';
 import type { WorldData } from '../world/types';
 import { WorldIndex, CHUNK } from '../world/index';
 import { Terrain } from '../world/terrain';
-import { buildChunkDecor } from '../three/decor';
+import { buildChunkDecor, setWindowNight } from '../three/decor';
 import { detailTex } from '../three/textures';
 import { buildWater, WATER_Y } from '../three/water';
 import { Sky } from '../three/sky';
@@ -2437,6 +2437,7 @@ export class Game {
     // street lamps cast warm light at night (a pool following the nearest lamps)
     const lampOn = this.inside ? 0 : sky.night;
     this.lampGlowMat.opacity = 0.9 * lampOn;
+    setWindowNight(lampOn);
     for (let i = 0; i < this.lampGlows.length; i++) {
       const s = this.lampSpots[i];
       const on = !!s && lampOn > 0.01;

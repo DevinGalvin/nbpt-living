@@ -8,9 +8,14 @@ import * as THREE from 'three';
 //   ?shadow=2048|1024|0         shadow map size (0 = off)
 //   ?lights=6                   point lights in the street-lamp pool
 //   ?ao=0                       baked wall ambient occlusion off
+//   ?nm=0|1                     procedural normal maps (default: on, off on touch devices)
+//   ?win=0                      windows that light up at night, off
 
 const q = new URLSearchParams(typeof location !== 'undefined' ? location.search : '');
 const num = (k: string, d: number) => { const v = parseFloat(q.get(k) ?? ''); return Number.isFinite(v) ? v : d; };
+
+// touch-first devices get the lighter tier; the same test Game.ts uses for chunk budgets
+const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
 const TONE: Record<string, THREE.ToneMapping> = {
   aces: THREE.ACESFilmicToneMapping, agx: THREE.AgXToneMapping,
@@ -24,6 +29,12 @@ export const GFX = {
   toneMapping: TONE[q.get('tm') ?? 'neutral'] ?? THREE.NeutralToneMapping,
   exposure: num('exp', 1.0),
   ao: q.get('ao') !== '0',
+  // procedural normal maps on brick / clapboard / shingle / plank: one extra texture
+  // fetch plus derivative math per decor fragment — worth it on desktop, skipped on
+  // phones (?nm=1 forces on, ?nm=0 off)
+  normalMaps: q.has('nm') ? q.get('nm') !== '0' : !coarse,
+  // windows that light up as night falls (?win=0 off)
+  nightWindows: q.get('win') !== '0',
   // -1 = decide from device (1024 on touch/weak GPUs, 2048 elsewhere)
   shadowSize: num('shadow', -1),
   // real PointLights are the one per-fragment cost that scales with count; six nearest

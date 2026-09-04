@@ -141,3 +141,42 @@ export function plankTex(): THREE.CanvasTexture {
     }
   });
 }
+
+// Tangent-space normal map derived from a texture's own luminance: dark mortar lines,
+// the shadow under a clapboard, the gap between planks all read as grooves. Sobel over
+// the luminance, then packed as RGB. Same canvas source, so it stays a procedural
+// zero-byte asset; only the desktop tier pays the per-fragment fetch (see gfx.ts).
+export function normalFromTexture(src: THREE.CanvasTexture, strength = 1): THREE.CanvasTexture {
+  const img = src.image as HTMLCanvasElement;
+  const s = img.width;
+  const sg = img.getContext('2d')!;
+  const d = sg.getImageData(0, 0, s, s).data;
+  const lum = new Float32Array(s * s);
+  for (let i = 0; i < s * s; i++) lum[i] = (d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114) / 255;
+  const at = (x: number, y: number) => lum[((y + s) % s) * s + ((x + s) % s)];   // tiles, like the texture
+  const c = document.createElement('canvas');
+  c.width = c.height = s;
+  const g = c.getContext('2d')!;
+  const out = g.createImageData(s, s);
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x++) {
+      const gx = (at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1)) - (at(x - 1, y - 1) + 2 * at(x - 1, y) + at(x - 1, y + 1));
+      const gy = (at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1)) - (at(x - 1, y - 1) + 2 * at(x, y - 1) + at(x + 1, y - 1));
+      // canvas y runs down, texture v runs up, so the green channel flips
+      let nx = -gx * strength, ny = gy * strength, nz = 1;
+      const l = Math.hypot(nx, ny, nz);
+      nx /= l; ny /= l; nz /= l;
+      const o = (y * s + x) * 4;
+      out.data[o] = (nx * 0.5 + 0.5) * 255;
+      out.data[o + 1] = (ny * 0.5 + 0.5) * 255;
+      out.data[o + 2] = (nz * 0.5 + 0.5) * 255;
+      out.data[o + 3] = 255;
+    }
+  }
+  g.putImageData(out, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.NoColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
