@@ -4,6 +4,7 @@ import { WorldIndex, CHUNK, centroidOf, walkLine as walkLineD, obbOf, type OBB, 
 import { STYLE, SEASON, TREES, pick, hash32, mulberry32 } from '../world/style';
 import { clapboardTex, shingleTex, brickTex, plankTex } from './textures';
 import { WATER_Y } from './water';
+import { GFX } from '../gfx';
 import { gillisCenter } from './gillis';
 import { TOWN } from '@town';
 
@@ -52,14 +53,51 @@ class Bucket {
   col: number[] = [];
   uv: number[] = [];
 
+  // One triangle, wound to agree with its declared normal. Every emitter in this file
+  // hands us the normal it MEANS (box tops say +Y, walls say outward), but roughly half
+  // of them list the corners clockwise. Under DoubleSide three.js negates the normal on
+  // back faces, so a clockwise box top was being lit as if it faced the ground — the
+  // "dark olive cap" on cars, chimneys, lamp heads and every tree canopy. Checking the
+  // geometric normal here fixes all ~200 builders at once, and is what makes FrontSide
+  // culling possible later.
+  private tri(ax: number, ay: number, az: number, bx: number, by: number, bz: number,
+              cx: number, cy: number, cz: number, nx: number, ny: number, nz: number,
+              rA: number, gA: number, bA: number, rB: number, gB: number, bB: number, rC: number, gC: number, bC: number,
+              uA: number, vA: number, uB: number, vB: number, uC: number, vC: number) {
+    const e1x = bx - ax, e1y = by - ay, e1z = bz - az, e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
+    const gx = e1y * e2z - e1z * e2y, gy = e1z * e2x - e1x * e2z, gz = e1x * e2y - e1y * e2x;
+    if (gx * nx + gy * ny + gz * nz < 0) {
+      this.pos.push(ax, ay, az, cx, cy, cz, bx, by, bz);
+      this.col.push(rA, gA, bA, rC, gC, bC, rB, gB, bB);
+      this.uv.push(uA, vA, uC, vC, uB, vB);
+    } else {
+      this.pos.push(ax, ay, az, bx, by, bz, cx, cy, cz);
+      this.col.push(rA, gA, bA, rB, gB, bB, rC, gC, bC);
+      this.uv.push(uA, vA, uB, vB, uC, vC);
+    }
+    this.norm.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
+  }
+
   quadUV(ax: number, ay: number, az: number, bx: number, by: number, bz: number,
          cx: number, cy: number, cz: number, dx: number, dy: number, dz: number,
          nx: number, ny: number, nz: number, r: number, g: number, b: number,
          uA: number, vA: number, uB: number, vB: number, uC: number, vC: number, uD: number, vD: number) {
-    this.pos.push(ax, ay, az, bx, by, bz, cx, cy, cz, ax, ay, az, cx, cy, cz, dx, dy, dz);
-    for (let i = 0; i < 6; i++) this.norm.push(nx, ny, nz);
-    for (let i = 0; i < 6; i++) this.col.push(r, g, b);
-    this.uv.push(uA, vA, uB, vB, uC, vC, uA, vA, uC, vC, uD, vD);
+    this.tri(ax, ay, az, bx, by, bz, cx, cy, cz, nx, ny, nz, r, g, b, r, g, b, r, g, b, uA, vA, uB, vB, uC, vC);
+    this.tri(ax, ay, az, cx, cy, cz, dx, dy, dz, nx, ny, nz, r, g, b, r, g, b, r, g, b, uA, vA, uC, vC, uD, vD);
+  }
+
+  // A wall quad with baked ambient occlusion: a→b is the bottom edge, c→d the top, and
+  // the colour is scaled by sBot at the base and sTop at the top. Contact shadow at the
+  // foot of a wall and the eave's shade at its head are what make flat-shaded boxes
+  // read as solid, and as vertex colour they cost nothing at runtime.
+  quadGrad(ax: number, ay: number, az: number, bx: number, by: number, bz: number,
+           cx: number, cy: number, cz: number, dx: number, dy: number, dz: number,
+           nx: number, ny: number, nz: number, r: number, g: number, b: number,
+           uA: number, vA: number, uB: number, vB: number, uC: number, vC: number, uD: number, vD: number,
+           sBot: number, sTop: number) {
+    const rB = r * sBot, gB = g * sBot, bB = b * sBot, rT = r * sTop, gT = g * sTop, bT = b * sTop;
+    this.tri(ax, ay, az, bx, by, bz, cx, cy, cz, nx, ny, nz, rB, gB, bB, rB, gB, bB, rT, gT, bT, uA, vA, uB, vB, uC, vC);
+    this.tri(ax, ay, az, cx, cy, cz, dx, dy, dz, nx, ny, nz, rB, gB, bB, rT, gT, bT, rT, gT, bT, uA, vA, uC, vC, uD, vD);
   }
 
   quad(ax: number, ay: number, az: number, bx: number, by: number, bz: number,
@@ -72,10 +110,7 @@ class Bucket {
         cx: number, cy: number, cz: number, nx: number, ny: number, nz: number,
         r: number, g: number, b: number,
         uA: number, vA: number, uB: number, vB: number, uC: number, vC: number) {
-    this.pos.push(ax, ay, az, bx, by, bz, cx, cy, cz);
-    for (let i = 0; i < 3; i++) this.norm.push(nx, ny, nz);
-    for (let i = 0; i < 3; i++) this.col.push(r, g, b);
-    this.uv.push(uA, vA, uB, vB, uC, vC);
+    this.tri(ax, ay, az, bx, by, bz, cx, cy, cz, nx, ny, nz, r, g, b, r, g, b, r, g, b, uA, vA, uB, vB, uC, vC);
   }
 
   box(cx: number, cz: number, hw: number, hd: number, y0: number, y1: number, hex: string, uvScale = 0) {
@@ -115,6 +150,30 @@ function ringAreaM2(ring: number[]): number {
 }
 
 // textured walls along the exact footprint, sun-shaded per face
+// Baked ambient occlusion on walls (see Bucket.quadGrad). Heights in world px (8 px = 1 m):
+// the foot of every wall darkens over the bottom ~1.1 m, and walls tall enough to have an
+// eave take a shallow shade band under it. Two or three quads per edge instead of one.
+const AO_BASE_H = 9, AO_BASE = 0.70;
+const AO_EAVE_H = 6, AO_EAVE = 0.84, AO_EAVE_MIN_H = 18;
+
+// one wall edge from (ax,az)→(bx,bz), split into AO bands; shade is the sun-facing tint
+function wallEdge(bk: Bucket, ax: number, az: number, bx: number, bz: number, y0: number, y1: number,
+                  nx: number, nz: number, r: number, g: number, b: number, u: number, texScale: number) {
+  const h = y1 - y0;
+  if (h <= 0.01) return;
+  const vAt = (y: number) => (texScale ? y / texScale : 0);
+  const band = (ya: number, yb: number, sa: number, sb: number) =>
+    bk.quadGrad(ax, ya, az, bx, ya, bz, bx, yb, bz, ax, yb, az, nx, 0, nz, r, g, b,
+      0, vAt(ya), u, vAt(ya), u, vAt(yb), 0, vAt(yb), sa, sb);
+  if (!GFX.ao) { band(y0, y1, 1, 1); return; }
+  const baseH = Math.min(AO_BASE_H, h * 0.5);
+  const eave = h >= AO_EAVE_MIN_H;
+  const eaveH = eave ? Math.min(AO_EAVE_H, h - baseH) : 0;
+  band(y0, y0 + baseH, AO_BASE, 1);
+  if (y1 - eaveH > y0 + baseH + 0.01) band(y0 + baseH, y1 - eaveH, 1, 1);
+  if (eave) band(y1 - eaveH, y1, 1, AO_EAVE);
+}
+
 function walls(bk: Bucket, ring: number[], y0: number, y1: number, hex: string, texScale = TEX_SCALE) {
   const v = ringToVec2(ring);
   tmp.set(hex);
@@ -127,9 +186,7 @@ function walls(bk: Bucket, ring: number[], y0: number, y1: number, hex: string, 
     const nx = ey / len, nz = ex / len;
     const shade = 0.78 + 0.22 * Math.max(0, nx * 0.35 + nz * 0.85);
     const u = texScale ? len / texScale : 0;
-    const v0 = texScale ? y0 / texScale : 0, v1 = texScale ? y1 / texScale : 0;
-    bk.quadUV(a.x, y0, -a.y, bb.x, y0, -bb.y, bb.x, y1, -bb.y, a.x, y1, -a.y,
-      nx, 0, nz, r * shade, g * shade, b * shade, 0, v0, u, v0, u, v1, 0, v1);
+    wallEdge(bk, a.x, -a.y, bb.x, -bb.y, y0, y1, nx, nz, r * shade, g * shade, b * shade, u, texScale);
   }
 }
 
@@ -4618,9 +4675,8 @@ function clad(bk: Bucket, ring: number[], y0: number, y1: number, hex: string) {
     const ex = bb.x - a.x, ey = bb.y - a.y, len = Math.hypot(ex, ey) || 1;
     const nx = ey / len, nz = ex / len;
     const shade = 0.86 + 0.14 * Math.max(0, nx * 0.35 + nz * 0.85);
-    const u = len / TEX_SCALE, v0 = y0 / TEX_SCALE, v1 = y1 / TEX_SCALE;
-    bk.quadUV(a.x, y0, -a.y, bb.x, y0, -bb.y, bb.x, y1, -bb.y, a.x, y1, -a.y,
-      nx, 0, nz, r * shade, g * shade, b * shade, 0, v0, u, v0, u, v1, 0, v1);
+    const u = len / TEX_SCALE;
+    wallEdge(bk, a.x, -a.y, bb.x, -bb.y, y0, y1, nx, nz, r * shade, g * shade, b * shade, u, TEX_SCALE);
   }
 }
 

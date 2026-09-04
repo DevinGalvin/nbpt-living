@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { GFX } from '../gfx';
 import type { WorldData } from '../world/types';
 import { WorldIndex, CHUNK } from '../world/index';
 import { Terrain } from '../world/terrain';
@@ -376,7 +377,9 @@ export class Game {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.setSize(innerWidth, innerHeight, false); // false: let CSS size the canvas (full-bleed)
     this.renderer.setClearColor(STYLE.sky);
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.toneMapping = GFX.toneMapping;
+    this.renderer.toneMappingExposure = GFX.exposure;
+    this.renderer.shadowMap.enabled = GFX.shadowSize !== 0;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('game')!.appendChild(this.renderer.domElement);
 
@@ -402,13 +405,12 @@ export class Game {
       : new THREE.HemisphereLight('#e3f2fd', '#90a06c', 0.5);
     this.sun = new THREE.DirectionalLight(SEASON === 'winter' ? '#ffe0b0' : SEASON === 'fall' ? '#ffd9a0' : '#fff2d8', SEASON === 'summer' ? 1.5 : 1.4);
     this.sun.castShadow = true;
-    // 1024² is a quarter of the shadow texels — a big win on weak GPUs
-    const shadowRes = this.lowGPU ? 1024 : 2048;
+    // 1024² is a quarter of the shadow texels — a big win on weak GPUs and phones. The
+    // shadow window is fitted to the camera every frame (see frame()), so the texels
+    // land where you are looking rather than across a fixed 3000 px square.
+    const shadowRes = GFX.shadowSize > 0 ? GFX.shadowSize : (this.lowGPU || this.mobile ? 1024 : 2048);
     this.sun.shadow.mapSize.set(shadowRes, shadowRes);
-    this.sun.shadow.camera.left = -1500;
-    this.sun.shadow.camera.right = 1500;
-    this.sun.shadow.camera.top = 1500;
-    this.sun.shadow.camera.bottom = -1500;
+    this.setShadowWindow(1500);
     this.sun.shadow.camera.near = 100;
     this.sun.shadow.camera.far = 4000;
     this.sun.shadow.bias = -0.0004;
@@ -436,7 +438,11 @@ export class Game {
       map: gtex, transparent: true, blending: THREE.AdditiveBlending,
       depthWrite: false, opacity: 0, fog: false
     });
-    for (let i = 0; i < 16; i++) {
+    // Every PointLight in the scene is evaluated by every lit fragment, all day, even at
+    // intensity 0 — so the pool of real lights is small and the glow discs (a texture,
+    // free) carry the rest of the street. Keep the count fixed: adding or removing a
+    // light recompiles every material.
+    for (let i = 0; i < GFX.lampGlows; i++) {
       const disc = new THREE.Mesh(new THREE.PlaneGeometry(135, 135), this.lampGlowMat);
       disc.rotation.x = -Math.PI / 2;
       disc.position.set(0, -1000, 0);
@@ -444,10 +450,12 @@ export class Game {
       disc.visible = false;
       this.lampGlows.push(disc);
       this.scene.add(disc);
-      const L = new THREE.PointLight('#ffd49a', 0, 170, 2);
-      L.position.set(0, -1000, 0);
-      this.lampLights.push(L);
-      this.scene.add(L);
+      if (i < GFX.lampLights) {
+        const L = new THREE.PointLight('#ffd49a', 0, 170, 2);
+        L.position.set(0, -1000, 0);
+        this.lampLights.push(L);
+        this.scene.add(L);
+      }
     }
     this.player.root.traverse((o) => { o.castShadow = true; });
     this.dog?.root.traverse((o) => { o.castShadow = true; });
@@ -2417,9 +2425,7 @@ export class Game {
     // day–night cycle drives the sun, sky dome, and weather; the shadow
     // window rides with the player
     const sky = this.sky.update(dt, this.px, this.pz, t, this.camera.position);
-    const sunD = 950;
-    this.sun.position.set(this.px + sky.sunDir.x * sunD, sky.sunDir.y * sunD + 80, this.pz + sky.sunDir.z * sunD);
-    this.sun.target.position.set(this.px, 0, this.pz);
+    this.updateShadowWindow(Math.sin(this.camAz), Math.cos(this.camAz));
     this.sun.color.copy(sky.sunColor);
     this.sun.intensity = sky.sunIntensity;
     this.hemi.color.copy(sky.hemiSky);
@@ -2431,13 +2437,14 @@ export class Game {
     // street lamps cast warm light at night (a pool following the nearest lamps)
     const lampOn = this.inside ? 0 : sky.night;
     this.lampGlowMat.opacity = 0.9 * lampOn;
-    for (let i = 0; i < this.lampLights.length; i++) {
+    for (let i = 0; i < this.lampGlows.length; i++) {
       const s = this.lampSpots[i];
       const on = !!s && lampOn > 0.01;
-      const disc = this.lampGlows[i], L = this.lampLights[i];
+      const disc = this.lampGlows[i], L = this.lampLights[i];   // nearest few carry a real light
       disc.visible = on;
+      if (on) disc.position.set(s.x, s.gy + 0.6, s.z);
+      if (!L) continue;
       if (on) {
-        disc.position.set(s.x, s.gy + 0.6, s.z);
         L.position.set(s.x, s.gy + 25, s.z);
         L.intensity = 165 * lampOn;
       } else {
@@ -2742,8 +2749,33 @@ export class Game {
       }
     }
     found.sort((a, b) => a.d - b.d);
-    this.lampSpots = found.slice(0, this.lampLights.length)
+    this.lampSpots = found.slice(0, this.lampGlows.length)
       .map((f) => ({ x: f.x, z: f.y, gy: this.index.surfaceYAt(f.x, f.y) }));
+  }
+
+  // Fit the sun's shadow window to the chase camera: half-size scales with zoom and the
+  // box is pushed ahead of the kid along the view direction, because the camera sits
+  // behind them and sees almost nothing back there. A smaller box over the same texels
+  // is a sharper shadow — no extra cost. Quantised so the projection only rebuilds on
+  // real zoom changes.
+  private shadowHalf = 0;
+  private setShadowWindow(half: number) {
+    if (Math.abs(half - this.shadowHalf) < 1) return;
+    this.shadowHalf = half;
+    const c = this.sun.shadow.camera;
+    c.left = -half; c.right = half; c.top = half; c.bottom = -half;
+    c.updateProjectionMatrix();
+  }
+  private updateShadowWindow(fx: number, fz: number) {
+    const dist = this.flying ? 1500 : 470 * this.camZoom;
+    const half = this.flying ? 1500 : Math.min(1500, Math.max(650, Math.round((dist * 2.1 + 240) / 50) * 50));
+    this.setShadowWindow(half);
+    const ahead = this.flying ? 0 : half * 0.38;
+    const tx = this.px + fx * ahead, tz = this.pz + fz * ahead;
+    const sky = this.sky.state;
+    const sunD = 950;
+    this.sun.position.set(tx + sky.sunDir.x * sunD, sky.sunDir.y * sunD + 80, tz + sky.sunDir.z * sunD);
+    this.sun.target.position.set(tx, 0, tz);
   }
 
   private updateCamera(dt: number, snap = false) {

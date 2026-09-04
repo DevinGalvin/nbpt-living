@@ -127,6 +127,9 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
         float glint = smoothstep(0.91, 0.985, g);
         base += glint * vec3(0.38, 0.38, 0.34);
         gl_FragColor = vec4(base, 0.9);
+        // same output chain as the built-in materials, so the water grades with the town
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
         #include <fog_fragment>
       }
     `
