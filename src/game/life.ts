@@ -269,6 +269,41 @@ class Walker {
   }
 }
 
+// Car lights after dark: two warm discs on the nose, two red on the tail, and a soft
+// pool of light on the road ahead. Additive, unlit, shared materials whose opacity the
+// Life loop sets from the sky's night each frame; by day they are not drawn at all.
+function glowTex(r: number, g: number, b: number, stretch = 1): THREE.CanvasTexture {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  const gx = c.getContext('2d')!;
+  const grd = gx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, `rgba(${r},${g},${b},0.95)`);
+  grd.addColorStop(0.35, `rgba(${r},${g},${b},0.4)`);
+  grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+  gx.fillStyle = grd;
+  gx.setTransform(1, 0, 0, stretch, 0, 32 - 32 * stretch);
+  gx.fillRect(0, 0, 64, 64 / stretch + 64);
+  return new THREE.CanvasTexture(c);
+}
+let headMat: THREE.MeshBasicMaterial | null = null, tailMat: THREE.MeshBasicMaterial | null = null, poolMat: THREE.MeshBasicMaterial | null = null;
+function carLightMats() {
+  if (!headMat) {
+    const mk = (tex: THREE.CanvasTexture) => new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0, fog: false, side: THREE.DoubleSide });
+    headMat = mk(glowTex(255, 236, 190));
+    tailMat = mk(glowTex(255, 60, 40));
+    poolMat = mk(glowTex(255, 226, 170));
+  }
+  return { headMat: headMat!, tailMat: tailMat!, poolMat: poolMat! };
+}
+/** night 0..1 → lights on; called once a frame by Life */
+export function setCarLightsNight(night: number) {
+  if (!headMat) return;
+  const on = Math.max(0, Math.min(1, (night - 0.02) * 6));   // on with the first of dusk, like drivers do
+  headMat.opacity = 0.95 * on;
+  tailMat!.opacity = 0.85 * on;
+  poolMat!.opacity = 0.5 * on;
+  headMat.visible = tailMat!.visible = poolMat!.visible = on > 0.01;
+}
+
 class TrafficCar {
   root = new THREE.Group();
   pts: number[] = [];
@@ -299,6 +334,7 @@ class TrafficCar {
       });
       this.wheelR = Math.max(1.5, model.size.y * 0.22);
       this.root.add(body);
+      this.addLights(model.size.x, model.size.z, model.size.y * 0.42);
       return;
     }
     const hex = CAR_COLORS[Math.floor(rng() * CAR_COLORS.length)];
@@ -313,6 +349,28 @@ class TrafficCar {
       this.root.add(wheel);
     }
     this.root.add(body, cabin);
+    this.addLights(14, 34, 6);
+  }
+
+  private addLights(width: number, length: number, y: number) {
+    const { headMat, tailMat, poolMat } = carLightMats();
+    const disc = new THREE.PlaneGeometry(3.2, 3.2);
+    const tail = new THREE.PlaneGeometry(2.2, 2.2);
+    for (const sx of [-1, 1]) {
+      const h = new THREE.Mesh(disc, headMat);
+      h.position.set(sx * width * 0.32, y, length / 2 + 0.3);
+      const t = new THREE.Mesh(tail, tailMat);
+      t.position.set(sx * width * 0.32, y, -length / 2 - 0.3);
+      t.rotation.y = Math.PI;
+      h.renderOrder = t.renderOrder = 5;
+      this.root.add(h, t);
+    }
+    // the pool on the road ahead: a flat, forward-stretched glow
+    const pool = new THREE.Mesh(new THREE.PlaneGeometry(width * 2.6, length * 1.6), poolMat);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(0, 0.35, length / 2 + length * 0.7);
+    pool.renderOrder = 4;
+    this.root.add(pool);
   }
 
   step(dt: number, groundY: number): boolean {
@@ -1467,6 +1525,7 @@ export class Life {
       c.speed += (want - c.speed) * Math.min(1, dt * (want > c.speed ? 1.5 : 10));
       if (want < 1 && c.speed < 3) c.speed = 0;
       const ended = c.step(dt, this.groundAt(c.root.position.x, c.root.position.z, c.root.position.y));
+      setCarLightsNight(night);
       if (ended) {
         // turn around at the end of the road — never teleport in view
         c.dir = -c.dir;
