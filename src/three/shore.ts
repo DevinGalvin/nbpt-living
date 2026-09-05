@@ -16,6 +16,27 @@ export const SHORE = {
   uWaterY: { value: 0 }   // set by buildWater (water.ts owns WATER_Y; importing it here would be circular)
 };
 
+// binary dilation by a square of radius r, as two 1-D passes (O(n·r) instead of O(n·r²))
+function dilate(src: Uint8Array, w: number, h: number, r: number): Uint8Array {
+  const tmp = new Uint8Array(w * h), out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    let run = 0;   // how many of the last (r+1) cells were set, tracked as a countdown
+    for (let x = 0; x < w + r; x++) {
+      if (x < w && src[row + x]) run = 2 * r + 1;
+      if (run > 0) { const xx = x - r; if (xx >= 0 && xx < w) tmp[row + xx] = 1; run--; }
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    let run = 0;
+    for (let y = 0; y < h + r; y++) {
+      if (y < h && tmp[y * w + x]) run = 2 * r + 1;
+      if (run > 0) { const yy = y - r; if (yy >= 0 && yy < h) out[yy * w + x] = 1; run--; }
+    }
+  }
+  return out;
+}
+
 /**
  * Which grid nodes lie under mapped water: bit 1 = any water, bit 2 = the sea. The
  * polygons are rasterised once onto a canvas the size of the height grid.
@@ -105,30 +126,17 @@ export function fitShoreline(world: WorldData, terrain: Terrain, mask: Uint8Arra
   // the nodes that need pinning; a pond on a hill has no low node anywhere near it.
   const seaLevel = new Uint8Array(w * h);
   for (let i = 0; i < w * h; i++) if ((mask[i] & 1) && data[i] <= 5) seaLevel[i] = 1;
-  const grown = new Uint8Array(seaLevel);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const i = y * w + x;
-    if (!(mask[i] & 1) || seaLevel[i]) continue;
-    for (let dy = -3; dy <= 3 && !grown[i]; dy++) for (let dx = -3; dx <= 3; dx++) {
-      const xx = x + dx, yy = y + dy;
-      if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-      if (seaLevel[yy * w + xx]) { grown[i] = 1; break; }
-    }
-  }
+  const grown = dilate(seaLevel, w, h, 3);
+  for (let i = 0; i < w * h; i++) if (!(mask[i] & 1)) grown[i] = 0;
   const seaLevelWater = (i: number) => grown[i] === 1;
+  // only nodes with sea-level water within two of them are near a real shore
+  const nearShore = dilate(grown, w, h, 2);
   const REACH = spacing * 1.5, SLOPE = 0.12;   // dm per px: a 1.2 m rise across a cell — a beach
   const out = new Int16Array(data);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = y * w + x;
-      // only nodes that have sea-level water within two nodes are near a real shore
-      let near = false;
-      for (let dy = -2; dy <= 2 && !near; dy++) for (let dx = -2; dx <= 2; dx++) {
-        const xx = x + dx, yy = y + dy;
-        if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-        if (seaLevelWater(yy * w + xx)) { near = true; break; }
-      }
-      if (!near) continue;
+      if (!nearShore[i]) continue;
       const inWater = (mask[i] & 1) !== 0;
       if (inWater && !seaLevelWater(i)) continue;
       const px = g.x0 + x * spacing, py = g.y0 + y * spacing;
@@ -150,21 +158,17 @@ export function uploadShoreHeights(terrain: Terrain, mask: Uint8Array | null) {
   // Half float: filterable everywhere WebGL2 runs, and 0.5 px steps only above 100 m.
   const f = new Uint16Array(g.w * g.h * 2);
   const half = THREE.DataUtils.toHalfFloat;
-  for (let y = 0; y < g.h; y++) {
-    for (let x = 0; x < g.w; x++) {
-      const i = y * g.w + x;
-      f[i * 2] = half((g.data[i] / 10) * 8);
-      // the sea flag, grown by one node so the water right at the beach still reads as sea
-      let sea = 0;
-      if (mask) {
-        for (let dy = -1; dy <= 1 && !sea; dy++) for (let dx = -1; dx <= 1; dx++) {
-          const xx = x + dx, yy = y + dy;
-          if (xx < 0 || yy < 0 || xx >= g.w || yy >= g.h) continue;
-          if (mask[yy * g.w + xx] & 2) { sea = 1; break; }
-        }
-      }
-      f[i * 2 + 1] = half(sea);
-    }
+  // the sea flag, grown by one node so the water right at the beach still reads as sea
+  let sea: Uint8Array | null = null;
+  if (mask) {
+    const seaBit = new Uint8Array(g.w * g.h);
+    for (let i = 0; i < seaBit.length; i++) seaBit[i] = mask[i] & 2 ? 1 : 0;
+    sea = dilate(seaBit, g.w, g.h, 1);
+  }
+  const ONE = half(1), ZERO = half(0);
+  for (let i = 0; i < g.w * g.h; i++) {
+    f[i * 2] = half((g.data[i] / 10) * 8);
+    f[i * 2 + 1] = sea && sea[i] ? ONE : ZERO;
   }
   const tex = new THREE.DataTexture(f, g.w, g.h, THREE.RGFormat, THREE.HalfFloatType);
   tex.magFilter = THREE.LinearFilter;

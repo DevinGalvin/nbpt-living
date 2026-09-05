@@ -114,6 +114,18 @@ export class Sky {
     this.moon = new THREE.Mesh(new THREE.SphereGeometry(146, 16, 12),
       new THREE.MeshBasicMaterial({ color: '#eef1f6', fog: false, transparent: true, depthWrite: false }));
     this.sun.renderOrder = -1; this.moon.renderOrder = -1;
+    // the glare around the sun: a soft additive halo, widest and warmest when it is low
+    const hc = document.createElement('canvas'); hc.width = hc.height = 128;
+    const hg = hc.getContext('2d')!;
+    const hgr = hg.createRadialGradient(64, 64, 0, 64, 64, 64);
+    hgr.addColorStop(0, 'rgba(255,240,200,0.9)');
+    hgr.addColorStop(0.18, 'rgba(255,225,170,0.35)');
+    hgr.addColorStop(0.45, 'rgba(255,210,150,0.1)');
+    hgr.addColorStop(1, 'rgba(255,200,140,0)');
+    hg.fillStyle = hgr; hg.fillRect(0, 0, 128, 128);
+    this.haloMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(hc), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, opacity: 0 });
+    this.halo = new THREE.Sprite(this.haloMat);
+    this.halo.renderOrder = -1;
 
     // stars scattered over the upper dome
     const SN = 1400;
@@ -237,7 +249,7 @@ export class Sky {
     this.clouds.renderOrder = 0;
     this.clouds.frustumCulled = false;
 
-    scene.add(this.dome, this.sun, this.moon, this.stars, this.rain, this.clouds);
+    scene.add(this.dome, this.sun, this.moon, this.stars, this.rain, this.clouds, this.halo);
   }
 
   // jump straight to a time of day (0..1) — used by the debug hook
@@ -252,6 +264,8 @@ export class Sky {
 
   private clouds!: THREE.Mesh;
   private cloudMat!: THREE.ShaderMaterial;
+  private halo!: THREE.Sprite;
+  private haloMat!: THREE.SpriteMaterial;
 
   update(dt: number, px: number, pz: number, t: number, camPos: THREE.Vector3): SkyState {
     if (this.cine) {
@@ -353,6 +367,14 @@ export class Sky {
     // hide the sun disc during the cinematic dusk (the birdwatcher cutaway) so you never
     // watch it travel down — the sky + lighting still ease to dusk, but no disc moves
     this.sun.visible = elev > -0.06 && !this.cine;
+    // the halo rides with the disc; big and warm near the horizon, tight and pale at noon
+    this.halo.position.copy(this.sun.position);
+    const low = clamp(1 - elev / 0.5, 0, 1);
+    const hs = 900 + 1500 * low;
+    this.halo.scale.set(hs, hs, 1);
+    this.haloMat.color.copy(s.sunColor);
+    this.haloMat.opacity = clamp((elev + 0.04) / 0.12, 0, 1) * (0.35 + 0.4 * low) * (1 - wet * 0.8);
+    this.halo.visible = this.sun.visible;
     // moon opposite the sun (its own direction: horizontally opposite, height mirrors
     // the sun's elevation), pinned at the same camera-relative far distance
     const moonDir = new THREE.Vector3(-trueDir.x, -elev, -trueDir.z).normalize();
