@@ -289,6 +289,7 @@ export class Game {
   // perf: weak/software GPU detected at startup; dynamic-resolution sampler state
   private lowGPU = false;
   private post: Post | null = null;   // desktop post stack (GTAO, bloom, grade); null on phones
+  private hdrPath = false;            // true when the post stack will render (linear HDR accumulation)
   // touch/phone-class device: iOS Safari (and mobile browsers generally) impose a hard
   // per-tab memory cap and will silently reload — then crash — the page if it's exceeded.
   // Flight streams a far bigger chunk set than walking, so we shrink that set on these devices.
@@ -427,13 +428,27 @@ export class Game {
 
     // street-lamp lighting pool: a soft warm glow disc on the ground + a real
     // PointLight, both reassigned to the nearest lamps and lit only at night
+    // The post stack accumulates the scene in linear HDR and encodes to sRGB once at the
+    // end; direct rendering encodes each fragment first and blends in display space. A
+    // falloff that reads soft in the second path reads as a flat plate in the first (the
+    // sRGB curve lifts every low value of a linear ramp), so the HDR path gets a steeper,
+    // roughly gamma-shaped falloff that lands on the same on-screen profile.
+    this.hdrPath = GFX.post && (!this.lowGPU || GFX.postForced);
     const gtex = (() => {
       const c = document.createElement('canvas'); c.width = c.height = 128;
       const gx = c.getContext('2d')!;
       const grd = gx.createRadialGradient(64, 64, 0, 64, 64, 64);
-      grd.addColorStop(0, 'rgba(255, 222, 158, 0.95)');
-      grd.addColorStop(0.4, 'rgba(255, 201, 120, 0.45)');
-      grd.addColorStop(1, 'rgba(255, 190, 110, 0)');
+      if (this.hdrPath) {
+        grd.addColorStop(0, 'rgba(255, 222, 158, 0.95)');
+        grd.addColorStop(0.25, 'rgba(255, 210, 135, 0.38)');
+        grd.addColorStop(0.5, 'rgba(255, 201, 120, 0.11)');
+        grd.addColorStop(0.75, 'rgba(255, 195, 115, 0.025)');
+        grd.addColorStop(1, 'rgba(255, 190, 110, 0)');
+      } else {
+        grd.addColorStop(0, 'rgba(255, 222, 158, 0.95)');
+        grd.addColorStop(0.4, 'rgba(255, 201, 120, 0.45)');
+        grd.addColorStop(1, 'rgba(255, 190, 110, 0)');
+      }
       gx.fillStyle = grd; gx.fillRect(0, 0, 128, 128);
       return new THREE.CanvasTexture(c);
     })();
@@ -686,7 +701,7 @@ export class Game {
     // Re-fit the drawing buffer to the canvas's real displayed size. Using the
     // canvas client size (CSS-driven, full-bleed) instead of innerHeight dodges the
     // iOS standalone bug where innerHeight is wrong until the viewport settles.
-    if (GFX.post && (!this.lowGPU || GFX.postForced)) {
+    if (this.hdrPath) {
       try {
         this.post = new Post(this.renderer, this.scene, this.camera, innerWidth, innerHeight,
           this.renderer.getPixelRatio(), { ao: GFX.postAO, bloom: GFX.postBloom });
@@ -2450,7 +2465,10 @@ export class Game {
 
     // street lamps cast warm light at night (a pool following the nearest lamps)
     const lampOn = this.inside ? 0 : sky.night;
-    this.lampGlowMat.opacity = 0.9 * lampOn;
+    // the HDR path's disc texture is shaped differently (see the lamp pool setup); its
+    // peak wants a touch less opacity to land on the same on-screen brightness
+    const lampScale = this.post ? 0.9 : 1;
+    this.lampGlowMat.opacity = 0.9 * lampOn * lampScale;
     setWindowNight(lampOn);
     updateClouds(dt, sky.night, sky.wet, GFX.clouds);
     for (let i = 0; i < this.lampGlows.length; i++) {
@@ -2462,7 +2480,7 @@ export class Game {
       if (!L) continue;
       if (on) {
         L.position.set(s.x, s.gy + 25, s.z);
-        L.intensity = 165 * lampOn;
+        L.intensity = 165 * lampOn * lampScale;
       } else {
         L.intensity = 0;
       }
