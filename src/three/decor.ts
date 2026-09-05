@@ -2869,6 +2869,77 @@ function frontSegment(b: Building, index: WorldIndex): { x: number; z: number; t
   return best;
 }
 
+// The front yard's edge. A New England street is not house, lawn, house, lawn: it is
+// picket, hedge, gap, picket, and that line along the sidewalk is what makes a lot a
+// lot. Runs parallel to the street face, just inside the sidewalk, with a gate gap at
+// the walk and a break wherever a driveway crosses. About half the houses get one.
+function yardFence(buckets: Bucket[], b: Building, g: number, index: WorldIndex, key: string, seed: number) {
+  const roll = hash32(seed, 77, 5) % 100;
+  if (roll >= 55) return;
+  const f = frontSegment(b, index);
+  if (f.len < 24) return;
+  // the gap between the wall and the sidewalk's edge
+  let gap = Infinity;
+  for (const ri of index.bucket(key).roads) {
+    const r = index.world.roads[ri];
+    if (r.c === 'service') continue;
+    const d = Math.sqrt(distToPolylineSq(f.x, f.z, r.p)) - r.w / 2 - 9;
+    if (d < gap) gap = d;
+  }
+  if (gap < 12 || gap > 140) return;
+  const off = gap - 3;
+  const hedge = roll >= 30;
+  const L = Math.min(f.len + 8, 120);
+  const ax = f.x + f.nx * off - f.tx * L / 2, az = f.z + f.nz * off - f.tz * L / 2;
+  const drives = index.drivewaysFor(key);
+  const clear = (x: number, z: number) => {
+    if (index.isBlocked(x, z) || index.isWaterAt(x, z)) return false;
+    for (const d of drives) if (distToPolylineSq(x, z, [d.x0, d.y0, d.x1, d.y1]) < 13 * 13) return false;
+    return true;
+  };
+  const plain = buckets[PLAIN];
+  if (hedge) {
+    const c = new THREE.Color(TREES.bush).multiplyScalar(0.9 + (hash32(seed, 3, 9) % 20) / 100);
+    for (let t = 3; t < L - 2; t += 6.5) {
+      if (Math.abs(t - L / 2) < 6) continue;   // the walk
+      const x = ax + f.tx * t, z = az + f.tz * t;
+      if (!clear(x, z)) continue;
+      blobCanopy(plain, x, index.heightAtPx(x, z) + 2.6, z, 3.4, c, hash32(seed, Math.round(t), 11) | 1);
+    }
+    return;
+  }
+  // picket: two rails and a post per run, a picket every 2.4 px
+  const hex = SEASON === 'winter' ? '#e8e6e0' : '#f4f2ea';
+  tmp.set(hex);
+  const pr = tmp.r, pg = tmp.g, pb = tmp.b;
+  const ang = Math.atan2(f.tz, f.tx);
+  let run0 = -1;
+  const flush = (t1: number) => {
+    if (run0 < 0 || t1 - run0 < 5) { run0 = -1; return; }
+    const mx = ax + f.tx * (run0 + t1) / 2, mz = az + f.tz * (run0 + t1) / 2;
+    const y = index.heightAtPx(mx, mz);
+    rotBox(plain, mx, mz, (t1 - run0) / 2, 0.25, y + 1.3, y + 1.8, ang, hex);
+    rotBox(plain, mx, mz, (t1 - run0) / 2, 0.25, y + 3.0, y + 3.5, ang, hex);
+    for (let t = run0; t <= t1 + 0.1; t += 16) {
+      const px = ax + f.tx * Math.min(t, t1), pz = az + f.tz * Math.min(t, t1);
+      const py = index.heightAtPx(px, pz);
+      rotBox(plain, px, pz, 0.5, 0.5, py, py + 4.4, ang, hex);
+    }
+    run0 = -1;
+  };
+  for (let t = 0; t <= L; t += 2.4) {
+    const x = ax + f.tx * t, z = az + f.tz * t;
+    const ok = t < L && Math.abs(t - L / 2) >= 5 && clear(x, z);
+    if (!ok) { flush(t - 2.4); continue; }
+    if (run0 < 0) run0 = t;
+    const y = index.heightAtPx(x, z);
+    // one thin board, pointed by the two-tone top edge
+    plain.quad(x - f.tx * 0.6, y + 0.5, z - f.tz * 0.6, x + f.tx * 0.6, y + 0.5, z + f.tz * 0.6,
+      x + f.tx * 0.6, y + 3.9, z + f.tz * 0.6, x - f.tx * 0.6, y + 3.9, z - f.tz * 0.6, f.nx, 0, f.nz, pr * 0.96, pg * 0.96, pb * 0.96);
+  }
+  flush(L);
+}
+
 // New England steeple at the street end: square tower → (clock stage) →
 // arched belfry → spire → vane. grand = the full Wren treatment.
 function steeple(buckets: Bucket[], b: Building, g: number, index: WorldIndex, grand: boolean) {
@@ -9421,6 +9492,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         const fsb = frontSegment(b, index);
         if (fsb.len >= 34) bayWindow(buckets, wallBucket, fsb, gEff, eaveAbs, rows, bodyHex, seed, look);
       }
+      if (b.k === 'house' && !storefront && areaM2 < 1000 && lvEff <= 3.6) yardFence(buckets, b, gEff, index, key, seed);
     }
 
     // seasonal dressing: Christmas lights on the eaves, pumpkins by the door

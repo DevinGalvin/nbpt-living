@@ -919,7 +919,7 @@ export class WorldIndex {
     const waterPolys: Poly[] = [];
     for (const pi of bucket.polys) {
       const poly = w.polys[pi];
-      this.fillPoly(ctx, poly, pi);
+      this.fillPoly(ctx, poly, pi, bucket);
       if (poly.k === 'water' || poly.k === 'ocean') waterPolys.push(poly);
     }
     ctx.strokeStyle = STYLE.shoreline;
@@ -981,7 +981,7 @@ export class WorldIndex {
         if (r.w < 18 || r.b) continue;
         const lanes = r.w >= 40 ? 4 : 2;
         const laneW = r.w / lanes;
-        ctx.strokeStyle = 'rgba(0,0,0,0.11)';
+        ctx.strokeStyle = 'rgba(0,0,0,0.085)';
         ctx.lineWidth = Math.max(2.5, laneW * 0.16);
         for (let l = 0; l < lanes; l++) {
           const centre = -r.w / 2 + laneW * (l + 0.5);
@@ -1054,7 +1054,58 @@ export class WorldIndex {
     return canvas;
   }
 
-  private fillPoly(ctx: CanvasRenderingContext2D, poly: Poly, pi = -1) {
+  // Painted stalls on every lot, on the same grid the 3D cars park to (see decor.ts):
+  // nose-in rows off the mapped drive aisles where a lot has them, a free grid of rows
+  // otherwise. Faded white, clipped to the lot.
+  private paintParkingBays(ctx: CanvasRenderingContext2D, poly: Poly, bucket: Bucket) {
+    const obb = obbOf(poly.p);
+    if (obb.hw < 16 || obb.hl < 20) return;
+    const w = this.world;
+    ctx.save();
+    tracePoly(ctx, poly);
+    ctx.clip('evenodd');
+    ctx.strokeStyle = SEASON === 'winter' ? 'rgba(236,236,228,0.35)' : 'rgba(236,236,228,0.6)';
+    ctx.lineWidth = 1.4;
+    ctx.lineCap = 'butt';
+    ctx.beginPath();
+    const aisles: Road[] = [];
+    for (const ri of bucket.roads) {
+      const r = w.roads[ri];
+      if (r.c !== 'service') continue;
+      let inside = false;
+      walkLine(r.p, 30, (x, y) => { if (!inside && pointInPoly(x, y, poly)) inside = true; });
+      if (inside) aisles.push(r);
+    }
+    if (aisles.length) {
+      for (const r of aisles) {
+        walkLine(r.p, 21, (x, y, tx, ty) => {
+          for (const side of [1, -1]) {
+            const o0 = r.w / 2 + 1, o1 = r.w / 2 + 22;
+            for (const d of [-10.5, 10.5]) {
+              const sx = x + tx * d, sy = y + ty * d;
+              ctx.moveTo(sx - ty * side * o0, sy + tx * side * o0);
+              ctx.lineTo(sx - ty * side * o1, sy + tx * side * o1);
+            }
+          }
+        });
+      }
+    } else {
+      const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+      const rows: number[] = [];
+      if (obb.hw < 26) rows.push(0);
+      else for (let w0 = -obb.hw + 24; w0 <= obb.hw - 24; w0 += 78) rows.push(w0);
+      for (const w0 of rows) {
+        for (let l0 = -obb.hl + 16 - 11; l0 <= obb.hl - 16 + 11; l0 += 22) {
+          ctx.moveTo(obb.cx + l0 * ca - (w0 - 11) * sa, obb.cz + l0 * sa + (w0 - 11) * ca);
+          ctx.lineTo(obb.cx + l0 * ca - (w0 + 11) * sa, obb.cz + l0 * sa + (w0 + 11) * ca);
+        }
+      }
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  private fillPoly(ctx: CanvasRenderingContext2D, poly: Poly, pi = -1, bucket?: Bucket) {
     // Plum Island + the barrier beaches read as sand, not lawn: east of PLUM_X recolor
     // grassy upland to sand. Marshes (wetland) keep their green so the reeds still read.
     let k = poly.k;
@@ -1091,6 +1142,8 @@ export class WorldIndex {
       ctx.strokeStyle = 'rgba(255,255,255,0.95)';
       ctx.lineWidth = 2.5;
       ctx.stroke();
+    } else if (poly.k === 'parking' && bucket) {
+      this.paintParkingBays(ctx, poly, bucket);
     }
   }
 

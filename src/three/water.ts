@@ -141,6 +141,15 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
         float foamBand = smoothstep(0.55, 0.8, shallow) * (1.0 - smoothstep(0.92, 1.0, shallow));
         float foam = foamBand * smoothstep(0.45, 0.7, lap);
         base = mix(base, vec3(0.93, 0.95, 0.94), foam * 0.85);
+        // Breakers: crests of foam marching up the shallows and dying at the beach. Only
+        // where the bed shelves gently — a river bank rises in a cell and gets none —
+        // so the slope is read from two more height fetches.
+        float slope = (abs(shoreGround(vWorld.xz + vec2(6.0, 0.0)) - ground) + abs(shoreGround(vWorld.xz + vec2(0.0, 6.0)) - ground)) / 6.0;
+        float gentle = 1.0 - smoothstep(0.30, 0.55, slope);
+        float wobble = noise(vWorld.xz * 0.012 + vec2(uTime * 0.03, 0.0));
+        float brk = smoothstep(0.45, 0.85, sin(shallow * 11.0 - uTime * 1.3 + wobble * 3.0));
+        float breaker = brk * gentle * smoothstep(0.12, 0.4, shallow) * (1.0 - smoothstep(0.7, 0.92, shallow)) * smoothstep(0.3, 0.6, lap + 0.15);
+        base = mix(base, vec3(0.9, 0.93, 0.93), breaker * 0.75);
         gl_FragColor = vec4(base, mix(0.9, 0.97, shallow));
         // same output chain as the built-in materials, so the water grades with the town
         #include <tonemapping_fragment>

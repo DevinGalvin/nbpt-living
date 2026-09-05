@@ -59,7 +59,7 @@ export const STYLE = {
     island: '#d2d093',
     pitch: '#6fc35e',
     playground: '#e5d79e',
-    parking: '#aaad9f',
+    parking: '#8f918c',
     plaza: '#c08858',
     water: '#4496ce',
     ocean: '#3585bd',
