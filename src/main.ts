@@ -80,7 +80,9 @@ async function boot() {
   };
   // the shared prop kit (cars, benches, hydrants) loads alongside the map; if it fails
   // the game still boots and every prop falls back to its procedural box
-  const propsLoad = !GFX.props ? Promise.resolve(null) : loadProps('models/props.glb')
+  const inlineProps = (window as unknown as { __NBPT_PROPS__?: string }).__NBPT_PROPS__;
+  const propsUrl = inlineProps ? 'data:model/gltf-binary;base64,' + inlineProps : 'models/props.glb';
+  const propsLoad = !GFX.props ? Promise.resolve(null) : loadProps(propsUrl)
     .then((lib) => { setProps(lib); return lib; })
     .catch((err) => { console.warn('prop kit unavailable, using boxes:', err); return null; });
   const [world, terrain] = await Promise.all([

@@ -26,10 +26,14 @@ const heights = await readFile(new URL('heights.bin', dist));
 // JSON → JS string literal, with every '<' escaped so '</script>' can't occur
 const worldLiteral = JSON.stringify(worldText).replace(/</g, '\\u003c');
 const heightsB64 = heights.toString('base64');
+// the prop kit (cars, benches…) rides along too, so the single file keeps its real cars offline
+let propsB64 = '';
+try { propsB64 = (await readFile(new URL('models/props.glb', dist))).toString('base64'); } catch { /* no kit built — the game falls back to boxes */ }
 
 const dataScript =
   `<script>window.__NBPT_WORLD__=JSON.parse(${worldLiteral});` +
-  `window.__NBPT_HEIGHTS__="${heightsB64}";</script>`;
+  `window.__NBPT_HEIGHTS__="${heightsB64}";` +
+  (propsB64 ? `window.__NBPT_PROPS__="${propsB64}";` : '') + '</script>';
 
 let out = html
   // drop the external bundle reference and any preload/icon links

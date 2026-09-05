@@ -33,7 +33,7 @@ const TARGET: Record<string, { size: number; by: 'length' | 'height'; axis?: 'x'
   'boat-small': { size: 40, by: 'length' }, 'boat-large': { size: 64, by: 'length' },
   streetlight: { size: 40, by: 'height' }, firehydrant: { size: 7, by: 'height' }, bench: { size: 14, by: 'length', axis: 'x' },
   trash_A: { size: 8, by: 'height' }, trash_B: { size: 8, by: 'height' }, dumpster: { size: 12, by: 'height', axis: 'x' },
-  trafficlight_A: { size: 36, by: 'height' }, bush: { size: 10, by: 'height' }
+  trafficlight_A: { size: 36, by: 'height', axis: 'x' }, bush: { size: 10, by: 'height' }
 };
 export const CAR_NAMES = ['sedan', 'hatchback', 'sports-sedan', 'suv', 'suv-luxury', 'van', 'truck', 'delivery-truck', 'police-car', 'taxi'];
 // weighted so a street is mostly sedans and SUVs, with the odd van, pickup and taxi

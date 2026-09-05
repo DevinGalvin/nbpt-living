@@ -9690,6 +9690,12 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         cars++;
       }
     }
+    // a dumpster tucked in the back corner of about half the lots
+    if (propSink && PROPS?.has('dumpster') && hash32(Math.round(obb.cx), Math.round(obb.cz), 61) % 100 < 55) {
+      const dx = obb.cx + (obb.hl - 12) * ca - (obb.hw - 9) * sa, dz = obb.cz + (obb.hl - 12) * sa + (obb.hw - 9) * ca;
+      if (dx >= ox && dx < ox + CHUNK && dz >= oy && dz < oy + CHUNK && pointInPolyD(dx, dz, poly) && !index.isBlocked(dx, dz))
+        propSink.add(PROPS.get('dumpster'), dx, index.heightAtPx(dx, dz), dz, Math.atan2(sa, ca));
+    }
   }
 
   // boats tied up along the docks — EVERY pierline moors now, not just OSM
@@ -10087,6 +10093,45 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         beachgoer(buckets[PLAIN], x, z, g, rng() * Math.PI * 2, rng, 'stand', rng() < 0.35);
         if (rng() < 0.4) beachDog(buckets[PLAIN], x + 6 + rng() * 5, z + (rng() - 0.5) * 10, g, rng() * Math.PI * 2);
       }, 8);
+    }
+  }
+
+  // traffic lights where a primary or secondary road meets two or more others — one
+  // per approach, on the corner, head hung out over the lane it faces
+  if (propSink && PROPS?.has('trafficlight_A')) {
+    const MAJOR = new Set(['primary', 'secondary']);
+    const light = PROPS.get('trafficlight_A');
+    for (const jn of index.roadChains().junctions) {
+      if (jn.x < ox || jn.x >= ox + CHUNK || jn.y < oy || jn.y >= oy + CHUNK || !MAJOR.has(jn.c)) continue;
+      const arms: { dx: number; dy: number; w: number; major: boolean }[] = [];
+      for (const ri of bucket.roads) {
+        const r = world.roads[ri], p = r.p;
+        for (let i = 0; i < p.length; i += 2) {
+          if (Math.abs(p[i] - jn.x) > 0.5 || Math.abs(p[i + 1] - jn.y) > 0.5) continue;
+          for (const j of [i - 2, i + 2]) {
+            if (j < 0 || j >= p.length) continue;
+            const dx = p[j] - p[i], dy = p[j + 1] - p[i + 1], l = Math.hypot(dx, dy) || 1;
+            arms.push({ dx: dx / l, dy: dy / l, w: r.w, major: MAJOR.has(r.c) });
+          }
+        }
+      }
+      if (arms.length < 3 || arms.filter((a) => a.major).length < 2) continue;
+      for (const a of arms) {
+        // the corner on the right as traffic arrives along this arm
+        const px = -a.dy, py = a.dx;
+        const lx = jn.x + a.dx * (jn.r + 5) + px * (a.w / 2 + 5);
+        const lz = jn.y + a.dy * (jn.r + 5) + py * (a.w / 2 + 5);
+        if (lx < ox || lx >= ox + CHUNK || lz < oy || lz >= oy + CHUNK || index.isBlocked(lx, lz) || index.isWaterAt(lx, lz)) continue;
+        // never on the pavement of ANY road: a T-junction's corner offset can land in the cross street
+        let onRoad = false;
+        for (const ri of bucket.roads) {
+          const r = world.roads[ri];
+          if (distToPolylineSq(lx, lz, r.p) < (r.w / 2 + 2) ** 2) { onRoad = true; break; }
+        }
+        if (onRoad) continue;
+        // the model's arm runs along its local -x; point that back over the road
+        propSink.add(light, lx, index.surfaceYAt(lx, lz), lz, Math.atan2(py, px));
+      }
     }
   }
 
