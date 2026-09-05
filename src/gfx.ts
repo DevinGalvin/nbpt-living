@@ -10,6 +10,9 @@ import * as THREE from 'three';
 //   ?ao=0                       baked wall ambient occlusion off
 //   ?nm=0|1                     procedural normal maps (default: on, off on touch devices)
 //   ?win=0                      windows that light up at night, off
+//   ?clouds=0|0.6               cloud shadows off / strength (default 0.42)
+//   ?post=0|1                   desktop post stack (default: on, off on touch devices)
+//   ?ssao=1  ?bloom=0           screen-space AO on (opt-in) / bloom off
 
 const q = new URLSearchParams(typeof location !== 'undefined' ? location.search : '');
 const num = (k: string, d: number) => { const v = parseFloat(q.get(k) ?? ''); return Number.isFinite(v) ? v : d; };
@@ -35,6 +38,16 @@ export const GFX = {
   normalMaps: q.has('nm') ? q.get('nm') !== '0' : !coarse,
   // windows that light up as night falls (?win=0 off)
   nightWindows: q.get('win') !== '0',
+  // cloud shadows drifting over the town, every tier (?clouds=0 off, ?clouds=0.6 strength)
+  clouds: q.get('clouds') === '0' ? 0 : num('clouds', 0.5),
+  // desktop post stack: GTAO + bloom + grade. Never on touch devices; ?post=0|1 overrides,
+  // ?ao=0 also turns the screen-space AO pass off, ?bloom=0 the bloom.
+  post: q.has('post') ? q.get('post') !== '0' : !coarse,
+  postForced: q.get('post') === '1',   // ?post=1 also overrides the weak-GPU guard
+  // screen-space AO is opt-in (?ssao=1) until its radius and denoise are tuned on real
+  // hardware; the baked wall AO carries the look meanwhile
+  postAO: q.get('ssao') === '1',
+  postBloom: q.get('bloom') !== '0',
   // -1 = decide from device (1024 on touch/weak GPUs, 2048 elsewhere)
   shadowSize: num('shadow', -1),
   // real PointLights are the one per-fragment cost that scales with count; six nearest

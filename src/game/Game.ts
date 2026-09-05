@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { GFX } from '../gfx';
+import { cloudInject, updateClouds } from '../three/clouds';
+import { Post } from '../three/post';
 import type { WorldData } from '../world/types';
 import { WorldIndex, CHUNK } from '../world/index';
 import { Terrain } from '../world/terrain';
@@ -286,6 +288,7 @@ export class Game {
   private lastTime = 0;
   // perf: weak/software GPU detected at startup; dynamic-resolution sampler state
   private lowGPU = false;
+  private post: Post | null = null;   // desktop post stack (GTAO, bloom, grade); null on phones
   // touch/phone-class device: iOS Safari (and mobile browsers generally) impose a hard
   // per-tab memory cap and will silently reload — then crash — the page if it's exceeded.
   // Flight streams a far bigger chunk set than walking, so we shrink that set on these devices.
@@ -683,10 +686,20 @@ export class Game {
     // Re-fit the drawing buffer to the canvas's real displayed size. Using the
     // canvas client size (CSS-driven, full-bleed) instead of innerHeight dodges the
     // iOS standalone bug where innerHeight is wrong until the viewport settles.
+    if (GFX.post && (!this.lowGPU || GFX.postForced)) {
+      try {
+        this.post = new Post(this.renderer, this.scene, this.camera, innerWidth, innerHeight,
+          this.renderer.getPixelRatio(), { ao: GFX.postAO, bloom: GFX.postBloom });
+      } catch (e) {
+        console.warn('post stack unavailable, rendering direct:', e);
+        this.post = null;
+      }
+    }
     const onResize = () => {
       const c = this.renderer.domElement;
       const w = c.clientWidth || innerWidth, h = c.clientHeight || innerHeight;
       this.renderer.setSize(w, h, false);
+      this.post?.setSize(w, h);
       this.camera.aspect = w / h;
       this.camera.updateProjectionMatrix();
     };
@@ -973,7 +986,7 @@ export class Game {
         normAttr.setXYZ(i, n.x, n.y, n.z);
       }
       const groundMat = new THREE.MeshLambertMaterial({ map: tex });
-      groundMat.onBeforeCompile = detailInject;
+      groundMat.onBeforeCompile = GFX.clouds > 0 ? (s) => { detailInject(s); cloudInject(s); } : detailInject;
       ground = new THREE.Mesh(geo, groundMat);
       ground.position.set(cxw, 0, cyw);
       ground.receiveShadow = true;
@@ -2006,6 +2019,7 @@ export class Game {
     }
     if (Math.abs(this.renderer.getPixelRatio() - this.dynScale) > 1e-3) {
       this.renderer.setPixelRatio(this.dynScale);
+      this.post?.setPixelRatio(this.dynScale);
     }
   }
 
@@ -2438,6 +2452,7 @@ export class Game {
     const lampOn = this.inside ? 0 : sky.night;
     this.lampGlowMat.opacity = 0.9 * lampOn;
     setWindowNight(lampOn);
+    updateClouds(dt, sky.night, sky.wet, GFX.clouds);
     for (let i = 0; i < this.lampGlows.length; i++) {
       const s = this.lampSpots[i];
       const on = !!s && lampOn > 0.01;
@@ -2635,7 +2650,9 @@ export class Game {
       }
     }
 
-    this.renderer.render(this.inTunnel ? this.tunnel!.scene : this.interior ? this.interior.scene : this.scene, this.camera);
+    const activeScene = this.inTunnel ? this.tunnel!.scene : this.interior ? this.interior.scene : this.scene;
+    if (this.post) { this.post.setScene(activeScene); this.post.render(); }
+    else this.renderer.render(activeScene, this.camera);
 
     // 📸 A discovery photo has to be read in the SAME tick as the render that made
     // it — the drawing buffer is cleared before the next frame and we deliberately

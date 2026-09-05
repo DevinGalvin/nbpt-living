@@ -5,6 +5,7 @@ import { STYLE, SEASON, TREES, pick, hash32, mulberry32 } from '../world/style';
 import { clapboardTex, shingleTex, brickTex, plankTex, normalFromTexture } from './textures';
 import { WATER_Y } from './water';
 import { GFX } from '../gfx';
+import { cloudInject } from './clouds';
 import { gillisCenter } from './gillis';
 import { TOWN } from '@town';
 
@@ -10108,6 +10109,7 @@ function decorMaterials(): THREE.Material[] {
     // shingle courses are shallow steps
     const mk = (map: THREE.CanvasTexture | null, bump = 0) => {
       const m = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+      if (GFX.clouds > 0) m.onBeforeCompile = cloudInject;
       if (map) m.map = map;
       if (map && bump > 0 && GFX.normalMaps) {
         m.normalMap = normalFromTexture(map, bump);
@@ -10142,7 +10144,9 @@ function decorMaterials(): THREE.Material[] {
         void main() {
           float on = smoothstep(vTh - 0.06, vTh + 0.06, uNight);
           if (on <= 0.002) discard;
-          vec3 c = vColor * on;
+          // a touch over 1.0 so the desktop bloom pass catches lit windows; the
+          // tone mapper rolls it back on every tier
+          vec3 c = vColor * on * 1.35;
           #ifdef USE_FOG
             // additive light fades with distance rather than blending toward the fog colour
             c *= 1.0 - smoothstep(fogNear, fogFar, vFogDepth);
