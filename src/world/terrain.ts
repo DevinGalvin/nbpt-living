@@ -65,6 +65,11 @@ export class Terrain {
     return t;
   }
 
+  /** the raw grid, for shaders that sample the heightfield (shoreline depth, wet sand) */
+  grid(): { data: Int16Array; x0: number; y0: number; spacing: number; w: number; h: number } | null {
+    return this.ok ? { data: this.data, x0: this.x0, y0: this.y0, spacing: this.spacing, w: this.w, h: this.h } : null;
+  }
+
   // height in world px at world-px coordinates
   heightAt(x: number, z: number): number {
     if (!this.ok) return 0;

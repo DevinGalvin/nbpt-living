@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { WorldData } from '../world/types';
 import { SEASON } from '../world/style';
+import { SHORE, shoreParsGlsl } from './shore';
 
 // One animated water surface for the whole map: triangulated real water polygons
 // (with island holes) floating just above the painted ground, with a rippling
@@ -81,6 +82,9 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
     THREE.UniformsLib.fog,
     { uTime: { value: 0 } }
   ]);
+  // shoreline: the heightfield texture (shared, uploaded once by Game) gives shallows and foam
+  SHORE.uWaterY.value = WATER_Y;
+  Object.assign(uniforms, SHORE);
 
   const mat = new THREE.ShaderMaterial({
     uniforms,
@@ -106,6 +110,7 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
       varying vec3 vWorld;
       varying vec3 vColor;
       #include <fog_pars_fragment>
+      ${shoreParsGlsl}
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float noise(vec2 p) {
         vec2 i = floor(p), f = fract(p);
@@ -126,7 +131,17 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
         float g = noise(p * 11.0 + vec2(uTime * 0.14, -uTime * 0.1));
         float glint = smoothstep(0.91, 0.985, g);
         base += glint * vec3(0.38, 0.38, 0.34);
-        gl_FragColor = vec4(base, 0.9);
+        // Shallows and a foam line. The DEM has no bathymetry (the bed reads as sea level
+        // everywhere offshore), but the ground rises to the waterline across the last grid
+        // cell, so "how close the bed is to the surface" is exactly the last 5–8 m of shore.
+        float ground = shoreGround(vWorld.xz);
+        float shallow = smoothstep(0.0, uWaterY, ground);
+        base = mix(base, base * vec3(0.92, 1.12, 1.06) + vec3(0.05, 0.08, 0.06), shallow * 0.8);
+        float lap = noise(vWorld.xz * 0.05 + vec2(uTime * 0.25, uTime * 0.18));
+        float foamBand = smoothstep(0.55, 0.8, shallow) * (1.0 - smoothstep(0.92, 1.0, shallow));
+        float foam = foamBand * smoothstep(0.45, 0.7, lap);
+        base = mix(base, vec3(0.93, 0.95, 0.94), foam * 0.85);
+        gl_FragColor = vec4(base, mix(0.9, 0.97, shallow));
         // same output chain as the built-in materials, so the water grades with the town
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

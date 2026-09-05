@@ -3,6 +3,7 @@ import { GFX } from '../gfx';
 import { cloudInject, updateClouds } from '../three/clouds';
 import { Post } from '../three/post';
 import { ChunkProps } from '../three/props';
+import { SHORE, uploadShoreHeights, shoreInjectGround } from '../three/shore';
 import type { WorldData } from '../world/types';
 import { WorldIndex, CHUNK } from '../world/index';
 import { Terrain } from '../world/terrain';
@@ -480,6 +481,7 @@ export class Game {
     this.player.root.traverse((o) => { o.castShadow = true; });
     this.dog?.root.traverse((o) => { o.castShadow = true; });
 
+    uploadShoreHeights(terrain);   // before the water and the first ground chunk compile
     const water = buildWater(world);
     this.scene.add(water.mesh);
     if (water.ice) this.scene.add(water.ice);
@@ -1003,7 +1005,11 @@ export class Game {
         normAttr.setXYZ(i, n.x, n.y, n.z);
       }
       const groundMat = new THREE.MeshLambertMaterial({ map: tex });
-      groundMat.onBeforeCompile = GFX.clouds > 0 ? (s) => { detailInject(s); cloudInject(s); } : detailInject;
+      groundMat.onBeforeCompile = (s) => {
+        detailInject(s);
+        if (GFX.clouds > 0) cloudInject(s);
+        if (SHORE.uHeights.value) shoreInjectGround(s);
+      };
       ground = new THREE.Mesh(geo, groundMat);
       ground.position.set(cxw, 0, cyw);
       ground.receiveShadow = true;
