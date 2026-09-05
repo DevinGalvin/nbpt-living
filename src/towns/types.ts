@@ -88,6 +88,10 @@ export interface TownPack {
   sledLane: { x: number; z0: number; z1: number; halfW: number } | null;   // decor: kept clear of trees for sledding
   trainPlatform: Vec2 | null;                                      // decor: commuter-rail platform set piece
   holidayTree: Vec2 | null;                                        // winter: the town tree (null = none)
+  // The shopping core: brick sidewalks to the building line, lit shopfronts, planters
+  // and benches along the kerb. Streets named here, within `r` of the centre, get the
+  // treatment; everywhere else keeps concrete and lawn. Omit for a town without one.
+  downtown?: { x: number; z: number; r: number; streets: string[] };
 
   // ambient-life seasonal attractions (null = the town skips that behavior)
   attractions: {

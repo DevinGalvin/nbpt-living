@@ -36,6 +36,11 @@ export const TOWN: TownPack = {
   sledLane: { x: 2534, z0: 8380, z1: 8650, halfW: 62 },   // March's Hill sledding lane
   trainPlatform: { x: -5450, z: 11790 },                   // MBTA Newburyport station
   holidayTree: { x: -100, z: -48 },                        // Market Square
+  // the brick-sidewalk core: State Street up to High, Pleasant, Inn, Water and
+  // Merrimac Streets through Market Square, and the side streets between them
+  downtown: { x: -100, z: -48, r: 2600, streets: ['State Street', 'Pleasant Street', 'Inn Street', 'Water Street', 'Merrimac Street',
+    'Market Square', 'Liberty Street', 'Green Street', 'Middle Street', 'Titcomb Street', 'Essex Street', 'Unicorn Street',
+    'Fair Street', 'Winter Street', 'Charter Street', 'Threadneedle Alley', 'Prince Place', 'Hale Street'] },
 
   attractions: {
     frogPond: { x: -3273, z: 2964 },   // skaters loop on the frozen pond (Bartlet Mall)

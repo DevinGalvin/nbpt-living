@@ -107,6 +107,32 @@ export function roadFill(hex: string): CanvasPattern {
   return p;
 }
 
+// brick pavers, running bond — Newburyport's downtown sidewalks are all brick
+function brickPaveFill(): CanvasPattern {
+  if (SEASON === 'winter') return concreteFill();   // under snow they read the same
+  const hit = patternCache.get('brickpave');
+  if (hit) return hit;
+  const c = document.createElement('canvas');
+  c.width = c.height = 48;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#b3a591';   // mortar
+  g.fillRect(0, 0, 48, 48);
+  const rng = mulberry32(hash32(91, 13, 7));
+  const bw = 8, bh = 4;
+  let row = 0;
+  for (let y = 0; y < 48; y += bh, row++) {
+    const off = row % 2 ? bw / 2 : 0;
+    for (let x = -bw; x < 48 + bw; x += bw) {
+      const t = (rng() - 0.5) * 0.24;
+      g.fillStyle = tint('#93553f', t);
+      g.fillRect(x + off + 0.6, y + 0.6, bw - 1.2, bh - 1.2);
+    }
+  }
+  const p = patternCanvasCtx.createPattern(c, 'repeat')!;
+  patternCache.set('brickpave', p);
+  return p;
+}
+
 // granular concrete for sidewalks
 function concreteFill(): CanvasPattern {
   const hit = patternCache.get('concrete');
@@ -900,6 +926,66 @@ export class WorldIndex {
     return cv;
   }
 
+  // ---- the downtown core (TOWN.downtown): which roads, and whether a point is on it ----
+  private downtownRoadCache = new Map<number, boolean>();
+  downtownRoad(ri: number): boolean {
+    const d = TOWN.downtown;
+    if (!d) return false;
+    const hit = this.downtownRoadCache.get(ri);
+    if (hit !== undefined) return hit;
+    const r = this.world.roads[ri];
+    let ok = false;
+    if (r.n && d.streets.includes(r.n)) {
+      for (let i = 0; i < r.p.length; i += 2) {
+        if ((r.p[i] - d.x) ** 2 + (r.p[i + 1] - d.z) ** 2 < d.r * d.r) { ok = true; break; }
+      }
+    }
+    this.downtownRoadCache.set(ri, ok);
+    return ok;
+  }
+  /** the pedestrian mall (Inn Street) is downtown too: a ped path named for a listed street */
+  downtownPath(p: PathSeg): boolean {
+    const d = TOWN.downtown;
+    if (!d || p.c !== 'ped' || !p.n) return false;
+    const n = p.n;
+    if (!d.streets.some((s) => n.startsWith(s))) return false;
+    return (p.p[0] - d.x) ** 2 + (p.p[1] - d.z) ** 2 < d.r * d.r;
+  }
+  /** within the paved apron of a downtown street (kerb to building line) */
+  downtownAt(x: number, y: number): boolean {
+    const d = TOWN.downtown;
+    if (!d || (x - d.x) ** 2 + (y - d.z) ** 2 > d.r * d.r) return false;
+    const key = Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK);
+    const b = this.bucket(key);
+    for (const ri of b.roads) {
+      if (!this.downtownRoad(ri)) continue;
+      const r = this.world.roads[ri];
+      if (distToPolylineSq(x, y, r.p) < (r.w / 2 + 44) ** 2) return true;
+    }
+    for (const pi of b.paths) {
+      const p = this.world.paths[pi];
+      if (this.downtownPath(p) && distToPolylineSq(x, y, p.p) < (p.w / 2 + 44) ** 2) return true;
+    }
+    return false;
+  }
+  /** unit tangent of the nearest road to a point (for furniture squared to the kerb) */
+  kerbTangent(x: number, y: number): { tx: number; ty: number; d: number } | null {
+    const key = Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK);
+    let best: { tx: number; ty: number; d: number } | null = null;
+    const b = this.bucket(key);
+    const lines = [...b.roads.map((ri) => this.world.roads[ri].p), ...b.paths.filter((pi) => this.downtownPath(this.world.paths[pi])).map((pi) => this.world.paths[pi].p)];
+    for (const p of lines) {
+      for (let i = 0; i + 3 < p.length; i += 2) {
+        const ax = p[i], ay = p[i + 1], bx = p[i + 2], by = p[i + 3];
+        const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2));
+        const d = Math.hypot(ax + dx * t - x, ay + dy * t - y);
+        if (!best || d < best.d) { const l = Math.sqrt(l2); best = { tx: dx / l, ty: dy / l, d }; }
+      }
+    }
+    return best;
+  }
+
   groundCanvas(key: string): HTMLCanvasElement {
     const [cx, cy] = key.split(',').map(Number);
     const ox = cx * CHUNK, oy = cy * CHUNK;
@@ -930,6 +1016,30 @@ export class WorldIndex {
       ctx.stroke();
     }
     for (const pi of bucket.polys) this.decoratePoly(ctx, w.polys[pi], pi, ox, oy);
+
+    // downtown: brick paving from kerb to building line, under the road (which paints
+    // over its own width next). Lawns stop at the core; the shops meet the bricks.
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const ri of bucket.roads) {
+      if (!this.downtownRoad(ri)) continue;
+      const r = w.roads[ri];
+      ctx.strokeStyle = '#8f8b84';   // granite kerb line, just outside the road casing
+      ctx.lineWidth = r.w + 88;
+      strokeLine(ctx, r.p);
+      ctx.strokeStyle = brickPaveFill();
+      ctx.lineWidth = r.w + 84;
+      strokeLine(ctx, r.p);
+    }
+
+    // the pedestrian mall: brick from one building line to the other, like Inn Street
+    for (const pi of bucket.paths) {
+      const p = w.paths[pi];
+      if (!this.downtownPath(p)) continue;
+      ctx.strokeStyle = brickPaveFill();
+      ctx.lineWidth = p.w + 80;
+      strokeLine(ctx, p.p);
+    }
 
     for (const ri of bucket.rails) this.drawRail(ctx, w.rails[ri].p);
 
@@ -1241,6 +1351,17 @@ export class WorldIndex {
       return;
     }
     if (p.c === 'side') {
+      const mid = p.p.length >= 4 ? Math.floor(p.p.length / 4) * 2 : 0;
+      if (this.downtownAt(p.p[mid], p.p[mid + 1])) {
+        // downtown: brick pavers between granite kerbs
+        ctx.strokeStyle = '#8f8b84';
+        ctx.lineWidth = p.w + 3;
+        strokeLine(ctx, p.p);
+        ctx.strokeStyle = brickPaveFill();
+        ctx.lineWidth = p.w;
+        strokeLine(ctx, p.p);
+        return;
+      }
       // concrete sidewalk: curb edges + granular slab with expansion joints
       ctx.strokeStyle = '#a3a19a';
       ctx.lineWidth = p.w + 3;
@@ -1273,7 +1394,10 @@ export class WorldIndex {
     ctx.strokeStyle = casing;
     ctx.lineWidth = p.w + 3;
     strokeLine(ctx, p.p);
-    ctx.strokeStyle = STYLE.path[p.c] || STYLE.path.foot;
+    // the pedestrian mall downtown (Inn Street) is brick pavers, like its sidewalks
+    const pm = p.p.length >= 4 ? Math.floor(p.p.length / 4) * 2 : 0;
+    ctx.strokeStyle = p.c === 'ped' && TOWN.downtown && (p.p[pm] - TOWN.downtown.x) ** 2 + (p.p[pm + 1] - TOWN.downtown.z) ** 2 < TOWN.downtown.r ** 2
+      ? brickPaveFill() : (STYLE.path[p.c] || STYLE.path.foot);
     ctx.lineWidth = p.w;
     strokeLine(ctx, p.p);
     if (p.c === 'board' || p.c === 'pierline') {

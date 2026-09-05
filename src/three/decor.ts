@@ -152,6 +152,9 @@ const PLAIN = 0, CLAP = 1, BRICK = 2, SHINGLE = 3, PLANK = 4, GLOW = 5, WINDOW =
 // the WINDOW material fades each one in as `night` passes its threshold, so a street
 // comes on house by house through dusk rather than all at once. Set per chunk build.
 let winGlow: Bucket | null = null;
+// unlit bucket for lit shop interiors, set per chunk build like winGlow
+let shopGlow: Bucket | null = null;
+const GOODS = ['#c8443c', '#e3a83c', '#3b7a5a', '#3f5f9a', '#d9d2c2', '#7b4a8a', '#e07b4c', '#f0e6c8'];
 const WIN_WARM = new THREE.Color('#ffc978');
 function windowGlow(x: number, y2: number, nx: number, nz: number, ux: number, uy: number,
                     hw: number, hh: number, yC: number, rng: () => number, dayLit: boolean) {
@@ -751,10 +754,28 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
         if (yC + 6 > eaveH) break;
         if (isDoorSlot && r === 0) continue;
         if (storefront && r === 0) {
-          // display glass: wide window, thick trim, awning over it
+          // A shop window with a shop behind it. The glass was a flat dark rectangle;
+          // now an unlit warm interior (it reads lit by day and by night), two shelves
+          // with goods on them, a centre mullion and a transom bar, and it comes on
+          // first at dusk. Eleven small quads; a street of them is what "downtown" is.
           billboard(plain, wx, wy, nx, nz, ux, uy, 9.5, 6.4, g + 10.5, 0.5, tr, tg, tb);
-          tmp.set('#2e4452');
-          billboard(plain, wx, wy, nx, nz, ux, uy, 8.4, 5.4, g + 10.2, 0.9, tmp.r, tmp.g, tmp.b);
+          const sg = shopGlow ?? plain;
+          const wh = hash32(seed, c, i);
+          const warm = 0.78 + (wh % 10) / 50;
+          billboard(sg, wx, wy, nx, nz, ux, uy, 8.4, 5.4, g + 10.2, 0.6, 0.96 * warm, 0.88 * warm, 0.72 * warm);
+          for (const sy of [g + 8.4, g + 11.6]) {
+            billboard(sg, wx, wy, nx, nz, ux, uy, 7.8, 0.3, sy, 0.72, 0.36, 0.25, 0.17);
+            for (let k = -2; k <= 2; k++) {
+              const gh = hash32(wh, k, sy | 0);
+              if (gh % 100 < 22) continue;
+              tmp.set(GOODS[gh % GOODS.length]);
+              const gw = 0.6 + (gh % 7) / 10, ghh = 0.7 + ((gh >> 3) % 8) / 10;
+              billboard(sg, wx + ux * k * 1.5, wy + uy * k * 1.5, nx, nz, ux, uy, gw, ghh, sy + ghh + 0.15, 0.76, tmp.r, tmp.g, tmp.b);
+            }
+          }
+          billboard(plain, wx, wy, nx, nz, ux, uy, 0.32, 5.4, g + 10.2, 0.95, tr, tg, tb);
+          billboard(plain, wx, wy, nx, nz, ux, uy, 8.4, 0.32, g + 13.4, 0.95, tr, tg, tb);
+          windowGlow(wx, wy, nx, nz, ux, uy, 8.4, 5.4, g + 10.2, rng, true);
           if (edgeGetsAwnings) awning(plain, wx, wy, nx, nz, ux, uy, 10.5, g + 19.5, 4.5, 7, awningHex);
           windows++;
           continue;
@@ -800,6 +821,14 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
           billboard(plain, wx, wy, nx, nz, ux, uy, 0.7, 0.7, g + 9.1, 1.4, tmp.r, tmp.g, tmp.b);
         }
         if (storefront && edgeGetsAwnings) awning(plain, wx, wy, nx, nz, ux, uy, 8, g + 19.5, 4.5, 7, awningHex);
+        if (storefront) {
+          // a lit transom over the shop door, and a blade sign hung out over the sidewalk
+          const sg = shopGlow ?? plain;
+          billboard(sg, wx, wy, nx, nz, ux, uy, 4.2, 1.1, g + 14.6, 0.85, 0.94, 0.84, 0.66);
+          const bx = wx + ux * 4.2 + nx * 3.4, by = wy + uy * 4.2 - nz * 3.4;
+          rotBox(plain, bx, -by, 3.0, 0.3, g + 17, g + 20, Math.atan2(nz, nx), awningHex);
+          rotBox(plain, wx + ux * 4.2 + nx * 0.6, -(wy + uy * 4.2 - nz * 0.6), 0.6, 0.25, g + 19.4, g + 19.9, Math.atan2(nz, nx), '#2a2a2a');
+        }
       }
     }
   }
@@ -9297,6 +9326,7 @@ export interface ChunkDecor { mesh: THREE.Mesh | null; props: THREE.Group | null
 export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): ChunkDecor | null {
   const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
   winGlow = GFX.nightWindows ? buckets[WINDOW] : null;
+  shopGlow = buckets[GLOW];
   propSink = PROPS ? new ChunkProps() : null;
   const [ckx, cky] = key.split(',').map(Number);
   const ox = ckx * CHUNK, oy = cky * CHUNK;
@@ -9606,12 +9636,14 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (seenR.has(ri)) continue;
       seenR.add(ri);
       const r = world.roads[ri];
-      if (!['secondary', 'tertiary', 'residential'].includes(r.c)) continue;
+      // downtown kerbs are nearly full, both sides, nose to tail
+      const core = index.downtownRoad(ri);
+      if (!['secondary', 'tertiary', 'residential'].includes(r.c) && !(core && r.c === 'primary')) continue;
       let flip = 1;
-      walkLineD(r.p, 95, (x, z, tx, tz) => {
+      walkLineD(r.p, core ? 48 : 95, (x, z, tx, tz) => {
         flip = -flip;
         const h2 = hash32(Math.round(x * 3), Math.round(z * 3), 41);
-        if (h2 % 100 > 42) {
+        if (h2 % 100 > (core ? 74 : 42)) {
           // a hydrant on the kerb where no car is parked, about one per block
           if (propSink && PROPS?.has('firehydrant') && h2 % 100 > 91) {
             const hx = x - tz * flip * (r.w / 2 + 4), hz = z + tx * flip * (r.w / 2 + 4);
@@ -9632,6 +9664,24 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   for (const lamp of index.lampsFor(key)) {
     // lamps stand on boardwalk decks, but never float up onto an overpass
     const g = index.surfaceYAt(lamp.x, lamp.y);
+    // downtown: a planter beside every post, a bench by every other one, squared to the kerb
+    if (index.downtownAt(lamp.x, lamp.y)) {
+      const kt = index.kerbTangent(lamp.x, lamp.y);
+      if (kt) {
+        const lh = hash32(Math.round(lamp.x), Math.round(lamp.y), 83);
+        const px = lamp.x + kt.tx * 9, pz = lamp.y + kt.ty * 9;
+        if (!index.isBlocked(px, pz)) {
+          const ang = Math.atan2(kt.ty, kt.tx);
+          rotBox(buckets[PLAIN], px, pz, 2.6, 2.6, g, g + 3.6, ang, lh % 2 ? '#2f4a3a' : '#3a3a3c');
+          const fc = new THREE.Color(['#d8506a', '#e8b23a', '#f2f0e6', '#c4405a'][lh % 4]);
+          blobCanopy(buckets[PLAIN], px, g + 4.6, pz, 2.4, fc, lh | 1);
+        }
+        if (lh % 100 < 50) {
+          const bx = lamp.x - kt.tx * 14, bz = lamp.y - kt.ty * 14;
+          if (!index.isBlocked(bx, bz)) bench(buckets[PLAIN], bx, bz, Math.atan2(kt.ty, kt.tx), index.heightAtPx(bx, bz));
+        }
+      }
+    }
     buckets[PLAIN].box(lamp.x, lamp.y, 1.5, 1.5, g, g + 2, '#2e3330');
     buckets[PLAIN].box(lamp.x, lamp.y, 0.7, 0.7, g + 2, g + 24, '#2e3330');
     buckets[GLOW].box(lamp.x, lamp.y, 2.1, 2.1, g + 24, g + 27.5, '#ffe6b0'); // the bulb (always lit)
