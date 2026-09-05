@@ -3,7 +3,7 @@ import { GFX } from '../gfx';
 import { cloudInject, updateClouds } from '../three/clouds';
 import { Post } from '../three/post';
 import { ChunkProps } from '../three/props';
-import { SHORE, uploadShoreHeights, shoreInjectGround } from '../three/shore';
+import { SHORE, uploadShoreHeights, shoreInjectGround, waterMask, fitShoreline } from '../three/shore';
 import { groundInject } from '../three/ground';
 import type { WorldData } from '../world/types';
 import { WorldIndex, CHUNK } from '../world/index';
@@ -482,7 +482,10 @@ export class Game {
     this.player.root.traverse((o) => { o.castShadow = true; });
     this.dog?.root.traverse((o) => { o.castShadow = true; });
 
-    uploadShoreHeights(terrain);   // before the water and the first ground chunk compile
+    // the sea bed and the sea flag, before the water and the first ground chunk compile
+    const mask = waterMask(world, terrain);
+    if (mask) { terrain.addBathymetry(mask); fitShoreline(world, terrain, mask); }
+    uploadShoreHeights(terrain, mask);
     const water = buildWater(world);
     this.scene.add(water.mesh);
     if (water.ice) this.scene.add(water.ice);

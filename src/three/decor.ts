@@ -9447,8 +9447,14 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       flatRoof(buckets[PLAIN], b.p, eaveAbs, pick(STYLE.building.roofsCommercial, seed));
       walls(wallBucket, b.p, eaveAbs, eaveAbs + 3.5, bodyHex, stone ? 0 : TEX_SCALE);
       if (isBrick) {
-        // white Federal cornice below the parapet
-        tmp.set(STYLE.building.trim);
+        // The cornice below the parapet, PROJECTING: a bracketed band standing 1.6 px
+        // proud with a capped top and its own shadow on the wall beneath. The flat
+        // painted strip it replaces read as a stripe; a block's cornice is its hat.
+        const trimHex = stone ? '#ece7db' : STYLE.building.trim;
+        const outer = insetRing(b.p, -1.6);
+        walls(buckets[PLAIN], outer, eaveAbs - 3.2, eaveAbs + 0.4, trimHex, 0);
+        annulusRoof(buckets[PLAIN], outer, b.p, eaveAbs + 0.4, trimHex);
+        tmp.set(bodyHex).multiplyScalar(0.62);
         const v = ringToVec2(b.p);
         for (let i = 0; i < v.length; i++) {
           const a = v[i], bb = v[(i + 1) % v.length];
@@ -9457,11 +9463,15 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
           if (len < 0.01) continue;
           const nx = ey / len, nz = ex / len;
           buckets[PLAIN].quad(
-            a.x + nx * 0.5, eaveAbs - 3, -a.y, bb.x + nx * 0.5, eaveAbs - 3, -bb.y,
-            bb.x + nx * 0.5, eaveAbs, -bb.y, a.x + nx * 0.5, eaveAbs, -a.y,
+            a.x + nx * 0.25, eaveAbs - 4.8, -a.y, bb.x + nx * 0.25, eaveAbs - 4.8, -bb.y,
+            bb.x + nx * 0.25, eaveAbs - 3.2, -bb.y, a.x + nx * 0.25, eaveAbs - 3.2, -a.y,
             nx, 0, nz, tmp.r, tmp.g, tmp.b
           );
         }
+        // and a granite base course at the sidewalk
+        const plinth = insetRing(b.p, -0.6);
+        walls(buckets[PLAIN], plinth, base, base + 4.5, '#8f8b84', 0);
+        annulusRoof(buckets[PLAIN], plinth, b.p, base + 4.5, '#8f8b84');
       }
       if (b.k !== 'shed') roofClutter(buckets, b.p, eaveAbs, seed, areaM2, isBrick);
     }
