@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CLOUD } from './clouds';
 
 // Day–night cycle + weather for Clipper Town. Owns the visual sky (gradient
 // dome, sun & moon discs, stars, rain) and computes a lighting
@@ -154,7 +155,89 @@ export class Sky {
     this.rain = new THREE.Points(rg, this.rainMat);
     this.rain.frustumCulled = false;
 
-    scene.add(this.dome, this.sun, this.moon, this.stars, this.rain);
+    // The clouds themselves. Their shadows have crossed the ground since pass 3 with
+    // nothing in the sky to cast them; this is the layer that does. A flat sheet at
+    // cloud height, following the camera, reading the SAME noise the shadows read,
+    // displaced along the sun so each cloud sits over its own shadow. Sunlit tops,
+    // shaded bellies, a bright rim where the sun comes through the edge.
+    this.cloudMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uCloudMap: CLOUD.uCloudMap, uCloudOff: CLOUD.uCloudOff, uCloudScale: CLOUD.uCloudScale, uCloudVis: CLOUD.uCloudVis,
+        uLit: { value: new THREE.Color(1, 1, 1) }, uShade: { value: new THREE.Color(0.7, 0.72, 0.78) },
+        uCam: { value: new THREE.Vector3() }, uSunShift: { value: new THREE.Vector2() }, uHaze: { value: new THREE.Color(0.8, 0.85, 0.9) }
+      },
+      transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
+      vertexShader: `
+        varying vec3 vWorld;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorld = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }`,
+      fragmentShader: `
+        uniform sampler2D uCloudMap;
+        uniform vec2 uCloudOff, uSunShift;
+        uniform vec3 uCam;
+        uniform float uCloudScale, uCloudVis;
+        uniform vec3 uLit, uShade, uHaze;
+        varying vec3 vWorld;
+        void main() {
+          vec3 toC = vWorld - uCam;
+          float ang = atan(toC.y, length(toC.xz));
+          // overhead: the clouds whose shadows cross the ground, mapped by world position
+          vec2 uv = (vWorld.xz - uSunShift + uCloudOff) * uCloudScale;
+          float cl = texture2D(uCloudMap, uv).r;
+          float fine = texture2D(uCloudMap, uv * 3.1 + 0.37).r;
+          float nearA = smoothstep(0.50, 0.62, cl) * smoothstep(0.06, 0.16, ang);
+          // toward the horizon: banks of distant cloud, mapped by direction so they sit
+          // at infinity and stack up the way a sky does, and dissolve into the haze
+          vec3 dir = normalize(toC);
+          float az = atan(dir.z, dir.x);
+          vec2 fuv = vec2(az * 1.9, 0.32 / (ang + 0.045)) + uCloudOff * uCloudScale * 0.3;
+          float fcl = texture2D(uCloudMap, fuv).r;
+          float farA = smoothstep(0.44, 0.56, fcl) * (1.0 - smoothstep(0.10, 0.24, ang)) * smoothstep(0.012, 0.045, ang);
+          float useFar = step(nearA, farA);
+          float v = mix(cl, fcl, useFar);
+          // sunlit tops, flat shaded bellies: the fine read decides which part of a cloud this is
+          float top = smoothstep(0.50, 0.85, v * 0.55 + fine * 0.45);
+          vec3 c = mix(uShade, uLit, top);
+          float rim = smoothstep(0.50, 0.56, v) * (1.0 - smoothstep(0.56, 0.66, v));
+          c += uLit * rim * 0.22;
+          // the horizon haze swallows the lowest banks
+          c = mix(uHaze, c, smoothstep(0.015, 0.07, ang));
+          float a = max(nearA, farA) * min(1.0, uCloudVis * 2.0);
+          if (a < 0.003) discard;
+          gl_FragColor = vec4(c, a);
+          #include <colorspace_fragment>
+        }`
+    });
+    // A shallow cap, not a flat sheet: the walking camera's far plane sits just past
+    // the fog (~3100), so a sheet at cloud height would be clipped below ~15° above
+    // the horizon — the only sky a chase camera sees. The cap sags from 1000 at the
+    // zenith to the ground at its 2900 rim, so every point stays inside the far plane
+    // and the rim is always below the horizon.
+    const R = 2900, RINGS = 24, SEGS = 64, CLOUD_H = 1000;
+    const cp: number[] = [], ci: number[] = [];
+    for (let i = 0; i <= RINGS; i++) {
+      const r = R * (i / RINGS);
+      const y = CLOUD_H * (1 - (r / R) * (r / R));
+      for (let j = 0; j < SEGS; j++) {
+        const a = (j / SEGS) * Math.PI * 2;
+        cp.push(Math.cos(a) * r, y, Math.sin(a) * r);
+      }
+    }
+    for (let i = 0; i < RINGS; i++) for (let j = 0; j < SEGS; j++) {
+      const a = i * SEGS + j, b = i * SEGS + (j + 1) % SEGS, c = a + SEGS, d = b + SEGS;
+      ci.push(a, c, b, b, c, d);
+    }
+    const cg = new THREE.BufferGeometry();
+    cg.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3));
+    cg.setIndex(ci);
+    this.clouds = new THREE.Mesh(cg, this.cloudMat);
+    this.clouds.renderOrder = 0;
+    this.clouds.frustumCulled = false;
+
+    scene.add(this.dome, this.sun, this.moon, this.stars, this.rain, this.clouds);
   }
 
   // jump straight to a time of day (0..1) — used by the debug hook
@@ -166,6 +249,9 @@ export class Sky {
   duskOut(to?: number) { if (this.cine) { if (to !== undefined) this.cine.saved = to; this.cine.mode = 'from'; } }
   // force a shower (1) / clear (0) / release back to auto (null)
   forceWeather(w: number | null) { this.forced = w; }
+
+  private clouds!: THREE.Mesh;
+  private cloudMat!: THREE.ShaderMaterial;
 
   update(dt: number, px: number, pz: number, t: number, camPos: THREE.Vector3): SkyState {
     if (this.cine) {
@@ -242,6 +328,20 @@ export class Sky {
     this.domeCol.needsUpdate = true;
     this.dome.position.set(px, 0, pz);
     this.stars.position.set(px, 0, pz);
+    // the cloud layer: lit by the day, greyed by weather, over its own shadow
+    {
+      const CLOUD_H = 1000;
+      this.clouds.position.set(px, 0, pz);
+      const u = this.cloudMat.uniforms;
+      const lit = u.uLit.value as THREE.Color, shade = u.uShade.value as THREE.Color;
+      lit.setRGB(1, 1, 1).lerp(s.sunColor, 0.25 * tw).multiplyScalar(0.35 + 0.65 * day).lerp(zen, wet * 0.5);
+      shade.copy(zen).lerp(lit, 0.35).multiplyScalar(0.9);
+      (u.uCam.value as THREE.Vector3).copy(camPos);
+      (u.uHaze.value as THREE.Color).copy(hor);
+      const sy = Math.max(0.25, s.sunDir.y);
+      (u.uSunShift.value as THREE.Vector2).set(CLOUD_H * s.sunDir.x / sy, CLOUD_H * s.sunDir.z / sy);
+      this.clouds.visible = CLOUD.uCloudVis.value > 0.01 && !!CLOUD.uCloudMap.value;
+    }
     this.starMat.opacity = clamp(1 - day * 1.7, 0, 1) * 0.95;
     (this.starMat as THREE.PointsMaterial).visible = this.starMat.opacity > 0.02;
 

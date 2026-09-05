@@ -80,7 +80,8 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
 
   const uniforms = THREE.UniformsUtils.merge([
     THREE.UniformsLib.fog,
-    { uTime: { value: 0 } }
+    { uTime: { value: 0 }, uSky: { value: new THREE.Color('#aedcf2') }, uSunDir: { value: new THREE.Vector3(0, 1, 0) },
+      uSunCol: { value: new THREE.Color(1, 1, 1) }, uSunI: { value: 1 } }
   ]);
   // shoreline: the heightfield texture (shared, uploaded once by Game) gives shallows and foam
   SHORE.uWaterY.value = WATER_Y;
@@ -107,6 +108,8 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
     `,
     fragmentShader: `
       uniform float uTime;
+      uniform vec3 uSky, uSunDir, uSunCol;
+      uniform float uSunI;
       varying vec3 vWorld;
       varying vec3 vColor;
       #include <fog_pars_fragment>
@@ -131,6 +134,19 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
         float g = noise(p * 11.0 + vec2(uTime * 0.14, -uTime * 0.1));
         float glint = smoothstep(0.91, 0.985, g);
         base += glint * vec3(0.38, 0.38, 0.34);
+        // The sky in the water. A wave normal from the noise gradient, then Fresnel:
+        // looking along the surface the water is the horizon's colour, looking down
+        // it is its own. And the sun, as a broad highlight on the wave facets.
+        vec3 V = normalize(cameraPosition - vWorld);
+        vec2 q = p * 2.2 - vec2(uTime * 0.04, uTime * 0.055);
+        float nX = noise(q + vec2(0.02, 0.0)) - noise(q - vec2(0.02, 0.0));
+        float nZ = noise(q + vec2(0.0, 0.02)) - noise(q - vec2(0.0, 0.02));
+        vec3 N = normalize(vec3(-nX * 4.0, 1.0, -nZ * 4.0));
+        float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+        base = mix(base, uSky, fres * 0.6);
+        vec3 H = normalize(V + uSunDir);
+        float spec = pow(max(dot(N, H), 0.0), 160.0) * uSunI * 0.7 * smoothstep(0.02, 0.15, uSunDir.y);
+        base += spec * uSunCol;
         // Shallows and a foam line. The DEM has no bathymetry (the bed reads as sea level
         // everywhere offshore), but the ground rises to the waterline across the last grid
         // cell, so "how close the bed is to the surface" is exactly the last 5–8 m of shore.
@@ -183,7 +199,15 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
   return {
     mesh,
     ice,
-    update: (t: number) => { (mat.uniforms.uTime as { value: number }).value = t / 1000; }
+    update: (t: number, sky?: { fog: THREE.Color; sunDir: THREE.Vector3; sunColor: THREE.Color; sunIntensity: number }) => {
+      (mat.uniforms.uTime as { value: number }).value = t / 1000;
+      if (sky) {
+        (mat.uniforms.uSky.value as THREE.Color).copy(sky.fog);
+        (mat.uniforms.uSunDir.value as THREE.Vector3).copy(sky.sunDir);
+        (mat.uniforms.uSunCol.value as THREE.Color).copy(sky.sunColor);
+        (mat.uniforms.uSunI as { value: number }).value = sky.sunIntensity;
+      }
+    }
   };
 }
 

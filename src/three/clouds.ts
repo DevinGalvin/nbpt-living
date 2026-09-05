@@ -71,7 +71,8 @@ export const CLOUD = {
   uCloudMap: { value: null as THREE.Texture | null },
   uCloudOff: { value: new THREE.Vector2(0, 0) },
   uCloudScale: { value: 1 / 2000 },   // one tile = 250 m
-  uCloudAmt: { value: 0 }
+  uCloudAmt: { value: 0 },
+  uCloudVis: { value: 0 }             // the cloud layer in the sky (shadows go out at night; clouds stay)
 };
 
 // wind from the south-west, a slow drift in world px/s (8 px = 1 m)
@@ -83,6 +84,7 @@ export function updateClouds(dt: number, night: number, wet: number, strength: n
   CLOUD.uCloudOff.value.addScaledVector(WIND, dt);
   // no cloud shadows at night (there is no sun to cross) or under a snowing overcast
   CLOUD.uCloudAmt.value = strength * (1 - night) * (1 - wet);
+  CLOUD.uCloudVis.value = strength;
 }
 
 /** onBeforeCompile hook for any MeshLambert/Standard material that should take cloud shadow */
