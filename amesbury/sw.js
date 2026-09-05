@@ -8,7 +8,7 @@
 // purges the old caches. So world.json is re-downloaded exactly once per deploy.
 const VERSION = new URL(self.location.href).searchParams.get('v') || 'dev';
 const CACHE = `clipper-${VERSION}`;
-const CACHEABLE = /\.(js|css|json|bin|png|svg|jpg|webp|webmanifest|woff2?)$/;
+const CACHEABLE = /\.(js|css|json|bin|glb|png|svg|jpg|webp|webmanifest|woff2?)$/;
 
 self.addEventListener('install', () => self.skipWaiting());
 
