@@ -6,6 +6,13 @@ import { clapboardTex, shingleTex, brickTex, plankTex, normalFromTexture } from 
 import { WATER_Y } from './water';
 import { GFX } from '../gfx';
 import { cloudInject } from './clouds';
+import { PROPS } from './assets';
+import { ChunkProps } from './props';
+
+// Real prop models (cars, benches, hydrants…) are placed through this sink while a
+// chunk builds, and come back as instanced meshes beside the merged decor mesh. Null
+// when the kit failed to load — every emitter below then falls back to its boxes.
+let propSink: ChunkProps | null = null;
 import { gillisCenter } from './gillis';
 import { TOWN } from '@town';
 
@@ -950,6 +957,11 @@ function hull(bk: Bucket, x: number, z: number, hl: number, hw: number,
 }
 
 function car(bk: Bucket, x: number, z: number, ang: number, hex: string, g = 0) {
+  if (propSink && PROPS) {
+    // a real car from the kit; the fleet mix is picked per spot so it never changes on rebuild
+    propSink.add(PROPS.car(hash32(Math.round(x), Math.round(z), 311)), x, g, z, ang, 1, hex);
+    return;
+  }
   const ca = Math.cos(ang), sa = Math.sin(ang);
   chamferBox(bk, x, z, 17, 7, g + 3, g + 10.2, ang, hex, 1.7);
   chamferBox(bk, x - ca * 3, z - sa * 3, 8.6, 5.8, g + 9.6, g + 15.5, ang, '#2e3338', 2.2);
@@ -8921,6 +8933,13 @@ function buildGreasyPole(buckets: Bucket[], poly: Poly) {
 // faces the opposite way.
 function bench(bk: Bucket, x: number, z: number, ang: number, g: number) {
   const ca = Math.cos(ang), sa = Math.sin(ang);
+  if (propSink && PROPS?.has('bench')) {
+    propSink.add(PROPS.get('bench'), x, g, z, ang);
+    // a bin beside about half the benches, at one end
+    const h = hash32(Math.round(x), Math.round(z), 53);
+    if (h % 100 < 50) propSink.add(PROPS.get(h % 200 < 100 ? 'trash_A' : 'trash_B'), x + ca * 11, g, z + sa * 11, ang);
+    return;
+  }
   const wood = '#7a5230', iron = '#3a3d40';
   for (const o of [-7, 7]) rotBox(bk, x + ca * o, z + sa * o, 0.9, 4.2, g, g + 4.2, ang, iron); // end frames
   rotBox(bk, x, z, 9.5, 4.4, g + 4.2, g + 5.1, ang, wood);                                       // seat
@@ -9066,9 +9085,12 @@ function styledHouse(buckets: Bucket[], b: Building, g: number, index: WorldInde
   }
 }
 
-export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): THREE.Mesh | null {
+export interface ChunkDecor { mesh: THREE.Mesh | null; props: THREE.Group | null }
+
+export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): ChunkDecor | null {
   const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
   winGlow = GFX.nightWindows ? buckets[WINDOW] : null;
+  propSink = PROPS ? new ChunkProps() : null;
   const [ckx, cky] = key.split(',').map(Number);
   const ox = ckx * CHUNK, oy = cky * CHUNK;
 
@@ -9371,7 +9393,15 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       walkLineD(r.p, 95, (x, z, tx, tz) => {
         flip = -flip;
         const h2 = hash32(Math.round(x * 3), Math.round(z * 3), 41);
-        if (h2 % 100 > 42) return;
+        if (h2 % 100 > 42) {
+          // a hydrant on the kerb where no car is parked, about one per block
+          if (propSink && PROPS?.has('firehydrant') && h2 % 100 > 91) {
+            const hx = x - tz * flip * (r.w / 2 + 4), hz = z + tx * flip * (r.w / 2 + 4);
+            if (hx >= ox && hx < ox + CHUNK && hz >= oy && hz < oy + CHUNK && !index.isBlocked(hx, hz))
+              propSink.add(PROPS.get('firehydrant'), hx, index.heightAtPx(hx, hz), hz, Math.atan2(tz, tx));
+          }
+          return;
+        }
         const px2 = x - tz * flip * (r.w / 2 - 9);
         const pz2 = z + tx * flip * (r.w / 2 - 9);
         if (px2 < ox || px2 >= ox + CHUNK || pz2 < oy || pz2 >= oy + CHUNK) return;
@@ -10060,9 +10090,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     }
   }
 
+  const props = propSink?.build() ?? null;
+  propSink = null;
   let total = 0;
   for (const bk of buckets) total += bk.pos.length;
-  if (!total) return null;
+  if (!total) return props ? { mesh: null, props } : null;
 
   // copy via typed-array set — spreading huge buckets into push() blows the call stack
   const pos = new Float32Array(total);
@@ -10089,7 +10121,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   const mesh = new THREE.Mesh(geo, decorMaterials());
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  return mesh;
+  return { mesh, props };
 }
 
 function flatRoofPlank(bk: Bucket, ring: number[], h: number) {

@@ -36,6 +36,8 @@ export const GFX = {
   // fetch plus derivative math per decor fragment — worth it on desktop, skipped on
   // phones (?nm=1 forces on, ?nm=0 off)
   normalMaps: q.has('nm') ? q.get('nm') !== '0' : !coarse,
+  // real prop models (cars, benches, hydrants) instead of procedural boxes (?props=0 off)
+  props: q.get('props') !== '0',
   // windows that light up as night falls (?win=0 off)
   nightWindows: q.get('win') !== '0',
   // cloud shadows drifting over the town, every tier (?clouds=0 off, ?clouds=0.6 strength)

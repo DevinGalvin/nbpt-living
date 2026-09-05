@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { WorldIndex, CHUNK, pointInPoly, distToPolylineSq } from '../world/index';
 import { hash32, mulberry32, SEASON } from '../world/style';
 import { WATER_Y } from '../three/water';
+import { PROPS } from '../three/assets';
 import { TOWN } from '@town';
 
 // Ambient life: pedestrians who follow the sidewalk network exactly, cars
@@ -251,8 +252,27 @@ class TrafficCar {
   cruise = 120;      // speed to return to once the way ahead is clear
   private face = 0;
 
+  private wheels: THREE.Object3D[] = [];
+  private wheelR = 2.6;
+
   constructor(seed: number) {
     const rng = mulberry32(seed);
+    const model = PROPS?.car(seed * 2654435761);
+    if (model) {
+      // a real car from the kit: the baked tree keeps its wheel nodes, so they can turn,
+      // and its paint panels get one of the town's car colours
+      const body = model.root.clone(true);
+      const paint = CAR_COLORS[Math.floor(rng() * CAR_COLORS.length)];
+      body.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh) return;
+        if (/wheel/i.test(o.name)) this.wheels.push(o);
+        if (m.userData.paint) { const mat = (m.material as THREE.MeshStandardMaterial).clone(); mat.color.set(paint); m.material = mat; }
+      });
+      this.wheelR = Math.max(1.5, model.size.y * 0.22);
+      this.root.add(body);
+      return;
+    }
     const hex = CAR_COLORS[Math.floor(rng() * CAR_COLORS.length)];
     const body = rbox(14, 7, 34, 2.2, hex);
     body.position.y = 6.5;
@@ -261,6 +281,7 @@ class TrafficCar {
     for (const [lx, lz] of [[-7.2, 10.5], [7.2, 10.5], [-7.2, -10.5], [7.2, -10.5]] as const) {
       const wheel = cylX(2.6, 2.4, '#23241f');
       wheel.position.set(lx, 2.6, lz);
+      this.wheels.push(wheel);
       this.root.add(wheel);
     }
     this.root.add(body, cabin);
@@ -268,6 +289,9 @@ class TrafficCar {
 
   step(dt: number, groundY: number): boolean {
     this.t += this.speed * dt * this.dir;
+    // wheels turn with the road speed (the kit's wheel nodes pivot on their own axle)
+    const spin = (this.speed * dt) / this.wheelR;
+    for (const w of this.wheels) w.rotation.x += spin;
     const ended = this.t <= 2 || this.t >= this.total - 2;
     const clamped = Math.max(2, Math.min(this.total - 2, this.t));
     const spot = alongPolyline(this.pts, clamped);

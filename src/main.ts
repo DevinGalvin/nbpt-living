@@ -2,6 +2,8 @@ import { Game } from './game/Game';
 import { Terrain } from './world/terrain';
 import type { WorldData } from './world/types';
 import { TOWN } from '@town';
+import { loadProps, setProps } from './three/assets';
+import { GFX } from './gfx';
 
 // Build stamp (injected by Vite — see vite.config.ts). Lets you confirm which
 // source commit is live: open the console, or read `window.__build`.
@@ -76,6 +78,11 @@ async function boot() {
       ? `Loading the town \u00b7 ${Math.min(99, Math.round((got / __PAYLOAD_BYTES__) * 100))}%`
       : `Loading the town \u00b7 ${(got / 1048576).toFixed(1)} MB`;
   };
+  // the shared prop kit (cars, benches, hydrants) loads alongside the map; if it fails
+  // the game still boots and every prop falls back to its procedural box
+  const propsLoad = !GFX.props ? Promise.resolve(null) : loadProps('models/props.glb')
+    .then((lib) => { setProps(lib); return lib; })
+    .catch((err) => { console.warn('prop kit unavailable, using boxes:', err); return null; });
   const [world, terrain] = await Promise.all([
     inline.__NBPT_WORLD__
       ? Promise.resolve(inline.__NBPT_WORLD__)
@@ -86,6 +93,7 @@ async function boot() {
           .then((b) => Terrain.fromBuffer(b.buffer as ArrayBuffer))
           .catch((err) => { console.warn('terrain unavailable, world will be flat:', err); return new Terrain(); })
   ]);
+  await propsLoad;
   if (sub) sub.textContent = subText; // restore the flavor line while the world meshes build
   new Game(world, terrain); // debug hooks live on window.nbpt (see Game ctor)
 }

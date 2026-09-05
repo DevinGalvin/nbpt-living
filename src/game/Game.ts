@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GFX } from '../gfx';
 import { cloudInject, updateClouds } from '../three/clouds';
 import { Post } from '../three/post';
+import { ChunkProps } from '../three/props';
 import type { WorldData } from '../world/types';
 import { WorldIndex, CHUNK } from '../world/index';
 import { Terrain } from '../world/terrain';
@@ -94,6 +95,7 @@ function lerpAngle(a: number, b: number, t: number): number {
 interface ChunkEntry {
   ground: THREE.Mesh | null;        // null for decor-only chunks (mobile flight) — impostor is the ground
   decor: THREE.Mesh | null;
+  props: THREE.Group | null;        // instanced kit models (cars, benches…), see three/props.ts
   tex: THREE.CanvasTexture | null;  // null when there's no ground mesh
   signs: THREE.Mesh[];
   decorOnly: boolean;               // built without ground/signs (cheap, churn-safe) for phone flight
@@ -1008,8 +1010,11 @@ export class Game {
       this.scene.add(ground);
     }
 
-    const decor = buildChunkDecor(this.world, this.index, key);
+    const built = buildChunkDecor(this.world, this.index, key);
+    const decor = built?.mesh ?? null;
+    const props = built?.props ?? null;
     if (decor) this.scene.add(decor);
+    if (props) this.scene.add(props);
 
     const signs: THREE.Mesh[] = [];
     if (!decorOnly) {
@@ -1033,7 +1038,7 @@ export class Game {
       }
     }
 
-    this.chunks.set(key, { ground, decor, tex, signs, decorOnly });
+    this.chunks.set(key, { ground, decor, props, tex, signs, decorOnly });
   }
 
   private disposeChunk(key: string) {
@@ -1048,6 +1053,10 @@ export class Game {
     if (e.decor) {
       this.scene.remove(e.decor);
       e.decor.geometry.dispose();
+    }
+    if (e.props) {
+      this.scene.remove(e.props);
+      ChunkProps.dispose(e.props);
     }
     for (const s of e.signs) {
       this.scene.remove(s);
