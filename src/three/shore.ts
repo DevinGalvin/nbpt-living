@@ -62,5 +62,11 @@ export function shoreInjectGround(shader: { uniforms: Record<string, unknown>; v
   float above = vShoreW.y - uWaterY;
   float wet = 1.0 - smoothstep(0.0, 5.0, above);
   diffuseColor.rgb *= 1.0 - 0.28 * wet;
+  // the wrack line: a broken strip of weed and shell where the last high tide stopped
+  float band = smoothstep(3.6, 4.8, above) * (1.0 - smoothstep(5.6, 7.2, above));
+  vec2 cell = floor(vShoreW.xz * 0.45);
+  float n = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+  float wrack = band * step(0.62, n);
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.42, 0.40, 0.34), wrack);
 }`);
 }

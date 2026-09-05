@@ -4,6 +4,7 @@ import { cloudInject, updateClouds } from '../three/clouds';
 import { Post } from '../three/post';
 import { ChunkProps } from '../three/props';
 import { SHORE, uploadShoreHeights, shoreInjectGround } from '../three/shore';
+import { groundInject } from '../three/ground';
 import type { WorldData } from '../world/types';
 import { WorldIndex, CHUNK } from '../world/index';
 import { Terrain } from '../world/terrain';
@@ -1007,6 +1008,7 @@ export class Game {
       const groundMat = new THREE.MeshLambertMaterial({ map: tex });
       groundMat.onBeforeCompile = (s) => {
         detailInject(s);
+        groundInject(s);
         if (GFX.clouds > 0) cloudInject(s);
         if (SHORE.uHeights.value) shoreInjectGround(s);
       };

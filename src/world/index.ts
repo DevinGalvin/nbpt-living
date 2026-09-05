@@ -974,6 +974,26 @@ export class WorldIndex {
       ctx.lineWidth = r.w;
       strokeLine(ctx, r.p);
     }
+    // what traffic does to asphalt: two darker wheel tracks per lane (tyres polish the
+    // tar), and a grimy strip along each kerb where the sweeper never quite reaches
+    if (SEASON !== 'winter') {
+      for (const r of roads) {
+        if (r.w < 18 || r.b) continue;
+        const lanes = r.w >= 40 ? 4 : 2;
+        const laneW = r.w / lanes;
+        ctx.strokeStyle = 'rgba(0,0,0,0.11)';
+        ctx.lineWidth = Math.max(2.5, laneW * 0.16);
+        for (let l = 0; l < lanes; l++) {
+          const centre = -r.w / 2 + laneW * (l + 0.5);
+          strokeLine(ctx, offsetLine(r.p, centre - laneW * 0.27));
+          strokeLine(ctx, offsetLine(r.p, centre + laneW * 0.27));
+        }
+        ctx.strokeStyle = 'rgba(0,0,0,0.14)';
+        ctx.lineWidth = 2.2;
+        strokeLine(ctx, offsetLine(r.p, r.w / 2 - 1.4));
+        strokeLine(ctx, offsetLine(r.p, -(r.w / 2 - 1.4)));
+      }
+    }
     ctx.setLineDash([16, 26]);
     ctx.strokeStyle = STYLE.road.centerline;
     ctx.lineWidth = 2.5;

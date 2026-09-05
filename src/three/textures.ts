@@ -47,18 +47,38 @@ export function shingleTex(): THREE.CanvasTexture {
     g.fillStyle = 'rgb(238,236,232)';
     g.fillRect(0, 0, s, s);
     const rng = mulberry32(23);
-    const rowH = 18, tabW = 26;
+    // 256 px per 2 m: a 16 px course is a real 12.5 cm exposure, tabs a third of a metre
+    const rowH = 16, tabW = 42;
     let row = 0;
     for (let y = 0; y < s + rowH; y += rowH, row++) {
       const off = row % 2 === 0 ? 0 : tabW / 2;
       for (let x = -tabW; x < s + tabW; x += tabW) {
-        g.fillStyle = `rgba(150,148,142,${0.10 + rng() * 0.22})`;
-        g.fillRect(x + off, y, tabW - 1.5, rowH - 1.5);
+        // each tab its own tone: asphalt shingles are a blend of granule colours
+        g.fillStyle = `rgba(150,148,142,${0.08 + rng() * 0.34})`;
+        g.fillRect(x + off, y, tabW - 2, rowH - 2.5);
+        // the slot between tabs
+        g.fillStyle = 'rgba(60,58,54,0.55)';
+        g.fillRect(x + off + tabW - 2, y, 2, rowH - 2.5);
       }
-      g.fillStyle = 'rgba(70,68,64,0.5)';
-      g.fillRect(0, y + rowH - 2, s, 2);
+      // the shadow the course above throws, with a highlight on the lip
+      g.fillStyle = 'rgba(60,58,54,0.62)';
+      g.fillRect(0, y + rowH - 2.5, s, 2.5);
+      g.fillStyle = 'rgba(255,255,255,0.35)';
+      g.fillRect(0, y, s, 1);
     }
-  });
+    // granule speckle
+    for (let i = 0; i < 1400; i++) {
+      const v = 120 + rng() * 120;
+      g.fillStyle = `rgba(${v | 0},${v | 0},${(v * 0.97) | 0},0.35)`;
+      g.fillRect(rng() * s, rng() * s, 1.2, 1.2);
+    }
+    // a few weather streaks running down the slope
+    for (let i = 0; i < 6; i++) {
+      const x = rng() * s;
+      g.fillStyle = `rgba(80,78,72,${0.05 + rng() * 0.07})`;
+      g.fillRect(x, 0, 3 + rng() * 6, s);
+    }
+  }, 256);
 }
 
 // real red brick with mortar (colored — vertex color stays near-white)

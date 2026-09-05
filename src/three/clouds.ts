@@ -10,7 +10,7 @@ const CLOUD_TEX_SIZE = 256;
 let _tex: THREE.CanvasTexture | null = null;
 
 // 4-octave value noise, wrapped so it tiles
-function cloudTex(): THREE.CanvasTexture {
+export function cloudTex(): THREE.CanvasTexture {
   if (_tex) return _tex;
   const s = CLOUD_TEX_SIZE;
   const rng = mulberry32(4242);

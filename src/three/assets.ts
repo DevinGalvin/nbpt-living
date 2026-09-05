@@ -59,7 +59,9 @@ export class PropLib {
 }
 
 let vertexMat: THREE.MeshLambertMaterial | null = null;
-let atlasMat: THREE.MeshLambertMaterial | null = null;
+// one material per atlas texture: the kit carries two (Kenney's colour map for the
+// people, KayKit's city atlas for the street furniture)
+const atlasMats = new Map<THREE.Texture, THREE.MeshLambertMaterial>();
 
 // props.glb is quantized (KHR_mesh_quantization via meshopt): positions arrive as
 // normalised int16. Baking a world-scale transform into that storage would clamp every
@@ -158,10 +160,9 @@ function bakeScene(scene: THREE.Group): PropModel | null {
   }
   let material: THREE.Material;
   if (textured) {
-    if (!atlasMat) {
-      atlasMat = new THREE.MeshLambertMaterial({ map: atlas });
-    }
-    material = atlasMat;
+    let m = atlasMats.get(atlas!);
+    if (!m) { m = new THREE.MeshLambertMaterial({ map: atlas }); atlasMats.set(atlas!, m); }
+    material = m;
   } else {
     if (!vertexMat) vertexMat = new THREE.MeshLambertMaterial({ vertexColors: true });
     material = vertexMat;

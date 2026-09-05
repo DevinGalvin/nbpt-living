@@ -5,7 +5,7 @@ import { STYLE, SEASON, TREES, pick, hash32, mulberry32 } from '../world/style';
 import { clapboardTex, shingleTex, brickTex, plankTex, normalFromTexture } from './textures';
 import { WATER_Y } from './water';
 import { GFX } from '../gfx';
-import { cloudInject } from './clouds';
+import { cloudInject, cloudTex } from './clouds';
 import { PROPS } from './assets';
 import { ChunkProps } from './props';
 
@@ -315,6 +315,23 @@ function gableRoof(shin: Bucket, clap: Bucket, ring: number[], obb: OBB, eaveH: 
       drewSomething = true;
     }
   }
+  // the ridge cap: a strip of cap shingles along the peak. From the air it is the one
+  // line that says which way a roof runs; without it two slopes meet in a blur
+  if (drewSomething) {
+    // the ridge spans wherever the expanded footprint crosses the ridge line
+    let lMin = Infinity, lMax = -Infinity;
+    for (let i = 0; i < exp.length; i += 2) {
+      const j = (i + 2) % exp.length;
+      const w0 = -(exp[i] - obb.cx) * sa + (exp[i + 1] - obb.cz) * ca;
+      const w1 = -(exp[j] - obb.cx) * sa + (exp[j + 1] - obb.cz) * ca;
+      if ((w0 <= 0) === (w1 <= 0)) continue;
+      const t = w0 / (w0 - w1);
+      const x = exp[i] + (exp[j] - exp[i]) * t, z = exp[i + 1] + (exp[j + 1] - exp[i + 1]) * t;
+      const l = (x - obb.cx) * ca + (z - obb.cz) * sa;
+      lMin = Math.min(lMin, l); lMax = Math.max(lMax, l);
+    }
+    if (lMax - lMin > 4) ridgeCap(shin, obb.cx, obb.cz, ca, sa, lMin, lMax, eaveH + ridgeH, rr, rg, rb);
+  }
   // degenerate footprint fallback: plain OBB slopes (never leave a house roofless)
   if (!drewSomething) {
     const L = obb.hl + ov;
@@ -457,6 +474,20 @@ function complexGable(shin: Bucket, clap: Bucket, ring: number[], eaveAbs: numbe
   complexGable(shin, clap, B, eaveAbs, roofHex, wallHex, depth + 1);
 }
 
+// cap shingles along a ridge from l0 to l1 (OBB frame): a shallow tent, a shade darker
+function ridgeCap(shin: Bucket, cx: number, cz: number, ca: number, sa: number, l0: number, l1: number, y: number,
+                  r: number, g: number, b: number) {
+  const hw = 1.2, rise = 0.5;
+  const pt = (l: number, w: number, yy: number): [number, number, number] => [cx + l * ca - w * sa, yy, cz + l * sa + w * ca];
+  const k = 1.22;
+  for (const side of [1, -1] as const) {
+    const a = pt(l0, side * hw, y + 0.05), bb = pt(l1, side * hw, y + 0.05), c = pt(l1, 0, y + rise), d = pt(l0, 0, y + rise);
+    const u = (l1 - l0) / TEX_SCALE;
+    shin.quadUV(a[0], a[1], a[2], bb[0], bb[1], bb[2], c[0], c[1], c[2], d[0], d[1], d[2],
+      side * -sa * 0.6, 0.8, side * ca * 0.6, r * k, g * k, b * k, 0, 0, u, 0, u, 0.12, 0, 0.12);
+  }
+}
+
 function hipRoof(shin: Bucket, obb: OBB, eaveH: number, ridgeH: number, ov: number, roofHex: string, pyramid: boolean) {
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
   const L = obb.hl + ov, W = obb.hw + ov;
@@ -490,6 +521,7 @@ function hipRoof(shin: Bucket, obb: OBB, eaveH: number, ridgeH: number, ov: numb
     quad(C, D, RW, RE, U(L, -W), U(-L, -W), U(-rL, 0), U(rL, 0)); // long slope
     tri(B, C, RE, U(L, W), U(L, -W), U(rL, 0));                   // hip end
     tri(D, A, RW, U(-L, -W), U(-L, W), U(-rL, 0));                // hip end
+    ridgeCap(shin, obb.cx, obb.cz, ca, sa, -rL, rL, ridge, rr, rg, rb);
   } else {
     const AP = pt(0, 0, ridge);
     tri(A, B, AP, U(-L, W), U(L, W), U(0, 0));
@@ -724,7 +756,9 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
         const lit = rng() < litP;
         billboard(plain, wx, wy, nx, nz, ux, uy, winW, winH, yC, 0.5, tr, tg, tb);
         if (lit) tmp.set(STYLE.building.glassLit); else tmp.copy(glassJit);
-        billboard(plain, wx, wy, nx, nz, ux, uy, winW - 1.2, winH - 1.2, yC, 0.9, tmp.r, tmp.g, tmp.b);
+        // muntins on the houses and small blocks; a tower's plate glass stays clear, and
+        // the extra quads stop once nobody could resolve them anyway
+        houseGlass(plain, wx, wy, nx, nz, ux, uy, winW - 1.2, winH - 1.2, yC, tmp, lit, rows <= 4 && windows < 240 && !look?.glass);
         windowGlow(wx, wy, nx, nz, ux, uy, winW - 1.2, winH - 1.2, yC, rng, lit);
         // The lintel is two extra quads per opening. On an ordinary block that
         // is nothing; on a footprint big enough to spend the whole window budget
@@ -748,6 +782,7 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
         billboard(plain, wx, wy, nx, nz, ux, uy, 5.4, 7.5, g + 7.5, 0.5, tr, tg, tb);
         tmp.set(forceDoor || pick(STYLE.building.doors, seed));
         billboard(plain, wx, wy, nx, nz, ux, uy, 4.2, 6.5, g + 6.5, 0.9, tmp.r, tmp.g, tmp.b);
+        if (!storefront) stoop(plain, wx, wy, nx, nz, ux, uy, g, 4.6);
         if (SEASON === 'winter') {
           // a wreath with a red bow on every door — the Newburyport December
           const doorHex = forceDoor || pick(STYLE.building.doors, seed);
@@ -837,6 +872,42 @@ function billboard(bk: Bucket, x: number, y2: number, nx: number, nz: number,
   const ax = px - ux * hw, ay = py - uy * hw;
   const bx = px + ux * hw, by = py + uy * hw;
   bk.quad(ax, yC - hh, -ay, bx, yC - hh, -by, bx, yC + hh, -by, ax, yC + hh, -ay, nx, 0, nz, r, g, b);
+}
+
+// a billboard shaded top-to-bottom: window glass mirrors the sky above and the dark
+// street below, and that one gradient is most of what separates glass from paint
+function billboardGrad(bk: Bucket, x: number, y2: number, nx: number, nz: number,
+                       ux: number, uy: number, hw: number, hh: number, yC: number, off: number,
+                       r: number, g: number, b: number, sBot: number, sTop: number) {
+  const px = x + nx * off, py = y2 - nz * off;
+  const ax = px - ux * hw, ay = py - uy * hw;
+  const bx = px + ux * hw, by = py + uy * hw;
+  bk.quadGrad(ax, yC - hh, -ay, bx, yC - hh, -by, bx, yC + hh, -by, ax, yC + hh, -ay, nx, 0, nz, r, g, b,
+    0, 0, 0, 0, 0, 0, 0, 0, sBot, sTop);
+}
+
+// the sash of a house window: glass with the sky in it, the shadow of the reveal under
+// the head, and the muntins of a six-over-six. Three quads more than a flat rectangle;
+// the only thing that makes a window look like a hole in the wall rather than a sticker
+function houseGlass(bk: Bucket, x: number, y2: number, nx: number, nz: number, ux: number, uy: number,
+                    hw: number, hh: number, yC: number, c: THREE.Color, lit: boolean, muntins: boolean) {
+  if (lit) billboard(bk, x, y2, nx, nz, ux, uy, hw, hh, yC, 0.9, c.r, c.g, c.b);
+  else billboardGrad(bk, x, y2, nx, nz, ux, uy, hw, hh, yC, 0.9, c.r, c.g, c.b, 0.72, 1.45);
+  // the reveal's shadow across the top of the glass
+  billboard(bk, x, y2, nx, nz, ux, uy, hw, hh * 0.13, yC + hh * 0.87, 0.95, c.r * 0.45, c.g * 0.45, c.b * 0.45);
+  if (muntins) {
+    const tr = 0.93, tg = 0.92, tb = 0.88;
+    billboard(bk, x, y2, nx, nz, ux, uy, 0.28, hh, yC, 1.0, tr, tg, tb);
+    billboard(bk, x, y2, nx, nz, ux, uy, hw, 0.28, yC, 1.0, tr, tg, tb);
+  }
+}
+
+// a granite step at the door, oriented to the wall
+function stoop(bk: Bucket, x: number, y2: number, nx: number, nz: number, ux: number, uy: number, g: number, hw: number) {
+  const out = 2.4;
+  const cx = x + nx * out, cy = y2 - nz * out;
+  const ang = Math.atan2(uy, ux);
+  rotBox(bk, cx, -cy, hw, out, g - 0.5, g + 1.5, -ang, '#9a9891');
 }
 
 // storefront awning: sloped canvas top + hanging valance
@@ -10179,14 +10250,36 @@ function flatRoofPlank(bk: Bucket, ring: number[], h: number) {
   }
 }
 
+// A roof is never one tone: sun-bleached patches, moss on the shaded side, the streak
+// under a chimney. From the air that mottle is what separates a roof from a painted
+// slab, and it cannot come from the 2 m shingle tile. Same fbm as the cloud shadows,
+// sampled at yard scale in world space; one fetch, roof fragments only.
+function roofInject(shader: { uniforms: Record<string, unknown>; vertexShader: string; fragmentShader: string }) {
+  shader.uniforms.uRoofMap = { value: cloudTex() };
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nvarying vec3 vRoofW;')
+    .replace('#include <project_vertex>', '#include <project_vertex>\nvRoofW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform sampler2D uRoofMap;\nvarying vec3 vRoofW;')
+    .replace('#include <map_fragment>', `#include <map_fragment>
+{
+  float m1 = texture2D(uRoofMap, vRoofW.xz * (1.0 / 260.0)).r;
+  float m2 = texture2D(uRoofMap, vRoofW.xz * (1.0 / 46.0) + 0.61).r;
+  float m = m1 * 0.6 + m2 * 0.4;
+  // bleached toward warm grey on the high side, mossy-dark on the low
+  vec3 bleach = vec3(1.22, 1.18, 1.10), moss = vec3(0.78, 0.84, 0.74);
+  diffuseColor.rgb *= mix(moss, bleach, smoothstep(0.32, 0.72, m));
+}`);
+}
+
 let _mats: THREE.Material[] | null = null;
 function decorMaterials(): THREE.Material[] {
   if (!_mats) {
     // normal-map strength per surface: mortar and plank gaps are deep, clapboard and
     // shingle courses are shallow steps
-    const mk = (map: THREE.CanvasTexture | null, bump = 0) => {
+    const mk = (map: THREE.CanvasTexture | null, bump = 0, roof = false) => {
       const m = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
-      if (GFX.clouds > 0) m.onBeforeCompile = cloudInject;
+      m.onBeforeCompile = (s) => { if (roof) roofInject(s); if (GFX.clouds > 0) cloudInject(s); };
       if (map) m.map = map;
       if (map && bump > 0 && GFX.normalMaps) {
         m.normalMap = normalFromTexture(map, bump);
@@ -10235,7 +10328,7 @@ function decorMaterials(): THREE.Material[] {
     });
     // the merged uniforms object is a copy — point the setter at the live one
     winUniforms = windows.uniforms as { uNight: { value: number } };
-    _mats = [mk(null), mk(clapboardTex(), 0.9), mk(brickTex(), 1.6), mk(shingleTex(), 0.9), mk(plankTex(), 1.4),
+    _mats = [mk(null), mk(clapboardTex(), 0.9), mk(brickTex(), 1.6), mk(shingleTex(), 0.9, true), mk(plankTex(), 1.4),
              new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }),
              windows];
   }
