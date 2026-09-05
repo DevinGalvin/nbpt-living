@@ -4,6 +4,8 @@ import { WorldIndex, CHUNK, pointInPoly, distToPolylineSq } from '../world/index
 import { hash32, mulberry32, SEASON } from '../world/style';
 import { WATER_Y } from '../three/water';
 import { PROPS } from '../three/assets';
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { captureHumanoid, poseWalk, type Humanoid } from '../three/humanoid';
 import { TOWN } from '@town';
 
 // Ambient life: pedestrians who follow the sidewalk network exactly, cars
@@ -144,13 +146,18 @@ function alongPolyline(pts: number[], t: number): { x: number; z: number; dx: nu
   return null;
 }
 
+// the kit's rigged people, in the order the seed picks them
+const PEOPLE = ['male', 'skater-male', 'skater-female'];
+
 class Walker {
   root = new THREE.Group();
   private heading = new THREE.Group();
-  private legL: THREE.Mesh;
-  private legR: THREE.Mesh;
-  private armL: THREE.Mesh;
-  private armR: THREE.Mesh;
+  private legL: THREE.Object3D;
+  private legR: THREE.Object3D;
+  private armL: THREE.Object3D;
+  private armR: THREE.Object3D;
+  // skinned kit character: knees, forearms and hips for the procedural gait
+  private rig: Humanoid | null = null;
   private phase = Math.random() * 6;
   private face = Math.random() * Math.PI * 2;
   pts: number[] = [];
@@ -173,6 +180,24 @@ class Walker {
     else if (costume === 'pumpkin') shirt = '#d9772a';
     else if (costume === 'vampire') { shirt = '#1d1d24'; skin = '#e7e4dc'; }
     else if (costume === 'devil') shirt = '#9a2f2a';
+    const person = !costume && PROPS ? PROPS.get(PEOPLE[Math.floor(rng() * PEOPLE.length)]) : undefined;
+    if (person) {
+      // a real person from the kit: clone the skinned mesh and its skeleton, then drive
+      // the humanoid bones ourselves (the kit ships no clips). Arms come down from the
+      // T-pose; legs and arms swing in advance().
+      const c = SkeletonUtils.clone(person.root);
+      c.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.frustumCulled = false; } });
+      this.rig = captureHumanoid(c);
+      if (this.rig) poseWalk(this.rig, 0, 0);
+      // the box limbs are unused on a kit person; keep the fields satisfied
+      this.legL = this.legR = this.armL = this.armR = new THREE.Object3D();
+      this.heading.add(c);
+      this.size = 0.92 + rng() * 0.18;
+      this.heading.scale.setScalar(this.size);
+      this.heading.rotation.y = this.face;
+      this.root.add(this.heading);
+      return;
+    }
     this.legL = cap(1.7, 7.6, pants, true);
     this.legR = cap(1.7, 7.6, pants, true);
     this.legL.position.set(-2.4, 11, 0);
@@ -230,10 +255,13 @@ class Walker {
       this.face = lerpAngle(this.face, Math.atan2(spot.dx * this.dir, spot.dz * this.dir), Math.min(1, dt * 6));
       this.phase += dt * 8;
       const s = Math.sin(this.phase) * 0.55;
-      this.legL.rotation.x = s;
-      this.legR.rotation.x = -s;
-      this.armL.rotation.x = -s * 0.8;
-      this.armR.rotation.x = s * 0.8;
+      if (this.rig) poseWalk(this.rig, this.phase, 1);
+      else {
+        this.legL.rotation.x = s;
+        this.legR.rotation.x = -s;
+        this.armL.rotation.x = -s * 0.8;
+        this.armR.rotation.x = s * 0.8;
+      }
     }
     this.heading.rotation.y = this.face;
     this.root.position.y += (groundY - this.root.position.y) * Math.min(1, dt * 10);

@@ -30,6 +30,9 @@ const TARGET: Record<string, { size: number; by: 'length' | 'height'; axis?: 'x'
   truck: { size: 44, by: 'length' }, 'delivery-truck': { size: 48, by: 'length' }, 'police-car': { size: 38, by: 'length' },
   taxi: { size: 38, by: 'length' },
   'tree-big': { size: 88, by: 'height' }, 'tree-small': { size: 56, by: 'height' },
+  // people: the game's pedestrians stand ~30 px (tall and stylised, like the kid)
+  male: { size: 30, by: 'height' },
+  'skater-male': { size: 30, by: 'height' }, 'skater-female': { size: 29, by: 'height' },
   'boat-small': { size: 40, by: 'length' }, 'boat-large': { size: 64, by: 'length' },
   streetlight: { size: 40, by: 'height' }, firehydrant: { size: 7, by: 'height' }, bench: { size: 14, by: 'length', axis: 'x' },
   trash_A: { size: 8, by: 'height' }, trash_B: { size: 8, by: 'height' }, dumpster: { size: 12, by: 'height', axis: 'x' },

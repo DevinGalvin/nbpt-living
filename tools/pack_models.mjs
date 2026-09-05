@@ -17,7 +17,9 @@ const opt = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : nu
 const kenney = opt('--kenney'), kaykit = opt('--kaykit');
 if (!kenney || !kaykit) { console.error('usage: --kenney <dir> --kaykit <dir>'); process.exit(2); }
 
-const KENNEY = ['sedan', 'hatchback', 'sports-sedan', 'suv', 'suv-luxury', 'van', 'truck', 'delivery-truck', 'police-car', 'taxi', 'tree-big', 'tree-small', 'boat-small', 'boat-large'];
+const KENNEY = ['sedan', 'hatchback', 'sports-sedan', 'suv', 'suv-luxury', 'van', 'truck', 'delivery-truck', 'police-car', 'taxi', 'tree-big', 'tree-small', 'boat-small', 'boat-large',
+  // rigged people (no clips; src/game/life.ts animates the bones itself)
+  'male', 'skater-male', 'skater-female'];
 const KAYKIT = ['streetlight', 'firehydrant', 'bench', 'trash_A', 'trash_B', 'dumpster', 'trafficlight_A', 'bush'];
 
 await MeshoptEncoder.ready;
