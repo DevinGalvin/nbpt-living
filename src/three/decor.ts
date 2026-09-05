@@ -86,6 +86,12 @@ class Bucket {
     this.norm.push(nx, ny, nz, nx, ny, nz, nx, ny, nz);
   }
 
+  // a triangle with its own colour at each corner (canopy shading, cone skirts)
+  triC(ax: number, ay: number, az: number, bx: number, by: number, bz: number, cx: number, cy: number, cz: number,
+       nx: number, ny: number, nz: number, cA: THREE.Color, cB: THREE.Color, cC: THREE.Color) {
+    this.tri(ax, ay, az, bx, by, bz, cx, cy, cz, nx, ny, nz, cA.r, cA.g, cA.b, cB.r, cB.g, cB.b, cC.r, cC.g, cC.b, 0, 0, 0, 0, 0, 0);
+  }
+
   // stamp a scalar into uv.x of the last quad pushed (the night-window material reads
   // its turn-on threshold from there; those quads have no texture to need the uv)
   tagLast(v: number) {
@@ -1705,17 +1711,76 @@ function gravestones(buckets: Bucket[], poly: Poly, pi: number, world: WorldData
 }
 
 // six-sided cone (pines, beach umbrellas)
-function cone(bk: Bucket, x: number, yBase: number, z: number, r: number, h: number, color: THREE.Color) {
+const _cA = new THREE.Color(), _cB = new THREE.Color();
+// a six-sided cone; `skirt` < 1 darkens the base rim (the shade under a pine's tier)
+function cone(bk: Bucket, x: number, yBase: number, z: number, r: number, h: number, color: THREE.Color, skirt = 1, seed = 0) {
   const n = 6;
+  const rng = seed ? mulberry32(seed) : null;
+  const rad: number[] = [];
+  for (let i = 0; i < n; i++) rad.push(r * (rng ? 0.82 + rng() * 0.36 : 1));
   for (let i = 0; i < n; i++) {
     const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2;
-    const p0: [number, number] = [x + Math.cos(a0) * r, z + Math.sin(a0) * r];
-    const p1: [number, number] = [x + Math.cos(a1) * r, z + Math.sin(a1) * r];
+    const p0: [number, number] = [x + Math.cos(a0) * rad[i], z + Math.sin(a0) * rad[i]];
+    const p1: [number, number] = [x + Math.cos(a1) * rad[(i + 1) % n], z + Math.sin(a1) * rad[(i + 1) % n]];
     const mx = (Math.cos(a0) + Math.cos(a1)) / 2, mz = (Math.sin(a0) + Math.sin(a1)) / 2;
     const shade = 0.78 + 0.22 * Math.max(0, mx * 0.35 + mz * 0.85);
     const nl = Math.hypot(mx, 0.6, mz) || 1;
-    bk.triUV(p0[0], yBase, p0[1], p1[0], yBase, p1[1], x, yBase + h, z,
-      mx / nl, 0.6 / nl, mz / nl, color.r * shade, color.g * shade, color.b * shade, 0, 0, 0, 0, 0, 0);
+    if (skirt >= 1) {
+      bk.triUV(p0[0], yBase, p0[1], p1[0], yBase, p1[1], x, yBase + h, z,
+        mx / nl, 0.6 / nl, mz / nl, color.r * shade, color.g * shade, color.b * shade, 0, 0, 0, 0, 0, 0);
+    } else {
+      _cA.copy(color).multiplyScalar(shade * skirt);
+      _cB.copy(color).multiplyScalar(shade);
+      bk.triC(p0[0], yBase, p0[1], p1[0], yBase, p1[1], x, yBase + h, z, mx / nl, 0.6 / nl, mz / nl, _cA, _cA, _cB);
+    }
+  }
+}
+
+// A deciduous canopy clump: two rings of five around a top and a bottom point, every
+// vertex nudged by the seed so no two trees share a silhouette, and each face shaded
+// by where it points — sunlit on top, occluded underneath, the odd leaf-mass a shade
+// off. Twenty triangles; the octahedron it replaces was eight, and read as a lollipop.
+const _cC = new THREE.Color();
+function blobCanopy(bk: Bucket, x: number, y: number, z: number, r: number, color: THREE.Color, seed: number) {
+  const rng = mulberry32(seed);
+  const N = 5;
+  const rot = rng() * Math.PI * 2;
+  const ring = (ry: number, rr: number) => {
+    const pts: [number, number, number][] = [];
+    for (let i = 0; i < N; i++) {
+      const a = rot + (i / N) * Math.PI * 2;
+      const rad = rr * (0.8 + rng() * 0.4);
+      pts.push([x + Math.cos(a) * rad, y + ry + (rng() - 0.5) * r * 0.2, z + Math.sin(a) * rad]);
+    }
+    return pts;
+  };
+  const top: [number, number, number] = [x + (rng() - 0.5) * r * 0.35, y + r * 1.05, z + (rng() - 0.5) * r * 0.35];
+  const up = ring(r * 0.5, r * 0.82);
+  const lo = ring(-r * 0.3, r * 0.92);
+  const bot: [number, number, number] = [x, y - r * 0.75, z];
+  const yLo = y - r * 0.75, yH = r * 1.8;
+  const face = (p: number[], q: number[], s: number[]) => {
+    let nx = (q[1] - p[1]) * (s[2] - p[2]) - (q[2] - p[2]) * (s[1] - p[1]);
+    let ny = (q[2] - p[2]) * (s[0] - p[0]) - (q[0] - p[0]) * (s[2] - p[2]);
+    let nz = (q[0] - p[0]) * (s[1] - p[1]) - (q[1] - p[1]) * (s[0] - p[0]);
+    const cx = (p[0] + q[0] + s[0]) / 3 - x, cy = (p[1] + q[1] + s[1]) / 3 - y, cz = (p[2] + q[2] + s[2]) / 3 - z;
+    if (nx * cx + ny * cy + nz * cz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+    // sun from the same quarter every other emitter assumes, plus a little per-face leaf-mass tint
+    const sun = 0.74 + 0.26 * Math.max(0, nx * 0.35 + ny * 0.5 + nz * 0.7);
+    const tint = 0.94 + rng() * 0.12;
+    const ao = (py: number) => 0.55 + 0.45 * Math.min(1, Math.max(0, (py - yLo) / yH));
+    _cA.copy(color).multiplyScalar(sun * tint * ao(p[1]));
+    _cB.copy(color).multiplyScalar(sun * tint * ao(q[1]));
+    _cC.copy(color).multiplyScalar(sun * tint * ao(s[1]));
+    bk.triC(p[0], p[1], p[2], q[0], q[1], q[2], s[0], s[1], s[2], nx, ny, nz, _cA, _cB, _cC);
+  };
+  for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    face(top, up[i], up[j]);
+    face(up[i], lo[i], lo[j]);
+    face(up[i], lo[j], up[j]);
+    face(lo[i], bot, lo[j]);
   }
 }
 
@@ -10073,9 +10138,9 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const w = 1.6;
       const trunkH = 7 + t.r * 0.5;
       walls(buckets[PLAIN], [t.x - w, t.y - w, t.x + w, t.y - w, t.x + w, t.y + w, t.x - w, t.y + w], g, g + trunkH + 4, '#6e5236', 0);
-      cone(buckets[PLAIN], t.x, g + trunkH, t.y, t.r * 1.2, t.r * 1.5, c);
-      cone(buckets[PLAIN], t.x, g + trunkH + t.r * 0.9, t.y, t.r * 0.9, t.r * 1.25, c.clone().multiplyScalar(1.08));
-      cone(buckets[PLAIN], t.x, g + trunkH + t.r * 1.7, t.y, t.r * 0.58, t.r * 1.05, c.clone().multiplyScalar(1.16));
+      cone(buckets[PLAIN], t.x, g + trunkH, t.y, t.r * 1.2, t.r * 1.5, c, 0.62, h1 | 1);
+      cone(buckets[PLAIN], t.x, g + trunkH + t.r * 0.9, t.y, t.r * 0.9, t.r * 1.25, c.clone().multiplyScalar(1.08), 0.7, (h1 >> 3) | 1);
+      cone(buckets[PLAIN], t.x, g + trunkH + t.r * 1.7, t.y, t.r * 0.58, t.r * 1.05, c.clone().multiplyScalar(1.16), 0.78, (h1 >> 6) | 1);
       if (TREES.snowCaps) {
         tmp.set('#eef1f3');
         cone(buckets[PLAIN], t.x, g + trunkH + t.r * 2.25, t.y, t.r * 0.34, t.r * 0.5, tmp.clone());
@@ -10098,10 +10163,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const canopyY = g + t.r * 1.6 + 8;
       walls(buckets[PLAIN], [t.x - 2.2, t.y - 2.2, t.x + 2.2, t.y - 2.2, t.x + 2.2, t.y + 2.2, t.x - 2.2, t.y + 2.2], g, g + (t.r * 1.6 + 8) * 0.55, '#6e5236', 0);
       walls(buckets[PLAIN], [t.x - 1.5, t.y - 1.5, t.x + 1.5, t.y - 1.5, t.x + 1.5, t.y + 1.5, t.x - 1.5, t.y + 1.5], g + (t.r * 1.6 + 8) * 0.5, canopyY, '#7a5a3a', 0);
-      octoCanopy(buckets[PLAIN], t.x, canopyY, t.y, t.r * 1.12, c);
+      blobCanopy(buckets[PLAIN], t.x, canopyY, t.y, t.r * 1.12, c, h1 | 1);
       const j = ((h1 >> 12) % 100) / 100 - 0.5;
-      octoCanopy(buckets[PLAIN], t.x + j * t.r * 0.9, canopyY + t.r * 0.5, t.y - Math.abs(j) * t.r * 0.5, t.r * 0.66, c.clone().multiplyScalar(1.1));
-      octoCanopy(buckets[PLAIN], t.x - j * t.r * 0.7, canopyY + t.r * 0.8, t.y + Math.abs(j) * t.r * 0.45, t.r * 0.55, c.clone().multiplyScalar(0.92));
+      blobCanopy(buckets[PLAIN], t.x + j * t.r * 0.9, canopyY + t.r * 0.5, t.y - Math.abs(j) * t.r * 0.5, t.r * 0.7, c.clone().multiplyScalar(1.1), (h1 >> 2) | 1);
+      blobCanopy(buckets[PLAIN], t.x - j * t.r * 0.7, canopyY + t.r * 0.7, t.y + Math.abs(j) * t.r * 0.45, t.r * 0.6, c.clone().multiplyScalar(0.92), (h1 >> 5) | 1);
       if (SEASON === 'winter' && t.x * t.x + t.y * t.y < 1500 * 1500) {
         // downtown shade trees get light wraps too
         for (let i = 0; i < 14; i++) {
