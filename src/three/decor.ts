@@ -10260,7 +10260,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     }
     if (t.bush) {
       const c = new THREE.Color(TREES.bush).multiplyScalar(variation);
-      octoCanopy(buckets[PLAIN], t.x, g + t.r * 1.1, t.y, t.r * 1.12, c);
+      blobCanopy(buckets[PLAIN], t.x, g + t.r * 0.95, t.y, t.r * 1.12, c, h1 | 1);
       continue;
     }
     const isPine = (h1 >> 8) % 100 < (t.x > BEACH_X ? 55 : 22);

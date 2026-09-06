@@ -55,5 +55,6 @@ export const GFX = {
   // real PointLights are the one per-fragment cost that scales with count; six nearest
   // lamps carry the light, the glow discs carry the rest of the street
   lampLights: Math.max(0, Math.min(16, Math.round(num('lights', 6)))),
-  lampGlows: 16
+  // the glow discs are additive quads, nearly free: a downtown street at night should glow post after post
+  lampGlows: coarse ? 16 : 36
 };
