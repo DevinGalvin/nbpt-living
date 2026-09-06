@@ -1768,6 +1768,37 @@ function cone(bk: Bucket, x: number, yBase: number, z: number, r: number, h: num
   }
 }
 
+// A bare tree for winter: the trunk carries six main limbs, each forking once, drawn
+// as thin quads that taper to the tip, with a line of snow along the upper side of
+// the limbs. A New England deciduous tree is bare from December to April; a snow
+// ball on a stick is what a storm leaves for a morning. Twenty-four triangles.
+function bareTree(bk: Bucket, x: number, y: number, z: number, r: number, seed: number) {
+  const rng = mulberry32(seed);
+  const bark = new THREE.Color('#4a3b30'), snow = new THREE.Color('#e9edf1');
+  const limb = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, w0: number, w1: number) => {
+    // a quad standing in the vertical plane of the limb, plus a snow cap on top
+    const dx = x1 - x0, dz = z1 - z0, l = Math.hypot(dx, dz) || 1;
+    const px = -dz / l, pz = dx / l;   // perpendicular in the ground plane
+    bk.quad(x0 - px * w0, y0, z0 - pz * w0, x0 + px * w0, y0, z0 + pz * w0, x1 + px * w1, y1, z1 + pz * w1, x1 - px * w1, y1, z1 - pz * w1,
+      px, 0, pz, bark.r, bark.g, bark.b);
+    bk.quad(x0 - px * w0, y0 + 0.01, z0 - pz * w0, x0 + px * w0, y0 + 0.01, z0 + pz * w0, x1 + px * w1, y1 + 0.01, z1 + pz * w1, x1 - px * w1, y1 + 0.01, z1 - pz * w1,
+      0, 1, 0, snow.r, snow.g, snow.b);
+  };
+  const N = 6;
+  const rot = rng() * Math.PI * 2;
+  for (let i = 0; i < N; i++) {
+    const a = rot + (i / N) * Math.PI * 2 + (rng() - 0.5) * 0.5;
+    const len = r * (0.9 + rng() * 0.6), rise = r * (0.7 + rng() * 0.6);
+    const mx = x + Math.cos(a) * len * 0.55, my = y + rise * 0.5, mz = z + Math.sin(a) * len * 0.55;
+    const ex = x + Math.cos(a) * len, ey = y + rise, ez = z + Math.sin(a) * len;
+    limb(x, y - 1, z, mx, my, mz, 1.0, 0.55);
+    limb(mx, my, mz, ex, ey, ez, 0.55, 0.15);
+    // a fork off the middle
+    const b = a + (rng() < 0.5 ? 0.7 : -0.7);
+    limb(mx, my, mz, mx + Math.cos(b) * len * 0.45, my + rise * 0.45, mz + Math.sin(b) * len * 0.45, 0.45, 0.12);
+  }
+}
+
 // A deciduous canopy clump: two rings of five around a top and a bottom point, every
 // vertex nudged by the seed so no two trees share a silhouette, and each face shaded
 // by where it points — sunlit on top, occluded underneath, the odd leaf-mass a shade
@@ -10301,10 +10332,14 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const canopyY = g + t.r * 1.6 + 8;
       walls(buckets[PLAIN], [t.x - 2.2, t.y - 2.2, t.x + 2.2, t.y - 2.2, t.x + 2.2, t.y + 2.2, t.x - 2.2, t.y + 2.2], g, g + (t.r * 1.6 + 8) * 0.55, '#6e5236', 0);
       walls(buckets[PLAIN], [t.x - 1.5, t.y - 1.5, t.x + 1.5, t.y - 1.5, t.x + 1.5, t.y + 1.5, t.x - 1.5, t.y + 1.5], g + (t.r * 1.6 + 8) * 0.5, canopyY, '#7a5a3a', 0);
-      blobCanopy(buckets[PLAIN], t.x, canopyY, t.y, t.r * 1.12, c, h1 | 1);
-      const j = ((h1 >> 12) % 100) / 100 - 0.5;
-      blobCanopy(buckets[PLAIN], t.x + j * t.r * 0.9, canopyY + t.r * 0.5, t.y - Math.abs(j) * t.r * 0.5, t.r * 0.7, c.clone().multiplyScalar(1.1), (h1 >> 2) | 1);
-      blobCanopy(buckets[PLAIN], t.x - j * t.r * 0.7, canopyY + t.r * 0.7, t.y + Math.abs(j) * t.r * 0.45, t.r * 0.6, c.clone().multiplyScalar(0.92), (h1 >> 5) | 1);
+      if (SEASON === 'winter') {
+        bareTree(buckets[PLAIN], t.x, canopyY - t.r * 0.3, t.y, t.r * 1.15, h1 | 1);
+      } else {
+        blobCanopy(buckets[PLAIN], t.x, canopyY, t.y, t.r * 1.12, c, h1 | 1);
+        const j = ((h1 >> 12) % 100) / 100 - 0.5;
+        blobCanopy(buckets[PLAIN], t.x + j * t.r * 0.9, canopyY + t.r * 0.5, t.y - Math.abs(j) * t.r * 0.5, t.r * 0.7, c.clone().multiplyScalar(1.1), (h1 >> 2) | 1);
+        blobCanopy(buckets[PLAIN], t.x - j * t.r * 0.7, canopyY + t.r * 0.7, t.y + Math.abs(j) * t.r * 0.45, t.r * 0.6, c.clone().multiplyScalar(0.92), (h1 >> 5) | 1);
+      }
       if (SEASON === 'winter' && t.x * t.x + t.y * t.y < 1500 * 1500) {
         // downtown shade trees get light wraps too
         for (let i = 0; i < 14; i++) {
