@@ -10351,6 +10351,34 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const py = PIER_DECK_Y + 1.5;
       walls(buckets[PLANK], poly.p, 0, py, '#9a7a4e', 0);
       flatRoofPlank(buckets[PLANK], poly.p, py);
+      // A float is held by pilings: a post every three metres along its edges, standing
+      // proud of the deck, with a dock box or a cleat here and there. Bare plank slabs
+      // read as rafts; the pilings are what make them a marina.
+      const rng = mulberry32(hash32(pi, 9, 41));
+      const pr = ringToVec2(poly.p);
+      for (let i = 0; i < pr.length; i++) {
+        const a = pr[i], b = pr[(i + 1) % pr.length];
+        const ex = b.x - a.x, ey = b.y - a.y, len = Math.hypot(ex, ey);
+        if (len < 8) continue;
+        const ux = ex / len, uy = ey / len;
+        // outward in vec2 space (world z = -y): away from the ring centroid
+        const [pcx, pcz] = centroidOf(poly.p);
+        const mx = (a.x + b.x) / 2, mz = -(a.y + b.y) / 2;
+        let nx = uy, nz = ux;
+        if ((mx - pcx) * nx + (mz - pcz) * nz < 0) { nx = -nx; nz = -nz; }
+        for (let t = 10; t < len - 4; t += 26) {
+          const x = a.x + ux * t + nx * 1.3, z = -(a.y + uy * t) + nz * 1.3;
+          if (x < ox || x >= ox + CHUNK || z < oy || z >= oy + CHUNK) continue;
+          buckets[PLAIN].box(x, z, 0.75, 0.75, WATER_Y - 6, py + 6.5, '#5c4a38');
+          buckets[PLAIN].box(x, z, 0.9, 0.9, py + 6.5, py + 7.2, '#3a3230');
+        }
+        // a dock box on about a third of the long edges, a cleat on the rest
+        if (len > 40 && rng() < 0.35) {
+          const t = 14 + rng() * (len - 28);
+          const x = a.x + ux * t - nx * 3, z = -(a.y + uy * t) - nz * 3;
+          if (x >= ox && x < ox + CHUNK && z >= oy && z < oy + CHUNK) rotBox(buckets[PLAIN], x, z, 4, 1.8, py, py + 3, Math.atan2(-uy, ux), '#eeeae0');
+        }
+      }
     } else {
       // real backyard pool: pale deck rim + bright water
       let g = -Infinity;
