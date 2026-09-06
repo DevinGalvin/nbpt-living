@@ -69,7 +69,7 @@ export const GFX = {
   // the glow discs are additive quads, nearly free: a downtown street at night should glow post after post
   lampGlows: coarse ? 16 : 36,
   // warm patches of shop-window light on the sidewalk, same texture, nearest windows first
-  shopSpills: coarse ? 24 : 48,
+  shopSpills: coarse ? 32 : 72,
   // The visible cloud layer is a full-sky transparent pass; the cloud SHADOWS are one
   // texture fetch and stay on everywhere. Off on touch screens; ?sky=0 turns it off anywhere.
   skyClouds: flag('sky', 'sky', !coarse),

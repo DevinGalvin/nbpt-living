@@ -21,8 +21,9 @@ let signalSink: number[] | null = null;
 // black arc across a lawn (the map's texel is far wider than the wire), so their mesh
 // casts none
 let wireSink: Bucket | null = null;
-// lit shop windows placed this chunk: foot x, z, outward nx, nz, ground y — Game spills
-// their light onto the sidewalk at night
+// lit ground-floor windows placed this chunk: foot x, z, outward nx, nz, ground y, the
+// night threshold the window comes on at, and 1 for a shop / 0 for a house — Game
+// spills their light onto the ground outside at night
 let spillSink: number[] | null = null;
 function chimney(x: number, y: number, z: number) { chimneySink?.push(x, y, z); }
 import { gillisCenter } from './gillis';
@@ -168,15 +169,17 @@ let winGlow: Bucket | null = null;
 let shopGlow: Bucket | null = null;
 const GOODS = ['#c8443c', '#e3a83c', '#3b7a5a', '#3f5f9a', '#d9d2c2', '#7b4a8a', '#e07b4c', '#f0e6c8'];
 const WIN_WARM = new THREE.Color('#ffc978');
+/** returns the night threshold the window comes on at, or -1 when it never lights */
 function windowGlow(x: number, y2: number, nx: number, nz: number, ux: number, uy: number,
-                    hw: number, hh: number, yC: number, rng: () => number, dayLit: boolean) {
-  if (!winGlow) return;
+                    hw: number, hh: number, yC: number, rng: () => number, dayLit: boolean): number {
+  if (!winGlow) return -1;
   const r = rng();
-  if (!dayLit && r > 0.42) return;                // a bit under half the windows ever light
+  if (!dayLit && r > 0.42) return -1;             // a bit under half the windows ever light
   const th = dayLit ? 0.08 : 0.16 + rng() * 0.7;  // the ones lit by day are first on at dusk
   const w = 0.82 + rng() * 0.18;                  // slight warmth variation between rooms
   billboard(winGlow, x, y2, nx, nz, ux, uy, hw, hh, yC, 1.15, WIN_WARM.r * w, WIN_WARM.g * w, WIN_WARM.b * w);
   winGlow.tagLast(th);
+  return th;
 }
 
 let winUniforms: { uNight: { value: number } } | null = null;
@@ -790,7 +793,7 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
           billboard(plain, wx, wy, nx, nz, ux, uy, 0.32, 5.4, g + 10.2, 0.95, tr, tg, tb);
           billboard(plain, wx, wy, nx, nz, ux, uy, 8.4, 0.32, g + 13.4, 0.95, tr, tg, tb);
           windowGlow(wx, wy, nx, nz, ux, uy, 8.4, 5.4, g + 10.2, rng, true);
-          spillSink?.push(wx, -wy, nx, nz, g);
+          spillSink?.push(wx, -wy, nx, nz, g, 0.08, 1);
           if (edgeGetsAwnings) awning(plain, wx, wy, nx, nz, ux, uy, 10.5, g + 19.5, 4.5, 7, awningHex);
           windows++;
           continue;
@@ -801,7 +804,9 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
         // muntins on the houses and small blocks; a tower's plate glass stays clear, and
         // the extra quads stop once nobody could resolve them anyway
         houseGlass(plain, wx, wy, nx, nz, ux, uy, winW - 1.2, winH - 1.2, yC, tmp, lit, rows <= 4 && windows < 240 && !look?.glass);
-        windowGlow(wx, wy, nx, nz, ux, uy, winW - 1.2, winH - 1.2, yC, rng, lit);
+        const th = windowGlow(wx, wy, nx, nz, ux, uy, winW - 1.2, winH - 1.2, yC, rng, lit);
+        // a lit ground-floor room throws its light on the lawn or the sidewalk outside
+        if (th >= 0 && r === 0 && spillSink) spillSink.push(wx, -wy, nx, nz, g, th, 0);
         // The lintel is two extra quads per opening. On an ordinary block that
         // is nothing; on a footprint big enough to spend the whole window budget
         // it would triple the building's geometry, so it stops after the first

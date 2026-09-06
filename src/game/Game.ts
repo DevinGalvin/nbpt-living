@@ -106,7 +106,7 @@ interface ChunkEntry {
   decorOnly: boolean;               // built without ground/signs (cheap, churn-safe) for phone flight
   chimneys: number[];               // chimney tops (x, y, z) for the smoke
   signals: number[];                // traffic-signal heads (x, y, z, dx, dy, phase) Life cycles
-  spills: number[];                 // lit shop windows (x, z, nx, nz, ground y) for the light spill
+  spills: number[];                 // lit ground-floor windows (x, z, nx, nz, ground y, threshold, shop) for the light spill
 }
 
 // point-in-polygon (ray cast) over a flat [x,y,...] ring — town-line checks
@@ -381,8 +381,8 @@ export class Game {
   // each of the nearest lit windows, the same additive disc the lamps use, smaller. A
   // downtown street at night is lit as much by its shops as by its lamps.
   private shopSpills: THREE.Mesh[] = [];
-  private spillMat!: THREE.MeshBasicMaterial;
-  private spillSpots: { x: number; z: number; gy: number; ang: number }[] = [];
+  private spillMats: THREE.MeshBasicMaterial[] = [];   // one per patch: each window comes on at its own hour
+  private spillSpots: { x: number; z: number; gy: number; ang: number; th: number; shop: boolean }[] = [];
 
   constructor(world: WorldData, terrain: Terrain) {
     this.world = world;
@@ -498,14 +498,15 @@ export class Game {
     // intensity 0 — so the pool of real lights is small and the glow discs (a texture,
     // free) carry the rest of the street. Keep the count fixed: adding or removing a
     // light recompiles every material.
-    this.spillMat = new THREE.MeshBasicMaterial({
-      map: gtex, transparent: true, blending: THREE.AdditiveBlending,
-      depthWrite: false, opacity: 0, fog: false, color: new THREE.Color('#ffd9a8')
-    });
     // wider than deep: the light falls in a band along the glass, not a circle
     const spillGeo = new THREE.PlaneGeometry(44, 26);
     for (let i = 0; i < GFX.shopSpills; i++) {
-      const patch = new THREE.Mesh(spillGeo, this.spillMat);
+      const mat = new THREE.MeshBasicMaterial({
+        map: gtex, transparent: true, blending: THREE.AdditiveBlending,
+        depthWrite: false, opacity: 0, fog: false, color: new THREE.Color('#ffd9a8')
+      });
+      this.spillMats.push(mat);
+      const patch = new THREE.Mesh(spillGeo, mat);
       patch.rotation.x = -Math.PI / 2;
       patch.position.set(0, -1000, 0);
       patch.renderOrder = 3;
@@ -2554,7 +2555,6 @@ export class Game {
     // peak wants a touch less opacity to land on the same on-screen brightness
     const lampScale = this.post ? 0.9 : 1;
     this.lampGlowMat.opacity = 0.9 * lampOn * lampScale;
-    this.spillMat.opacity = 0.5 * lampOn * lampScale;
     for (let i = 0; i < this.shopSpills.length; i++) {
       const s = this.spillSpots[i], patch = this.shopSpills[i];
       patch.visible = !!s && lampOn > 0.01;
@@ -2562,6 +2562,12 @@ export class Game {
         patch.position.set(s.x, s.gy + 0.5, s.z);
         // flat on the ground, its long side along the shopfront
         patch.quaternion.setFromAxisAngle(SPILL_Y, s.ang).multiply(SPILL_TILT);
+        // each window comes on at its own hour, like the window itself; a house
+        // throws less light than a shop, over a smaller patch
+        const on = Math.max(0, Math.min(1, (lampOn - s.th) / 0.1));
+        this.spillMats[i].opacity = (s.shop ? 0.5 : 0.3) * on * lampScale;
+        const sc = s.shop ? 1 : 0.72;
+        patch.scale.set(sc, sc, 1);
       }
     }
     setWindowNight(lampOn);
@@ -2884,19 +2890,19 @@ export class Game {
     this.lampSpots = found.slice(0, this.lampGlows.length)
       .map((f) => ({ x: f.x, z: f.y, gy: this.index.surfaceYAt(f.x, f.y) }));
     // …and the shop windows: the patch sits just outside the glass, on the sidewalk
-    const spills: { x: number; z: number; gy: number; ang: number; d: number }[] = [];
+    const spills: { x: number; z: number; gy: number; ang: number; th: number; shop: boolean; d: number }[] = [];
     for (const e of this.chunks.values()) {
       const sp = e.spills;
-      for (let i = 0; i + 4 < sp.length; i += 5) {
-        const nx = sp[i + 2], nz = sp[i + 3];
-        const x = sp[i] + nx * 10, z = sp[i + 1] + nz * 10;
+      for (let i = 0; i + 6 < sp.length; i += 7) {
+        const nx = sp[i + 2], nz = sp[i + 3], shop = sp[i + 6] > 0;
+        const x = sp[i] + nx * (shop ? 10 : 8), z = sp[i + 1] + nz * (shop ? 10 : 8);
         const d = (x - this.px) ** 2 + (z - this.pz) ** 2;
         // the patch's long side runs along the facade: the tangent is (-nz, nx)
-        if (d < 420 * 420) spills.push({ x, z, gy: this.index.surfaceYAt(x, z), ang: Math.atan2(-nx, -nz), d });
+        if (d < 420 * 420) spills.push({ x, z, gy: this.index.surfaceYAt(x, z), ang: Math.atan2(-nx, -nz), th: sp[i + 5], shop, d });
       }
     }
     spills.sort((a, b) => a.d - b.d);
-    this.spillSpots = spills.slice(0, this.shopSpills.length).map((s) => ({ x: s.x, z: s.z, gy: s.gy, ang: s.ang }));
+    this.spillSpots = spills.slice(0, this.shopSpills.length).map((s) => ({ x: s.x, z: s.z, gy: s.gy, ang: s.ang, th: s.th, shop: s.shop }));
   }
 
   // Fit the sun's shadow window to the chase camera: half-size scales with zoom and the
