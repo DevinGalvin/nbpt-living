@@ -2996,6 +2996,69 @@ function buildModernOffice(buckets: Bucket[], b: Building, g: number, index: Wor
   entryCanopy(buckets, f, g, 10, 14, g + 16, '#3d4247');
 }
 
+// Joppa Flats Education Center (Mass Audubon, 2001): grey cedar shingle, a gabled main
+// block with a wall of glass toward the marsh, and the square observation tower at one
+// corner with its railed deck on top — the whole point of the place is looking out.
+function buildJoppaFlats(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const obb = obbOf(b.p);
+  const eave = g + 26;
+  walls(buckets[SHINGLE], b.p, g - 6, eave, '#e4dfd3', TEX_SCALE);
+  walls(buckets[PLAIN], expandRing(b.p, 0.3), eave - 1.6, eave, '#f4f2ea', 0);
+  gableRoof(buckets[SHINGLE], buckets[SHINGLE], b.p, obb, eave, Math.max(9, obb.hw * 0.5), 3, '#5a5650', '#e4dfd3');
+  facades(buckets[PLAIN], b.p, eave, 1, 2001, true, false, false, g, undefined, '#2f4f6a', undefined, { w: 6.5, h: 7, glass: '#34464f' });
+  // the marsh side gets the glass wall
+  const w = waterFront(b, index) ?? heroFront(b, index);
+  facePanel(buckets[PLAIN], w, -Math.min(w.len / 2 - 4, 40), Math.min(w.len / 2 - 4, 40), g + 1, eave - 3, 0.7, '#34464f');
+  for (let t = -Math.min(w.len / 2 - 4, 40); t <= Math.min(w.len / 2 - 4, 40); t += 8) facePanel(buckets[PLAIN], w, t - 0.35, t + 0.35, g + 1, eave - 3, 1.0, '#f4f2ea');
+  // the observation tower at the corner toward the water, with its deck and rail
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const side = w.nx * -sa + w.nz * ca > 0 ? 1 : -1;
+  const tx = obb.cx + ca * (obb.hl - 9) - sa * (obb.hw - 9) * side, tz = obb.cz + sa * (obb.hl - 9) + ca * (obb.hw - 9) * side;
+  const tTop = eave + 24;
+  rotBox(buckets[SHINGLE], tx, tz, 9, 9, g - 6, tTop, obb.ang, '#e4dfd3');
+  rotBox(buckets[PLAIN], tx, tz, 9.6, 9.6, tTop, tTop + 1.2, obb.ang, '#8a8d90');
+  for (const [dl, dw] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    const rx = tx + (ca * dl - sa * dw) * 9.3, rz = tz + (sa * dl + ca * dw) * 9.3;
+    rotBox(buckets[PLAIN], rx, rz, dl ? 0.3 : 9.3, dl ? 9.3 : 0.3, tTop + 4.6, tTop + 5.2, obb.ang, '#f4f2ea');
+    for (let k = -8; k <= 8; k += 4) {
+      const px = rx + (ca * (dl ? 0 : k) - sa * (dl ? k : 0)), pz = rz + (sa * (dl ? 0 : k) + ca * (dl ? k : 0));
+      buckets[PLAIN].box(px, pz, 0.35, 0.35, tTop + 1.2, tTop + 5.2, '#f4f2ea');
+    }
+  }
+  // tower windows, two rows
+  for (const y of [g + 12, g + 34]) for (const s of [1, -1]) {
+    rotBox(buckets[PLAIN], tx + -sa * 9.2 * s, tz + ca * 9.2 * s, 3.2, 0.3, y, y + 5, obb.ang, '#34464f');
+    rotBox(buckets[PLAIN], tx + ca * 9.2 * s, tz + sa * 9.2 * s, 0.3, 3.2, y, y + 5, obb.ang, '#34464f');
+  }
+}
+
+// A hangar at the airfield: a metal shed with one big sliding door on the apron side
+// and a windsock by the runway.
+function buildHangar(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const top = g + 24;
+  walls(buckets[CLAP], b.p, g - 6, top, '#e9ecee', TEX_SCALE);
+  walls(buckets[PLAIN], expandRing(b.p, 0.3), g - 6, g + 3, '#8a9096', 0);
+  const obb = obbOf(b.p);
+  gableRoof(buckets[PLAIN], buckets[PLAIN], b.p, obb, top, Math.max(6, obb.hw * 0.28), 2, '#aeb3b7', '#e9ecee');
+  const f = heroFront(b, index, { minLen: 20 });
+  facePanel(buckets[PLAIN], f, -Math.min(f.len / 2 - 3, 30), Math.min(f.len / 2 - 3, 30), g, g + 19, 0.6, '#b9bfc4');
+  for (let t = -Math.min(f.len / 2 - 3, 30) + 6; t < Math.min(f.len / 2 - 3, 30); t += 6) facePanel(buckets[PLAIN], f, t - 0.3, t + 0.3, g, g + 19, 0.8, '#8a9096');
+  // windsock on its pole, out toward the runway
+  const px = f.x + f.nx * 70 + f.tx * 30, pz = f.z + f.nz * 70 + f.tz * 30;
+  const pg = index.heightAtPx(px, pz);
+  buckets[PLAIN].box(px, pz, 0.45, 0.45, pg, pg + 30, '#d8dadd');
+  tmp.set('#f26d21');
+  cone(buckets[PLAIN], px + 3.5, pg + 27, pz, 2.2, 0.1, tmp.clone());   // (cap)
+  rotBox(buckets[PLAIN], px + 6.5, pz, 6.5, 1.6, pg + 26, pg + 29.5, 0, '#f26d21');
+  rotBox(buckets[PLAIN], px + 10.5, pz, 2.5, 1.2, pg + 26.4, pg + 29.1, 0, '#f4f2ea');
+}
+
+// Landmarks the map left unnamed, found by where they stand
+const POSITION_HEROES: { x: number; z: number; build: HeroBuilder }[] = [
+  { x: 15992, z: 10874, build: buildJoppaFlats },   // Joppa Flats Education Center
+  { x: 18631, z: 13795, build: buildHangar },       // Plum Island Airport hangar
+];
+
 // The station: an open platform with a long canopy on posts beside the tracks, benches
 // under it, and the timetable board. Placed at TOWN.trainPlatform along the nearest rail.
 function stationCanopy(buckets: Bucket[], world: WorldData, index: WorldIndex, key: string) {
@@ -9704,7 +9767,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
 
     // named heroes win over the generic light treatment (the three real
     // lighthouses are all named and hand-built)
-    const hero = b.n && HEROES[b.n];
+    let hero = b.n && HEROES[b.n];
+    if (!hero && !b.n && TOWN.id === 'nbpt') {
+      const [pcx, pcz] = centroidOf(b.p);
+      hero = POSITION_HEROES.find((h) => (h.x - pcx) ** 2 + (h.z - pcz) ** 2 < 40 * 40)?.build;
+    }
     if (hero) {
       hero(buckets, b, g, index);
       continue;
