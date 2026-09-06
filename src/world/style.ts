@@ -52,7 +52,7 @@ export const STYLE = {
     grass: '#a3cb76',
     park: '#8fc468',
     cemetery: '#8cbd72',
-    wood: '#7cb163',
+    wood: '#699b54',   // a forest floor is in shade: darker than the lawns, so a wood reads as a wood from a hill
     scrub: '#9cba74',
     wetland: '#b4c388',
     sand: '#eedfa4',
