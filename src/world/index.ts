@@ -844,23 +844,102 @@ export class WorldIndex {
     const roads = bucket.roads
       .map((i) => this.world.roads[i])
       .filter((r) => ['residential', 'unclassified', 'living_street', 'tertiary', 'service'].includes(r.c));
+    const nearestRoad = (x: number, y: number) => {
+      let best: { x: number; y: number; d2: number; w: number } | null = null;
+      for (const r of roads) {
+        const n = nearestOnPolyline(x, y, r.p);
+        if (!best || n.d2 < best.d2) best = { ...n, w: r.w };
+      }
+      return best;
+    };
     for (const { idx, b } of this.buildingsOwned(key)) {
       if (b.k !== 'house') continue;
       const rng = mulberry32(hash32(idx, 91, 3));
       if (rng() > 0.85) continue;
       const [cx, cy] = centroidOf(b.p);
-      let best: { x: number; y: number; d2: number; w: number } | null = null;
-      for (const r of roads) {
-        const n = nearestOnPolyline(cx, cy, r.p);
-        if (!best || n.d2 < best.d2) best = { ...n, w: r.w };
-      }
+      const best = nearestRoad(cx, cy);
       if (!best || best.d2 > 240 * 240 || best.d2 < 14 * 14) continue;
       const d = Math.sqrt(best.d2);
       const ux = (best.x - cx) / d, uy = (best.y - cy) / d;
-      const ex = best.x - ux * (best.w / 2 - 4), ey = best.y - uy * (best.w / 2 - 4);
-      out.push({ x0: cx, y0: cy, x1: ex, y1: ey, car: rng() < 0.5, carT: 0.55 + rng() * 0.3, seed: idx });
+      // A driveway runs BESIDE the house, not through the front door: shift it sideways
+      // past the footprint, on the side the roll picks, the other side if that one is
+      // built on, and nowhere if both are. The walk to the door is its own line.
+      const pxn = -uy, pyn = ux;
+      let hw = 0;
+      for (let i = 0; i < b.p.length; i += 2) hw = Math.max(hw, Math.abs((b.p[i] - cx) * pxn + (b.p[i + 1] - cy) * pyn));
+      const side = rng() < 0.5 ? 1 : -1;
+      const car = rng() < 0.5, carT = 0.55 + rng() * 0.3;
+      for (const sgn of [side, -side]) {
+        const off = hw + 11;
+        // start level with the back half of the house so the parked car sits beside it
+        const x0 = cx + pxn * sgn * off - ux * 6, y0 = cy + pyn * sgn * off - uy * 6;
+        const n = nearestRoad(x0, y0);
+        if (!n || n.d2 > 240 * 240 || n.d2 < 14 * 14) continue;
+        const dd = Math.sqrt(n.d2);
+        const vx = (n.x - x0) / dd, vy = (n.y - y0) / dd;
+        const x1 = n.x - vx * (n.w / 2 - 4), y1 = n.y - vy * (n.w / 2 - 4);
+        let clear = true;
+        for (let t = 0; t <= 1.001 && clear; t += 0.125) {
+          if (this.isBlocked(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)) clear = false;
+        }
+        if (!clear) continue;
+        out.push({ x0, y0, x1, y1, car, carT, seed: idx });
+        break;
+      }
     }
     this.drivewayCache.set(key, out);
+    return out;
+  }
+
+  // The front walk: door to sidewalk. Every house has one and it is the line the eye
+  // follows from the street to the door; the driveway is off to the side. From the
+  // middle of the door wall (the longest wall, where the decor pass hangs the door)
+  // straight to the kerb, only when that wall faces the street.
+  private walkCache = new Map<string, { x0: number; y0: number; x1: number; y1: number }[]>();
+  walksFor(key: string): { x0: number; y0: number; x1: number; y1: number }[] {
+    const cached = this.walkCache.get(key);
+    if (cached) return cached;
+    const out: { x0: number; y0: number; x1: number; y1: number }[] = [];
+    const bucket = this.bucket(key);
+    const roads = bucket.roads.map((i) => this.world.roads[i]).filter((r) => r.c !== 'service');
+    for (const { b } of this.buildingsOwned(key)) {
+      if (b.k !== 'house') continue;
+      const [cx, cy] = centroidOf(b.p);
+      let li = -1, ll = 0;
+      for (let i = 0; i + 1 < b.p.length; i += 2) {
+        const j = (i + 2) % b.p.length;
+        const l = Math.hypot(b.p[j] - b.p[i], b.p[j + 1] - b.p[i + 1]);
+        if (l > ll) { ll = l; li = i; }
+      }
+      if (li < 0 || ll < 24) continue;
+      const j = (li + 2) % b.p.length;
+      const mx = (b.p[li] + b.p[j]) / 2, my = (b.p[li + 1] + b.p[j + 1]) / 2;
+      let nx = -(b.p[j + 1] - b.p[li + 1]) / ll, ny = (b.p[j] - b.p[li]) / ll;
+      if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; }
+      // the nearest street the door wall FACES (a corner lot's nearest street may be
+      // the one along its side)
+      let best: { x: number; y: number; d2: number; w: number } | null = null;
+      for (const r of roads) {
+        const n = nearestOnPolyline(mx, my, r.p);
+        const dn = Math.sqrt(n.d2) || 1;
+        if (((n.x - mx) * nx + (n.y - my) * ny) / dn < 0.6) continue;
+        if (!best || n.d2 < best.d2) best = { ...n, w: r.w };
+      }
+      if (!best) continue;
+      const d = Math.sqrt(best.d2);
+      const ux = (best.x - mx) / d, uy = (best.y - my) / d;
+      const reach = d - best.w / 2 - 6;
+      if (reach < 6 || reach > 150) continue;
+      const x0 = mx + nx * 1.5, y0 = my + ny * 1.5;
+      const x1 = x0 + ux * reach, y1 = y0 + uy * reach;
+      let clear = true;
+      for (let t = Math.max(0.3, 8 / reach); t <= 1.001 && clear; t += 0.17) {
+        if (this.isBlocked(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)) clear = false;
+      }
+      if (!clear) continue;
+      out.push({ x0, y0, x1, y1 });
+    }
+    this.walkCache.set(key, out);
     return out;
   }
 
@@ -1068,24 +1147,35 @@ export class WorldIndex {
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         for (const dr of this.drivewaysFor((cx + dx) + ',' + (cy + dy))) {
-          ctx.strokeStyle = '#b7b1a2';
-          ctx.lineWidth = 19;
+          // half the drives are blacktop, half pale concrete or packed gravel; either
+          // way a dark seam along the edge so the drive reads against the lawn
+          const paved = hash32(dr.seed, 5, 27) % 100 < 50;
+          ctx.strokeStyle = paved ? 'rgba(60,60,58,0.55)' : 'rgba(120,114,100,0.6)';
+          ctx.lineWidth = 24;
           ctx.beginPath();
           ctx.moveTo(dr.x0, dr.y0);
           ctx.lineTo(dr.x1, dr.y1);
           ctx.stroke();
-          ctx.strokeStyle = 'rgba(146,140,126,0.5)';
+          ctx.strokeStyle = paved ? '#5a5b5a' : '#c1bbab';
           ctx.lineWidth = 21;
           ctx.beginPath();
           ctx.moveTo(dr.x0, dr.y0);
           ctx.lineTo(dr.x1, dr.y1);
           ctx.stroke();
-          ctx.strokeStyle = '#bdb7a8';
-          ctx.lineWidth = 17;
-          ctx.beginPath();
-          ctx.moveTo(dr.x0, dr.y0);
-          ctx.lineTo(dr.x1, dr.y1);
-          ctx.stroke();
+        }
+      }
+    }
+    // front walks: a pale flag path from the door to the kerb, under the sidewalk
+    // paint like the driveways
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (const wk of this.walksFor((cx + dx) + ',' + (cy + dy))) {
+          ctx.strokeStyle = 'rgba(110,105,95,0.6)';
+          ctx.lineWidth = 10;
+          ctx.beginPath(); ctx.moveTo(wk.x0, wk.y0); ctx.lineTo(wk.x1, wk.y1); ctx.stroke();
+          ctx.strokeStyle = '#d3cec2';
+          ctx.lineWidth = 8;
+          ctx.beginPath(); ctx.moveTo(wk.x0, wk.y0); ctx.lineTo(wk.x1, wk.y1); ctx.stroke();
         }
       }
     }

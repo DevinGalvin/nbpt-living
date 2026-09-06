@@ -3508,6 +3508,36 @@ function yardFence(buckets: Bucket[], b: Building, g: number, index: WorldIndex,
   flush(L);
 }
 
+// Foundation planting: the row of clipped shrubs against the front wall, either side
+// of the door, a bigger one at each corner. It is what separates a house that has
+// been lived in from a box set down on a lawn, and it is twenty triangles a bush.
+// Evergreens (yew, boxwood) so it reads in every season; a hydrangea or two in summer.
+function foundationPlanting(buckets: Bucket[], b: Building, g: number, index: WorldIndex, key: string, seed: number) {
+  if (hash32(seed, 61, 7) % 100 >= 72) return;
+  const f = frontSegment(b, index);
+  if (f.len < 22) return;
+  const drives = index.drivewaysFor(key);
+  const plain = buckets[PLAIN];
+  const evergreen = new THREE.Color(SEASON === 'winter' ? '#4a6b45' : '#4f7a48');
+  const bloom = new THREE.Color(hash32(seed, 8, 1) % 2 ? '#c9d6ea' : '#efe8ec');
+  const half = Math.min(f.len / 2 - 3, 48);
+  const out = 3.6;                       // how far the bush centre sits off the wall
+  const rng = mulberry32(hash32(seed, 5, 61));
+  for (let t = -half; t <= half + 0.1; t += 4.4 + rng() * 1.8) {
+    if (Math.abs(t) < 6.2) continue;      // the door and its stoop
+    const corner = Math.abs(t) > half - 2.7;
+    const x = f.x + f.tx * t + f.nx * out, z = f.z + f.tz * t + f.nz * out;
+    if (index.isBlocked(x, z) || index.isWaterAt(x, z)) continue;
+    let onDrive = false;
+    for (const d of drives) if (distToPolylineSq(x, z, [d.x0, d.y0, d.x1, d.y1]) < 12 * 12) { onDrive = true; break; }
+    if (onDrive) continue;
+    const r = corner ? 3.1 + rng() * 0.6 : 2.1 + rng() * 0.7;
+    const flowering = !corner && SEASON === 'summer' && rng() < 0.25;
+    const c = (flowering ? bloom : evergreen).clone().multiplyScalar(0.9 + rng() * 0.2);
+    blobCanopy(plain, x, index.heightAtPx(x, z) + r * 0.72, z, r, c, hash32(seed, Math.round(t + 100), 13) | 1);
+  }
+}
+
 // New England steeple at the street end: square tower → (clock stage) →
 // arched belfry → spire → vane. grand = the full Wren treatment.
 function steeple(buckets: Bucket[], b: Building, g: number, index: WorldIndex, grand: boolean) {
@@ -10097,6 +10127,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         if (fsb.len >= 34) bayWindow(buckets, wallBucket, fsb, gEff, eaveAbs, rows, bodyHex, seed, look);
       }
       if (b.k === 'house' && !storefront && areaM2 < 1000 && lvEff <= 3.6) yardFence(buckets, b, gEff, index, key, seed);
+      if (b.k === 'house' && !storefront && areaM2 < 1400) foundationPlanting(buckets, b, gEff, index, key, seed);
     }
 
     // seasonal dressing: Christmas lights on the eaves, pumpkins by the door
