@@ -666,8 +666,9 @@ export class WorldIndex {
         if (!odd) return;
         const px = x - ny * side * (r.w / 2 + 10);
         const py = y + nx * side * (r.w / 2 + 10);
-        // a pole wants a house nearby, open ground, and no mapped line already here
-        let ok = !this.onRoadway(px, py, bucket) && !this.isWaterAt(px, py);
+        // a pole wants a house nearby, open ground, no mapped line already here, and
+        // never the downtown core (the wires there went underground in the 1970s)
+        let ok = !this.onRoadway(px, py, bucket) && !this.isWaterAt(px, py) && !this.downtownAt(px, py);
         if (ok) { let near = false; for (const bi of bucket.buildings) { const [bx, by] = centroidOf(w.buildings[bi].p); if ((bx - px) ** 2 + (by - py) ** 2 < 150 * 150) { near = true; break; } if (pointInRing(px, py, w.buildings[bi].p)) { ok = false; break; } } ok = ok && near; }
         if (ok) for (const pi of bucket.power) { if (distToPolylineSq(px, py, w.power[pi].p) < 60 * 60) { ok = false; break; } }
         if (ok) for (const d of drives) { if (distToPolylineSq(px, py, [d.x0, d.y0, d.x1, d.y1]) < 13 * 13) { ok = false; break; } }
