@@ -185,7 +185,7 @@ function ringToVec2(ring: number[]): THREE.Vector2[] {
   return v;
 }
 
-function ringAreaM2(ring: number[]): number {
+export function ringAreaM2(ring: number[]): number {
   let a = 0;
   const n = ring.length;
   for (let i = 0; i < n; i += 2) {
@@ -2439,7 +2439,7 @@ function buildTank(buckets: Bucket[], b: Building, g: number) {
   }
 }
 
-function buildingDims(b: Building, areaM2: number): { eave: number; lvEff: number } {
+export function buildingDims(b: Building, areaM2: number): { eave: number; lvEff: number } {
   // lv is AUTHORITATIVE: build_world overlays real Overture ML heights onto every
   // untagged building and applies the size-based inference itself for the few with
   // no height data (it knows which buildings went unmatched — the renderer can't
@@ -2679,7 +2679,7 @@ function towerBlock(buckets: Bucket[], b: Building, g: number, base: number, top
   void obb;
 }
 
-function wallHexFor(b: Building, seed: number): string {
+export function wallHexFor(b: Building, seed: number): string {
   const s = STYLE.building;
   switch (b.k) {
     case 'commercial': return pick(s.wallsCommercial, seed);
