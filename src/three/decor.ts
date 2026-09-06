@@ -2725,6 +2725,315 @@ export function wallHexFor(b: Building, seed: number): string {
   }
 }
 
+
+// ---------- the modern town: typologies for the buildings the postcards leave out ----------
+// Newburyport's landmarks are not all Federal brick. The station and its garage, the
+// supermarket and the plazas on Storey Avenue, the middle school, the industrial park,
+// the waterfront restaurants — these were falling through to the generic block and
+// reading as the wrong century. Each typology below is procedural over the real
+// footprint, so it fits whatever the map drew, and is keyed by the mapped name.
+
+type ModernFront = { x: number; z: number; tx: number; tz: number; nx: number; nz: number; len: number };
+// a panel on a face, between along-offsets a0..a1 (px from the face centre), y0..y1, proud by off
+function facePanel(bk: Bucket, f: ModernFront, a0: number, a1: number, y0: number, y1: number, off: number, hex: string) {
+  tmp.set(hex);
+  const ox = f.nx * off, oz = f.nz * off;
+  bk.quad(f.x + f.tx * a0 + ox, y0, f.z + f.tz * a0 + oz, f.x + f.tx * a1 + ox, y0, f.z + f.tz * a1 + oz,
+    f.x + f.tx * a1 + ox, y1, f.z + f.tz * a1 + oz, f.x + f.tx * a0 + ox, y1, f.z + f.tz * a0 + oz,
+    f.nx, 0, f.nz, tmp.r, tmp.g, tmp.b);
+}
+// the footprint edge that faces the water, if one does (a waterfront deck goes there)
+function waterFront(b: Building, index: WorldIndex): ModernFront | null {
+  const [cx, cz] = centroidOf(b.p);
+  let best: ModernFront | null = null, bestLen = 0;
+  for (let i = 0; i + 1 < b.p.length; i += 2) {
+    const x0 = b.p[i], z0 = b.p[i + 1], x1 = b.p[(i + 2) % b.p.length], z1 = b.p[(i + 3) % b.p.length];
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    if (len < 20) continue;
+    const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    let nx = -(z1 - z0) / len, nz = (x1 - x0) / len;
+    if ((mx - cx) * nx + (mz - cz) * nz < 0) { nx = -nx; nz = -nz; }
+    if (!index.isWaterAt(mx + nx * 70, mz + nz * 70) && !index.isWaterAt(mx + nx * 120, mz + nz * 120)) continue;
+    if (len > bestLen) { bestLen = len; best = { x: mx, z: mz, tx: (x1 - x0) / len, tz: (z1 - z0) / len, nx, nz, len }; }
+  }
+  return best;
+}
+// the footprint edge that faces a parking lot — a store's front is where the cars are,
+// whatever the nearest street says
+function lotFront(b: Building, index: WorldIndex): ModernFront | null {
+  const [cx, cz] = centroidOf(b.p);
+  const key = Math.floor(cx / CHUNK) + ',' + Math.floor(cz / CHUNK);
+  const lots: Poly[] = [];
+  for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+    for (const pi of index.bucket((Math.floor(cx / CHUNK) + dx) + ',' + (Math.floor(cz / CHUNK) + dz)).polys) {
+      const poly = index.world.polys[pi];
+      if (poly.k === 'parking' && !lots.includes(poly)) lots.push(poly);
+    }
+  }
+  void key;
+  if (!lots.length) return null;
+  let best: ModernFront | null = null, bestLen = 0;
+  for (let i = 0; i + 1 < b.p.length; i += 2) {
+    const x0 = b.p[i], z0 = b.p[i + 1], x1 = b.p[(i + 2) % b.p.length], z1 = b.p[(i + 3) % b.p.length];
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    if (len < 30) continue;
+    const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    let nx = -(z1 - z0) / len, nz = (x1 - x0) / len;
+    if ((mx - cx) * nx + (mz - cz) * nz < 0) { nx = -nx; nz = -nz; }
+    let hits = 0;
+    for (const d of [40, 90, 150]) if (lots.some((p) => pointInPolyD(mx + nx * d, mz + nz * d, p))) hits++;
+    if (!hits) continue;
+    const score = len * hits;
+    if (score > bestLen) { bestLen = score; best = { x: mx, z: mz, tx: (x1 - x0) / len, tz: (z1 - z0) / len, nx, nz, len }; }
+  }
+  return best;
+}
+// a white entrance canopy on two posts, over the front door
+function entryCanopy(buckets: Bucket[], f: ModernFront, g: number, hw: number, out: number, y: number, hex = '#f2f0ea') {
+  const ang = Math.atan2(f.tz, f.tx);
+  rotBox(buckets[PLAIN], f.x + f.nx * out * 0.5, f.z + f.nz * out * 0.5, hw, out * 0.5, y, y + 2.2, ang, hex);
+  for (const s of [-1, 1]) buckets[PLAIN].box(f.x + f.tx * (hw - 2) * s + f.nx * (out - 1.5), f.z + f.tz * (hw - 2) * s + f.nz * (out - 1.5), 0.9, 0.9, g, y, '#dcd8ce');
+  // glass doors under it
+  facePanel(buckets[PLAIN], f, -hw * 0.6, hw * 0.6, g, y - 1, 0.6, '#2f3d47');
+  facePanel(buckets[PLAIN], f, -0.3, 0.3, g, y - 1, 0.9, '#d9d6cc');
+}
+
+// The intermodal garage by the station: three open decks — a light precast spandrel
+// at each floor with the dark void of the deck behind it — a brick stair tower at one
+// corner, and cars on the roof deck.
+function buildGarage(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const LV = 3, H = 18;
+  const top = g + LV * H;
+  walls(buckets[PLAIN], insetRing(b.p, 1.6), g - 6, top, '#23262a', 0);           // the decks' shadow
+  for (let l = 0; l < LV; l++) {
+    const y = g + l * H;
+    walls(buckets[PLAIN], b.p, y - (l ? 0 : 6), y + 6, '#d6d4cd', 0);              // spandrel
+    walls(buckets[PLAIN], expandRing(b.p, 0.4), y + 5.2, y + 6, '#b9b7b0', 0);    // its edge
+  }
+  walls(buckets[PLAIN], b.p, top, top + 3.5, '#d6d4cd', 0);                          // roof parapet
+  flatRoof(buckets[PLAIN], b.p, top, '#6f716f');
+  // the stair and lift tower, brick, at the corner nearest the street
+  const f = heroFront(b, index);
+  const obb = obbOf(b.p);
+  const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+  const side = f.nx * -sa + f.nz * ca > 0 ? 1 : -1;
+  const tx = obb.cx + ca * (obb.hl - 12) - sa * (obb.hw - 12) * side;
+  const tz = obb.cz + sa * (obb.hl - 12) + ca * (obb.hw - 12) * side;
+  rotBox(buckets[BRICK], tx, tz, 11, 11, g - 6, top + 14, obb.ang, '#f6ece2');
+  rotBox(buckets[PLAIN], tx, tz, 11.5, 11.5, top + 14, top + 15.5, obb.ang, '#4a4c4e');
+  // cars on the roof deck, on the same grid the lots use
+  const rows: number[] = [];
+  for (let w0 = -obb.hw + 20; w0 <= obb.hw - 20; w0 += 40) rows.push(w0);
+  let n = 0;
+  for (const w0 of rows) {
+    for (let l0 = -obb.hl + 18; l0 <= obb.hl - 18 && n < 40; l0 += 22) {
+      const x = obb.cx + l0 * ca - w0 * sa, z = obb.cz + l0 * sa + w0 * ca;
+      const h2 = hash32(Math.round(x), Math.round(z), 97);
+      if (h2 % 100 > 60 || Math.hypot(x - tx, z - tz) < 20) continue;
+      if (!pointInRingD(x + sa * 11, z - ca * 11, b.p) || !pointInRingD(x - sa * 11, z + ca * 11, b.p)) continue;
+      car(buckets[PLAIN], x, z, obb.ang + Math.PI / 2, pick(STYLE.building.cars, h2), top);
+      n++;
+    }
+  }
+  // the entry ramp mouth on the street face
+  facePanel(buckets[PLAIN], f, -14, 14, g - 6, g + 5, 0.7, '#1c1e21');
+}
+
+// The supermarket: a long low box in split-face block with a tall front parapet, a
+// glass entrance under a deep canopy, the red sign, and the mechanical units on the roof.
+function buildSupermarket(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const top = g + 30;
+  walls(buckets[PLAIN], b.p, g - 6, top, '#d8cfbd', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.3), g - 6, g + 4, '#b9ad98', 0);       // darker base course
+  walls(buckets[PLAIN], expandRing(b.p, 0.3), top - 2.5, top, '#c5bba7', 0);     // coping
+  flatRoof(buckets[PLAIN], b.p, top, '#8d8a82');
+  roofClutter(buckets, b.p, top, 77, ringAreaM2(b.p), false);
+  const f = lotFront(b, index) ?? heroFront(b, index, { minLen: 60 });
+  // the front is a run of glass under a continuous canopy, the length of the store
+  const half = Math.min(f.len / 2 - 6, 400);
+  facePanel(buckets[PLAIN], f, -half, half, g + 2, g + 15, 0.6, '#2c3a44');
+  for (let t = -half + 20; t < half; t += 20) facePanel(buckets[PLAIN], f, t - 0.6, t + 0.6, g + 2, g + 15, 0.9, '#cfc6b3');
+  rotBox(buckets[PLAIN], f.x + f.nx * 4, f.z + f.nz * 4, half, 4, g + 16, g + 18.5, Math.atan2(f.tz, f.tx), '#b3242a');   // the red canopy
+  // the taller entrance pavilion, proud of the front, a fifth of the facade wide
+  const pw = Math.min(130, Math.max(46, f.len * 0.1));
+  facePanel(buckets[PLAIN], f, -pw, pw, g - 6, top + 12, 2.5, '#e2d9c6');
+  facePanel(buckets[PLAIN], f, -pw - 0.5, pw + 0.5, top + 11, top + 12.5, 2.8, '#c5bba7');
+  facePanel(buckets[PLAIN], f, -pw + 4, pw - 4, g, g + 15, 3.0, '#2c3a44');
+  facePanel(buckets[PLAIN], f, -6, 6, g, g + 13, 3.2, '#3d4c57');
+  entryCanopy(buckets, f, g, Math.min(pw - 2, 40), 22, g + 17, '#e8e2d4');
+  // the red sign with its white face, across the pavilion
+  facePanel(buckets[PLAIN], f, -pw * 0.8, pw * 0.8, top + 1.5, top + 10, 3.2, '#b3242a');
+  facePanel(buckets[PLAIN], f, -pw * 0.72, pw * 0.72, top + 3, top + 8.5, 3.5, '#f5f1e8');
+  // cart corrals out front
+  for (const s of [-1, 1]) {
+    const cx = f.x + f.tx * pw * 1.4 * s + f.nx * 40, cz = f.z + f.tz * pw * 1.4 * s + f.nz * 40;
+    rotBox(buckets[PLAIN], cx, cz, 10, 3.2, index.heightAtPx(cx, cz), index.heightAtPx(cx, cz) + 3.5, Math.atan2(f.tz, f.tx), '#8f9296');
+  }
+}
+
+// A strip plaza: one storey, beige, a continuous canopy band over a run of shopfronts
+// with pilasters between tenants, and a parapet.
+function buildStrip(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const top = g + 24;
+  walls(buckets[PLAIN], b.p, g - 6, top, '#dcd2be', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.3), top - 2, top, '#b9ad98', 0);
+  flatRoof(buckets[PLAIN], b.p, top, '#8a8781');
+  roofClutter(buckets, b.p, top, 91, ringAreaM2(b.p), false);
+  facades(buckets[PLAIN], b.p, top, 1, hash32(Math.round(b.p[0]), Math.round(b.p[1]), 5), true, false, true, g, undefined, undefined, undefined, { w: 8, h: 6, glass: '#2e3c46' });
+  // the canopy band along every long face, and pilasters under it
+  const v = ringToVec2(b.p);
+  const [cx, cz] = centroidOf(b.p);
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i], c = v[(i + 1) % v.length];
+    const len = Math.hypot(c.x - a.x, c.y - a.y);
+    if (len < 40) continue;
+    const tx = (c.x - a.x) / len, tz = -(c.y - a.y) / len;
+    let nx = tz, nz = -tx;
+    const mx = (a.x + c.x) / 2, mz = -(a.y + c.y) / 2;
+    if ((mx - cx) * nx + (mz - cz) * nz < 0) { nx = -nx; nz = -nz; }
+    const f: ModernFront = { x: mx, z: mz, tx, tz, nx, nz, len };
+    rotBox(buckets[PLAIN], mx + nx * 3.5, mz + nz * 3.5, len / 2, 3.5, g + 18.5, g + 20.5, Math.atan2(tz, tx), '#3f5d3a');
+    for (let t = -len / 2 + 30; t < len / 2 - 20; t += 60) facePanel(buckets[PLAIN], f, t - 1.5, t + 1.5, g - 6, top, 0.5, '#cfc4ad');
+  }
+  void index;
+}
+
+// A modern school: brick, ribbon windows in two rows, a flat roof, a white entrance
+// canopy and a flagpole on the lawn.
+function buildModernSchool(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const lv = Math.max(1, Math.min(3, Math.round(b.lv || 1)));
+  const top = g + 10 + lv * 20;
+  walls(buckets[BRICK], b.p, g - 6, top, '#f3e6da');
+  walls(buckets[PLAIN], expandRing(b.p, 0.3), top - 2.2, top, '#4a4d50', 0);   // dark coping
+  flatRoof(buckets[PLAIN], b.p, top, '#5f6264');
+  roofClutter(buckets, b.p, top, 33, ringAreaM2(b.p), false);
+  facades(buckets[PLAIN], b.p, top, lv, hash32(Math.round(b.p[0]), Math.round(b.p[1]), 9), false, false, false, g, undefined, undefined, undefined, { w: 9, h: 3.4, glass: '#37474f' });
+  const f = heroFront(b, index, { minLen: 40 });
+  entryCanopy(buckets, f, g, 12, 16, g + 17);
+  const px = f.x + f.nx * 46 + f.tx * 26, pz = f.z + f.nz * 46 + f.tz * 26;
+  const pg = index.heightAtPx(px, pz);
+  buckets[PLAIN].box(px, pz, 0.5, 0.5, pg, pg + 42, '#e6e6e2');
+  buckets[PLAIN].box(px + 2.6, pz, 2.6, 0.15, pg + 36, pg + 40, '#b03030');
+}
+
+// Industrial: a metal-clad shed — ribbed panels (the clapboard texture, tinted steel),
+// a darker base, roll-up doors along the yard side, a few high windows.
+function buildIndustrial(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const lv = Math.max(1, Math.min(3, Math.round(b.lv || 1.5)));
+  const top = g + 8 + lv * 18;
+  // pale steel: a big flat face away from the sun reads a shade darker than its
+  // tint under the hemisphere light alone, so the panels start near white
+  walls(buckets[CLAP], b.p, g - 6, top, '#e4e8eb', TEX_SCALE);
+  walls(buckets[PLAIN], expandRing(b.p, 0.3), g - 6, g + 6, '#8a9096', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.3), top - 1.6, top, '#8a9096', 0);
+  flatRoof(buckets[PLAIN], b.p, top, '#9fa3a6');
+  roofClutter(buckets, b.p, top, 57, ringAreaM2(b.p), false);
+  facades(buckets[PLAIN], b.p, top, 1, hash32(Math.round(b.p[0]), Math.round(b.p[1]), 13), false, false, false, g + 6, 60, undefined, undefined, { w: 7, h: 3.2, glass: '#42505a' });
+  const f = heroFront(b, index, { minLen: 40 });
+  // roll-up doors on the street face
+  const nd = Math.max(1, Math.min(4, Math.floor(f.len / 60)));
+  for (let i = 0; i < nd; i++) {
+    const t = (i - (nd - 1) / 2) * 42;
+    facePanel(buckets[PLAIN], f, t - 9, t + 9, g, g + 14, 0.6, '#7c8288');
+    for (let y = g + 3; y < g + 14; y += 3) facePanel(buckets[PLAIN], f, t - 9, t + 9, y, y + 0.5, 0.8, '#5f6569');
+  }
+}
+
+// A waterfront restaurant: shingled, big windows, and a deck out over the water with
+// railings, tables and umbrellas.
+function buildWaterfront(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const lv = Math.max(1, Math.min(3, Math.round(b.lv || 2)));
+  const top = g + 8 + lv * 20;
+  walls(buckets[SHINGLE], b.p, g - 6, top, '#ece2d0', TEX_SCALE);
+  walls(buckets[PLAIN], expandRing(b.p, 0.3), top - 2, top, '#f2efe6', 0);
+  flatRoof(buckets[PLAIN], b.p, top, '#4d4a45');
+  facades(buckets[PLAIN], b.p, top, lv, hash32(Math.round(b.p[0]), Math.round(b.p[1]), 17), true, false, true, g, undefined, undefined, undefined, { w: 8, h: 6, glass: '#2f3e48' });
+  const w = waterFront(b, index) ?? heroFront(b, index, { minLen: 30 });
+  const ang = Math.atan2(w.tz, w.tx);
+  const D = 30, hw = Math.min(w.len / 2, 60);
+  const cx = w.x + w.nx * D / 2, cz = w.z + w.nz * D / 2;
+  // the deck slab and its piles
+  const deckY = g + 1.5;
+  rotBox(buckets[PLANK], cx, cz, hw, D / 2, deckY - 1.2, deckY, ang, '#ffffff');
+  for (let t = -hw + 6; t <= hw - 6; t += 24) {
+    const px = w.x + w.tx * t + w.nx * (D - 4), pz = w.z + w.tz * t + w.nz * (D - 4);
+    buckets[PLAIN].box(px, pz, 1.1, 1.1, deckY - 14, deckY, '#5a4a3a');
+  }
+  // railings on the three open sides
+  const rail = (x0: number, z0: number, x1: number, z1: number) => {
+    const l = Math.hypot(x1 - x0, z1 - z0), a = Math.atan2(z1 - z0, x1 - x0);
+    rotBox(buckets[PLAIN], (x0 + x1) / 2, (z0 + z1) / 2, l / 2, 0.3, deckY + 3.6, deckY + 4.2, a, '#e9e6dc');
+    for (let t = 0; t <= l; t += 12) buckets[PLAIN].box(x0 + (x1 - x0) * t / l, z0 + (z1 - z0) * t / l, 0.4, 0.4, deckY, deckY + 4.2, '#e9e6dc');
+  };
+  const c0x = w.x - w.tx * hw + w.nx * D, c0z = w.z - w.tz * hw + w.nz * D;
+  const c1x = w.x + w.tx * hw + w.nx * D, c1z = w.z + w.tz * hw + w.nz * D;
+  rail(c0x, c0z, c1x, c1z);
+  rail(w.x - w.tx * hw, w.z - w.tz * hw, c0x, c0z);
+  rail(w.x + w.tx * hw, w.z + w.tz * hw, c1x, c1z);
+  // tables and umbrellas
+  const rng = mulberry32(hash32(Math.round(w.x), Math.round(w.z), 21));
+  for (let t = -hw + 12; t <= hw - 12; t += 20) {
+    const tx = w.x + w.tx * t + w.nx * (D / 2 + (rng() - 0.5) * 6), tz = w.z + w.tz * t + w.nz * (D / 2 + (rng() - 0.5) * 6);
+    rotBox(buckets[PLAIN], tx, tz, 3, 3, deckY + 5, deckY + 5.6, ang, '#ece8dd');
+    buckets[PLAIN].box(tx, tz, 0.3, 0.3, deckY, deckY + 14, '#e9e6dc');
+    tmp.set(['#2f5d8a', '#b8323a', '#e8c24a', '#f2efe6'][Math.floor(rng() * 4)]);
+    cone(buckets[PLAIN], tx, deckY + 12, tz, 7.5, 3.2, tmp.clone());
+  }
+}
+
+// A modern brick office or institution: floor bands of dark spandrel, wide windows,
+// a glass entrance under a canopy, a flat roof with its plant on it.
+function buildModernOffice(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const lv = Math.max(1, Math.min(6, Math.round(b.lv || 2)));
+  const top = g + 8 + lv * 22;
+  walls(buckets[BRICK], b.p, g - 6, top, '#f3e8dc');
+  for (let l = 1; l < lv; l++) walls(buckets[PLAIN], expandRing(b.p, 0.3), g + 8 + l * 22 - 3, g + 8 + l * 22, '#3d4247', 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.3), top - 2.2, top, '#3d4247', 0);
+  flatRoof(buckets[PLAIN], b.p, top, '#5c5f62');
+  roofClutter(buckets, b.p, top, 45, ringAreaM2(b.p), false);
+  facades(buckets[PLAIN], b.p, top, lv, hash32(Math.round(b.p[0]), Math.round(b.p[1]), 19), false, false, false, g, undefined, undefined, undefined, { w: 6.4, h: 5.2, glass: '#36444e' });
+  const f = heroFront(b, index, { minLen: 30 });
+  entryCanopy(buckets, f, g, 10, 14, g + 16, '#3d4247');
+}
+
+// The station: an open platform with a long canopy on posts beside the tracks, benches
+// under it, and the timetable board. Placed at TOWN.trainPlatform along the nearest rail.
+function stationCanopy(buckets: Bucket[], world: WorldData, index: WorldIndex, key: string) {
+  const tp = TOWN.trainPlatform;
+  if (!tp) return;
+  const [kx, kz] = key.split(',').map(Number);
+  if (Math.floor(tp.x / CHUNK) !== kx || Math.floor(tp.z / CHUNK) !== kz) return;
+  // the nearest rail segment gives the platform its direction
+  let best = { d: Infinity, tx: 1, tz: 0, ox: 0, oz: 0 };
+  for (const r of world.rails) {
+    for (let i = 0; i + 3 < r.p.length; i += 2) {
+      const x0 = r.p[i], z0 = r.p[i + 1], x1 = r.p[i + 2], z1 = r.p[i + 3];
+      const dx = x1 - x0, dz = z1 - z0, l2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((tp.x - x0) * dx + (tp.z - z0) * dz) / l2));
+      const px = x0 + dx * t, pz = z0 + dz * t, d = Math.hypot(px - tp.x, pz - tp.z);
+      if (d < best.d) { const l = Math.sqrt(l2); best = { d, tx: dx / l, tz: dz / l, ox: px, oz: pz }; }
+    }
+  }
+  if (best.d > 200) return;
+  // the platform stands 16 px off the rail centre, on the station's side
+  let nx = -best.tz, nz = best.tx;
+  if ((tp.x - best.ox) * nx + (tp.z - best.oz) * nz < 0) { nx = -nx; nz = -nz; }
+  const cx = best.ox + nx * 16, cz = best.oz + nz * 16;
+  const g = index.heightAtPx(cx, cz);
+  const ang = Math.atan2(best.tz, best.tx);
+  const L = 170, W = 11;
+  rotBox(buckets[PLAIN], cx, cz, L, W, g - 2, g + 3.5, ang, '#c9c6bd');                  // the high platform
+  rotBox(buckets[PLAIN], cx - nx * (W - 1.2), cz - nz * (W - 1.2), L, 1.2, g + 3.5, g + 4, ang, '#e6c14a');   // the yellow edge
+  rotBox(buckets[PLAIN], cx + nx * 2, cz + nz * 2, L * 0.8, W * 0.7, g + 22, g + 24, ang, '#3a3d40');            // the canopy
+  for (let t = -L * 0.8 + 12; t <= L * 0.8 - 12; t += 40) {
+    buckets[PLAIN].box(cx + best.tx * t + nx * 2, cz + best.tz * t + nz * 2, 1, 1, g + 3.5, g + 22, '#4a4d50');
+    bench(buckets[PLAIN], cx + best.tx * (t + 20) + nx * 5, cz + best.tz * (t + 20) + nz * 5, ang, g + 3.5);
+  }
+  // the timetable board
+  rotBox(buckets[PLAIN], cx + nx * 7, cz + nz * 7, 6, 0.6, g + 8, g + 16, ang, '#2b2f33');
+  rotBox(buckets[PLAIN], cx + nx * 7, cz + nz * 7, 5.4, 0.9, g + 9, g + 15, ang, '#e9e6dc');
+}
+
 // ---------- hero landmarks: hand-modeled from photos, on their real footprints ----------
 
 type HeroBuilder = (buckets: Bucket[], b: Building, g: number, index: WorldIndex) => void;
@@ -8787,6 +9096,19 @@ const HEROES: Record<string, HeroBuilder> = {
   'Newbury Fire Department': buildFireStation,
   'Newburyport Police Department': buildPolice,
   'Anna Jaques Hospital': buildHospital,
+  // the modern town (see the typologies above)
+  'Newburyport Intermodal Parking Facility': buildGarage,
+  'Market Basket': buildSupermarket,
+  'East Shops': buildStrip, 'West Shops': buildStrip, 'North Shops': buildStrip, "Hyman's": buildStrip, "Kelly's Ace Hardware": buildStrip,
+  'Newburyport Middle School': buildModernSchool, 'River Valley Charter School': buildModernSchool, 'Immaculate Conception School': buildModernSchool,
+  'Munters': buildIndustrial, 'L-3 Maritime Systems': buildIndustrial, 'Lombard Oil': buildIndustrial, 'National Grid': buildIndustrial,
+  'Clearwell and Backwash Pump Station': buildIndustrial, 'Influent Pumping and Operations Building': buildIndustrial,
+  'Water Treatment Plant': buildIndustrial, 'Colby Farm Lane Recycling Center': buildIndustrial, 'Shepards Automotive Center': buildIndustrial,
+  'Michael’s Harborside': buildWaterfront, 'The Black Cow': buildWaterfront,
+  'One Boston Way': buildModernOffice, 'Three Boston Way': buildModernOffice, 'Newburyport District Court': buildModernOffice,
+  'Newburyport Senior Community Center': buildModernOffice, 'Atria Merrimack Place': buildModernOffice,
+  'Newburyport Post Office': buildModernOffice, 'Newburyport Carrier Annex Post Office': buildModernOffice,
+  'Greater Newburyport Chamber of Commerce': buildModernOffice, 'The Atrium': buildModernOffice,
   'Brown School': buildBrownSchool,
   'Lower Green Schoolhouse': buildLGSchoolhouse
 };
@@ -10361,6 +10683,8 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       }
     }
   }
+
+  stationCanopy(buckets, world, index, key);
 
   // dune grass: clumps of straw-green blades on the dunes behind the beach — the high
   // sand more than thirty metres from any water. The strand itself stays bare, as it is.
