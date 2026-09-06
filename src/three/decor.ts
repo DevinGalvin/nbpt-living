@@ -223,10 +223,12 @@ function wallEdge(bk: Bucket, ax: number, az: number, bx: number, bz: number, y0
   if (eave) band(y1 - eaveH, y1, 1, AO_EAVE);
 }
 
-function walls(bk: Bucket, ring: number[], y0: number, y1: number, hex: string, texScale = TEX_SCALE) {
+// `boost` lifts the albedo past 1: a whitewashed lighthouse in the shade of its own
+// octagon rendered mid-grey, and a lighthouse reads white or it is not a lighthouse
+function walls(bk: Bucket, ring: number[], y0: number, y1: number, hex: string, texScale = TEX_SCALE, boost = 1) {
   const v = ringToVec2(ring);
   tmp.set(hex);
-  const r = tmp.r, g = tmp.g, b = tmp.b;
+  const r = tmp.r * boost, g = tmp.g * boost, b = tmp.b * boost;
   for (let i = 0; i < v.length; i++) {
     const a = v[i], bb = v[(i + 1) % v.length];
     const ex = bb.x - a.x, ey = bb.y - a.y;
@@ -2217,7 +2219,7 @@ function lighthouse(plain: Bucket, cx: number, cz: number, g: number) {
     }
     return ring;
   };
-  walls(plain, oct(11), g - 4, g + 86, '#f8f5ec', 0);
+  walls(plain, oct(11), g - 4, g + 86, '#f8f5ec', 0, 2.0);
   walls(plain, oct(8.5), g + 86, g + 100, '#c0392b', 0);
   flatRoof(plain, oct(9.5), g + 100, '#f0ede2');
   flatRoof(plain, oct(5), g + 104, '#c0392b');
@@ -3737,8 +3739,9 @@ function buildCityHall(buckets: Bucket[], b: Building, g: number, index: WorldIn
 function buildStoneTower(buckets: Bucket[], b: Building, g: number) {
   const stone = '#8d8678';
   walls(buckets[PLAIN], b.p, g - 4, g + 6, '#7c766a', 0);
-  walls(buckets[PLAIN], b.p, g + 6, g + 74, stone, 0);
-  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 70, g + 74, '#817b6e', 0);
+  // fieldstone reads pale in the sun; a tower this tall shades its own north half
+  walls(buckets[PLAIN], b.p, g + 6, g + 74, stone, 0, 1.5);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), g + 70, g + 74, '#817b6e', 0, 1.5);
   // crenellated parapet: merlons on alternating rim vertices
   for (let i = 0; i < b.p.length; i += 4) {
     buckets[PLAIN].box(b.p[i], b.p[i + 1], 2, 2, g + 74, g + 80, stone);
@@ -5138,9 +5141,13 @@ function buildFrontRange(buckets: Bucket[], b: Building, g: number) {
 // Newburyport Harbor Light (1898) — white wooden cone at Plum Island point
 function buildPILight(buckets: Bucket[], b: Building, g: number) {
   const [cx, cz] = centroidOf(b.p);
-  walls(buckets[PLAIN], octRing(cx, cz, 7.2), g - 4, g + 34, '#f8f5ec', 0);
-  walls(buckets[PLAIN], octRing(cx, cz, 6), g + 34, g + 64, '#f8f5ec', 0);
-  walls(buckets[PLAIN], octRing(cx, cz, 4.9), g + 64, g + 88, '#f8f5ec', 0);
+  walls(buckets[PLAIN], octRing(cx, cz, 7.2), g - 4, g + 34, '#f8f5ec', 0, 2.0);
+  walls(buckets[PLAIN], octRing(cx, cz, 6), g + 34, g + 64, '#f8f5ec', 0, 2.0);
+  walls(buckets[PLAIN], octRing(cx, cz, 4.9), g + 64, g + 88, '#f8f5ec', 0, 2.0);
+  // the gallery rail and the keeper's door
+  for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; buckets[PLAIN].box(cx + Math.cos(a) * 6.2, cz + Math.sin(a) * 6.2, 0.3, 0.3, g + 88, g + 92, '#1d2024'); }
+  walls(buckets[PLAIN], octRing(cx, cz, 6.2), g + 91.6, g + 92.2, '#1d2024', 0);
+  buckets[PLAIN].box(cx, cz + 7.4, 2.2, 0.4, g, g + 7, '#2f3a44');
   lanternTop(buckets[PLAIN], cx, cz, g + 88, 3.6);
 }
 
