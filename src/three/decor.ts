@@ -10362,6 +10362,30 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     }
   }
 
+  // dune grass: clumps of straw-green blades on the dunes behind the beach — the high
+  // sand more than thirty metres from any water. The strand itself stays bare, as it is.
+  for (const pi of bucket.polys) {
+    const poly = world.polys[pi];
+    if (poly.k !== 'sand') continue;
+    scatterInPoly(poly, hash32(pi, 41, 3), 36, 0.7, ox, oy, (x, z, rng) => {
+      // clumps, not an even sprinkle: a coarse cell decides whether grass grows here
+      const clump = hash32(Math.floor(x / 150), Math.floor(z / 150), 23) % 100;
+      if (clump > 45 && rng() > 0.06) return;
+      const g = index.heightAtPx(x, z);
+      if (g < 24 || index.isBlocked(x, z) || index.isWaterAt(x, z)) return;
+      for (const [dx, dz] of [[260, 0], [-260, 0], [0, 260], [0, -260], [184, 184], [-184, 184], [184, -184], [-184, -184]]) {
+        if (index.isWaterAt(x + dx, z + dz)) return;
+      }
+      const straw = new THREE.Color(SEASON === 'winter' ? '#b8ad8c' : SEASON === 'fall' ? '#c2a86a' : '#a8a765').multiplyScalar(0.85 + rng() * 0.3);
+      const blades = 6 + Math.floor(rng() * 4);
+      for (let k = 0; k < blades; k++) {
+        const a = rng() * Math.PI * 2, off = 0.8 + rng() * 2.4;
+        const bh = 7 + rng() * 6;
+        cone(buckets[PLAIN], x + Math.cos(a) * off, g, z + Math.sin(a) * off, 0.5, bh, straw);
+      }
+    }, 320);
+  }
+
   // parked cars on driveways
   for (const dr of index.drivewaysFor(key)) {
     if (!dr.car) continue;
