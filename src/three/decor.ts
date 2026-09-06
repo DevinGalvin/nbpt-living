@@ -15,6 +15,8 @@ import { ChunkProps } from './props';
 let propSink: ChunkProps | null = null;
 // chimney tops (x, y, z triples) collected per chunk build; life.ts puts smoke on them
 let chimneySink: number[] | null = null;
+// traffic-signal heads placed this chunk: x, y, z, approach dx, dy, phase — Life lights them
+let signalSink: number[] | null = null;
 function chimney(x: number, y: number, z: number) { chimneySink?.push(x, y, z); }
 import { gillisCenter } from './gillis';
 import { TOWN } from '@town';
@@ -9909,7 +9911,7 @@ function styledHouse(buckets: Bucket[], b: Building, g: number, index: WorldInde
   }
 }
 
-export interface ChunkDecor { mesh: THREE.Mesh | null; props: THREE.Group | null; chimneys: number[] }
+export interface ChunkDecor { mesh: THREE.Mesh | null; props: THREE.Group | null; chimneys: number[]; signals: number[] }
 
 export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): ChunkDecor | null {
   const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
@@ -9917,6 +9919,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   shopGlow = buckets[GLOW];
   propSink = PROPS ? new ChunkProps() : null;
   chimneySink = [];
+  signalSink = [];
   const [ckx, cky] = key.split(',').map(Number);
   const ox = ckx * CHUNK, oy = cky * CHUNK;
 
@@ -11135,7 +11138,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         }
       }
       if (arms.length < 3 || arms.filter((a) => a.major).length < 2) continue;
+      // two signal phases: the arms along the first arm's axis, and the cross arms
+      const ref = arms[0];
       for (const a of arms) {
+        const phase = Math.abs(a.dx * ref.dx + a.dy * ref.dy) > 0.7 ? 0 : 1;
         // the corner on the right as traffic arrives along this arm
         const px = -a.dy, py = a.dx;
         const lx = jn.x + a.dx * (jn.r + 5) + px * (a.w / 2 + 5);
@@ -11148,8 +11154,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
           if (distToPolylineSq(lx, lz, r.p) < (r.w / 2 + 2) ** 2) { onRoad = true; break; }
         }
         if (onRoad) continue;
-        // the model's arm runs along its local -x; point that back over the road
-        propSink.add(light, lx, index.surfaceYAt(lx, lz), lz, Math.atan2(py, px));
+        // the lamps are on the model's -x face; turn that toward the traffic arriving
+        // along this arm, the way a post-mounted head faces the stop line
+        const ly = index.surfaceYAt(lx, lz);
+        propSink.add(light, lx, ly, lz, Math.atan2(a.dy, a.dx) + Math.PI);
+        signalSink?.push(lx, ly, lz, a.dx, a.dy, phase);
       }
     }
   }
@@ -11158,7 +11167,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   propSink = null;
   let total = 0;
   for (const bk of buckets) total += bk.pos.length;
-  if (!total) { const ch = chimneySink ?? []; chimneySink = null; return props ? { mesh: null, props, chimneys: ch } : null; }
+  if (!total) { const ch = chimneySink ?? [], sg = signalSink ?? []; chimneySink = null; signalSink = null; return props ? { mesh: null, props, chimneys: ch, signals: sg } : null; }
 
   // copy via typed-array set — spreading huge buckets into push() blows the call stack
   const pos = new Float32Array(total);
@@ -11187,7 +11196,9 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   mesh.receiveShadow = true;
   const chimneys = chimneySink ?? [];
   chimneySink = null;
-  return { mesh, props, chimneys };
+  const signals = signalSink ?? [];
+  signalSink = null;
+  return { mesh, props, chimneys, signals };
 }
 
 function flatRoofPlank(bk: Bucket, ring: number[], h: number) {

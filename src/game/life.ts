@@ -379,6 +379,56 @@ class Smoke {
   }
 }
 
+// Traffic signals that cycle. Every signal head decor placed is listed with its
+// approach and phase; the twenty nearest get three small additive lamps, red, amber
+// and green, and a 26-second cycle lights one of them: ten seconds of green, three of
+// amber, red for the other phase's turn. Lit day and night, as signals are.
+const SIGNAL_HEADS = 20, SIGNAL_CYCLE = 26;
+class Signals {
+  private heads: { s: THREE.Sprite[]; x: number; z: number; phase: number }[] = [];
+  private acc = 1;
+  constructor(scene: THREE.Scene) {
+    // the car-light texture: a hot core with a soft halo, so a lamp reads as a lamp at
+    // street distance and as a glow from a block away
+    const mk = (r: number, g: number, b: number) => new THREE.SpriteMaterial({ map: glowTex(r, g, b), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 1, fog: false });
+    const mats = [mk(255, 40, 24), mk(255, 176, 36), mk(60, 255, 100)];
+    for (let i = 0; i < SIGNAL_HEADS; i++) {
+      const s = mats.map((m) => { const sp = new THREE.Sprite(m); sp.scale.set(4.2, 4.2, 1); sp.visible = false; scene.add(sp); return sp; });
+      this.heads.push({ s, x: 0, z: 1e7, phase: 0 });
+    }
+  }
+  update(dt: number, t: number, px: number, pz: number, source: () => Iterable<number[]>) {
+    this.acc += dt;
+    if (this.acc > 1) {
+      this.acc = 0;
+      const near: { x: number; y: number; z: number; dx: number; dy: number; phase: number; d: number }[] = [];
+      for (const list of source()) {
+        for (let i = 0; i + 5 < list.length; i += 6) {
+          const d = (list[i] - px) ** 2 + (list[i + 2] - pz) ** 2;
+          if (d < 800 * 800) near.push({ x: list[i], y: list[i + 1], z: list[i + 2], dx: list[i + 3], dy: list[i + 4], phase: list[i + 5], d });
+        }
+      }
+      near.sort((a, b) => a.d - b.d);
+      for (let i = 0; i < this.heads.length; i++) {
+        const h = this.heads[i], c = near[i];
+        if (!c) { h.z = 1e7; for (const sp of h.s) sp.visible = false; continue; }
+        if (h.x === c.x && h.z === c.z) continue;
+        h.x = c.x; h.z = c.z; h.phase = c.phase;
+        // the lamps sit on the head at the top of the post, on the face the arriving
+        // traffic sees: red on top, amber, green
+        for (let k = 0; k < 3; k++) h.s[k].position.set(c.x + c.dx * 5.6, c.y + 33.5 - k * 2.7, c.z + c.dy * 5.6);   // clear of the head box, or the depth test hides it
+      }
+    }
+    const cyc = t % SIGNAL_CYCLE;
+    for (const h of this.heads) {
+      if (h.z > 1e6) continue;
+      const u = h.phase ? (cyc + 13) % SIGNAL_CYCLE : cyc;
+      const lit = u < 10 ? 2 : u < 13 ? 1 : 0;
+      for (let k = 0; k < 3; k++) h.s[k].visible = k === lit;
+    }
+  }
+}
+
 // Fireflies on summer and spring nights: forty points of yellow-green light over the
 // lawns and parks near the player, each blinking on its own clock and wandering a
 // little. Additive sprites on one material; by day, and on pavement, nothing.
@@ -1290,8 +1340,11 @@ export class Life {
   private peds: Walker[] = [];
   private smoke: Smoke;
   private fireflies: Fireflies;
+  private signals: Signals;
   /** the chimney tops of every loaded chunk (set by Game) */
   chimneySource: () => Iterable<number[]> = () => [];
+  /** the traffic-signal heads of every loaded chunk (set by Game) */
+  signalSource: () => Iterable<number[]> = () => [];
   private cars: TrafficCar[] = [];
   private boats: WanderBoat[] = [];
   private gulls: Gull[] = [];
@@ -1309,6 +1362,7 @@ export class Life {
     this.index = index;
     this.smoke = new Smoke(scene);
     this.fireflies = new Fireflies(scene);
+    this.signals = new Signals(scene);
     for (let i = 0; i < PEDS; i++) {
       // in fall, ~45% of the folks out walking are costumed trick-or-treaters
       const costume = SEASON === 'fall' && hash32(i, 53, 11) % 100 < 45
@@ -1542,6 +1596,7 @@ export class Life {
     const rng = mulberry32(hash32(Math.floor(t), 3, 7));
     this.smoke.update(dt, px, pz, night, this.chimneySource);
     this.fireflies.update(dt, t, px, pz, night, this.index, (x, z) => this.groundAt(x, z));
+    this.signals.update(dt, t, px, pz, this.signalSource);
 
     for (const p of this.peds) {
       const dx = p.root.position.x - px, dz = p.root.position.z - pz;

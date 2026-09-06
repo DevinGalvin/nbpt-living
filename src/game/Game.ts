@@ -103,6 +103,7 @@ interface ChunkEntry {
   signs: THREE.Mesh[];
   decorOnly: boolean;               // built without ground/signs (cheap, churn-safe) for phone flight
   chimneys: number[];               // chimney tops (x, y, z) for the smoke
+  signals: number[];                // traffic-signal heads (x, y, z, dx, dy, phase) Life cycles
 }
 
 // point-in-polygon (ray cast) over a flat [x,y,...] ring — town-line checks
@@ -517,6 +518,7 @@ export class Game {
 
     this.life = new Life(this.scene, this.index);
     this.life.chimneySource = () => { const out: number[][] = []; for (const e of this.chunks.values()) if (e.chimneys.length) out.push(e.chimneys); return out; };
+    this.life.signalSource = () => { const out: number[][] = []; for (const e of this.chunks.values()) if (e.signals.length) out.push(e.signals); return out; };
     if (!BARE) this.gillis = new GillisBridge(this.scene, this.index, world);
 
     // resolve the town's heart: TOWN.spawn names a curated landmark (Market Square,
@@ -1085,7 +1087,7 @@ export class Game {
       }
     }
 
-    this.chunks.set(key, { ground, decor, props, tex, signs, decorOnly, chimneys: built?.chimneys ?? [] });
+    this.chunks.set(key, { ground, decor, props, tex, signs, decorOnly, chimneys: built?.chimneys ?? [], signals: built?.signals ?? [] });
     this.farTown?.setLoaded(key, true);
   }
 
