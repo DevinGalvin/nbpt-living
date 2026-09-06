@@ -10278,13 +10278,6 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   const shopsHere = index.buildingsOwned(key).filter(({ b }) => b.sf || b.k === 'commercial').length;
   if (shopsHere >= 2) {
     const seenR = new Set<number>();
-    // no kerb parking through a junction: the bays of two streets meeting at Market
-    // Square stacked cars on top of each other in the middle of the square
-    const junctions = index.roadChains().junctions.filter((j) => j.x > ox - 200 && j.x < ox + CHUNK + 200 && j.y > oy - 200 && j.y < oy + CHUNK + 200);
-    const inJunction = (x: number, z: number) => {
-      for (const j of junctions) if ((j.x - x) ** 2 + (j.y - z) ** 2 < (j.r + 24) ** 2) return true;
-      return false;
-    };
     for (const ri of bucket.roads) {
       if (seenR.has(ri)) continue;
       seenR.add(ri);
@@ -10317,8 +10310,9 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         const px2 = x - tz * flip * off;
         const pz2 = z + tx * flip * off;
         if (px2 < ox || px2 >= ox + CHUNK || pz2 < oy || pz2 >= oy + CHUNK) return;
-        if (inJunction(px2, pz2) || inJunction(x, z)) return;
-        // …nor on another street's pavement where two streets run close or cross
+        // no kerb parking on another street's pavement, where two streets cross or
+        // meet: the bays of the streets meeting at Market Square stacked cars on top
+        // of each other in the middle of the square
         for (const qi of bucket.roads) {
           if (qi === ri) continue;
           const rq = world.roads[qi];
