@@ -3053,6 +3053,49 @@ function buildHangar(buckets: Bucket[], b: Building, g: number, index: WorldInde
   rotBox(buckets[PLAIN], px + 10.5, pz, 2.5, 1.2, pg + 26.4, pg + 29.1, 0, '#f4f2ea');
 }
 
+// A public boat ramp: a concrete slab sloping from the lot into the water, kerbs along
+// its sides, a float dock alongside. Placed at every mapped slipway and at any landmark
+// whose blurb says "boat ramp"; the water is found by looking around.
+function boatRamp(buckets: Bucket[], x: number, z: number, index: WorldIndex) {
+  let best: { d: number; dx: number; dz: number } | null = null;
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a);
+    for (let d = 16; d <= 640; d += 8) {
+      if (index.isWaterAt(x + dx * d, z + dz * d)) { if (!best || d < best.d) best = { d, dx, dz }; break; }
+    }
+  }
+  if (!best) return;
+  const { dx, dz } = best;
+  const sx = x + dx * best.d, sz = z + dz * best.d;            // the shore point
+  const px = -dz, pz = dx;                                     // across the ramp
+  const HW = 12, BACK = 44, OUT = 34;
+  const gTop = index.heightAtPx(sx - dx * BACK, sz - dz * BACK);
+  const yBot = WATER_Y - 5;
+  const c = (t: number, s: number, y: number): [number, number, number] => [sx + dx * t + px * s, y, sz + dz * t + pz * s];
+  const a = c(-BACK, -HW, gTop), b = c(-BACK, HW, gTop), cc = c(OUT, HW, yBot), d = c(OUT, -HW, yBot);
+  tmp.set('#b9b7ae');
+  const n = new THREE.Vector3(-dx * (gTop - yBot), BACK + OUT, -dz * (gTop - yBot)).normalize();
+  buckets[PLAIN].quad(a[0], a[1], a[2], b[0], b[1], b[2], cc[0], cc[1], cc[2], d[0], d[1], d[2], n.x, n.y, n.z, tmp.r, tmp.g, tmp.b);
+  // the grooves across the slab, and a kerb down each side
+  tmp.set('#a3a198');
+  for (let t = -BACK + 6; t < OUT; t += 6) {
+    const y = gTop + (yBot - gTop) * ((t + BACK) / (BACK + OUT)) + 0.05;
+    const e0 = c(t, -HW + 0.5, y), e1 = c(t, HW - 0.5, y), e2 = c(t + 0.7, HW - 0.5, y), e3 = c(t + 0.7, -HW + 0.5, y);
+    buckets[PLAIN].quad(e0[0], e0[1], e0[2], e1[0], e1[1], e1[2], e2[0], e2[1], e2[2], e3[0], e3[1], e3[2], n.x, n.y, n.z, tmp.r, tmp.g, tmp.b);
+  }
+  const ang = Math.atan2(dz, dx);
+  for (const s of [-1, 1]) rotBox(buckets[PLAIN], sx - dx * (BACK - OUT) / 2 + px * s * (HW + 0.8), sz - dz * (BACK - OUT) / 2 + pz * s * (HW + 0.8), (BACK + OUT) / 2, 0.8, yBot, gTop + 1.2, ang, '#8f8d86');
+  // the float dock alongside, on its piles
+  const fx = sx + dx * 30 + px * (HW + 14), fz = sz + dz * 30 + pz * (HW + 14);
+  rotBox(buckets[PLANK], fx, fz, 34, 5, WATER_Y + 0.6, WATER_Y + 1.6, ang, '#ffffff');
+  for (const t of [-28, 0, 28]) buckets[PLAIN].box(fx + dx * t + px * 5.6, fz + dz * t + pz * 5.6, 0.9, 0.9, WATER_Y - 2, WATER_Y + 8, '#5a4a3a');
+  // the sign at the head of the ramp
+  const hx = sx - dx * (BACK + 6) + px * (HW + 4), hz = sz - dz * (BACK + 6) + pz * (HW + 4);
+  const hg = index.heightAtPx(hx, hz);
+  buckets[PLAIN].box(hx, hz, 0.4, 0.4, hg, hg + 12, '#5a5a58');
+  rotBox(buckets[PLAIN], hx, hz, 4, 0.3, hg + 8, hg + 12, ang, '#2f5d3a');
+}
+
 // Landmarks the map left unnamed, found by where they stand
 const POSITION_HEROES: { x: number; z: number; build: HeroBuilder }[] = [
   { x: 15992, z: 10874, build: buildJoppaFlats },   // Joppa Flats Education Center
@@ -10537,8 +10580,14 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       placed++;
     }
   }
+  // boat ramps: every mapped slipway, and any landmark whose blurb says so
+  for (const l of world.landmarks) {
+    if (!/boat ramp/i.test(l.sub || '') || l.x < ox || l.x >= ox + CHUNK || l.y < oy || l.y >= oy + CHUNK) continue;
+    boatRamp(buckets, l.x, l.y, index);
+  }
   for (const poi of world.pois) {
     if (poi.x < ox || poi.x >= ox + CHUNK || poi.y < oy || poi.y >= oy + CHUNK) continue;
+    if (poi.k === 'slipway') { boatRamp(buckets, poi.x, poi.y, index); continue; }
     const ph = POI_HEROES[poi.n || ''];
     if (ph) { ph(buckets, poi.x, poi.y, index.heightAtPx(poi.x, poi.y)); continue; }   // named monuments (Man at the Wheel &c.)
     if (poi.k === 'airliner') {

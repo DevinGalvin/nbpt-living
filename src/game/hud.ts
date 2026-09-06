@@ -1,4 +1,5 @@
 import type { Landmark, WorldData } from '../world/types';
+import { GFX, GFX_PREF_KEYS, setGfxPref, type GfxPrefKey } from '../gfx';
 import type { BagItem, Mission } from './items';
 import { SEASON } from '../world/style';
 
@@ -216,6 +217,10 @@ const css = `
 /* 🍂 Season — a Settings section since the 8/22 slim-down (was its own left-column
    button), open to everyone since the same day (the story-finale lock is gone). */
 #hud .sp-season { padding: 10px 12px 12px; border-top: 1px solid rgba(var(--ink-rgb),0.12); }
+/* 🎨 Graphics — the switches that used to live only in URL flags (gfx.ts) */
+#hud .sp-gfx { padding: 10px 6px 8px; border-top: 1px solid rgba(var(--ink-rgb),0.12); }
+#hud .sp-gfx .sp-mhdr { padding: 0 6px; }
+#hud .sp-gfx-note { font-size: 10px; color: rgba(var(--ink-rgb),0.55); padding: 4px 6px 0; }
 #hud .sp-srow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 /* ---------- Races 🏁: always-visible button + course picker ----------
    Racing is front-door, not a secret: the 🏁 sits in the left column everywhere
@@ -1691,6 +1696,14 @@ export class Hud {
           <div class="sp-mhdr">🍂 SEASON</div>
           <div class="sp-srow"></div>
         </div>
+        <div class="sp-gfx">
+          <div class="sp-mhdr">🎨 GRAPHICS</div>
+          <div class="sp-row" data-gfx="sky"><div class="sp-label"><div class="sp-name">☁️ Clouds in the sky</div><div class="sp-sub">Their shadows stay either way</div></div><div class="sp-sw"></div></div>
+          <div class="sp-row" data-gfx="post"><div class="sp-label"><div class="sp-name">✨ Glow &amp; grade</div><div class="sp-sub">Lit windows bloom at night</div></div><div class="sp-sw"></div></div>
+          <div class="sp-row" data-gfx="nm"><div class="sp-label"><div class="sp-name">🧱 Surface detail</div><div class="sp-sub">Brick and clapboard relief</div></div><div class="sp-sw"></div></div>
+          <div class="sp-row" data-gfx="shadow"><div class="sp-label"><div class="sp-name">🌤 Shadows</div><div class="sp-sub">Off helps an older phone</div></div><div class="sp-sw"></div></div>
+          <div class="sp-gfx-note">Changes reload the town where you stand</div>
+        </div>
       </div>
       <div class="stack">
       <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span><span class="blab">RUN</span></div>
@@ -2424,6 +2437,19 @@ export class Hud {
           localStorage.setItem('nbpt-season', sn); location.reload();
         } },
       }));
+    }
+    // graphics switches: mirror gfx.ts, save the preference, reload where you stand
+    const gfxState: Record<GfxPrefKey, boolean> = { sky: GFX.skyClouds, post: GFX.post, nm: GFX.normalMaps, shadow: GFX.shadowSize !== 0 };
+    for (const k of GFX_PREF_KEYS) {
+      const row = document.querySelector('#hud .settings-pop .sp-row[data-gfx="' + k + '"]') as HTMLElement | null;
+      if (!row) continue;
+      row.classList.toggle('on', gfxState[k]);
+      row.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setGfxPref(k, !gfxState[k]);
+        localStorage.setItem('nbpt-resume-pos', JSON.stringify({ x: Math.round(this.lastKnownPos.x), z: Math.round(this.lastKnownPos.z) }));
+        location.reload();
+      });
     }
     // These tallies count THIS town's markers and secrets, so they belong in the
     // town view — appending them to the card put them under the roster of twelve
