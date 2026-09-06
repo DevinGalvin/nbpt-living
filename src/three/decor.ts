@@ -1065,10 +1065,15 @@ function hull(bk: Bucket, x: number, z: number, hl: number, hw: number,
     -ca, 0, -sa, r * 0.85, g2 * 0.85, b * 0.85);
 }
 
-function car(bk: Bucket, x: number, z: number, ang: number, hex: string, g = 0) {
+// half the width of the car a seed picks from the fleet, so a kerb can tuck it in by its
+// own width rather than a fixed guess (a van is a third wider than a hatchback)
+function carHalfWidth(seed: number): number {
+  return (PROPS?.car(seed)?.size.x ?? 14) / 2;
+}
+function car(bk: Bucket, x: number, z: number, ang: number, hex: string, g = 0, seed?: number) {
   if (propSink && PROPS) {
     // a real car from the kit; the fleet mix is picked per spot so it never changes on rebuild
-    propSink.add(PROPS.car(hash32(Math.round(x), Math.round(z), 311)), x, g, z, ang, 1, hex);
+    propSink.add(PROPS.car(seed ?? hash32(Math.round(x), Math.round(z), 311)), x, g, z, ang, 1, hex);
     return;
   }
   const ca = Math.cos(ang), sa = Math.sin(ang);
@@ -10203,14 +10208,21 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (seenR.has(ri)) continue;
       seenR.add(ri);
       const r = world.roads[ri];
-      // downtown kerbs are nearly full, both sides, nose to tail
+      // Kerb parking, by the width of the street. A 10 m street (80 px) takes cars on
+      // both sides, tucked fully inside the kerb by their own width, and leaves two
+      // 3 m lanes; a 7 m residential street takes one side only, the cars half up on
+      // the kerb the way they are parked in life; anything narrower takes none.
+      // Downtown kerbs are nearly full, nose to tail.
       const core = index.downtownRoad(ri);
       if (!['secondary', 'tertiary', 'residential'].includes(r.c) && !(core && r.c === 'primary')) continue;
+      if (r.w < 56) continue;
+      const bothSides = r.w >= 72;
+      const oneSide = hash32(ri, 5) % 2 === 0 ? 1 : -1;
       let flip = 1;
       walkLineD(r.p, core ? 48 : 95, (x, z, tx, tz) => {
-        flip = -flip;
+        flip = bothSides ? -flip : oneSide;
         const h2 = hash32(Math.round(x * 3), Math.round(z * 3), 41);
-        if (h2 % 100 > (core ? 74 : 42)) {
+        if (h2 % 100 > (core ? 66 : 42)) {
           // a hydrant on the kerb where no car is parked, about one per block
           if (propSink && PROPS?.has('firehydrant') && h2 % 100 > 91) {
             const hx = x - tz * flip * (r.w / 2 + 4), hz = z + tx * flip * (r.w / 2 + 4);
@@ -10219,10 +10231,12 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
           }
           return;
         }
-        const px2 = x - tz * flip * (r.w / 2 - 9);
-        const pz2 = z + tx * flip * (r.w / 2 - 9);
+        const hw = carHalfWidth(h2);
+        const off = bothSides ? r.w / 2 - hw - 1 : r.w / 2 - hw * 0.5;
+        const px2 = x - tz * flip * off;
+        const pz2 = z + tx * flip * off;
         if (px2 < ox || px2 >= ox + CHUNK || pz2 < oy || pz2 >= oy + CHUNK) return;
-        car(buckets[PLAIN], px2, pz2, Math.atan2(tz, tx), pick(STYLE.building.cars, h2), index.heightAtPx(px2, pz2));
+        car(buckets[PLAIN], px2, pz2, Math.atan2(tz, tx), pick(STYLE.building.cars, h2), index.heightAtPx(px2, pz2), h2);
       });
     }
   }

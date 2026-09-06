@@ -503,7 +503,9 @@ class TrafficCar {
     const clamped = Math.max(2, Math.min(this.total - 2, this.t));
     const spot = alongPolyline(this.pts, clamped);
     if (spot) {
-      const off = this.roadW * 0.22 * this.dir;
+      // the lane sits inside the parked cars: on a wide street they take the outer 20 px
+      // of each side, on a narrow one they sit half up on the kerb (see decor.ts kerb life)
+      const off = this.roadW * (this.roadW >= 72 ? 0.16 : 0.2) * this.dir;
       this.root.position.x = spot.x - spot.dz * off;
       this.root.position.z = spot.z + spot.dx * off;
       const ang = Math.atan2(spot.dx * this.dir, spot.dz * this.dir);
