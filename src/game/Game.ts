@@ -11,7 +11,7 @@ import { Terrain } from '../world/terrain';
 import { buildChunkDecor, setWindowNight } from '../three/decor';
 import { detailTex } from '../three/textures';
 import { buildWater, WATER_Y } from '../three/water';
-import { buildFarTown } from '../three/farTown';
+import { FarTown } from '../three/farTown';
 import { Sky, type SkyState } from '../three/sky';
 import { Kid, Dog, Bike, Skateboard, buildKayak } from '../three/actors';
 import { Life } from './life';
@@ -286,7 +286,7 @@ export class Game {
   private flyAct: string | null = null;   // edge state for the Game-owned action button (FLY/LAND/KAYAK/HOP OUT)
   private skirt: THREE.Mesh | null = null;        // ✈️ ground skirt — fills the far void off the map's edge
   private impostor: THREE.Mesh | null = null;     // world-fixed low-res map under the chunks (anti-pop-in)
-  private farTown: Map<string, THREE.Mesh> | null = null;   // every building as a box, shown where no chunk is loaded
+  private farTown: FarTown | null = null;   // every building as a box, shown where no chunk is loaded
   // desktop sees twice as far: with the far town standing in the haze there is nothing to hide
   private farFog = false;
   private flightEnabled = true;   // ✈️ scenic flight is now PUBLIC — open to everyone (was dev-gated behind ?fly)
@@ -539,8 +539,8 @@ export class Game {
     this.ensureRect(true);
     this.impostor = this.buildImpostor();   // low-res whole-map LOD under the chunks (kills the yellow pop-in)
     // the far town: boxes for every building, visible wherever the detailed chunk is not
-    this.farTown = buildFarTown(world, terrain);
-    for (const [key, m] of this.farTown) { m.visible = !this.chunks.has(key); this.scene.add(m); }
+    this.farTown = new FarTown(world, terrain, this.scene);
+    for (const key of this.chunks.keys()) this.farTown.setLoaded(key, true);
     this.farFog = !this.mobile && (!this.lowGPU || GFX.postForced);
     this.updateCamera(0, true);
 
@@ -1077,8 +1077,7 @@ export class Game {
     }
 
     this.chunks.set(key, { ground, decor, props, tex, signs, decorOnly });
-    const far = this.farTown?.get(key);
-    if (far) far.visible = false;
+    this.farTown?.setLoaded(key, true);
   }
 
   private disposeChunk(key: string) {
@@ -1106,8 +1105,7 @@ export class Game {
       m.dispose();
     }
     this.chunks.delete(key);
-    const far = this.farTown?.get(key);
-    if (far) far.visible = true;
+    this.farTown?.setLoaded(key, false);
   }
 
   // dispose every loaded chunk. Used on the phone flight transitions so each side rebuilds in the
@@ -2522,6 +2520,7 @@ export class Game {
     this.lampGlowMat.opacity = 0.9 * lampOn * lampScale;
     setWindowNight(lampOn);
     updateClouds(dt, sky.night, sky.wet, GFX.clouds);
+    this.farTown?.tick(this.px, this.pz);
     for (let i = 0; i < this.lampGlows.length; i++) {
       const s = this.lampSpots[i];
       const on = !!s && lampOn > 0.01;
