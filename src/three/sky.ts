@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CLOUD } from './clouds';
 import { GFX } from '../gfx';
+import { SEASON } from '../world/style';
 
 // Day–night cycle + weather for Clipper Town. Owns the visual sky (gradient
 // dome, sun & moon discs, stars, rain) and computes a lighting
@@ -26,6 +27,13 @@ const clamp = (v: number, lo: number, hi: number) => v < lo ? lo : v > hi ? hi :
 // shallow night (the dark is the least-loved part). Replaces a plain sine.
 const SUN_T = [0,    0.06, 0.14, 0.24, 0.30, 0.70, 0.76, 0.86, 0.94, 1.0];
 const SUN_E = [-0.3, 0.0,  0.2,  0.9,  1.0,  1.0,  0.9,  0.2,  0.0,  -0.3];
+// The sun never stands overhead at 42.8° north: it tops out near 70° in June, 47° at
+// the equinoxes, 24° in December. The table above peaks at the zenith, which left
+// every wall lit by the sky alone for the middle of the day and reading flat; the
+// season's ceiling puts the sun where it is, lights the south walls, and lengthens
+// the shadows. (sin 70° ≈ 0.94, sin 47° ≈ 0.73, sin 24° ≈ 0.41; a little higher than
+// the true winter value so the short day is not all dusk.)
+const MAX_ELEV = SEASON === 'summer' ? 0.9 : SEASON === 'winter' ? 0.55 : 0.75;
 function sunAltitude(tod: number): number {
   for (let i = 0; i + 1 < SUN_T.length; i++) {
     if (tod <= SUN_T[i + 1]) {
@@ -303,7 +311,8 @@ export class Sky {
     this.wet += (this.wetTarget - this.wet) * Math.min(1, dt * 0.35);
 
     // ---- sun geometry + palette ----
-    const elev = sunAltitude(this.tod);                              // -1..1, mostly daytime
+    const raw = sunAltitude(this.tod);
+    const elev = raw > 0 ? raw * MAX_ELEV : raw;                     // -1..MAX_ELEV, mostly daytime
     const day = clamp((elev + 0.08) / 0.32, 0, 1);                   // 0 night .. 1 day
     const tw = clamp(1 - Math.abs(elev) / 0.26, 0, 1);               // wide dawn/dusk glow band
     const wet = this.wet;
@@ -312,8 +321,10 @@ export class Sky {
     const zen = NIGHT_ZEN.clone().lerp(DAY_ZEN, day).lerp(DUSK_ZEN, tw * 0.5);
     const hor = NIGHT_HOR.clone().lerp(DAY_HOR, day).lerp(DUSK_HOR, tw * 0.85);
     s.sunColor.copy(DUSK_SUN).lerp(DAY_SUN, day);
-    let sunI = 0.82 + day * 0.78;   // moonlight floor at night (brief night, so a bit brighter)
-    let hemiI = 0.8 + day * 0.08;   // moonlit ambient — visible, the dark spell is short now
+    // a little more sun and a little less sky than before, so a lit wall and a shaded
+    // one are two different things
+    let sunI = 0.82 + day * 0.98;   // moonlight floor at night (brief night, so a bit brighter)
+    let hemiI = 0.8 - day * 0.02;   // moonlit ambient — visible, the dark spell is short now
     s.hemiSky.copy(NIGHT_HEMI_SKY).lerp(DAY_HEMI_SKY, day);
     s.hemiGround.copy(NIGHT_HEMI_GND).lerp(DAY_HEMI_GND, day);
     if (wet > 0.01) {
