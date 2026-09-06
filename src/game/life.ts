@@ -469,8 +469,38 @@ class TrafficCar {
   }
 }
 
+// The wake behind a moving boat: a V of foam and a churned centre line, drawn as one
+// flat quad at the stern that fades with the boat's speed. And a light at the masthead
+// or on the wheelhouse after dark.
+let wakeTex: THREE.CanvasTexture | null = null;
+function wakeTexture(): THREE.CanvasTexture {
+  if (wakeTex) return wakeTex;
+  const c = document.createElement('canvas'); c.width = 64; c.height = 128;
+  const g = c.getContext('2d')!;
+  g.clearRect(0, 0, 64, 128);
+  // the two arms of the V, from the stern (top centre) opening toward the bottom
+  for (const s of [-1, 1]) {
+    const grd = g.createLinearGradient(0, 0, 0, 128);
+    grd.addColorStop(0, 'rgba(255,255,255,0.85)');
+    grd.addColorStop(0.5, 'rgba(255,255,255,0.35)');
+    grd.addColorStop(1, 'rgba(255,255,255,0)');
+    g.strokeStyle = grd; g.lineWidth = 5; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(32, 4); g.lineTo(32 + s * 28, 124); g.stroke();
+  }
+  // the churned centre
+  const cg = g.createLinearGradient(0, 0, 0, 128);
+  cg.addColorStop(0, 'rgba(255,255,255,0.7)'); cg.addColorStop(0.35, 'rgba(255,255,255,0.25)'); cg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = cg; g.fillRect(24, 0, 16, 128);
+  wakeTex = new THREE.CanvasTexture(c);
+  return wakeTex;
+}
+let boatLightMat: THREE.SpriteMaterial | null = null;
+
 class WanderBoat {
   root = new THREE.Group();
+  private wake: THREE.Mesh;
+  private wakeMat: THREE.MeshBasicMaterial;
+  private light: THREE.Sprite;
   active = false;
   speed = 50;
   checkAcc = 0;
@@ -509,6 +539,25 @@ class WanderBoat {
     }
     this.speed = 40 + rng() * 45;
     this.root.scale.setScalar(0.62 + rng() * 0.72);   // dinghies to near-yachts out on the water too
+    // the wake, flat on the water behind the stern
+    this.wakeMat = new THREE.MeshBasicMaterial({ map: wakeTexture(), transparent: true, depthWrite: false, opacity: 0, fog: true });
+    this.wake = new THREE.Mesh(new THREE.PlaneGeometry(30, 90), this.wakeMat);
+    this.wake.rotation.x = -Math.PI / 2;
+    this.wake.rotation.z = Math.PI;   // the V opens away from the boat
+    this.wake.position.set(0, 0.5, -70);
+    this.wake.renderOrder = 3;
+    this.root.add(this.wake);
+    // the anchor / masthead light
+    if (!boatLightMat) boatLightMat = new THREE.SpriteMaterial({ map: puffTexture(), color: '#ffe9b0', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0, fog: false });
+    this.light = new THREE.Sprite(boatLightMat);
+    this.light.scale.set(7, 7, 1);
+    this.light.position.set(0, this.root.children.some((o) => o.position.y === 40) ? 72 : 30, this.root.children.some((o) => o.position.y === 40) ? 0 : 8);
+    this.root.add(this.light);
+  }
+  /** wake by speed, light by night; called each frame by Life */
+  dress(night: number) {
+    this.wakeMat.opacity = Math.max(0, Math.min(0.75, (this.speed - 12) / 60));
+    if (boatLightMat) boatLightMat.opacity = Math.max(0, Math.min(0.9, (night - 0.05) * 3));
   }
 
   setTarget(x: number, z: number) {
@@ -1640,6 +1689,7 @@ export class Life {
         continue;
       }
       const arrived = b.glide(dt, t);
+      b.dress(night);
       b.checkAcc += dt;
       if (arrived) {
         if (!this.boatTarget(b, rng)) b.active = false;

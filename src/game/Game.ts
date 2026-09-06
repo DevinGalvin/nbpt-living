@@ -1020,7 +1020,14 @@ export class Game {
     let ground: THREE.Mesh | null = null;
     let tex: THREE.CanvasTexture | null = null;
     if (!decorOnly) {
-      const canvas = this.index.groundCanvas(key);
+      let canvas: HTMLCanvasElement = this.index.groundCanvas(key);
+      if (GFX.groundRes < canvas.width) {
+        // phones: the same painting, resampled smaller before it becomes a texture
+        const small = document.createElement('canvas');
+        small.width = small.height = GFX.groundRes;
+        small.getContext('2d')!.drawImage(canvas, 0, 0, GFX.groundRes, GFX.groundRes);
+        canvas = small;
+      }
       tex = new THREE.CanvasTexture(canvas);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());

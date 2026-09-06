@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { WorldData } from '../world/types';
 import { SEASON } from '../world/style';
 import { SHORE, shoreParsGlsl } from './shore';
+import { CLOUD } from './clouds';
 
 // One animated water surface for the whole map: triangulated real water polygons
 // (with island holes) floating just above the painted ground, with a rippling
@@ -86,6 +87,8 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
   // shoreline: the heightfield texture (shared, uploaded once by Game) gives shallows and foam
   SHORE.uWaterY.value = WATER_Y;
   Object.assign(uniforms, SHORE);
+  // the cloud shadows cross the water too (shared uniforms, moved once a frame by Game)
+  Object.assign(uniforms, CLOUD);
 
   const mat = new THREE.ShaderMaterial({
     uniforms,
@@ -110,6 +113,9 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
       uniform float uTime;
       uniform vec3 uSky, uSunDir, uSunCol;
       uniform float uSunI;
+      uniform sampler2D uCloudMap;
+      uniform vec2 uCloudOff;
+      uniform float uCloudScale, uCloudAmt;
       varying vec3 vWorld;
       varying vec3 vColor;
       #include <fog_pars_fragment>
@@ -147,6 +153,9 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
         vec3 H = normalize(V + uSunDir);
         float spec = pow(max(dot(N, H), 0.0), 160.0) * uSunI * 0.7 * smoothstep(0.02, 0.15, uSunDir.y);
         base += spec * uSunCol;
+        // a cloud between the sun and the water takes the glare off it
+        float cl = texture2D(uCloudMap, (vWorld.xz + uCloudOff) * uCloudScale).r;
+        base *= 1.0 - uCloudAmt * smoothstep(0.52, 0.80, cl) * 0.3;
         // Shallows and a foam line. The DEM has no bathymetry (the bed reads as sea level
         // everywhere offshore), but the ground rises to the waterline across the last grid
         // cell, so "how close the bed is to the surface" is exactly the last 5–8 m of shore.

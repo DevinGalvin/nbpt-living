@@ -56,5 +56,9 @@ export const GFX = {
   // lamps carry the light, the glow discs carry the rest of the street
   lampLights: Math.max(0, Math.min(16, Math.round(num('lights', 6)))),
   // the glow discs are additive quads, nearly free: a downtown street at night should glow post after post
-  lampGlows: coarse ? 16 : 36
+  lampGlows: coarse ? 16 : 36,
+  // Ground texture size per chunk. The canvas is painted at 768 (one texel per world px,
+  // 12.5 cm); phones keep 70 of them resident and that is what they run out of. 576 on
+  // touch screens is 17 cm a texel and 44% less memory, unseen on a phone-sized screen.
+  groundRes: q.has('gres') ? Math.max(256, Math.min(768, num('gres', 768))) : coarse ? 576 : 768
 };
