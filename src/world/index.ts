@@ -622,6 +622,56 @@ export class WorldIndex {
     return capped;
   }
 
+  // Utility poles down one side of every built-up side street, wires strung between
+  // them. Newburyport's downtown put its wires underground in the 1970s; every other
+  // street still has the poles, and they are half of what makes a New England street
+  // photo look like one. Placed between the lamps (same 150 px walk, the odd stops,
+  // on the side the lamps leave free there), so nothing stands in anything else.
+  // Wires are listed whole even when they cross a chunk edge; decor draws the spans
+  // whose midpoint it owns.
+  private poleCache = new Map<string, { poles: { x: number; y: number; nx: number; ny: number; seed: number }[]; wires: number[] }>();
+
+  polesFor(key: string): { poles: { x: number; y: number; nx: number; ny: number; seed: number }[]; wires: number[] } {
+    const cached = this.poleCache.get(key);
+    if (cached) return cached;
+    const [ckx, cky] = key.split(',').map(Number);
+    const ox = ckx * CHUNK, oy = cky * CHUNK;
+    const poles: { x: number; y: number; nx: number; ny: number; seed: number }[] = [];
+    const wires: number[] = [];
+    const bucket = this.bucket(key);
+    const w = this.world;
+    const seen = new Set<number>();
+    const drives = this.drivewaysFor(key);
+    for (const ri of bucket.roads) {
+      if (seen.has(ri)) continue;
+      seen.add(ri);
+      const r = w.roads[ri];
+      if (!['tertiary', 'residential', 'unclassified', 'living_street'].includes(r.c) || r.b || r.w < 24) continue;
+      if (this.downtownRoad(ri)) continue;
+      const side = hash32(ri) % 2 === 0 ? -1 : 1;   // the lamps' odd stops take the other side
+      let k = 0;
+      let prev: { x: number; y: number } | null = null;
+      walkLine(r.p, 150, (x, y, nx, ny) => {
+        const odd = (k++ & 1) === 1;
+        if (!odd) return;
+        const px = x - ny * side * (r.w / 2 + 10);
+        const py = y + nx * side * (r.w / 2 + 10);
+        // a pole wants a house nearby, open ground, and no mapped line already here
+        let ok = !this.onRoadway(px, py, bucket) && !this.isWaterAt(px, py);
+        if (ok) { let near = false; for (const bi of bucket.buildings) { const [bx, by] = centroidOf(w.buildings[bi].p); if ((bx - px) ** 2 + (by - py) ** 2 < 150 * 150) { near = true; break; } if (pointInRing(px, py, w.buildings[bi].p)) { ok = false; break; } } ok = ok && near; }
+        if (ok) for (const pi of bucket.power) { if (distToPolylineSq(px, py, w.power[pi].p) < 60 * 60) { ok = false; break; } }
+        if (ok) for (const d of drives) { if (distToPolylineSq(px, py, [d.x0, d.y0, d.x1, d.y1]) < 13 * 13) { ok = false; break; } }
+        if (!ok) { prev = null; return; }
+        if (prev && (prev.x - px) ** 2 + (prev.y - py) ** 2 < 420 * 420) wires.push(prev.x, prev.y, px, py);
+        prev = { x: px, y: py };
+        if (px >= ox && px < ox + CHUNK && py >= oy && py < oy + CHUNK) poles.push({ x: px, y: py, nx, ny, seed: hash32(Math.round(px), Math.round(py), 71) });
+      });
+    }
+    const out = { poles: poles.slice(0, 120), wires };
+    this.poleCache.set(key, out);
+    return out;
+  }
+
   // street lamps along main streets and the pedestrian mall
   private lampCache = new Map<string, { x: number; y: number }[]>();
 

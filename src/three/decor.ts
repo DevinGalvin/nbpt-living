@@ -10698,6 +10698,53 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     if (bestD < 1e9) mbtaTrain(buckets, bx, bz, bestAng, index);
   }
 
+  // utility poles down the side streets, and the wires between them (see
+  // WorldIndex.polesFor): a wooden pole, a crossarm, a transformer can on one in four,
+  // two wires on the arm and a lower cable, each one a thin cross of quads so it
+  // reads from the street and from the air
+  {
+    const { poles, wires } = index.polesFor(key);
+    const POLE_H = 62;
+    const wireBk = buckets[PLAIN];
+    tmp.set('#3b3e42');
+    const wr = tmp.r, wg = tmp.g, wb = tmp.b;
+    const wire = (ax: number, ay: number, az: number, bx: number, by: number, bz: number, sag: number) => {
+      const mx = (ax + bx) / 2, mz = (az + bz) / 2, my = (ay + by) / 2 - sag;
+      const dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz) || 1;
+      const nx = -dz / l, nz = dx / l;
+      const seg = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number) => {
+        wireBk.quad(x0, y0, z0, x1, y1, z1, x1, y1 + 0.34, z1, x0, y0 + 0.34, z0, nx, 0, nz, wr, wg, wb);
+        wireBk.quad(x0 - nx * 0.17, y0, z0 - nz * 0.17, x1 - nx * 0.17, y1, z1 - nz * 0.17, x1 + nx * 0.17, y1, z1 + nz * 0.17, x0 + nx * 0.17, y0, z0 + nz * 0.17, 0, 1, 0, wr, wg, wb);
+      };
+      seg(ax, ay, az, mx, my, mz);
+      seg(mx, my, mz, bx, by, bz);
+    };
+    for (const p of poles) {
+      const g = index.heightAtPx(p.x, p.y);
+      const top = g + POLE_H;
+      buckets[PLAIN].box(p.x, p.y, 1.1, 1.1, g, top, '#6e5a44');
+      const ang = Math.atan2(p.ny, p.nx) + Math.PI / 2;   // the crossarm sits across the street line
+      rotBox(buckets[PLAIN], p.x, p.y, 6.5, 0.5, top - 4.4, top - 3.4, ang, '#5e4b37');
+      if (p.seed % 4 === 0) {
+        // the transformer can, hung below the arm on the street side
+        buckets[PLAIN].box(p.x + p.ny * 1.6, p.y - p.nx * 1.6, 1.6, 1.6, top - 15, top - 9.5, '#7c8084');
+      }
+    }
+    for (let i = 0; i + 3 < wires.length; i += 4) {
+      const x0 = wires[i], z0 = wires[i + 1], x1 = wires[i + 2], z1 = wires[i + 3];
+      const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      if (mx < ox || mx >= ox + CHUNK || mz < oy || mz >= oy + CHUNK) continue;
+      const span = Math.hypot(x1 - x0, z1 - z0);
+      const dx = (x1 - x0) / span, dz = (z1 - z0) / span;
+      const tx = -dz, tz = dx;   // along the crossarm
+      const y0 = index.heightAtPx(x0, z0) + POLE_H - 4, y1 = index.heightAtPx(x1, z1) + POLE_H - 4;
+      const sag = Math.min(6, span * 0.028);
+      wire(x0 + tx * 5, y0, z0 + tz * 5, x1 + tx * 5, y1, z1 + tz * 5, sag);
+      wire(x0 - tx * 5, y0, z0 - tz * 5, x1 - tx * 5, y1, z1 - tz * 5, sag);
+      wire(x0, y0 - 11, z0, x1, y1 - 11, z1, sag * 1.3);
+    }
+  }
+
   // power lines: poles at the surveyed vertices + sagging wires, exactly where
   // OSM maps them (wooden distribution poles, taller gray transmission poles)
   for (const pi of bucket.power) {
