@@ -104,6 +104,7 @@ interface ChunkEntry {
   decorOnly: boolean;               // built without ground/signs (cheap, churn-safe) for phone flight
   chimneys: number[];               // chimney tops (x, y, z) for the smoke
   signals: number[];                // traffic-signal heads (x, y, z, dx, dy, phase) Life cycles
+  spills: number[];                 // lit shop windows (x, z, nx, nz, ground y) for the light spill
 }
 
 // point-in-polygon (ray cast) over a flat [x,y,...] ring — town-line checks
@@ -374,6 +375,12 @@ export class Game {
   private lampGlows: THREE.Mesh[] = [];
   private lampGlowMat!: THREE.MeshBasicMaterial;
   private lampSpots: { x: number; z: number; gy: number }[] = [];
+  // Light spilling from the shop windows onto the sidewalk: a warm patch at the foot of
+  // each of the nearest lit windows, the same additive disc the lamps use, smaller. A
+  // downtown street at night is lit as much by its shops as by its lamps.
+  private shopSpills: THREE.Mesh[] = [];
+  private spillMat!: THREE.MeshBasicMaterial;
+  private spillSpots: { x: number; z: number; gy: number }[] = [];
 
   constructor(world: WorldData, terrain: Terrain) {
     this.world = world;
@@ -489,6 +496,20 @@ export class Game {
     // intensity 0 — so the pool of real lights is small and the glow discs (a texture,
     // free) carry the rest of the street. Keep the count fixed: adding or removing a
     // light recompiles every material.
+    this.spillMat = new THREE.MeshBasicMaterial({
+      map: gtex, transparent: true, blending: THREE.AdditiveBlending,
+      depthWrite: false, opacity: 0, fog: false, color: new THREE.Color('#ffd9a8')
+    });
+    const spillGeo = new THREE.PlaneGeometry(34, 34);
+    for (let i = 0; i < GFX.shopSpills; i++) {
+      const patch = new THREE.Mesh(spillGeo, this.spillMat);
+      patch.rotation.x = -Math.PI / 2;
+      patch.position.set(0, -1000, 0);
+      patch.renderOrder = 3;
+      patch.visible = false;
+      this.shopSpills.push(patch);
+      this.scene.add(patch);
+    }
     for (let i = 0; i < GFX.lampGlows; i++) {
       const disc = new THREE.Mesh(new THREE.PlaneGeometry(135, 135), this.lampGlowMat);
       disc.rotation.x = -Math.PI / 2;
@@ -1087,7 +1108,7 @@ export class Game {
       }
     }
 
-    this.chunks.set(key, { ground, decor, props, tex, signs, decorOnly, chimneys: built?.chimneys ?? [], signals: built?.signals ?? [] });
+    this.chunks.set(key, { ground, decor, props, tex, signs, decorOnly, chimneys: built?.chimneys ?? [], signals: built?.signals ?? [], spills: built?.spills ?? [] });
     this.farTown?.setLoaded(key, true);
   }
 
@@ -2530,6 +2551,12 @@ export class Game {
     // peak wants a touch less opacity to land on the same on-screen brightness
     const lampScale = this.post ? 0.9 : 1;
     this.lampGlowMat.opacity = 0.9 * lampOn * lampScale;
+    this.spillMat.opacity = 0.5 * lampOn * lampScale;
+    for (let i = 0; i < this.shopSpills.length; i++) {
+      const s = this.spillSpots[i], patch = this.shopSpills[i];
+      patch.visible = !!s && lampOn > 0.01;
+      if (s) patch.position.set(s.x, s.gy + 0.5, s.z);
+    }
     setWindowNight(lampOn);
     updateClouds(dt, sky.night, sky.wet, GFX.clouds);
     this.farTown?.tick(this.px, this.pz);
@@ -2849,6 +2876,18 @@ export class Game {
     found.sort((a, b) => a.d - b.d);
     this.lampSpots = found.slice(0, this.lampGlows.length)
       .map((f) => ({ x: f.x, z: f.y, gy: this.index.surfaceYAt(f.x, f.y) }));
+    // …and the shop windows: the patch sits just outside the glass, on the sidewalk
+    const spills: { x: number; z: number; gy: number; d: number }[] = [];
+    for (const e of this.chunks.values()) {
+      const sp = e.spills;
+      for (let i = 0; i + 4 < sp.length; i += 5) {
+        const x = sp[i] + sp[i + 2] * 9, z = sp[i + 1] + sp[i + 3] * 9;
+        const d = (x - this.px) ** 2 + (z - this.pz) ** 2;
+        if (d < 420 * 420) spills.push({ x, z, gy: this.index.surfaceYAt(x, z), d });
+      }
+    }
+    spills.sort((a, b) => a.d - b.d);
+    this.spillSpots = spills.slice(0, this.shopSpills.length);
   }
 
   // Fit the sun's shadow window to the chase camera: half-size scales with zoom and the

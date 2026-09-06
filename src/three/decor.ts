@@ -21,6 +21,9 @@ let signalSink: number[] | null = null;
 // black arc across a lawn (the map's texel is far wider than the wire), so their mesh
 // casts none
 let wireSink: Bucket | null = null;
+// lit shop windows placed this chunk: foot x, z, outward nx, nz, ground y — Game spills
+// their light onto the sidewalk at night
+let spillSink: number[] | null = null;
 function chimney(x: number, y: number, z: number) { chimneySink?.push(x, y, z); }
 import { gillisCenter } from './gillis';
 import { TOWN } from '@town';
@@ -787,6 +790,7 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
           billboard(plain, wx, wy, nx, nz, ux, uy, 0.32, 5.4, g + 10.2, 0.95, tr, tg, tb);
           billboard(plain, wx, wy, nx, nz, ux, uy, 8.4, 0.32, g + 13.4, 0.95, tr, tg, tb);
           windowGlow(wx, wy, nx, nz, ux, uy, 8.4, 5.4, g + 10.2, rng, true);
+          spillSink?.push(wx, -wy, nx, nz, g);
           if (edgeGetsAwnings) awning(plain, wx, wy, nx, nz, ux, uy, 10.5, g + 19.5, 4.5, 7, awningHex);
           windows++;
           continue;
@@ -9933,7 +9937,7 @@ function styledHouse(buckets: Bucket[], b: Building, g: number, index: WorldInde
   }
 }
 
-export interface ChunkDecor { mesh: THREE.Mesh | null; props: THREE.Group | null; chimneys: number[]; signals: number[] }
+export interface ChunkDecor { mesh: THREE.Mesh | null; props: THREE.Group | null; chimneys: number[]; signals: number[]; spills: number[] }
 
 export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): ChunkDecor | null {
   const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
@@ -9943,6 +9947,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   chimneySink = [];
   signalSink = [];
   wireSink = new Bucket();
+  spillSink = [];
   const [ckx, cky] = key.split(',').map(Number);
   const ox = ckx * CHUNK, oy = cky * CHUNK;
 
@@ -11174,7 +11179,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   propSink = null;
   let total = 0;
   for (const bk of buckets) total += bk.pos.length;
-  if (!total) { const ch = chimneySink ?? [], sg = signalSink ?? []; chimneySink = null; signalSink = null; wireSink = null; return props ? { mesh: null, props, chimneys: ch, signals: sg } : null; }
+  if (!total) { const ch = chimneySink ?? [], sg = signalSink ?? [], sp = spillSink ?? []; chimneySink = null; signalSink = null; wireSink = null; spillSink = null; return props ? { mesh: null, props, chimneys: ch, signals: sg, spills: sp } : null; }
 
   // copy via typed-array set — spreading huge buckets into push() blows the call stack
   const pos = new Float32Array(total);
@@ -11217,7 +11222,9 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   chimneySink = null;
   const signals = signalSink ?? [];
   signalSink = null;
-  return { mesh, props, chimneys, signals };
+  const spills = spillSink ?? [];
+  spillSink = null;
+  return { mesh, props, chimneys, signals, spills };
 }
 
 function flatRoofPlank(bk: Bucket, ring: number[], h: number) {
