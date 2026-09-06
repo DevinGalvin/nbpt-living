@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CLOUD } from './clouds';
+import { GFX } from '../gfx';
 
 // Day–night cycle + weather for Clipper Town. Owns the visual sky (gradient
 // dome, sun & moon discs, stars, rain) and computes a lighting
@@ -196,29 +197,38 @@ export class Sky {
         void main() {
           vec3 toC = vWorld - uCam;
           float ang = atan(toC.y, length(toC.xz));
+          // below the horizon band there is nothing to draw: out before any texture read
+          if (ang < 0.012) discard;
           // overhead: the clouds whose shadows cross the ground, mapped by world position
+          float nearA = 0.0, cl = 0.0;
           vec2 uv = (vWorld.xz - uSunShift + uCloudOff) * uCloudScale;
-          float cl = texture2D(uCloudMap, uv).r;
-          float fine = texture2D(uCloudMap, uv * 3.1 + 0.37).r;
-          float nearA = smoothstep(0.50, 0.62, cl) * smoothstep(0.06, 0.16, ang);
+          if (ang > 0.06) {
+            cl = texture2D(uCloudMap, uv).r;
+            nearA = smoothstep(0.47, 0.58, cl) * smoothstep(0.06, 0.16, ang);
+          }
           // toward the horizon: banks of distant cloud, mapped by direction so they sit
-          // at infinity and stack up the way a sky does, and dissolve into the haze
-          vec3 dir = normalize(toC);
-          float az = atan(dir.z, dir.x);
-          vec2 fuv = vec2(az * 1.9, 0.32 / (ang + 0.045)) + uCloudOff * uCloudScale * 0.3;
-          float fcl = texture2D(uCloudMap, fuv).r;
-          float farA = smoothstep(0.44, 0.56, fcl) * (1.0 - smoothstep(0.10, 0.24, ang)) * smoothstep(0.012, 0.045, ang);
+          // at infinity and stack up the way a sky does
+          float farA = 0.0, fcl = 0.0;
+          if (ang < 0.20) {
+            // few and broad: a handful of banks, not a scatter of streaks
+            vec3 dir = normalize(toC);
+            float az = atan(dir.z, dir.x);
+            vec2 fuv = vec2(az * 1.1, 0.16 / (ang + 0.06)) + uCloudOff * uCloudScale * 0.3;
+            fcl = texture2D(uCloudMap, fuv).r;
+            farA = smoothstep(0.47, 0.60, fcl) * (1.0 - smoothstep(0.09, 0.20, ang)) * smoothstep(0.012, 0.035, ang) * 0.85;
+          }
+          float a = max(nearA, farA) * min(1.0, uCloudVis * 2.0);
+          if (a < 0.01) discard;
           float useFar = step(nearA, farA);
           float v = mix(cl, fcl, useFar);
+          float fine = texture2D(uCloudMap, uv * 3.1 + 0.37).r;
           // sunlit tops, flat shaded bellies: the fine read decides which part of a cloud this is
           float top = smoothstep(0.50, 0.85, v * 0.55 + fine * 0.45);
           vec3 c = mix(uShade, uLit, top);
-          float rim = smoothstep(0.50, 0.56, v) * (1.0 - smoothstep(0.56, 0.66, v));
-          c += uLit * rim * 0.22;
-          // the horizon haze swallows the lowest banks
-          c = mix(uHaze, c, smoothstep(0.015, 0.07, ang));
-          float a = max(nearA, farA) * min(1.0, uCloudVis * 2.0);
-          if (a < 0.003) discard;
+          float rim = smoothstep(0.47, 0.53, v) * (1.0 - smoothstep(0.53, 0.63, v));
+          c += uLit * rim * 0.25;
+          // only the lowest two degrees dissolve into the haze
+          c = mix(uHaze, c, smoothstep(0.012, 0.04, ang));
           gl_FragColor = vec4(c, a);
           #include <colorspace_fragment>
         }`
@@ -354,7 +364,7 @@ export class Sky {
       (u.uHaze.value as THREE.Color).copy(hor);
       const sy = Math.max(0.25, s.sunDir.y);
       (u.uSunShift.value as THREE.Vector2).set(CLOUD_H * s.sunDir.x / sy, CLOUD_H * s.sunDir.z / sy);
-      this.clouds.visible = CLOUD.uCloudVis.value > 0.01 && !!CLOUD.uCloudMap.value;
+      this.clouds.visible = GFX.skyClouds && CLOUD.uCloudVis.value > 0.01 && !!CLOUD.uCloudMap.value && day > 0.05;
     }
     this.starMat.opacity = clamp(1 - day * 1.7, 0, 1) * 0.95;
     (this.starMat as THREE.PointsMaterial).visible = this.starMat.opacity > 0.02;

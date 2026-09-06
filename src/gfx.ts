@@ -57,6 +57,9 @@ export const GFX = {
   lampLights: Math.max(0, Math.min(16, Math.round(num('lights', 6)))),
   // the glow discs are additive quads, nearly free: a downtown street at night should glow post after post
   lampGlows: coarse ? 16 : 36,
+  // The visible cloud layer is a full-sky transparent pass; the cloud SHADOWS are one
+  // texture fetch and stay on everywhere. Off on touch screens; ?sky=0 turns it off anywhere.
+  skyClouds: q.has('sky') ? q.get('sky') !== '0' : !coarse,
   // Ground texture size per chunk. The canvas is painted at 768 (one texel per world px,
   // 12.5 cm); phones keep 70 of them resident and that is what they run out of. 576 on
   // touch screens is 17 cm a texel and 44% less memory, unseen on a phone-sized screen.
