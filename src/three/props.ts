@@ -41,7 +41,7 @@ export class ChunkProps {
       const n = list.length / STRIDE;
       const mesh = new THREE.InstancedMesh(model.geo, model.material, n);
       // body panels are a second instanced mesh of the same transforms, coloured per instance
-      const paint = model.geoPaint ? new THREE.InstancedMesh(model.geoPaint, model.material, n) : null;
+      const paint = model.geoPaint ? new THREE.InstancedMesh(model.geoPaint, model.paintMaterial, n) : null;
       for (let i = 0; i < n; i++) {
         const o = i * STRIDE;
         const x = list[o], y = list[o + 1], z = list[o + 2], ang = list[o + 3], sc = list[o + 4];

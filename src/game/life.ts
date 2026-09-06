@@ -12,7 +12,7 @@ import { TOWN } from '@town';
 // that drive road polylines, and boats cruising the real water. Nothing spawns
 // or despawns where the player can see. Nobody passes through anybody.
 
-const PEDS = 22;
+const PEDS = 28;
 const CARS = 10;
 // the cruising fleet follows the season, like the moored one (decor MOOR_FILL):
 // summer = a busy harbor, fall thins out, spring fewer still, winter = nobody out
@@ -1310,6 +1310,12 @@ export class Life {
       if (!WALK_CLASSES.includes(p.c)) continue;
       const total = polyLen(p.p);
       if (total < 40) continue;
+      // downtown draws the crowd: with the player in the core, three spawns in four go to
+      // a core sidewalk, so State Street is busy and the side streets thin out
+      if (this.index.downtownAt(px, pz)) {
+        const m = Math.floor(p.p.length / 4) * 2;
+        if (!this.index.downtownAt(p.p[m], p.p[m + 1]) && rng() < 0.75) continue;
+      }
       return { pts: p.p, total, t: 10 + rng() * (total - 20) };
     }
     return null;

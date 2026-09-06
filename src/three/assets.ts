@@ -17,6 +17,8 @@ export interface PropModel {
   /** the body panels, baked white, so each instance can take its own paint colour */
   geoPaint?: THREE.BufferGeometry;
   material: THREE.Material;
+  /** the body panels' material: glossier than the rest, so paint reads as paint */
+  paintMaterial: THREE.Material;
   size: THREE.Vector3;            // world px after scaling
   axis: 'x' | 'z';                // which local axis the model's length runs along
   /** original node tree, scaled the same way — for the few props that need moving parts */
@@ -58,7 +60,11 @@ export class PropLib {
   }
 }
 
-let vertexMat: THREE.MeshLambertMaterial | null = null;
+// Physically based, not Lambert: a car's paint needs a specular lobe and the sky in it
+// (scene.environment, set by Game), or the whole fleet reads as coloured plastic. The
+// kit's bodies are a few hundred pixels a frame, so the per-fragment cost is nothing.
+let vertexMat: THREE.MeshStandardMaterial | null = null;
+let paintMat: THREE.MeshStandardMaterial | null = null;
 // one material per atlas texture: the kit carries two (Kenney's colour map for the
 // people, KayKit's city atlas for the street furniture)
 const atlasMats = new Map<THREE.Texture, THREE.MeshLambertMaterial>();
@@ -164,15 +170,16 @@ function bakeScene(scene: THREE.Group): PropModel | null {
     if (!m) { m = new THREE.MeshLambertMaterial({ map: atlas }); atlasMats.set(atlas!, m); }
     material = m;
   } else {
-    if (!vertexMat) vertexMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    if (!vertexMat) vertexMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.05, envMapIntensity: 0.5 });
     material = vertexMat;
   }
+  if (!paintMat) paintMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.18, envMapIntensity: 0.9 });
   // the original tree, baked the same way, for props with moving parts (car wheels)
   const root = new THREE.Group();
   root.applyMatrix4(bake);
   root.add(scene);
   root.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
-  return { name, geo, geoPaint, material, size: size.multiplyScalar(s), axis, root };
+  return { name, geo, geoPaint, material, paintMaterial: paintMat, size: size.multiplyScalar(s), axis, root };
 }
 
 export async function loadProps(url: string): Promise<PropLib> {

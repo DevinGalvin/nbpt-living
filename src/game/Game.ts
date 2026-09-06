@@ -382,6 +382,25 @@ export class Game {
         || (navigator.maxTouchPoints || 0) > 0;
     } catch { this.mobile = false; }
     this.renderer = new THREE.WebGLRenderer({ antialias: !this.lowGPU });
+    // An environment for the physically based materials (the cars, moving and parked):
+    // a sky gradient over a dark ground, prefiltered once. Nothing else in the scene
+    // is PBR, so this costs one small texture and gives the fleet its reflections.
+    {
+      const pm = new THREE.PMREMGenerator(this.renderer);
+      const env = new THREE.Scene();
+      const sg = new THREE.SphereGeometry(100, 24, 12);
+      const cols = new Float32Array(sg.attributes.position.count * 3);
+      const top = new THREE.Color('#79b6ea'), hor = new THREE.Color('#dfe9f0'), gnd = new THREE.Color('#3c3a33');
+      for (let i = 0; i < sg.attributes.position.count; i++) {
+        const y = sg.attributes.position.getY(i) / 100;
+        const c = y >= 0 ? hor.clone().lerp(top, Math.min(1, y * 1.6)) : hor.clone().lerp(gnd, Math.min(1, -y * 3));
+        cols[i * 3] = c.r; cols[i * 3 + 1] = c.g; cols[i * 3 + 2] = c.b;
+      }
+      sg.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+      env.add(new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+      this.scene.environment = pm.fromScene(env, 0.02).texture;
+      pm.dispose();
+    }
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.setSize(innerWidth, innerHeight, false); // false: let CSS size the canvas (full-bleed)
     this.renderer.setClearColor(STYLE.sky);
