@@ -1,6 +1,6 @@
 import type { WorldData, Poly, Road, PathSeg, Label, Building } from './types';
 import { TOWN } from '@town';
-import { STYLE, SEASON, hash32, mulberry32 } from './style';
+import { STYLE, SEASON, TREES, hash32, mulberry32 } from './style';
 
 // Floating docks come OUT for a New England winter: the marinas pull their floats,
 // only the big stone wharves stay. |area| < ~26k px² ≈ anything smaller than a
@@ -1053,19 +1053,54 @@ export class WorldIndex {
       trace(poly.p, poly.h);
       ctx.fill('evenodd');
     }
-    // the road network — min widths so even minor streets read at this scale
+    // Tree cover, stippled: the detailed chunks put a tree in every yard and a wood is
+    // solid canopy, and at this scale that is a texture of dark specks. Without it the
+    // distance was flat colour with lines on it, and read as a map rather than country.
+    // Woods dense, parks and greens sparse, and a speck by two houses in three for the
+    // suburban fill the chunks plant around every building.
+    {
+      const rng = mulberry32(hash32(3, 7, 11));
+      const speck = (x: number, y: number, r: number) => { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); };
+      ctx.fillStyle = TREES.deciduous[2];
+      ctx.globalAlpha = 0.55;
+      const cover: Record<string, number> = { wood: 0.55, scrub: 0.18, park: 0.12, cemetery: 0.1, reserve: 0.14, grass: 0.03 };
+      for (const poly of this.world.polys) {
+        const d = cover[poly.k];
+        if (!d) continue;
+        const [bx0, by0, bx1, by1] = bboxOf(poly.p);
+        const cellPx = 12 / s;   // one candidate per 12 overview px
+        for (let y = by0; y < by1; y += cellPx) {
+          for (let x = bx0; x < bx1; x += cellPx) {
+            if (rng() > d) continue;
+            const px = x + rng() * cellPx, py = y + rng() * cellPx;
+            if (!pointInPoly(px, py, poly)) continue;
+            speck(X(px), Y(py), 0.9 + rng() * 1.3);
+          }
+        }
+      }
+      for (const b of this.world.buildings) {
+        if (rng() > 0.62) continue;
+        const [cx, cy] = centroidOf(b.p);
+        speck(X(cx) + (rng() - 0.5) * 6, Y(cy) + (rng() - 0.5) * 6, 0.8 + rng() * 1.1);
+      }
+      ctx.globalAlpha = 1;
+    }
+    // the road network — min widths so even minor streets read at this scale; the
+    // minor ones faint, so the distance is a landscape with roads in it and not a map
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     const major: Record<string, boolean> = { motorway: true, trunk: true, primary: true, secondary: true };
     for (const r of this.world.roads) {
       if (r.c === 'service') continue;
       ctx.strokeStyle = STYLE.road[r.c] || STYLE.road.residential;
+      ctx.globalAlpha = major[r.c] ? 1 : 0.45;
       ctx.lineWidth = Math.max(major[r.c] ? 1.8 : 1.0, r.w * s);
       ctx.beginPath();
       ctx.moveTo(X(r.p[0]), Y(r.p[1]));
       for (let i = 2; i < r.p.length; i += 2) ctx.lineTo(X(r.p[i]), Y(r.p[i + 1]));
       ctx.stroke();
     }
+    ctx.globalAlpha = 1;
     return cv;
   }
 
