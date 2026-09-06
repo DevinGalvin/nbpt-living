@@ -1278,9 +1278,17 @@ export class WorldIndex {
           if (near) segs.push(ax, ay, bx, by, r.w);
         }
       }
+      // the historic district around the core walks on brick (Federal, Fair, Fruit,
+      // the North End), the outer neighbourhoods on concrete
+      const d = TOWN.downtown;
+      // the brick walks run about 650 m out from Market Square: the South End to the
+      // Mall, the North End to Ashland, High Street past the Cushing House
+      const brickR2 = d ? (d.r * 2) ** 2 : 0;
       for (const pass of [0, 1]) {
-        ctx.strokeStyle = pass === 0 ? '#a3a19a' : concreteFill();
         for (let i = 0; i < segs.length; i += 5) {
+          const mx = (segs[i] + segs[i + 2]) / 2, my = (segs[i + 1] + segs[i + 3]) / 2;
+          const brick = !!d && (mx - d.x) ** 2 + (my - d.z) ** 2 < brickR2;
+          ctx.strokeStyle = pass === 0 ? (brick ? '#8f8b84' : '#a3a19a') : brick ? brickPaveFill() : concreteFill();
           ctx.lineWidth = segs[i + 4] + walkW * 2 + (pass === 0 ? 4 : 0);
           ctx.beginPath();
           ctx.moveTo(segs[i], segs[i + 1]);
@@ -1629,7 +1637,11 @@ export class WorldIndex {
     }
     if (p.c === 'side') {
       const mid = p.p.length >= 4 ? Math.floor(p.p.length / 4) * 2 : 0;
-      if (this.downtownAt(p.p[mid], p.p[mid + 1])) {
+      // brick downtown and through the historic district (the same reach the synthetic
+      // sidewalks use), concrete in the outer neighbourhoods
+      const d = TOWN.downtown;
+      const historic = !!d && (p.p[mid] - d.x) ** 2 + (p.p[mid + 1] - d.z) ** 2 < (d.r * 2) ** 2;
+      if (historic || this.downtownAt(p.p[mid], p.p[mid + 1])) {
         // downtown: brick pavers between granite kerbs
         ctx.strokeStyle = '#8f8b84';
         ctx.lineWidth = p.w + 3;
