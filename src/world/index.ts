@@ -1032,6 +1032,23 @@ export class WorldIndex {
       strokeLine(ctx, r.p);
     }
 
+    // …and around every downtown building, so a shop set back from the kerb stands on
+    // bricks too, not on a strip of lawn between the apron and its door
+    ctx.lineJoin = 'round';
+    for (const bi of bucket.buildings) {
+      const b = w.buildings[bi];
+      const [bcx, bcy] = centroidOf(b.p);
+      if (!this.downtownAt(bcx, bcy)) continue;
+      ctx.fillStyle = brickPaveFill();
+      ctx.strokeStyle = brickPaveFill();
+      ctx.lineWidth = 64;
+      ctx.beginPath();
+      ctx.moveTo(b.p[0], b.p[1]);
+      for (let i = 2; i < b.p.length; i += 2) ctx.lineTo(b.p[i], b.p[i + 1]);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fill();
+    }
     // the pedestrian mall: brick from one building line to the other, like Inn Street
     for (const pi of bucket.paths) {
       const p = w.paths[pi];
