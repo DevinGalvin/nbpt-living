@@ -498,7 +498,10 @@ export class WorldIndex {
             if (this.onClearedGround(x, y, bucket)) continue;
             if (this.isWaterAt(x, y)) continue; // wood/marsh polys overlap tidal water
             if (nearReal(x, y)) continue;
-            const r = isReed ? 2.5 + rng() * 2 : isBush ? 5 + rng() * 4 : 9 + rng() * 7;
+            // parks carry the town's oldest trees (Atkinson Common's beeches and oaks);
+            // a wood has a few emergents over an even canopy
+            const old = poly.k === 'park' ? 0.22 : 0.1;
+            const r = isReed ? 2.5 + rng() * 2 : isBush ? 5 + rng() * 4 : rng() < old ? 22 + rng() * 10 : 9 + rng() * 7;
             out.push({ x, y, r, bush: isBush, reed: isReed });
           }
         }
