@@ -1140,6 +1140,56 @@ export class WorldIndex {
     for (const ri of bucket.rails) this.drawRail(ctx, w.rails[ri].p);
 
     const roads = bucket.roads.map((i) => w.roads[i]).sort((a, b) => (ROAD_RANK[a.c] || 0) - (ROAD_RANK[b.c] || 0));
+    // Sidewalks wherever there are houses to walk from. OSM maps a sidewalk on a
+    // handful of streets; the town has one on nearly every built-up street, a granite
+    // kerb and a concrete slab, and their absence is what made a side street read as a
+    // country lane. Per segment: a building within reach on either side earns the band.
+    // Painted before the driveways, so a drive crosses the walk as an apron.
+    {
+      const cents: number[] = [];
+      const seen = new Set<number>();
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          for (const bi of this.bucket((cx + dx) + ',' + (cy + dy)).buildings) {
+            if (seen.has(bi)) continue;
+            seen.add(bi);
+            const [bx, by] = centroidOf(w.buildings[bi].p);
+            cents.push(bx, by);
+          }
+        }
+      }
+      const SIDE = new Set(['residential', 'living_street', 'unclassified', 'tertiary', 'secondary', 'primary']);
+      const walkW = 13;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const segs: number[] = [];
+      for (const ri of bucket.roads) {
+        const r = w.roads[ri];
+        if (!SIDE.has(r.c) || r.b || r.w < 24 || this.downtownRoad(ri)) continue;
+        const reach = (r.w / 2 + 130) ** 2;
+        for (let i = 0; i + 3 < r.p.length; i += 2) {
+          const ax = r.p[i], ay = r.p[i + 1], bx = r.p[i + 2], by = r.p[i + 3];
+          const dxs = bx - ax, dys = by - ay, l2 = dxs * dxs + dys * dys || 1;
+          let near = false;
+          for (let k = 0; k < cents.length && !near; k += 2) {
+            const t = Math.max(0, Math.min(1, ((cents[k] - ax) * dxs + (cents[k + 1] - ay) * dys) / l2));
+            const qx = ax + dxs * t - cents[k], qy = ay + dys * t - cents[k + 1];
+            if (qx * qx + qy * qy < reach) near = true;
+          }
+          if (near) segs.push(ax, ay, bx, by, r.w);
+        }
+      }
+      for (const pass of [0, 1]) {
+        ctx.strokeStyle = pass === 0 ? '#a3a19a' : concreteFill();
+        for (let i = 0; i < segs.length; i += 5) {
+          ctx.lineWidth = segs[i + 4] + walkW * 2 + (pass === 0 ? 4 : 0);
+          ctx.beginPath();
+          ctx.moveTo(segs[i], segs[i + 1]);
+          ctx.lineTo(segs[i + 2], segs[i + 3]);
+          ctx.stroke();
+        }
+      }
+    }
     // driveways go down FIRST, under the roads (this chunk + neighbors, so they cross
     // chunk borders) — the road casing/fill then paints over the curb overlap, so a
     // driveway meets the street cleanly instead of bleeding onto the asphalt.
