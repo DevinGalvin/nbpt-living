@@ -1169,6 +1169,25 @@ export class WorldIndex {
       ctx.fill();
     }
 
+    // the rotary island: the arcs are painted like any road; the grass disc inside
+    // them, with its granite kerb, is what makes it a rotary and not a tangle
+    {
+      const arcs = roads.filter((r) => /rotary/i.test(r.n || ''));
+      if (arcs.length) {
+        let cx = 0, cy = 0, n = 0;
+        for (const r of arcs) for (let i = 0; i < r.p.length; i += 2) { cx += r.p[i]; cy += r.p[i + 1]; n++; }
+        cx /= n; cy /= n;
+        let rad = 0; for (const r of arcs) for (let i = 0; i < r.p.length; i += 2) rad += Math.hypot(r.p[i] - cx, r.p[i + 1] - cy); rad /= n;
+        const inner = rad - arcs[0].w / 2 + 1;
+        if (inner > 20) {
+          ctx.fillStyle = '#8f8b84';
+          ctx.beginPath(); ctx.arc(cx, cy, inner + 3, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = terrainFill('grass');
+          ctx.beginPath(); ctx.arc(cx, cy, inner, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+
     for (const pi of bucket.paths) this.drawPath(ctx, w.paths[pi]);
 
     this.drawStreetLabels(ctx, roads, ox, oy);

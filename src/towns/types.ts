@@ -92,6 +92,9 @@ export interface TownPack {
   // and benches along the kerb. Streets named here, within `r` of the centre, get the
   // treatment; everywhere else keeps concrete and lawn. Omit for a town without one.
   downtown?: { x: number; z: number; r: number; streets: string[] };
+  // Bridges with a structure above the deck. A bridge chain passing within 120 px of
+  // the point gets it: 'suspension' (towers, cables, hangers) or 'truss' (steel lattice).
+  bridges?: { x: number; z: number; kind: 'suspension' | 'truss' }[];
 
   // ambient-life seasonal attractions (null = the town skips that behavior)
   attractions: {

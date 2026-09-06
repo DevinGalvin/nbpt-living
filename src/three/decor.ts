@@ -3096,6 +3096,89 @@ function boatRamp(buckets: Bucket[], x: number, z: number, index: WorldIndex) {
   rotBox(buckets[PLAIN], hx, hz, 4, 0.3, hg + 8, hg + 12, ang, '#2f5d3a');
 }
 
+// A bridge's structure above its deck. Suspension: a portal tower near each end, a main
+// cable sagging between them and running down to the abutments, hangers every three
+// metres. Truss: top chords on both sides with posts, diagonals and cross portals, in
+// the green the Gillis wears. Emitted in the chunk that holds each piece.
+function bridgeStructure(buckets: Bucket[], pts: number[], w: number, kind: 'suspension' | 'truss',
+                         deckY: (x: number, z: number) => number, ox: number, oy: number) {
+  const n = pts.length / 2;
+  const L = polyLenD(pts);
+  if (L < 60) return;
+  const at = (t: number): [number, number, number, number] => {   // x, z, tx, tz at distance t
+    let acc = 0;
+    for (let i = 0; i + 1 < n; i++) {
+      const ax = pts[i * 2], az = pts[i * 2 + 1], bx = pts[i * 2 + 2], bz = pts[i * 2 + 3];
+      const l = Math.hypot(bx - ax, bz - az);
+      if (acc + l >= t || i === n - 2) { const u = Math.max(0, Math.min(1, (t - acc) / (l || 1))); return [ax + (bx - ax) * u, az + (bz - az) * u, (bx - ax) / (l || 1), (bz - az) / (l || 1)]; }
+      acc += l;
+    }
+    return [pts[0], pts[1], 1, 0];
+  };
+  const inChunk = (x: number, z: number) => x >= ox && x < ox + CHUNK && z >= oy && z < oy + CHUNK;
+  const hw = w / 2 + 1.5;
+  const P = buckets[PLAIN];
+  // a thin member between two points in space, seen as a vertical-ish panel
+  const member = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, px: number, pz: number, th: number, hex: string) => {
+    tmp.set(hex);
+    P.quad(x0 - px * th, y0, z0 - pz * th, x0 + px * th, y0, z0 + pz * th, x1 + px * th, y1, z1 + pz * th, x1 - px * th, y1, z1 - pz * th, px, 0, pz, tmp.r, tmp.g, tmp.b);
+    P.quad(x0, y0 - th, z0, x1, y1 - th, z1, x1, y1 + th, z1, x0, y0 + th, z0, -pz, 0, px, tmp.r * 0.85, tmp.g * 0.85, tmp.b * 0.85);
+  };
+  if (kind === 'suspension') {
+    const CONC = '#b9b6ad', CABLE = '#3a3c40';
+    const tA = L * 0.16, tB = L * 0.84;
+    const TOWER = 54, SAG = 46;
+    const towers: [number, number, number, number][] = [at(tA), at(tB)];
+    for (const [x, z, tx, tz] of towers) {
+      if (!inChunk(x, z)) continue;
+      const y = deckY(x, z);
+      const ang = Math.atan2(tz, tx);
+      for (const s of [-1, 1]) rotBox(P, x - tz * s * (hw + 1.5), z + tx * s * (hw + 1.5), 2.6, 2.6, y - 30, y + TOWER, ang, CONC);
+      rotBox(P, x, z, 2.2, hw + 3, y + TOWER - 3, y + TOWER, ang, CONC);
+      rotBox(P, x, z, 1.8, hw + 3, y + 26, y + 28.5, ang, CONC);
+    }
+    // the cables: between the towers a parabola, outside them a straight backstay
+    const cableY = (t: number) => {
+      if (t < tA) { const u = t / tA; return u * TOWER; }
+      if (t > tB) { const u = (L - t) / (L - tB); return u * TOWER; }
+      const u = (t - tA) / (tB - tA);
+      return TOWER - SAG * (1 - (2 * u - 1) ** 2);
+    };
+    for (let t = 0; t < L - 8; t += 12) {
+      const [x0, z0, tx, tz] = at(t), [x1, z1] = at(Math.min(L, t + 12));
+      if (!inChunk((x0 + x1) / 2, (z0 + z1) / 2)) continue;
+      const y0 = deckY(x0, z0) + cableY(t), y1 = deckY(x1, z1) + cableY(Math.min(L, t + 12));
+      for (const s of [-1, 1]) member(x0 - tz * s * (hw + 1.5), y0, z0 + tx * s * (hw + 1.5), x1 - tz * s * (hw + 1.5), y1, z1 + tx * s * (hw + 1.5), -tz * s, tx * s, 0.45, CABLE);
+    }
+    for (let t = tA + 12; t < tB - 6; t += 24) {
+      const [x, z, tx, tz] = at(t);
+      if (!inChunk(x, z)) continue;
+      const y = deckY(x, z), cy = y + cableY(t);
+      for (const s of [-1, 1]) P.box(x - tz * s * (hw + 1.5), z + tx * s * (hw + 1.5), 0.22, 0.22, y + 3, cy, CABLE);
+    }
+  } else {
+    const GREEN = '#3f6b4e', GREEN_D = '#2f5239';
+    const H = 22;
+    for (let t = 0; t < L - 4; t += 24) {
+      const [x0, z0, tx, tz] = at(t), [x1, z1] = at(Math.min(L, t + 24));
+      if (!inChunk((x0 + x1) / 2, (z0 + z1) / 2)) continue;
+      const y0 = deckY(x0, z0), y1 = deckY(x1, z1);
+      for (const s of [-1, 1]) {
+        const ex0 = x0 - tz * s * (hw + 0.8), ez0 = z0 + tx * s * (hw + 0.8), ex1 = x1 - tz * s * (hw + 0.8), ez1 = z1 + tx * s * (hw + 0.8);
+        member(ex0, y0 + H, ez0, ex1, y1 + H, ez1, -tz * s, tx * s, 0.9, GREEN);          // top chord
+        P.box(ex0, ez0, 0.7, 0.7, y0 + 3, y0 + H, GREEN);                                    // post
+        member(ex0, y0 + 3.5, ez0, ex1, y1 + H - 0.5, ez1, -tz * s, tx * s, 0.5, GREEN_D);   // diagonal
+      }
+      if (Math.round(t / 24) % 2 === 0) rotBox(P, x0, z0, 0.8, hw + 1.2, y0 + H - 0.9, y0 + H + 0.6, Math.atan2(tz, tx), GREEN);   // cross portal
+    }
+  }
+}
+function polyLenD(pts: number[]): number {
+  let l = 0;
+  for (let i = 0; i + 3 < pts.length; i += 2) l += Math.hypot(pts[i + 2] - pts[i], pts[i + 3] - pts[i + 1]);
+  return l;
+}
+
 // Landmarks the map left unnamed, found by where they stand
 const POSITION_HEROES: { x: number; z: number; build: HeroBuilder }[] = [
   { x: 15992, z: 10874, build: buildJoppaFlats },   // Joppa Flats Education Center
@@ -10069,6 +10152,21 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     ribbonDeck(buckets, ch.pts, ch.w + 4, (x, z) => index.bridgeDeckYAt(ch.pts, x, z), true, ox, oy, true, ch.trim0, ch.trim1,
       (ch.c === 'motorway' || ch.c === 'motorway_link') ? 'white' : 'yellow', ch.w0 + 4, ch.w1 + 4,
       wideDeck ? (x, z, lX, lZ, hw, y) => index.deckHalfWidthLimit(x, z, lX, lZ, hw, y) : undefined);
+    // a structure above the deck where the town pack says so (the Chain Bridge)
+    for (const br of TOWN.bridges ?? []) {
+      let close = false;
+      for (let i = 0; i + 1 < ch.pts.length; i += 2) if ((ch.pts[i] - br.x) ** 2 + (ch.pts[i + 1] - br.z) ** 2 < 600 * 600) { close = true; break; }
+      if (!close) continue;
+      // the span nearest the point, not the whole chain
+      let bestD = Infinity, bi = 0;
+      for (let i = 0; i + 3 < ch.pts.length; i += 2) {
+        const mx = (ch.pts[i] + ch.pts[i + 2]) / 2, mz = (ch.pts[i + 1] + ch.pts[i + 3]) / 2;
+        const d = (mx - br.x) ** 2 + (mz - br.z) ** 2;
+        if (d < bestD) { bestD = d; bi = i; }
+      }
+      if (bestD > 200 * 200) continue;
+      bridgeStructure(buckets, ch.pts.slice(bi, bi + 4), ch.w + 4, br.kind, (x, z) => index.bridgeDeckYAt(ch.pts, x, z), ox, oy);
+    }
     // hold the slab up: pier WALLS marching the span (turned across the deck, capped
     // under the soffit) + full-width abutments at the banks. One (x,z) each + the
     // chunk cull below ⇒ emitted in exactly one chunk.
@@ -10801,6 +10899,27 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   }
 
   stationCanopy(buckets, world, index, key);
+  // the rotary: the map draws it as arcs; the island in the middle gets a flagpole, a
+  // ring of shrubs and the town's sign
+  {
+    const arcs = bucket.roads.map((i) => world.roads[i]).filter((r) => /rotary/i.test(r.n || ''));
+    if (arcs.length) {
+      let cx = 0, cz = 0, n = 0;
+      for (const r of arcs) for (let i = 0; i < r.p.length; i += 2) { cx += r.p[i]; cz += r.p[i + 1]; n++; }
+      cx /= n; cz /= n;
+      if (cx >= ox && cx < ox + CHUNK && cz >= oy && cz < oy + CHUNK) {
+        const g = index.heightAtPx(cx, cz);
+        buckets[PLAIN].box(cx, cz, 0.6, 0.6, g, g + 52, '#e6e6e2');
+        buckets[PLAIN].box(cx + 3.2, cz, 3.2, 0.15, g + 44, g + 49, '#b03030');
+        let rad = 0; for (const r of arcs) for (let i = 0; i < r.p.length; i += 2) rad += Math.hypot(r.p[i] - cx, r.p[i + 1] - cz); rad /= n;
+        const inner = Math.max(20, rad - arcs[0].w / 2 - 14);
+        for (let a = 0; a < Math.PI * 2; a += 0.55) {
+          const bx = cx + Math.cos(a) * inner, bz = cz + Math.sin(a) * inner;
+          blobCanopy(buckets[PLAIN], bx, index.heightAtPx(bx, bz) + 3.5, bz, 4, new THREE.Color(TREES.bush), hash32(Math.round(bx), Math.round(bz), 7) | 1);
+        }
+      }
+    }
+  }
 
   // dune grass: clumps of straw-green blades on the dunes behind the beach — the high
   // sand more than thirty metres from any water. The strand itself stays bare, as it is.

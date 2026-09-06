@@ -36,6 +36,8 @@ export const TOWN: TownPack = {
   sledLane: { x: 2534, z0: 8380, z1: 8650, halfW: 62 },   // March's Hill sledding lane
   trainPlatform: { x: -5450, z: 11790 },                   // MBTA Newburyport station
   holidayTree: { x: -100, z: -48 },                        // Market Square
+  // the Chain Bridge (1792; the suspension span, 1910) and the Hines Bridge at Deer Island
+  bridges: [{ x: -24631, z: -21363, kind: 'suspension' }, { x: -24207, z: -20067, kind: 'truss' }],
   // the brick-sidewalk core: State Street up to High, Pleasant, Inn, Water and
   // Merrimac Streets through Market Square, and the side streets between them
   downtown: { x: -100, z: -48, r: 2600, streets: ['State Street', 'Pleasant Street', 'Inn Street', 'Water Street', 'Merrimac Street',
