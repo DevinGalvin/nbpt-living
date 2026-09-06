@@ -932,7 +932,7 @@ export class WorldIndex {
       let hw = 0;
       for (let i = 0; i < b.p.length; i += 2) hw = Math.max(hw, Math.abs((b.p[i] - cx) * pxn + (b.p[i + 1] - cy) * pyn));
       const side = rng() < 0.5 ? 1 : -1;
-      const car = rng() < 0.5, carT = 0.55 + rng() * 0.3;
+      const car = rng() < 0.32, carT = 0.55 + rng() * 0.3;
       for (const sgn of [side, -side]) {
         const off = hw + 11;
         // start level with the back half of the house so the parked car sits beside it

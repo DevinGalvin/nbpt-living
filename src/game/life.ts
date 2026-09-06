@@ -13,7 +13,7 @@ import { TOWN } from '@town';
 // or despawns where the player can see. Nobody passes through anybody.
 
 const PEDS = 28;
-const CARS = 10;
+const CARS = 7;
 // the cruising fleet follows the season, like the moored one (decor MOOR_FILL):
 // summer = a busy harbor, fall thins out, spring fewer still, winter = nobody out
 const BOATS = SEASON === 'summer' ? 13 : SEASON === 'fall' ? 5 : SEASON === 'spring' ? 3 : 0;

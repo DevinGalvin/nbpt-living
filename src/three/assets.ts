@@ -136,7 +136,11 @@ function bakeScene(scene: THREE.Group): PropModel | null {
       } else {
         // bake the material colour into vertex colour; paint panels bake WHITE and get
         // their colour from the instance (see props.ts)
-        const c = isPaint ? new THREE.Color(1, 1, 1) : (mat.color ?? new THREE.Color(0.8, 0.8, 0.8));
+        // The kit's glass is a bright sky-cyan and the windshields shone brighter than
+        // anything else on the street; a real windshield is dark, a little blue, and
+        // mostly reflection. Tinted glass here.
+        const isGlass = /^window/i.test(mat.name ?? '');
+        const c = isPaint ? new THREE.Color(1, 1, 1) : isGlass ? new THREE.Color(0.17, 0.21, 0.27) : (mat.color ?? new THREE.Color(0.8, 0.8, 0.8));
         const col = new Float32Array(n * 3);
         for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; }
         g.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -173,7 +177,10 @@ function bakeScene(scene: THREE.Group): PropModel | null {
     if (!vertexMat) vertexMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.05, envMapIntensity: 0.5 });
     material = vertexMat;
   }
-  if (!paintMat) paintMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.18, envMapIntensity: 0.9 });
+  // Car paint was a mirror of the sky (roughness 0.28, env 0.9): every white or silver
+  // car bloomed under the sun and pulled the eye off the town. Satin now, with a little
+  // of the sky in it — a car in the street, not a highlight on it.
+  if (!paintMat) paintMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.08, envMapIntensity: 0.35 });
   // the original tree, baked the same way, for props with moving parts (car wheels)
   const root = new THREE.Group();
   root.applyMatrix4(bake);

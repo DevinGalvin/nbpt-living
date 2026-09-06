@@ -131,8 +131,10 @@ export const STYLE = {
     awnings: ['#3f5d3a', '#7a2f2c', '#2c3e5c', '#8a6b3c', '#3c3c3e', '#5d3f63'],
     // weighted like a real street (white, black, grey and silver are three cars in four;
     // one red, one blue, the odd green or gold): a lot full of primaries read as a toy box
-    cars: ['#e8e6e0', '#e8e6e0', '#e8e6e0', '#dcdad4', '#2e3034', '#2e3034', '#3a3c40', '#6f7378', '#6f7378', '#8c9096',
-      '#b4b8bd', '#a9adb2', '#3e5c84', '#2f4a72', '#b5443a', '#5e7e54', '#c8b04a', '#8a4a68'],
+    // …and none of them bright: a white car is a dusty off-white here, a silver one a
+    // mid grey, so the street's cars sit below the buildings in the picture, not above
+    cars: ['#c6c4be', '#c6c4be', '#bdbbb5', '#b3b1ab', '#2e3034', '#2e3034', '#3a3c40', '#5f6367', '#5f6367', '#767a7f',
+      '#8e9297', '#84888d', '#3a5578', '#2f4a72', '#9e3d35', '#55704c', '#a8944a', '#78435c'],
     wallsCommercial: ['#fdfcf8', '#faf8f2', '#f8f5ec'], // tint over the real brick texture
     // Untextured masonry for the share of downtown blocks a city builds in
     // something other than brick — Quincy granite, limestone, buff and grey
