@@ -3014,16 +3014,26 @@ export class Game {
       // normal 6000 cull; restored to the zoom-based values back on land.
       // LOOK UP does the same thing for the same reason: a skyline two kilometres
       // off is nothing but far-plane cull and fog until you open both.
-      const seaView = this.kayaking || !!this.cineLook;
-      const wantFar = seaView || lift > 0.05 ? 11000 : 6000;
-      if (this.camera.far !== wantFar) { this.camera.far = wantFar; this.camera.updateProjectionMatrix(); }
-      if (seaView) { fog.near = 3200; fog.far = 9500; }
+      // …and on a desktop, always: the far bank of the Merrimack, Plum Island across
+      // the basin and the hills behind Salisbury are a kilometre or two off, past the
+      // old fog, and a town with no horizon read as an island in white haze. The far
+      // ground is the one-mesh impostor and the far town's boxes, so the reach is cheap.
+      const seaView = this.kayaking || !!this.cineLook || this.farFog;
+      let tn: number, tf: number;
+      if (seaView) { tn = 3200; tf = 9500; }
       else {
         const reach = this.farFog ? 1.55 : 1;   // 5580 at zoom 1: still inside the 6000 far plane
         const nearL = 1300 * z * reach, farL = (2900 * z + 700) * reach;
-        fog.near = nearL + lift * (3000 - nearL);
-        fog.far = farL + lift * (9800 - farL);
+        tn = nearL + lift * (3000 - nearL);
+        tf = farL + lift * (9800 - farL);
       }
+      // the reach changes with the kayak and the cutaways; the fog eases between its two
+      // reaches over a couple of seconds instead of the far bank blinking in
+      const k = snap ? 1 : Math.min(1, dt * 1.2);
+      fog.near += (tn - fog.near) * k;
+      fog.far += (tf - fog.far) * k;
+      const wantFar = seaView || lift > 0.05 || fog.far > 5600 ? 11000 : 6000;
+      if (this.camera.far !== wantFar) { this.camera.far = wantFar; this.camera.updateProjectionMatrix(); }
     }
   }
 
