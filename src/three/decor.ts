@@ -830,6 +830,7 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
         tmp.set(forceDoor || pick(STYLE.building.doors, seed));
         billboard(plain, wx, wy, nx, nz, ux, uy, 4.2, 6.5, g + 6.5, 0.9, tmp.r, tmp.g, tmp.b);
         if (!storefront) stoop(plain, wx, wy, nx, nz, ux, uy, g, 4.6);
+        if (!storefront && rows <= 3 && SEASON !== 'winter' && hash32(Math.round(wx), Math.round(wy), 91) % 100 < 17) porchFlag(plain, wx, wy, nx, nz, ux, uy, g, (hash32(seed, c, 5) & 1) ? 1 : -1);
         if (SEASON === 'winter') {
           // a wreath with a red bow on every door — the Newburyport December
           const doorHex = forceDoor || pick(STYLE.building.doors, seed);
@@ -963,6 +964,37 @@ function stoop(bk: Bucket, x: number, y2: number, nx: number, nz: number, ux: nu
   const cx = x + nx * out, cy = y2 - nz * out;
   const ang = Math.atan2(uy, ux);
   rotBox(bk, cx, -cy, hw, out, g - 0.5, g + 1.5, -ang, '#9a9891');
+}
+
+// The flag on the porch bracket: a staff angled up and out beside the door, and the
+// flag hanging from it in three bands with the canton. On about one house in six,
+// which is the count on a Newburyport street any week of the year.
+function porchFlag(bk: Bucket, x: number, y2: number, nx: number, nz: number, ux: number, uy: number, g: number, side: number) {
+  // world frame: wall point (x, -y2), outward (nx, nz), along the wall (ux, -uy)
+  const ax = ux * side, az = -uy * side;
+  const bx = x + ax * 5.2 + nx * 0.4, bz = -y2 + az * 5.2 + nz * 0.4;   // bracket, beside the door
+  const by = g + 13.5;
+  const sl = 8.5;                                                        // staff length
+  const sx = nx * 0.72, sy = 0.69, sz = nz * 0.72;                       // staff direction, 44° up
+  const tx = bx + sx * sl, ty = by + sy * sl, tz = bz + sz * sl;
+  tmp.set('#e8e2d2');
+  bk.quad(bx - ax * 0.25, by, bz - az * 0.25, tx - ax * 0.25, ty, tz - az * 0.25, tx + ax * 0.25, ty, tz + az * 0.25, bx + ax * 0.25, by, bz + az * 0.25, 0, 1, 0, tmp.r, tmp.g, tmp.b);
+  bk.quad(bx, by - 0.25, bz, tx, ty - 0.25, tz, tx, ty + 0.25, tz, bx, by + 0.25, bz, ax, 0, az, tmp.r * 0.9, tmp.g * 0.9, tmp.b * 0.9);
+  // the flag hangs from the outer 60% of the staff, 5 px deep, facing along the wall
+  const hx = bx + sx * sl * 0.4, hy = by + sy * sl * 0.4, hz = bz + sz * sl * 0.4;
+  const drop = 5.2;
+  const bands: [number, string][] = [[0, '#b7332d'], [1, '#f2efe6'], [2, '#b7332d'], [3, '#f2efe6'], [4, '#b7332d']];
+  for (const [i, hex] of bands) {
+    tmp.set(hex);
+    const d0 = drop * i / 5, d1 = drop * (i + 1) / 5;
+    bk.quad(hx, hy - d0, hz, tx, ty - d0, tz, tx, ty - d1, tz, hx, hy - d1, hz, ax, 0, az, tmp.r, tmp.g, tmp.b);
+    bk.quad(hx, hy - d1, hz, tx, ty - d1, tz, tx, ty - d0, tz, hx, hy - d0, hz, -ax, 0, -az, tmp.r * 0.85, tmp.g * 0.85, tmp.b * 0.85);
+  }
+  // the canton, at the staff end, top half
+  tmp.set('#2c3a6b');
+  const cx1 = tx - sx * sl * 0.28, cy1 = ty - sy * sl * 0.28, cz1 = tz - sz * sl * 0.28;
+  bk.quad(cx1, cy1 + 0.02, cz1, tx, ty + 0.02, tz, tx, ty - drop * 0.5, tz, cx1, cy1 - drop * 0.5, cz1, ax, 0, az, tmp.r, tmp.g, tmp.b);
+  bk.quad(cx1, cy1 - drop * 0.5, cz1, tx, ty - drop * 0.5, tz, tx, ty + 0.02, tz, cx1, cy1 + 0.02, cz1, -ax, 0, -az, tmp.r * 0.85, tmp.g * 0.85, tmp.b * 0.85);
 }
 
 // storefront awning: sloped canvas top + hanging valance
@@ -11143,6 +11175,44 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         beachgoer(buckets[PLAIN], x, z, g, rng() * Math.PI * 2, rng, 'stand', rng() < 0.35);
         if (rng() < 0.4) beachDog(buckets[PLAIN], x + 6 + rng() * 5, z + (rng() - 0.5) * 10, g, rng() * Math.PI * 2);
       }, 8);
+    }
+  }
+
+  // Street-name signs: a green post at one corner of every junction where two named
+  // streets meet, the two blades crossed the way the streets are. No lettering at
+  // this size, but the post on the corner is what every American corner has.
+  {
+    const rc = index.roadChains();
+    for (const jn of rc.junctions) {
+      if (jn.x < ox || jn.x >= ox + CHUNK || jn.y < oy || jn.y >= oy + CHUNK) continue;
+      type Arm = { dx: number; dy: number; w: number; n: string };
+      let a1: Arm | null = null;
+      let a2: Arm | null = null;
+      for (const ri of bucket.roads) {
+        const r = world.roads[ri], p = r.p;
+        if (!r.n || r.c === 'service' || r.c === 'motorway' || r.c === 'motorway_link') continue;
+        for (let i = 0; i < p.length; i += 2) {
+          if (Math.abs(p[i] - jn.x) > 0.5 || Math.abs(p[i + 1] - jn.y) > 0.5) continue;
+          const j = i + 3 < p.length ? i + 2 : i - 2;
+          if (j < 0) continue;
+          const dx = p[j] - p[i], dy = p[j + 1] - p[i + 1], l = Math.hypot(dx, dy) || 1;
+          const arm: Arm = { dx: dx / l, dy: dy / l, w: r.w, n: r.n };
+          if (!a1) a1 = arm;
+          else if (a1.n !== r.n && !a2) a2 = arm;
+        }
+      }
+      if (!a1 || !a2) continue;
+      // the corner between the two arms, just off both pavements
+      const cx2 = jn.x + a1.dx * (a2.w / 2 + 8) + a2.dx * (a1.w / 2 + 8);
+      const cz2 = jn.y + a1.dy * (a2.w / 2 + 8) + a2.dy * (a1.w / 2 + 8);
+      if (index.isBlocked(cx2, cz2) || index.isWaterAt(cx2, cz2)) continue;
+      let onRoad = false;
+      for (const ri of bucket.roads) { const r = world.roads[ri]; if (distToPolylineSq(cx2, cz2, r.p) < (r.w / 2 + 2) ** 2) { onRoad = true; break; } }
+      if (onRoad) continue;
+      const g = index.heightAtPx(cx2, cz2);
+      buckets[PLAIN].box(cx2, cz2, 0.45, 0.45, g, g + 21, '#6d7d70');
+      rotBox(buckets[PLAIN], cx2 + a1.dx * 3.2, cz2 + a1.dy * 3.2, 4.2, 0.22, g + 19.2, g + 21, Math.atan2(a1.dy, a1.dx), '#2f6b3f');
+      rotBox(buckets[PLAIN], cx2 + a2.dx * 3.2, cz2 + a2.dy * 3.2, 4.2, 0.22, g + 17.2, g + 19, Math.atan2(a2.dy, a2.dx), '#2f6b3f');
     }
   }
 
