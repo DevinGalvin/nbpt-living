@@ -48,6 +48,8 @@ const BARE = !TOWN.story;
 const LEGACY_KID = new URLSearchParams(location.search).has('kid');
 // a dog stands a third the kid's height, so the closest zoom comes in closer —
 // at 0.55 Clipper was a speck on a phone; the chase cam scales are all zoom-linear
+const SPILL_Y = new THREE.Vector3(0, 1, 0);
+const SPILL_TILT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
 const MIN_ZOOM = LEGACY_KID ? 0.55 : 0.42;
 
 // The authored Gram spine (chapters, missions, the compass) ships again as of
@@ -380,7 +382,7 @@ export class Game {
   // downtown street at night is lit as much by its shops as by its lamps.
   private shopSpills: THREE.Mesh[] = [];
   private spillMat!: THREE.MeshBasicMaterial;
-  private spillSpots: { x: number; z: number; gy: number }[] = [];
+  private spillSpots: { x: number; z: number; gy: number; ang: number }[] = [];
 
   constructor(world: WorldData, terrain: Terrain) {
     this.world = world;
@@ -500,7 +502,8 @@ export class Game {
       map: gtex, transparent: true, blending: THREE.AdditiveBlending,
       depthWrite: false, opacity: 0, fog: false, color: new THREE.Color('#ffd9a8')
     });
-    const spillGeo = new THREE.PlaneGeometry(34, 34);
+    // wider than deep: the light falls in a band along the glass, not a circle
+    const spillGeo = new THREE.PlaneGeometry(44, 26);
     for (let i = 0; i < GFX.shopSpills; i++) {
       const patch = new THREE.Mesh(spillGeo, this.spillMat);
       patch.rotation.x = -Math.PI / 2;
@@ -2555,7 +2558,11 @@ export class Game {
     for (let i = 0; i < this.shopSpills.length; i++) {
       const s = this.spillSpots[i], patch = this.shopSpills[i];
       patch.visible = !!s && lampOn > 0.01;
-      if (s) patch.position.set(s.x, s.gy + 0.5, s.z);
+      if (s) {
+        patch.position.set(s.x, s.gy + 0.5, s.z);
+        // flat on the ground, its long side along the shopfront
+        patch.quaternion.setFromAxisAngle(SPILL_Y, s.ang).multiply(SPILL_TILT);
+      }
     }
     setWindowNight(lampOn);
     updateClouds(dt, sky.night, sky.wet, GFX.clouds);
@@ -2877,17 +2884,19 @@ export class Game {
     this.lampSpots = found.slice(0, this.lampGlows.length)
       .map((f) => ({ x: f.x, z: f.y, gy: this.index.surfaceYAt(f.x, f.y) }));
     // …and the shop windows: the patch sits just outside the glass, on the sidewalk
-    const spills: { x: number; z: number; gy: number; d: number }[] = [];
+    const spills: { x: number; z: number; gy: number; ang: number; d: number }[] = [];
     for (const e of this.chunks.values()) {
       const sp = e.spills;
       for (let i = 0; i + 4 < sp.length; i += 5) {
-        const x = sp[i] + sp[i + 2] * 9, z = sp[i + 1] + sp[i + 3] * 9;
+        const nx = sp[i + 2], nz = sp[i + 3];
+        const x = sp[i] + nx * 10, z = sp[i + 1] + nz * 10;
         const d = (x - this.px) ** 2 + (z - this.pz) ** 2;
-        if (d < 420 * 420) spills.push({ x, z, gy: this.index.surfaceYAt(x, z), d });
+        // the patch's long side runs along the facade: the tangent is (-nz, nx)
+        if (d < 420 * 420) spills.push({ x, z, gy: this.index.surfaceYAt(x, z), ang: Math.atan2(-nx, -nz), d });
       }
     }
     spills.sort((a, b) => a.d - b.d);
-    this.spillSpots = spills.slice(0, this.shopSpills.length);
+    this.spillSpots = spills.slice(0, this.shopSpills.length).map((s) => ({ x: s.x, z: s.z, gy: s.gy, ang: s.ang }));
   }
 
   // Fit the sun's shadow window to the chase camera: half-size scales with zoom and the
