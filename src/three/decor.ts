@@ -13,6 +13,9 @@ import { ChunkProps } from './props';
 // chunk builds, and come back as instanced meshes beside the merged decor mesh. Null
 // when the kit failed to load — every emitter below then falls back to its boxes.
 let propSink: ChunkProps | null = null;
+// chimney tops (x, y, z triples) collected per chunk build; life.ts puts smoke on them
+let chimneySink: number[] | null = null;
+function chimney(x: number, y: number, z: number) { chimneySink?.push(x, y, z); }
 import { gillisCenter } from './gillis';
 import { TOWN } from '@town';
 
@@ -1639,7 +1642,7 @@ function roofClutter(buckets: Bucket[], ring: number[], topY: number, seed: numb
       const x = obb.cx + l * ca - w * sa, z = obb.cz + l * sa + w * ca;
       if (pointInRingD(x - 3, z - 3, ring) && pointInRingD(x + 3, z + 3, ring) &&
           pointInRingD(x - 3, z + 3, ring) && pointInRingD(x + 3, z - 3, ring))
-        buckets[BRICK].box(x, z, 2.6, 2.6, topY, topY + 8 + rng() * 3, '#7a4b3a', 1);
+        { const h = 8 + rng() * 3; buckets[BRICK].box(x, z, 2.6, 2.6, topY, topY + h, '#7a4b3a', 1); chimney(x, topY + h, z); }
     }
   }
 }
@@ -3137,6 +3140,7 @@ function buildCustomHouse(buckets: Bucket[], b: Building, g: number, index: Worl
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
   for (const s of [-1, 1]) {
     buckets[BRICK].box(obb.cx + ca * (obb.hl - 8) * s, obb.cz + sa * (obb.hl - 8) * s, 2.6, 2.6, g + 44, g + 56, '#fdfcf8', 1);
+    chimney(obb.cx + ca * (obb.hl - 8) * s, g + 56, obb.cz + sa * (obb.hl - 8) * s);
   }
 }
 
@@ -9321,13 +9325,14 @@ function styledHouse(buckets: Bucket[], b: Building, g: number, index: WorldInde
   }
 }
 
-export interface ChunkDecor { mesh: THREE.Mesh | null; props: THREE.Group | null }
+export interface ChunkDecor { mesh: THREE.Mesh | null; props: THREE.Group | null; chimneys: number[] }
 
 export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): ChunkDecor | null {
   const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
   winGlow = GFX.nightWindows ? buckets[WINDOW] : null;
   shopGlow = buckets[GLOW];
   propSink = PROPS ? new ChunkProps() : null;
+  chimneySink = [];
   const [ckx, cky] = key.split(',').map(Number);
   const ox = ckx * CHUNK, oy = cky * CHUNK;
 
@@ -9457,6 +9462,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
           const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
           const along = (rng() - 0.5) * obb.hl * 0.8;
           buckets[BRICK].box(obb.cx + along * ca, obb.cz + along * sa, 3.2, 3.2, eaveAbs + ridgeH - 4, eaveAbs + ridgeH + 7, '#fdfcf8', 1);
+          chimney(obb.cx + along * ca, eaveAbs + ridgeH + 7, obb.cz + along * sa);
         }
       }
       if (b.k === 'church') {
@@ -10407,7 +10413,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   propSink = null;
   let total = 0;
   for (const bk of buckets) total += bk.pos.length;
-  if (!total) return props ? { mesh: null, props } : null;
+  if (!total) { const ch = chimneySink ?? []; chimneySink = null; return props ? { mesh: null, props, chimneys: ch } : null; }
 
   // copy via typed-array set — spreading huge buckets into push() blows the call stack
   const pos = new Float32Array(total);
@@ -10434,7 +10440,9 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   const mesh = new THREE.Mesh(geo, decorMaterials());
   mesh.castShadow = true;
   mesh.receiveShadow = true;
-  return { mesh, props };
+  const chimneys = chimneySink ?? [];
+  chimneySink = null;
+  return { mesh, props, chimneys };
 }
 
 function flatRoofPlank(bk: Bucket, ring: number[], h: number) {

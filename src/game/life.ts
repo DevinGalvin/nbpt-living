@@ -304,6 +304,81 @@ export function setCarLightsNight(night: number) {
   headMat.visible = tailMat!.visible = poolMat!.visible = on > 0.01;
 }
 
+// Wood smoke from the chimneys: in winter all day, on fall evenings. Each of the nearest
+// chimneys gets a short column of six soft puffs that rise, drift downwind, swell and
+// thin out over four seconds. Sprites with their own materials so each fades on its own.
+let puffTex: THREE.CanvasTexture | null = null;
+function puffTexture(): THREE.CanvasTexture {
+  if (puffTex) return puffTex;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grd.addColorStop(0, 'rgba(225,222,218,0.75)');
+  grd.addColorStop(0.5, 'rgba(210,208,205,0.3)');
+  grd.addColorStop(1, 'rgba(200,200,200,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
+  puffTex = new THREE.CanvasTexture(c);
+  return puffTex;
+}
+const SMOKE_EMITTERS = 18, PUFFS = 6, PUFF_LIFE = 4.2;
+class Smoke {
+  private emitters: { x: number; y: number; z: number; puffs: { s: THREE.Sprite; m: THREE.SpriteMaterial; age: number; jx: number; jz: number }[] }[] = [];
+  private acc = 1;
+  private on = 0;
+  constructor(private scene: THREE.Scene) {
+    for (let i = 0; i < SMOKE_EMITTERS; i++) {
+      const puffs = [];
+      for (let k = 0; k < PUFFS; k++) {
+        const m = new THREE.SpriteMaterial({ map: puffTexture(), transparent: true, depthWrite: false, opacity: 0, fog: true });
+        const s = new THREE.Sprite(m);
+        s.visible = false;
+        scene.add(s);
+        puffs.push({ s, m, age: (k / PUFFS) * PUFF_LIFE, jx: 0, jz: 0 });
+      }
+      this.emitters.push({ x: 0, y: 0, z: 1e7, puffs });
+    }
+  }
+  /** pick the nearest chimneys once a second; animate every frame */
+  update(dt: number, px: number, pz: number, night: number, chimneys: () => Iterable<number[]>) {
+    const want = SEASON === 'winter' ? 1 : SEASON === 'fall' ? Math.max(0, Math.min(1, (night - 0.25) * 3)) : 0;
+    this.on += (want - this.on) * Math.min(1, dt * 1.5);
+    if (this.on < 0.02) { for (const e of this.emitters) for (const p of e.puffs) p.s.visible = false; return; }
+    this.acc += dt;
+    if (this.acc > 1) {
+      this.acc = 0;
+      const near: { x: number; y: number; z: number; d: number }[] = [];
+      for (const list of chimneys()) {
+        for (let i = 0; i < list.length; i += 3) {
+          const d = (list[i] - px) ** 2 + (list[i + 2] - pz) ** 2;
+          if (d < 1100 * 1100) near.push({ x: list[i], y: list[i + 1], z: list[i + 2], d });
+        }
+      }
+      near.sort((a, b) => a.d - b.d);
+      // only about half the houses have a fire going; a stable hash decides which
+      const lit = near.filter((c) => hash32(Math.round(c.x), Math.round(c.z), 19) % 100 < 55).slice(0, SMOKE_EMITTERS);
+      for (let i = 0; i < this.emitters.length; i++) {
+        const e = this.emitters[i], c = lit[i];
+        if (!c) { e.z = 1e7; for (const p of e.puffs) p.s.visible = false; continue; }
+        if (e.x !== c.x || e.z !== c.z) { e.x = c.x; e.y = c.y; e.z = c.z; }
+      }
+    }
+    for (const e of this.emitters) {
+      if (e.z > 1e6) continue;
+      for (const p of e.puffs) {
+        p.age += dt;
+        if (p.age >= PUFF_LIFE) { p.age -= PUFF_LIFE; p.jx = (Math.random() - 0.5) * 2; p.jz = (Math.random() - 0.5) * 2; }
+        const t = p.age / PUFF_LIFE;
+        p.s.visible = true;
+        // up, then downwind (the same south-west wind the clouds ride), swelling as it thins
+        p.s.position.set(e.x + p.jx * 2 + t * t * 14 + t * 3, e.y + 2 + t * 34, e.z + p.jz * 2 - t * t * 9);
+        const sz = 3 + t * 11;
+        p.s.scale.set(sz, sz, 1);
+        p.m.opacity = this.on * 0.42 * Math.sin(Math.PI * Math.min(1, t * 1.15)) * (1 - t * 0.35);
+      }
+    }
+  }
+}
+
 class TrafficCar {
   root = new THREE.Group();
   pts: number[] = [];
@@ -1116,6 +1191,9 @@ class Sledder {
 export class Life {
   private index: WorldIndex;
   private peds: Walker[] = [];
+  private smoke: Smoke;
+  /** the chimney tops of every loaded chunk (set by Game) */
+  chimneySource: () => Iterable<number[]> = () => [];
   private cars: TrafficCar[] = [];
   private boats: WanderBoat[] = [];
   private gulls: Gull[] = [];
@@ -1131,6 +1209,7 @@ export class Life {
 
   constructor(scene: THREE.Scene, index: WorldIndex) {
     this.index = index;
+    this.smoke = new Smoke(scene);
     for (let i = 0; i < PEDS; i++) {
       // in fall, ~45% of the folks out walking are costumed trick-or-treaters
       const costume = SEASON === 'fall' && hash32(i, 53, 11) % 100 < 45
@@ -1362,6 +1441,7 @@ export class Life {
 
   update(dt: number, px: number, pz: number, t: number, fx: number, fz: number, night = 0) {
     const rng = mulberry32(hash32(Math.floor(t), 3, 7));
+    this.smoke.update(dt, px, pz, night, this.chimneySource);
 
     for (const p of this.peds) {
       const dx = p.root.position.x - px, dz = p.root.position.z - pz;
