@@ -554,17 +554,27 @@ export class WorldIndex {
       if (seen.has(ri)) continue;
       seen.add(ri);
       const r = this.world.roads[ri];
-      if (!['residential', 'unclassified', 'living_street', 'tertiary'].includes(r.c)) continue;
+      // High Street is a secondary road and the best-treed street in town; the
+      // downtown core keeps its planters and its bare brick
+      if (!['residential', 'unclassified', 'living_street', 'tertiary', 'secondary'].includes(r.c)) continue;
+      if (r.c === 'secondary' && this.downtownRoad(ri)) continue;
       walkLine(r.p, 88, (x, y, nx, ny) => {
         for (const s of [1, -1]) {
-          const px = x - ny * s * (r.w / 2 + 14);
-          const py = y + nx * s * (r.w / 2 + 14);
-          if (px < ox || px >= ox + CHUNK || py < oy || py >= oy + CHUNK) continue;
-          const rng = mulberry32(hash32(Math.round(px), Math.round(py), 55));
-          if (rng() > 0.65) continue;
-          if (this.onPavementOrBuilding(px, py, bucket)) continue;
-          if (this.isWaterAt(px, py) || this.onClearedGround(px, py, bucket)) continue;
-          out.push({ x: px, y: py, r: 8 + rng() * 6, bush: false });
+          // just off the kerb; where a mapped sidewalk takes that strip (High Street),
+          // the tree stands behind it, in the front yards
+          for (const off of [14, 46]) {
+            const px = x - ny * s * (r.w / 2 + off);
+            const py = y + nx * s * (r.w / 2 + off);
+            if (px < ox || px >= ox + CHUNK || py < oy || py >= oy + CHUNK) break;
+            const rng = mulberry32(hash32(Math.round(px), Math.round(py), 55));
+            if (rng() > 0.65) break;
+            if (this.onPavementOrBuilding(px, py, bucket)) continue;
+            if (this.isWaterAt(px, py) || this.onClearedGround(px, py, bucket)) break;
+            // one street tree in four is an old one: the maples and elms that arch over
+            // High Street stand half again as tall as the houses
+            out.push({ x: px, y: py, r: rng() < 0.28 ? 24 + rng() * 10 : 8 + rng() * 6, bush: false });
+            break;
+          }
         }
       });
     }
@@ -603,7 +613,7 @@ export class WorldIndex {
           !this.onPavementOrBuilding(qx, qy, bucket) && !this.isWaterAt(qx, qy) && !this.onClearedGround(qx, qy, bucket);
         if (crownClear(px, py) && crownClear(px + 9, py) && crownClear(px - 9, py)
           && crownClear(px, py + 9) && crownClear(px, py - 9)) {
-          out.push({ x: px, y: py, r: 8 + rng() * 7, bush: false });
+          out.push({ x: px, y: py, r: rng() < 0.22 ? 20 + rng() * 9 : 8 + rng() * 7, bush: false });
         }
       }
       const shrubs = 2 + Math.floor(rng() * 4);
