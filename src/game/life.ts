@@ -385,15 +385,17 @@ class Smoke {
 // amber, red for the other phase's turn. Lit day and night, as signals are.
 const SIGNAL_HEADS = 20, SIGNAL_CYCLE = 26;
 class Signals {
-  private heads: { s: THREE.Sprite[]; x: number; z: number; phase: number }[] = [];
+  private heads: { s: THREE.Mesh[]; x: number; z: number; phase: number }[] = [];
   private acc = 1;
   constructor(scene: THREE.Scene) {
     // the car-light texture: a hot core with a soft halo, so a lamp reads as a lamp at
-    // street distance and as a glow from a block away
-    const mk = (r: number, g: number, b: number) => new THREE.SpriteMaterial({ map: glowTex(r, g, b), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 1, fog: false });
+    // street distance and as a glow from a block away. A one-sided quad facing the
+    // approach, not a sprite: a lamp is dark from behind the head.
+    const mk = (r: number, g: number, b: number) => new THREE.MeshBasicMaterial({ map: glowTex(r, g, b), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 1, fog: false, side: THREE.FrontSide });
     const mats = [mk(255, 40, 24), mk(255, 176, 36), mk(60, 255, 100)];
+    const geo = new THREE.PlaneGeometry(4.2, 4.2);
     for (let i = 0; i < SIGNAL_HEADS; i++) {
-      const s = mats.map((m) => { const sp = new THREE.Sprite(m); sp.scale.set(4.2, 4.2, 1); sp.visible = false; scene.add(sp); return sp; });
+      const s = mats.map((m) => { const sp = new THREE.Mesh(geo, m); sp.visible = false; scene.add(sp); return sp; });
       this.heads.push({ s, x: 0, z: 1e7, phase: 0 });
     }
   }
@@ -416,7 +418,11 @@ class Signals {
         h.x = c.x; h.z = c.z; h.phase = c.phase;
         // the lamps sit on the head at the top of the post, on the face the arriving
         // traffic sees: red on top, amber, green
-        for (let k = 0; k < 3; k++) h.s[k].position.set(c.x + c.dx * 5.6, c.y + 33.5 - k * 2.7, c.z + c.dy * 5.6);   // clear of the head box, or the depth test hides it
+        for (let k = 0; k < 3; k++) {
+          const sp = h.s[k];
+          sp.position.set(c.x + c.dx * 5.6, c.y + 33.5 - k * 2.7, c.z + c.dy * 5.6);   // clear of the head box, or the depth test hides it
+          sp.lookAt(sp.position.x + c.dx * 10, sp.position.y, sp.position.z + c.dy * 10);   // facing the arriving traffic
+        }
       }
     }
     const cyc = t % SIGNAL_CYCLE;
