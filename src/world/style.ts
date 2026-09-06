@@ -129,7 +129,10 @@ export const STYLE = {
     // not just brown (driftwood grays, blue-grays, sage alongside the cedar tones)
     wallsShake: ['#b3a48c', '#a69884', '#998c78', '#bcae96', '#8f8470', '#9aa3a0', '#8b97a0', '#a8ad9e', '#b7b0a2', '#7e8a86'],
     awnings: ['#3f5d3a', '#7a2f2c', '#2c3e5c', '#8a6b3c', '#3c3c3e', '#5d3f63'],
-    cars: ['#b5443a', '#3e5c84', '#d8d5cc', '#3a3c40', '#7c8b96', '#5e7e54', '#c8b04a', '#8a4a68'],
+    // weighted like a real street (white, black, grey and silver are three cars in four;
+    // one red, one blue, the odd green or gold): a lot full of primaries read as a toy box
+    cars: ['#e8e6e0', '#e8e6e0', '#e8e6e0', '#dcdad4', '#2e3034', '#2e3034', '#3a3c40', '#6f7378', '#6f7378', '#8c9096',
+      '#b4b8bd', '#a9adb2', '#3e5c84', '#2f4a72', '#b5443a', '#5e7e54', '#c8b04a', '#8a4a68'],
     wallsCommercial: ['#fdfcf8', '#faf8f2', '#f8f5ec'], // tint over the real brick texture
     // Untextured masonry for the share of downtown blocks a city builds in
     // something other than brick — Quincy granite, limestone, buff and grey
