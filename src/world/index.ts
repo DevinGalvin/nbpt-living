@@ -1292,7 +1292,9 @@ export class WorldIndex {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     for (const r of roads) {
-      ctx.strokeStyle = r.b ? STYLE.road.bridgeCasing : STYLE.road.casing;
+      // a service way has no kerb: a parking aisle outlined in the black street casing
+      // read as skid marks between the parked cars
+      ctx.strokeStyle = r.b ? STYLE.road.bridgeCasing : r.c === 'service' ? '#72757a' : STYLE.road.casing;
       ctx.lineWidth = r.w + (r.b ? 8 : 5);
       strokeLine(ctx, r.p);
     }
@@ -1305,7 +1307,7 @@ export class WorldIndex {
     // tar), and a grimy strip along each kerb where the sweeper never quite reaches
     if (SEASON !== 'winter') {
       for (const r of roads) {
-        if (r.w < 18 || r.b) continue;
+        if (r.w < 18 || r.b || r.c === 'service') continue;   // a parking aisle wears no visible tracks; on a lot they read as skid marks
         const lanes = r.w >= 40 ? 4 : 2;
         const laneW = r.w / lanes;
         ctx.strokeStyle = 'rgba(0,0,0,0.085)';
@@ -1426,7 +1428,7 @@ export class WorldIndex {
       for (const r of aisles) {
         walkLine(r.p, 21, (x, y, tx, ty) => {
           for (const side of [1, -1]) {
-            const o0 = r.w / 2 + 1, o1 = r.w / 2 + 22;
+            const o0 = r.w / 2 + 1, o1 = r.w / 2 + 40;   // a five-metre stall
             for (const d of [-10.5, 10.5]) {
               const sx = x + tx * d, sy = y + ty * d;
               ctx.moveTo(sx - ty * side * o0, sy + tx * side * o0);

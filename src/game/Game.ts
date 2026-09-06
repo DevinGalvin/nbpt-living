@@ -1103,6 +1103,7 @@ export class Game {
     if (e.decor) {
       this.scene.remove(e.decor);
       e.decor.geometry.dispose();
+      for (const c of e.decor.children) if ((c as THREE.Mesh).geometry) (c as THREE.Mesh).geometry.dispose();
     }
     if (e.props) {
       this.scene.remove(e.props);

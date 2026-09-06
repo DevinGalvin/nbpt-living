@@ -17,6 +17,10 @@ let propSink: ChunkProps | null = null;
 let chimneySink: number[] | null = null;
 // traffic-signal heads placed this chunk: x, y, z, approach dx, dy, phase — Life lights them
 let signalSink: number[] | null = null;
+// the utility wires go in their own bucket: a wire's shadow on the shadow map is a bold
+// black arc across a lawn (the map's texel is far wider than the wire), so their mesh
+// casts none
+let wireSink: Bucket | null = null;
 function chimney(x: number, y: number, z: number) { chimneySink?.push(x, y, z); }
 import { gillisCenter } from './gillis';
 import { TOWN } from '@town';
@@ -3508,6 +3512,24 @@ function yardFence(buckets: Bucket[], b: Building, g: number, index: WorldIndex,
       x + f.tx * 0.6, y + 3.9, z + f.tz * 0.6, x - f.tx * 0.6, y + 3.9, z - f.tz * 0.6, f.nx, 0, f.nz, pr * 0.96, pg * 0.96, pb * 0.96);
   }
   flush(L);
+}
+
+// One overhead wire between two points: a sagging two-segment line drawn as a thin
+// cross of quads (a vertical face and a flat one) so it reads from the street and from
+// the air alike. Goes in the no-shadow wire bucket: a wire's shadow through the shadow
+// map's filter is a bold black arc across whatever lies under it.
+const WIRE_C = new THREE.Color('#3b3e42');
+function wireSpan(bk: Bucket, ax: number, ay: number, az: number, bx: number, by: number, bz: number, sag: number) {
+  const wr = WIRE_C.r, wg = WIRE_C.g, wb = WIRE_C.b;
+  const mx = (ax + bx) / 2, mz = (az + bz) / 2, my = (ay + by) / 2 - sag;
+  const dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz) || 1;
+  const nx = -dz / l, nz = dx / l;
+  const seg = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number) => {
+    bk.quad(x0, y0, z0, x1, y1, z1, x1, y1 + 0.34, z1, x0, y0 + 0.34, z0, nx, 0, nz, wr, wg, wb);
+    bk.quad(x0 - nx * 0.17, y0, z0 - nz * 0.17, x1 - nx * 0.17, y1, z1 - nz * 0.17, x1 + nx * 0.17, y1, z1 + nz * 0.17, x0 + nx * 0.17, y0, z0 + nz * 0.17, 0, 1, 0, wr, wg, wb);
+  };
+  seg(ax, ay, az, mx, my, mz);
+  seg(mx, my, mz, bx, by, bz);
 }
 
 // Foundation planting: the row of clipped shrubs against the front wall, either side
@@ -9920,6 +9942,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   propSink = PROPS ? new ChunkProps() : null;
   chimneySink = [];
   signalSink = [];
+  wireSink = new Bucket();
   const [ckx, cky] = key.split(',').map(Number);
   const ox = ckx * CHUNK, oy = cky * CHUNK;
 
@@ -10553,7 +10576,8 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         walkLineD(r.p, 21, (x, z, tx, tz) => {
           if (cars >= 130) return;
           for (const sSide of [1, -1] as const) {
-            const off = r.w / 2 + 11;
+            // a stall is a car long: the nose at the aisle's edge, not over its centre line
+            const off = r.w / 2 + 20;
             const sx = x - tz * sSide * off, sz = z + tx * sSide * off;
             if (sx < ox || sx >= ox + CHUNK || sz < oy || sz >= oy + CHUNK) continue;
             const h2 = hash32(Math.round(sx * 2), Math.round(sz * 2), 97);
@@ -10708,20 +10732,8 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   {
     const { poles, wires } = index.polesFor(key);
     const POLE_H = 62;
-    const wireBk = buckets[PLAIN];
-    tmp.set('#3b3e42');
-    const wr = tmp.r, wg = tmp.g, wb = tmp.b;
-    const wire = (ax: number, ay: number, az: number, bx: number, by: number, bz: number, sag: number) => {
-      const mx = (ax + bx) / 2, mz = (az + bz) / 2, my = (ay + by) / 2 - sag;
-      const dx = bx - ax, dz = bz - az, l = Math.hypot(dx, dz) || 1;
-      const nx = -dz / l, nz = dx / l;
-      const seg = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number) => {
-        wireBk.quad(x0, y0, z0, x1, y1, z1, x1, y1 + 0.34, z1, x0, y0 + 0.34, z0, nx, 0, nz, wr, wg, wb);
-        wireBk.quad(x0 - nx * 0.17, y0, z0 - nz * 0.17, x1 - nx * 0.17, y1, z1 - nz * 0.17, x1 + nx * 0.17, y1, z1 + nz * 0.17, x0 + nx * 0.17, y0, z0 + nz * 0.17, 0, 1, 0, wr, wg, wb);
-      };
-      seg(ax, ay, az, mx, my, mz);
-      seg(mx, my, mz, bx, by, bz);
-    };
+    const wireBk = wireSink ?? buckets[PLAIN];
+    const wire = (ax: number, ay: number, az: number, bx: number, by: number, bz: number, sag: number) => wireSpan(wireBk, ax, ay, az, bx, by, bz, sag);
     for (const p of poles) {
       const g = index.heightAtPx(p.x, p.y);
       const top = g + POLE_H;
@@ -10766,7 +10778,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         rotBox(buckets[PLAIN], px2, pz2, tall ? 9 : 6.5, 0.55, g + poleH - 4.2, g + poleH - 3, ang, tall ? '#6e7174' : '#6a4f36');
       }
     }
-    tmp.set('#33363a');
+    const wbk = wireSink ?? buckets[PLAIN];
     for (let i = 0; i + 3 < pts.length; i += 2) {
       const x0 = pts[i], z0 = pts[i + 1], x1 = pts[i + 2], z1 = pts[i + 3];
       const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
@@ -10779,12 +10791,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const nx = -(z1 - z0) / span, nz = (x1 - x0) / span;
       const offs = tall ? [-7, 0, 7] : [-4.6, 4.6];
       for (const off of offs) {
-        const ax = x0 + nx * off, az = z0 + nz * off;
-        const bx = x1 + nx * off, bz = z1 + nz * off;
-        const cx2 = (ax + bx) / 2, cz2 = (az + bz) / 2;
-        const my = (y0w + y1w) / 2 - sag;
-        buckets[PLAIN].quad(ax, y0w, az, cx2, my, cz2, cx2, my + 0.5, cz2, ax, y0w + 0.5, az, nx, 0, nz, tmp.r, tmp.g, tmp.b);
-        buckets[PLAIN].quad(cx2, my, cz2, bx, y1w, bz, bx, y1w + 0.5, bz, cx2, my + 0.5, cz2, nx, 0, nz, tmp.r, tmp.g, tmp.b);
+        wireSpan(wbk, x0 + nx * off, y0w, z0 + nz * off, x1 + nx * off, y1w, z1 + nz * off, sag);
       }
     }
   }
@@ -11167,7 +11174,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   propSink = null;
   let total = 0;
   for (const bk of buckets) total += bk.pos.length;
-  if (!total) { const ch = chimneySink ?? [], sg = signalSink ?? []; chimneySink = null; signalSink = null; return props ? { mesh: null, props, chimneys: ch, signals: sg } : null; }
+  if (!total) { const ch = chimneySink ?? [], sg = signalSink ?? []; chimneySink = null; signalSink = null; wireSink = null; return props ? { mesh: null, props, chimneys: ch, signals: sg } : null; }
 
   // copy via typed-array set — spreading huge buckets into push() blows the call stack
   const pos = new Float32Array(total);
@@ -11194,6 +11201,18 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   const mesh = new THREE.Mesh(geo, decorMaterials());
   mesh.castShadow = true;
   mesh.receiveShadow = true;
+  if (wireSink && wireSink.pos.length) {
+    const wg = new THREE.BufferGeometry();
+    wg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(wireSink.pos), 3));
+    wg.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(wireSink.norm), 3));
+    wg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(wireSink.col), 3));
+    wg.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(wireSink.uv), 2));
+    const wm = new THREE.Mesh(wg, decorMaterials()[PLAIN]);
+    wm.castShadow = false;
+    wm.receiveShadow = false;
+    mesh.add(wm);   // rides with the chunk; Game disposes the children's geometry with the parent's
+  }
+  wireSink = null;
   const chimneys = chimneySink ?? [];
   chimneySink = null;
   const signals = signalSink ?? [];
