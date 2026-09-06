@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { WorldData } from '../world/types';
 import type { Terrain } from '../world/terrain';
 import { CHUNK } from '../world/index';
-import { STYLE, pick, hash32 } from '../world/style';
+import { STYLE, TREES, pick, hash32 } from '../world/style';
 import { buildingDims, wallHexFor, ringAreaM2 } from './decor';
 
 // The town beyond the chunk ring. Detailed chunks reach a few hundred metres; past
@@ -61,6 +61,64 @@ export function buildFarTown(world: WorldData, terrain: Terrain): Map<string, TH
       for (let k = 0; k < 3; k++) { cell.nor.push(0, 1, 0); cell.col.push(rr, rg, rb); }
     }
   });
+  // The woods, as canopy slabs: every wood and scrub polygon extruded to canopy height,
+  // its top lifted per vertex with the ground and jittered so it is not a plateau, its
+  // sides in shade. From beyond the ring a forest IS a green mass with a dark edge; the
+  // slab costs a few triangles per polygon where the trees themselves would cost millions.
+  const cellFor = (x: number, z: number) => {
+    const key = Math.floor(x / CHUNK) + ',' + Math.floor(z / CHUNK);
+    let cell = cells.get(key);
+    if (!cell) { cell = { pos: [], nor: [], col: [] }; cells.set(key, cell); }
+    return cell;
+  };
+  const leaf = new THREE.Color(TREES.deciduous[0]).lerp(new THREE.Color(TREES.pine), 0.45).multiplyScalar(0.92);
+  world.polys.forEach((poly, pi) => {
+    if (poly.k !== 'wood' && poly.k !== 'scrub') return;
+    const H = poly.k === 'wood' ? 26 : 12;
+    const ring: THREE.Vector2[] = [];
+    for (let i = 0; i < poly.p.length; i += 2) ring.push(new THREE.Vector2(poly.p[i], poly.p[i + 1]));
+    if (ring.length < 3) return;
+    if (THREE.ShapeUtils.isClockWise(ring)) ring.reverse();
+    const holes: THREE.Vector2[][] = (poly.h ?? []).map((h) => {
+      const r: THREE.Vector2[] = [];
+      for (let i = 0; i < h.length; i += 2) r.push(new THREE.Vector2(h[i], h[i + 1]));
+      if (!THREE.ShapeUtils.isClockWise(r)) r.reverse();
+      return r;
+    });
+    const all = ring.concat(...holes);
+    const topY = (v: THREE.Vector2, i: number) => terrain.heightAt(v.x, v.y) + H * (0.85 + (hash32(pi, i, 5) % 100) / 330);
+    const tops = all.map(topY);
+    let tris: number[][];
+    try { tris = THREE.ShapeUtils.triangulateShape(ring, holes); } catch { return; }
+    for (const [i0, i1, i2] of tris) {
+      const a = all[i0], b = all[i1], c = all[i2];
+      const cell = cellFor((a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3);
+      cell.pos.push(a.x, tops[i0], a.y, b.x, tops[i1], b.y, c.x, tops[i2], c.y);
+      for (const k of [i0, i1, i2]) {
+        const j = 0.86 + (hash32(pi, k, 9) % 100) / 360;
+        cell.nor.push(0, 1, 0); cell.col.push(leaf.r * j, leaf.g * j, leaf.b * j);
+      }
+    }
+    // the shaded sides, along the outer ring and each hole
+    const sides = (r: THREE.Vector2[], base: number) => {
+      for (let i = 0; i < r.length; i++) {
+        const a = r[i], b = r[(i + 1) % r.length];
+        const ex = b.x - a.x, ez = b.y - a.y, len = Math.hypot(ex, ez);
+        if (len < 0.5) continue;
+        const nx = ez / len, nz = -ex / len;
+        const ya = terrain.heightAt(a.x, a.y), yb = terrain.heightAt(b.x, b.y);
+        const ta = tops[base + i], tb = tops[base + (i + 1) % r.length];
+        const cell = cellFor((a.x + b.x) / 2, (a.y + b.y) / 2);
+        cell.pos.push(a.x, ya, a.y, b.x, yb, b.y, b.x, tb, b.y, a.x, ya, a.y, b.x, tb, b.y, a.x, ta, a.y);
+        const sh = 0.55 + 0.2 * Math.max(0, nx * 0.35 + nz * 0.85);
+        for (let k = 0; k < 6; k++) { cell.nor.push(nx, 0, nz); cell.col.push(leaf.r * sh, leaf.g * sh, leaf.b * sh); }
+      }
+    };
+    sides(ring, 0);
+    let base = ring.length;
+    for (const h of holes) { sides(h, base); base += h.length; }
+  });
+
   const out = new Map<string, THREE.Mesh>();
   for (const [key, c] of cells) {
     const geo = new THREE.BufferGeometry();
