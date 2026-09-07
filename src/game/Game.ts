@@ -742,6 +742,7 @@ export class Game {
       // B barks (Devin's pick); F stays as a quiet alias for anyone who learned it
       window.addEventListener('keydown', (e) => { if ((e.code === 'KeyB' || e.code === 'KeyF') && !e.repeat && !this.hud.dialogueOpen) this.barkPress(); });
       window.addEventListener('keydown', (e) => { if (e.code === 'KeyP' && !e.repeat && !this.hud.dialogueOpen) this.takePhoto(); });
+      document.querySelector('#hud .photo-btn')?.addEventListener('click', () => this.takePhoto());
       window.addEventListener('keyup', (e) => { if (e.code === 'KeyB' || e.code === 'KeyF') this.barkRelease(); });
       this.hud.setDogControls();   // BARK = B, SKATE = K, skateboard icon, help line
     }

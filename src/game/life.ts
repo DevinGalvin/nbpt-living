@@ -715,6 +715,67 @@ function buildMailTruck(root: THREE.Group, wheels: THREE.Object3D[], beacons: Be
   beacon(root, beacons, 'amber', 6, 8.5, -18.5, 0, 1.4, 6);
 }
 
+// ⛵ the small boats: a kayak with a paddler, an Optimist dinghy with a kid at the
+// tiller, the sailing school's coach boat. Each steers itself toward a target.
+class SmallBoat {
+  root = new THREE.Group();
+  heading = 0;
+  speed = 0;
+  private paddle: THREE.Object3D | null = null;
+  private sail: THREE.Object3D | null = null;
+  private phase = Math.random() * 6;
+  constructor(readonly kind: 'kayak' | 'opti' | 'coach', seed: number) {
+    const rng = mulberry32(seed);
+    if (kind === 'kayak') {
+      const hex = ['#e0523f', '#3f7fc4', '#e8b53c', '#52a06b', '#ff8c42', '#7a52c4'][Math.floor(rng() * 6)];
+      const hullGeo = new THREE.CapsuleGeometry(3, 24, 3, 8); hullGeo.rotateX(Math.PI / 2);
+      const hull = new THREE.Mesh(hullGeo, mat(hex)); hull.scale.set(1, 0.55, 1); hull.position.y = 1; hull.castShadow = true; this.root.add(hull);
+      const pit = box(3.6, 1, 7, '#2a2a2a'); pit.position.set(0, 2.2, -1); pit.castShadow = false; this.root.add(pit);
+      const body = box(4.4, 5, 3.2, SHIRTS[Math.floor(rng() * SHIRTS.length)]); body.position.set(0, 4.6, -1.5); this.root.add(body);
+      const head = sph(2.2, SKINS[Math.floor(rng() * SKINS.length)]); head.position.set(0, 8.6, -1.5); this.root.add(head);
+      const pd = new THREE.Group(); pd.position.set(0, 6.5, 0.5);
+      const shaft = box(24, 0.6, 0.6, '#3a3a3a'); shaft.castShadow = false; pd.add(shaft);
+      for (const sx of [-1, 1]) { const bl = box(4, 0.4, 3, '#e8e2d0'); bl.position.x = sx * 11; bl.castShadow = false; pd.add(bl); }
+      this.root.add(pd); this.paddle = pd;
+    } else if (kind === 'opti') {
+      const hull = rbox(11, 4, 20, 1.2, '#f4f1e8'); hull.position.y = 1.5; this.root.add(hull);
+      const bottom = box(11.4, 1.2, 20.4, '#2a3a4a'); bottom.position.y = 0.2; bottom.castShadow = false; this.root.add(bottom);
+      const mast = box(0.8, 22, 0.8, '#d8d2c0'); mast.position.set(0, 13, 6); this.root.add(mast);
+      const sl = new THREE.Group(); sl.position.set(0, 13, 6);
+      const cloth = new THREE.Mesh(new THREE.PlaneGeometry(13, 15), new THREE.MeshLambertMaterial({ color: '#f6f3ea', side: THREE.DoubleSide }));
+      cloth.position.set(0, 3, -7); cloth.castShadow = true; sl.add(cloth);
+      const patch = new THREE.Mesh(new THREE.PlaneGeometry(4, 3), new THREE.MeshLambertMaterial({ color: ['#e0523f', '#3f7fc4', '#e8b53c', '#52a06b'][Math.floor(rng() * 4)], side: THREE.DoubleSide }));
+      patch.position.set(0.05, 6, -8); sl.add(patch);
+      this.root.add(sl); this.sail = sl;
+      const kid = box(3.2, 3.6, 2.6, SHIRTS[Math.floor(rng() * SHIRTS.length)]); kid.position.set(2.5, 4.5, -4); this.root.add(kid);
+      const head = sph(1.8, SKINS[Math.floor(rng() * SKINS.length)]); head.position.set(2.5, 7.4, -4); this.root.add(head);
+      const vest = box(3.4, 2, 2.8, '#ff8c42'); vest.position.set(2.5, 4.8, -4); vest.castShadow = false; this.root.add(vest);
+    } else {
+      const hull = rbox(11, 4, 28, 2, '#8a8f95'); hull.position.y = 1.8; this.root.add(hull);
+      for (const sx of [-1, 1]) { const tube = rbox(3.2, 3, 26, 1.4, '#3a3f45'); tube.position.set(sx * 5, 3.4, -1); this.root.add(tube); }
+      const con = box(5, 5, 4, '#c9ccd0'); con.position.set(0, 6, 4); this.root.add(con);
+      const body = box(4.4, 6, 3.2, '#c8262a'); body.position.set(0, 8, 0); this.root.add(body);
+      const head = sph(2.2, '#d9a06e'); head.position.set(0, 12.4, 0); this.root.add(head);
+      const motor = box(3, 5, 3, '#2a2a2a'); motor.position.set(0, 4, -15); this.root.add(motor);
+    }
+  }
+  /** steer toward (tx,tz) at `want` px/s; returns the distance left */
+  step(dt: number, t: number, tx: number, tz: number, want: number): number {
+    const dx = tx - this.root.position.x, dz = tz - this.root.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 1) this.heading = lerpAngle(this.heading, Math.atan2(dx, dz), Math.min(1, dt * (this.kind === 'kayak' ? 2.2 : 1.4)));
+    this.speed += (want - this.speed) * Math.min(1, dt * 1.5);
+    this.root.position.x += Math.sin(this.heading) * this.speed * dt;
+    this.root.position.z += Math.cos(this.heading) * this.speed * dt;
+    this.root.position.y = WATER_Y + TIDE.value + Math.sin(t * 1.7 + this.phase) * 0.5;
+    this.root.rotation.y = this.heading;
+    this.root.rotation.z = Math.sin(t * 1.3 + this.phase) * 0.04;
+    if (this.paddle) { const k = Math.min(1, this.speed / 40); this.paddle.rotation.z = Math.sin(t * 5.5 + this.phase) * 0.55 * k; this.paddle.rotation.y = Math.sin(t * 5.5 + this.phase) * 0.25 * k; }
+    if (this.sail) this.sail.rotation.y = 0.5 + Math.sin(t * 0.7 + this.phase) * 0.25;
+    return d;
+  }
+}
+
 // 🚧 a grade crossing: where a street crosses the line, a gate on the right-hand
 // approach of each side — post, crossbuck, two red lamps that alternate, and the
 // striped arm that drops while the train is near. Cars stop at the arm.
@@ -1754,6 +1815,19 @@ export class Life {
   private kids: Walker[] = [];
   private train: Train | null = null;
   private crossings: Crossing[] = [];
+  // 🛶 the kayak heat off the landing, and the sailing school's line behind the coach
+  private kayaks: { b: SmallBoat; leg: 'out' | 'back' | 'done'; lane: number; pace: number }[] = [];
+  private raceOn = false;
+  private raceT = 0;             // seconds left in the heat
+  private raceNext = 120;        // seconds until the next heat
+  private raceStart = { x: 0, z: 0 };
+  private raceBuoy = { x: 0, z: 0 };
+  private buoy: THREE.Mesh | null = null;
+  private optis: SmallBoat[] = [];
+  private coach: SmallBoat | null = null;
+  private coachTarget = { x: 0, z: 0 };
+  private schoolOn = false;
+  private forceRegatta = false;
   // 🎅 the Santa parade: the engine down the parade street at a walk, elves behind
   private elves: Walker[] = [];
   private paradeRoad: { pts: number[]; total: number; dir: number; w: number } | null = null;
@@ -1869,6 +1943,51 @@ export class Life {
       }
     }
     this.forceParade = q?.get('parade') === '1';
+    this.forceRegatta = q?.get('regatta') === '1';
+    if (SEASON === 'summer' || this.forceRegatta) {
+      // the kayak heat starts from the landing nearest the middle of town
+      const slips = index.world.pois.filter((p) => p.k === 'slipway');
+      slips.sort((a, b) => (a.x * a.x + a.y * a.y) - (b.x * b.x + b.y * b.y));
+      if (slips.length) {
+        const sp = slips[0];
+        // the start line sits on open water off the slip; the buoy is out where the water is widest
+        let bestA = -1, bestD = 0;
+        for (let k = 0; k < 16; k++) {
+          const a = (k / 16) * Math.PI * 2;
+          let reach = 0;
+          for (let d = 40; d <= 900; d += 30) { if (this.clearWater(sp.x + Math.sin(a) * d, sp.y + Math.cos(a) * d, 40)) reach = d; else if (reach > 0) break; }
+          if (reach > bestD) { bestD = reach; bestA = a; }
+        }
+        if (bestA >= 0 && bestD >= 300) {
+          this.raceStart = { x: sp.x + Math.sin(bestA) * 90, z: sp.y + Math.cos(bestA) * 90 };
+          const out = Math.min(bestD - 60, 520);
+          this.raceBuoy = { x: sp.x + Math.sin(bestA) * out, z: sp.y + Math.cos(bestA) * out };
+          for (let i = 0; i < 6; i++) {
+            const b = new SmallBoat('kayak', i * 61 + 3);
+            b.root.position.set(0, 0, 1e7);
+            scene.add(b.root);
+            this.kayaks.push({ b, leg: 'done', lane: (i - 2.5) * 16, pace: 58 + (i * 7919 % 23) });
+          }
+          this.buoy = new THREE.Mesh(new THREE.SphereGeometry(3.4, 10, 8), mat('#ff7a1a'));
+          this.buoy.position.set(0, 0, 1e7);
+          scene.add(this.buoy);
+        }
+      }
+      // the sailing school: five Optis and the coach, on the harbor off the boardwalk
+      const bw = index.world.landmarks.find((l) => l.id === 'boardwalk');
+      if (bw) {
+        this.coach = new SmallBoat('coach', 77);
+        this.coach.root.position.set(0, 0, 1e7);
+        scene.add(this.coach.root);
+        for (let i = 0; i < 5; i++) {
+          const o = new SmallBoat('opti', i * 131 + 9);
+          o.root.position.set(0, 0, 1e7);
+          scene.add(o.root);
+          this.optis.push(o);
+        }
+      }
+      this.raceNext = this.forceRegatta ? 0 : 60 + Math.random() * 120;
+    }
     this.forceConcert = q?.get('concert') === '1';
     // the parade route: the named street, walked toward the square
     const pr = TOWN.attractions.parade;
@@ -2457,6 +2576,97 @@ export class Life {
     for (let i = 0; i < c.players.length; i++) c.players[i].rotation.y = Math.sin(t * 1.3 + i * 2) * 0.12;
   }
 
+  /** 🛶 the heat: six kayaks abreast off the landing, out round the buoy and back, summer late mornings */
+  private updateRegatta(dt: number, t: number, px: number, pz: number, fx: number, fz: number, tod: number, rng: () => number) {
+    const window = this.forceRegatta || (SEASON === 'summer' && tod > 0.38 && tod < 0.6);
+    if (this.kayaks.length) {
+      if (!this.raceOn) {
+        this.raceNext -= dt;
+        if (window && this.raceNext <= 0 && this.okToSpawn(this.raceStart.x, this.raceStart.z, px, pz, fx, fz, 500, 2600)) {
+          // the field lines up on the start, the buoy goes out
+          this.raceOn = true; this.raceT = 140;
+          const a = Math.atan2(this.raceBuoy.x - this.raceStart.x, this.raceBuoy.z - this.raceStart.z);
+          for (const k of this.kayaks) {
+            k.leg = 'out';
+            k.b.root.position.set(this.raceStart.x + Math.cos(a) * k.lane, WATER_Y, this.raceStart.z - Math.sin(a) * k.lane);
+            k.b.heading = a; k.b.speed = 0;
+          }
+          this.buoy!.position.set(this.raceBuoy.x, WATER_Y + TIDE.value + 2, this.raceBuoy.z);
+        }
+      } else {
+        this.raceT -= dt;
+        let running = 0;
+        const a = Math.atan2(this.raceBuoy.x - this.raceStart.x, this.raceBuoy.z - this.raceStart.z);
+        for (const k of this.kayaks) {
+          if (k.leg === 'done') { k.b.step(dt, t, k.b.root.position.x, k.b.root.position.z, 0); continue; }
+          running++;
+          // out: aim for the buoy with your lane's offset; back: the start, same offset
+          const tgt = k.leg === 'out' ? this.raceBuoy : this.raceStart;
+          const tx = tgt.x + Math.cos(a) * k.lane * 0.6, tz = tgt.z - Math.sin(a) * k.lane * 0.6;
+          const left = k.b.step(dt, t, tx, tz, k.pace * (0.9 + 0.2 * Math.sin(t * 0.3 + k.lane)));
+          if (left < 40) { if (k.leg === 'out') k.leg = 'back'; else k.leg = 'done'; }
+        }
+        // everyone home (or the heat timed out) and nobody watching: pack up
+        if ((running === 0 || this.raceT <= 0) && this.okToSpawn(this.raceStart.x, this.raceStart.z, px, pz, fx, fz, 700, 2600)) {
+          this.raceOn = false; this.raceNext = 240 + rng() * 240;
+          for (const k of this.kayaks) k.b.root.position.set(0, 0, 1e7);
+          this.buoy!.position.set(0, 0, 1e7);
+        }
+      }
+    }
+    // the sailing school: the coach picks a way across clear water, the Optis tail him in a wobbly line
+    if (this.coach) {
+      const want = this.forceRegatta || (SEASON === 'summer' && tod > 0.36 && tod < 0.7);
+      if (!this.schoolOn) {
+        if (!want) return;
+        const bw = this.index.world.landmarks.find((l) => l.id === 'boardwalk');
+        if (!bw) return;
+        for (let tries = 0; tries < 10; tries++) {
+          const ang = rng() * Math.PI * 2, d = 250 + rng() * 500;
+          const x = bw.x + Math.sin(ang) * d, z = bw.y + Math.cos(ang) * d;
+          if (!this.clearWater(x, z, 60) || !this.okToSpawn(x, z, px, pz, fx, fz, 600, 2600)) continue;
+          this.coach.root.position.set(x, WATER_Y, z); this.coach.heading = rng() * Math.PI * 2;
+          for (let i = 0; i < this.optis.length; i++) { const o = this.optis[i]; o.root.position.set(x - Math.sin(this.coach.heading) * 40 * (i + 1), WATER_Y, z - Math.cos(this.coach.heading) * 40 * (i + 1)); o.heading = this.coach.heading; }
+          this.coachTarget = { x, z };
+          this.schoolOn = true;
+          break;
+        }
+        return;
+      }
+      if (!want && this.okToSpawn(this.coach.root.position.x, this.coach.root.position.z, px, pz, fx, fz, 700, 2600)) {
+        this.schoolOn = false;
+        this.coach.root.position.set(0, 0, 1e7);
+        for (const o of this.optis) o.root.position.set(0, 0, 1e7);
+        return;
+      }
+      const c = this.coach;
+      let left = Math.hypot(this.coachTarget.x - c.root.position.x, this.coachTarget.z - c.root.position.z);
+      if (left < 50) {
+        // a new leg across clear water, gentle turns
+        for (let tries = 0; tries < 10; tries++) {
+          const ang = c.heading + (rng() - 0.5) * (tries < 5 ? 1.6 : Math.PI * 2), d = 250 + rng() * 450;
+          let ok = true;
+          for (let s = 60; s <= d; s += 60) if (!this.clearWater(c.root.position.x + Math.sin(ang) * s, c.root.position.z + Math.cos(ang) * s, 40)) { ok = false; break; }
+          if (!ok) continue;
+          this.coachTarget = { x: c.root.position.x + Math.sin(ang) * d, z: c.root.position.z + Math.cos(ang) * d };
+          break;
+        }
+        left = 999;
+      }
+      c.step(dt, t, this.coachTarget.x, this.coachTarget.z, 36);
+      let prev: SmallBoat = c;
+      for (let i = 0; i < this.optis.length; i++) {
+        const o = this.optis[i];
+        // the spot 42 px astern of the boat ahead, with a wobble of its own
+        const tx = prev.root.position.x - Math.sin(prev.heading) * 42 + Math.sin(t * 0.6 + i) * 10;
+        const tz = prev.root.position.z - Math.cos(prev.heading) * 42 + Math.cos(t * 0.6 + i) * 10;
+        const d = Math.hypot(tx - o.root.position.x, tz - o.root.position.z);
+        o.step(dt, t, tx, tz, Math.min(44, d * 0.9));
+        prev = o;
+      }
+    }
+  }
+
   private roadSpot(px: number, pz: number, fx: number, fz: number, rng: () => number, classes: string[] = ROAD_CLASSES, near?: { x: number; z: number; r: number }): { pts: number[]; w: number; total: number; t: number; dir: number; c: string } | null {
     for (let tries = 0; tries < 12; tries++) {
       const ax = near ? near.x : px, az = near ? near.z : pz, span = near ? near.r * 2 : 4400;
@@ -2489,6 +2699,7 @@ export class Life {
     this.updateTrain(dt, px, pz, fx, fz);
     this.updateCrossings(dt, t / 1000, px, pz);
     this.updateParade(dt, px, pz, fx, fz, tod);
+    this.updateRegatta(dt, t / 1000, px, pz, fx, fz, tod, rng);
     this.updateConcert(dt, t / 1000, px, pz, fx, fz, tod);
     this.smoke.update(dt, px, pz, night, this.chimneySource);
     this.fireflies.update(dt, t, px, pz, night, this.index, (x, z) => this.groundAt(x, z));

@@ -132,6 +132,14 @@ const css = `
 }
 #hud .bag-btn:not(.show) ~ .settings-btn { top: 270px; }
 #hud.no-story .settings-btn { top: 206px !important; }
+#hud .photo-btn {
+  position: absolute; top: 398px; left: 14px; width: 44px; height: 44px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: top 0.3s ease;
+}
+#hud .bag-btn:not(.show) ~ .photo-btn { top: 334px; }
+#hud.no-story .photo-btn { top: 270px !important; }
 #hud.no-story:not(.has-class) .settings-btn { top: 142px !important; }
 #hud.no-story:not(.has-collect) .settings-btn { top: 78px !important; }
 /* a one-time nudge after a fresh visitor picks "just explore", so they know the
@@ -1681,6 +1689,7 @@ export class Hud {
       <div class="bag-btn" title="Backpack (I)">🎒<span class="bag-badge">NEW</span><span class="blab">BAG</span></div>
       <div class="bag-tip"></div>
       <div class="settings-btn" title="Settings">⚙️<span class="blab">SETTINGS</span></div>
+      <div class="photo-btn" title="Take a photo (P)">📷<span class="blab">PHOTO</span></div>
       <div class="settings-hint">📖 Story mode lives here — tap ⚙️ anytime</div>
       <div class="settings-pop">
         <div class="sp-hdr">SETTINGS</div>

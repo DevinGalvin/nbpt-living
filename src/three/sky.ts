@@ -342,10 +342,14 @@ export class Sky {
     const zen = NIGHT_ZEN.clone().lerp(DAY_ZEN, day).lerp(DUSK_ZEN, tw * 0.5);
     const hor = NIGHT_HOR.clone().lerp(DAY_HOR, day).lerp(DUSK_HOR, tw * 0.85);
     s.sunColor.copy(DUSK_SUN).lerp(DAY_SUN, day);
+    // golden hour: with the sun low but up, warm it and turn it up a notch and take a
+    // little off the sky, so the brick on the sunny side of the street catches fire
+    const golden = elev > 0.01 ? tw : 0;
+    if (golden > 0) s.sunColor.lerp(new THREE.Color('#ffb257'), golden * 0.45);
     // a little more sun and a little less sky than before, so a lit wall and a shaded
     // one are two different things
-    let sunI = 0.82 + day * 0.98;   // moonlight floor at night (brief night, so a bit brighter)
-    let hemiI = 0.8 - day * 0.02;   // moonlit ambient — visible, the dark spell is short now
+    let sunI = (0.82 + day * 0.98) * (1 + golden * 0.32);   // moonlight floor at night (brief night, so a bit brighter)
+    let hemiI = (0.8 - day * 0.02) * (1 - golden * 0.14);   // moonlit ambient — visible, the dark spell is short now
     s.hemiSky.copy(NIGHT_HEMI_SKY).lerp(DAY_HEMI_SKY, day);
     s.hemiGround.copy(NIGHT_HEMI_GND).lerp(DAY_HEMI_GND, day);
     if (wet > 0.01) {
