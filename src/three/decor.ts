@@ -5318,11 +5318,31 @@ function buildRearRange(buckets: Bucket[], b: Building, g: number) {
 }
 
 // Front Range Light (1873) — the little white cast-iron tower by the Coast Guard
-function buildFrontRange(buckets: Bucket[], b: Building, g: number) {
+function buildFrontRange(buckets: Bucket[], b: Building, g: number, index?: WorldIndex) {
   const [cx, cz] = centroidOf(b.p);
   walls(buckets[PLAIN], octRing(cx, cz, 4.6), g - 2, g + 24, '#f5f2e8', 0);
   walls(buckets[PLAIN], octRing(cx, cz, 4), g + 24, g + 34, '#f5f2e8', 0);
   lanternTop(buckets[PLAIN], cx, cz, g + 34, 2.8);
+  // the keeper's rowboat, pulled up on the bank below the light with its oars shipped
+  if (index) {
+    let bestA = -1, bestD = Infinity;
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      for (let d = 30; d <= 260; d += 10) {
+        if (index.isWaterAt(cx + Math.cos(a) * d, cz + Math.sin(a) * d)) { if (d < bestD) { bestD = d; bestA = a; } break; }
+      }
+    }
+    if (bestA >= 0 && bestD > 40) {
+      const bx = cx + Math.cos(bestA) * (bestD - 16), bz = cz + Math.sin(bestA) * (bestD - 16);
+      if (!index.isBlocked(bx, bz)) {
+        const gb = index.heightAtPx(bx, bz);
+        const bk = buckets[PLANK];
+        hull(bk, bx, bz, 9, 3.2, gb + 0.2, gb + 3.4, bestA, '#c9b48a');
+        for (const o of [-4, 3]) rotBox(bk, bx + Math.cos(bestA) * o, bz + Math.sin(bestA) * o, 0.9, 5.6, gb + 2.4, gb + 3, bestA, '#8a6a44');   // thwarts
+        for (const sd of [-1, 1]) rotBox(bk, bx - Math.sin(bestA) * sd * 2.2, bz + Math.cos(bestA) * sd * 2.2, 14, 0.5, gb + 3.4, gb + 3.9, bestA, '#a88a5c');   // the oars, shipped along the gunwales
+      }
+    }
+  }
 }
 
 // Newburyport Harbor Light (1898) — white wooden cone at Plum Island point

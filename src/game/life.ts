@@ -30,6 +30,7 @@ const WALK_CLASSES = ['side', 'foot', 'ped', 'board', 'cycle'];
 const ROAD_CLASSES = ['motorway', 'motorway_link', 'primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'trunk'];
 const TOWN_ROADS = ['primary', 'secondary', 'tertiary', 'residential', 'unclassified'];   // no highway for the bus and the plow
 const MAIL_ROADS = ['tertiary', 'residential', 'unclassified'];   // the mail truck works the side streets
+const SCHOOL_KIDS = 6;
 const HOP_CLASSES = ['side', 'foot', 'ped', 'board', 'cycle', 'crossing']; // crossings = legal street crossing
 
 // seasonal attractions — per-town (src/towns/<id>/index.ts); a town without a
@@ -196,6 +197,7 @@ class Walker {
     else if (costume === 'vampire') { shirt = '#1d1d24'; skin = '#e7e4dc'; }
     else if (costume === 'devil') shirt = '#9a2f2a';
     else if (costume === 'elf') { shirt = '#2e7d3a'; }
+    else if (costume === 'school') { shirt = ['#3e5c84', '#b03a32', '#c8a142', '#2e6e63'][Math.floor(rng() * 4)]; }
     const person = !costume && PROPS ? PROPS.get(PEOPLE[Math.floor(rng() * PEOPLE.length)]) : undefined;
     if (person) {
       // a real person from the kit: clone the skinned mesh and its skeleton, then drive
@@ -247,6 +249,11 @@ class Walker {
         const collar = box(7, 2.4, 3, '#141019'); collar.position.set(0, 22.4, -1.2); this.heading.add(collar);
       } else if (costume === 'devil') {
         for (const sx of [-1, 1]) { const horn = cone(0.7, 2.4, '#6e1a16'); horn.position.set(sx * 2.1, 30.4, 0); horn.rotation.z = sx * -0.3; this.heading.add(horn); }
+      } else if (costume === 'school') {
+        pail.visible = false;
+        const pack = box(5.5, 7, 3, ['#d0262a', '#2a6fd6', '#6e3fb0', '#e08a22', '#2e9d5a'][Math.floor(rng() * 5)]); pack.position.set(0, 18.5, -3.6); this.heading.add(pack);
+        const strapL = box(0.8, 6, 1, '#2a2a2a'); strapL.position.set(-2.2, 19, -1.6); strapL.castShadow = false; this.heading.add(strapL);
+        const strapR = strapL.clone(); strapR.position.x = 2.2; this.heading.add(strapR);
       } else if (costume === 'elf') {
         pail.visible = false;
         const hat = cone(3.6, 7.5, '#c8262a'); hat.position.y = 31.5; this.heading.add(hat);
@@ -531,7 +538,7 @@ class Fireflies {
 // 🚌🚒🚓 the town's service fleet — the vehicles a kid actually waits to see.
 // Procedural at kit scale (8 px = 1 m). Each one lives in Life.cars so the
 // ordinary braking / red-light / no-teleport rules apply to it too.
-export type CarRole = 'car' | 'bus' | 'fire' | 'police' | 'plow' | 'ems' | 'mail';
+export type CarRole = 'car' | 'bus' | 'fire' | 'police' | 'plow' | 'ems' | 'mail' | 'icecream';
 interface Beacon { mat: THREE.MeshBasicMaterial; phase: number; rate: number }
 let beaconTex: { red?: THREE.CanvasTexture; blue?: THREE.CanvasTexture; amber?: THREE.CanvasTexture; white?: THREE.CanvasTexture } = {};
 function beaconMat(kind: 'red' | 'blue' | 'amber' | 'white'): THREE.MeshBasicMaterial {
@@ -741,6 +748,29 @@ function buildGate(w: number): { g: THREE.Group; arm: THREE.Object3D; beacons: B
   return { g, arm, beacons };
 }
 
+function buildIceCreamTruck(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beacon[]) {
+  const white = '#f4f2ec';
+  const body = rbox(16, 15, 34, 1.6, white); body.position.set(0, 11.5, -6);
+  const hood = rbox(14, 6.5, 10, 1.4, white); hood.position.set(0, 7, 16);
+  const glass = box(16.4, 4.5, 8, '#2a3036'); glass.position.set(0, 14, 7); glass.castShadow = false;
+  const wind = box(13, 5.5, 1, '#2a3036'); wind.position.set(0, 13, 12.2); wind.castShadow = false;
+  const pink = box(16.4, 2, 28, '#f07aa0'); pink.position.set(0, 8.2, -8); pink.castShadow = false;       // the stripes
+  const blue = box(16.4, 1.4, 28, '#5aa5ff'); blue.position.set(0, 6.4, -8); blue.castShadow = false;
+  const window = box(0.8, 6, 12, '#3a3a3a'); window.position.set(8.2, 13.5, -8); window.castShadow = false;   // the serving window, kerb side
+  const awning = box(4, 0.8, 13, '#f07aa0'); awning.position.set(9.5, 17.2, -8); awning.castShadow = false;
+  const bumper = box(15, 2, 1.2, '#6e7276'); bumper.position.set(0, 3.5, 21.2); bumper.castShadow = false;
+  root.add(body, hood, glass, wind, pink, blue, window, awning, bumper);
+  // the cone on the roof
+  const coneM = new THREE.Mesh(new THREE.ConeGeometry(3.2, 8, 8), mat('#d9a35a')); coneM.position.set(0, 23, -6); coneM.rotation.x = Math.PI; coneM.castShadow = true; root.add(coneM);
+  const scoop = sph(3.6, '#f6d6e2'); scoop.position.set(0, 27.5, -6); root.add(scoop);
+  const cherry = sph(1.1, '#d0262a'); cherry.position.set(0, 31.2, -6); root.add(cherry);
+  for (const [lx, lz] of [[-7, 13], [7, 13], [-7, -13], [7, -13]] as const) {
+    const w = cylX(2.5, 2.3, '#23241f'); w.position.set(lx, 2.5, lz); wheels.push(w); root.add(w);
+  }
+  beacon(root, beacons, 'amber', -6.5, 8.5, -23.5, 0, 1.4, 6);   // hazards while it is stopped
+  beacon(root, beacons, 'amber', 6.5, 8.5, -23.5, 0, 1.4, 6);
+}
+
 // 🚆 the commuter train. One purple loco and three silver coaches on the real rail
 // line: it stands at the platform, leaves down the line until it is out of sight,
 // waits a while off the map, and comes back in, slowing to a stop at the platform.
@@ -815,12 +845,13 @@ class TrafficCar {
       else if (role === 'police') buildCruiser(this.root, this.wheels, this.beacons);
       else if (role === 'ems') buildAmbulance(this.root, this.wheels, this.beacons);
       else if (role === 'mail') buildMailTruck(this.root, this.wheels, this.beacons);
+      else if (role === 'icecream') buildIceCreamTruck(this.root, this.wheels, this.beacons);
       else buildPlow(this.root, this.wheels, this.beacons);
-      this.wheelR = role === 'police' ? 2.6 : role === 'mail' ? 2.4 : role === 'ems' ? 3 : 3.4;
+      this.wheelR = role === 'police' ? 2.6 : role === 'mail' ? 2.4 : role === 'icecream' ? 2.5 : role === 'ems' ? 3 : 3.4;
       this.ignoreRed = role === 'fire' || role === 'ems';
-      const len = role === 'bus' ? 86 : role === 'fire' ? 80 : role === 'ems' ? 66 : role === 'plow' ? 56 : role === 'mail' ? 40 : 38;
-      const wid = role === 'police' ? 14 : role === 'plow' ? 16 : role === 'mail' ? 15 : role === 'ems' ? 18 : 20;
-      this.addLights(wid, len, role === 'police' ? 6 : role === 'mail' ? 6 : 8);
+      const len = role === 'bus' ? 86 : role === 'fire' ? 80 : role === 'ems' ? 66 : role === 'plow' ? 56 : role === 'mail' ? 40 : role === 'icecream' ? 44 : 38;
+      const wid = role === 'police' ? 14 : role === 'plow' ? 16 : role === 'mail' ? 15 : role === 'icecream' ? 16 : role === 'ems' ? 18 : 20;
+      this.addLights(wid, len, role === 'police' ? 6 : role === 'mail' || role === 'icecream' ? 6 : 8);
       return;
     }
     const model = PROPS?.car(seed * 2654435761);
@@ -1713,6 +1744,9 @@ export class Life {
   private emsHome: { x: number; z: number } | null = null;
   private emsT = 500; private emsRun = 0;
   private forceMail = false;
+  private forceIce = false;
+  private iceT = 0;
+  private kids: Walker[] = [];
   private train: Train | null = null;
   private crossings: Crossing[] = [];
   // 🎅 the Santa parade: the engine down the parade street at a walk, elves behind
@@ -1787,9 +1821,10 @@ export class Life {
       scene.add(car.root);
     }
     // the service fleet: one of each, parked off-world until their hour
-    for (const role of ['bus', 'fire', 'police', 'plow', 'ems', 'mail'] as CarRole[]) {
+    for (const role of ['bus', 'fire', 'police', 'plow', 'ems', 'mail', 'icecream'] as CarRole[]) {
       if (role === 'plow' && SEASON !== 'winter') continue;
       if (role === 'bus' && SEASON === 'summer') continue;   // no school in summer
+      if (role === 'icecream' && SEASON !== 'summer') continue;
       const v = new TrafficCar(role.length * 977 + 13, role);
       v.dormant = true;
       v.pts = [];
@@ -1817,6 +1852,17 @@ export class Life {
     this.forceBus = q?.get('bus') === '1';
     this.forcePlow = q?.get('plow') === '1';
     this.forceMail = q?.get('mail') === '1';
+    this.forceIce = q?.get('icecream') === '1';
+    // 🎒 the school kids, out on the sidewalks when the bus runs
+    if (SEASON !== 'summer') {
+      for (let i = 0; i < SCHOOL_KIDS; i++) {
+        const k = new Walker(i * 233 + 11, 'school');
+        k.root.position.set(0, 0, 1e7);
+        k.pts = [];
+        this.kids.push(k);
+        scene.add(k.root);
+      }
+    }
     this.forceParade = q?.get('parade') === '1';
     this.forceConcert = q?.get('concert') === '1';
     // the parade route: the named street, walked toward the square
@@ -2415,6 +2461,39 @@ export class Life {
 
     // the parade draws a crowd: whoever is on the sidewalk stops and turns to watch it pass
     const paradeEngine = this.paradeOn ? this.cars.find((c) => c.parade) ?? null : null;
+    // 🎒 school kids on the sidewalks while the bus runs; they stop for it when it stops near them,
+    // and stop to look at the ice cream truck too (everyone does)
+    if (this.kids.length) {
+      const bus = this.cars.find((c) => c.role === 'bus' && !c.dormant) ?? null;
+      const schoolHours = this.forceBus || (tod > 0.27 && tod < 0.36) || (tod > 0.58 && tod < 0.68);
+      for (const k of this.kids) {
+        const kx = k.root.position.x - px, kz = k.root.position.z - pz;
+        const far = kx * kx + kz * kz > 1900 * 1900;
+        if (!schoolHours) {
+          if (k.pts.length && (far || this.okToSpawn(k.root.position.x, k.root.position.z, px, pz, fx, fz, 700, 1800))) { k.pts = []; k.root.position.set(0, 0, 1e7); }
+          continue;
+        }
+        if (far || !k.pts.length) {
+          for (let tries = 0; tries < 4; tries++) {
+            const spot = this.pathSpot(px, pz, 1100, rng);
+            if (!spot) continue;
+            const at = alongPolyline(spot.pts, spot.t);
+            if (!at || !this.okToSpawn(at.x, at.z, px, pz, fx, fz, 650, 1800)) continue;
+            k.pts = spot.pts; k.total = spot.total; k.t = spot.t; k.dir = rng() < 0.5 ? 1 : -1;
+            k.root.position.set(at.x, this.groundAt(at.x, at.z), at.z);
+            break;
+          }
+          continue;
+        }
+        if (bus && bus.stopT > 0) {
+          const bx = bus.root.position.x - k.root.position.x, bz = bus.root.position.z - k.root.position.z;
+          if (bx * bx + bz * bz < 160 * 160) { k.pause = Math.max(k.pause, 0.6); k.pauseFace = Math.atan2(bx, bz); }
+        }
+        const ended = k.advance(dt, this.groundAt(k.root.position.x, k.root.position.z, k.root.position.y));
+        if (ended) { k.dir = -k.dir; k.t = Math.max(1, Math.min(k.total - 1, k.t)); }
+      }
+    }
+    const iceTruck = this.cars.find((c) => c.role === 'icecream' && !c.dormant && c.stopT > 0) ?? null;
     for (const p of this.peds) {
       const dx = p.root.position.x - px, dz = p.root.position.z - pz;
       if (dx * dx + dz * dz > 1900 * 1900 || !p.pts.length) {
@@ -2450,8 +2529,9 @@ export class Life {
           p.pauseFace = here ? Math.atan2(here.dx, here.dz) + (Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2) : p.pauseFace;
         }
       }
-      if (paradeEngine) {
-        const ex = paradeEngine.root.position.x - p.root.position.x, ez = paradeEngine.root.position.z - p.root.position.z;
+      const watch = paradeEngine ?? iceTruck;
+      if (watch) {
+        const ex = watch.root.position.x - p.root.position.x, ez = watch.root.position.z - p.root.position.z;
         if (ex * ex + ez * ez < 170 * 170) { p.pause = Math.max(p.pause, 0.6); p.pauseFace = Math.atan2(ex, ez); }
       }
       const ended = p.advance(dt, this.groundAt(p.root.position.x, p.root.position.z, p.root.position.y));
@@ -2574,6 +2654,7 @@ export class Life {
           : c.role === 'ems' ? this.emsRun > 0
           : c.role === 'plow' ? (this.forcePlow || this.plowT > 0)
           : c.role === 'mail' ? (this.forceMail || (tod > 0.38 && tod < 0.7))
+          : c.role === 'icecream' ? (this.forceIce || (tod > 0.55 && tod < 0.8))
           : true;
         if (c.role === 'fire' && this.fireRun <= 0 && this.fireT <= 0) {
           // a call: the run lasts a minute and a half, then it goes home
@@ -2599,7 +2680,7 @@ export class Life {
       if (!c.parade && (dx * dx + dz * dz > 2700 * 2700 || !c.pts.length)) {
         const home = c.role === 'fire' ? this.fireHome : c.role === 'ems' ? this.emsHome : null;
         const near = home && (home.x - px) ** 2 + (home.z - pz) ** 2 < 2400 * 2400 ? { x: home.x, z: home.z, r: 420 } : undefined;
-        const road = this.roadSpot(px, pz, fx, fz, rng, c.role === 'bus' || c.role === 'plow' ? TOWN_ROADS : c.role === 'mail' ? MAIL_ROADS : ROAD_CLASSES, near)
+        const road = this.roadSpot(px, pz, fx, fz, rng, c.role === 'bus' || c.role === 'plow' ? TOWN_ROADS : c.role === 'mail' || c.role === 'icecream' ? MAIL_ROADS : ROAD_CLASSES, near)
           ?? (near ? this.roadSpot(px, pz, fx, fz, rng) : null);
         if (road) {
           c.dormant = false;
@@ -2618,6 +2699,7 @@ export class Life {
           else if (c.role === 'fire') c.cruise = 205;
           else if (c.role === 'ems') c.cruise = 195;
           else if (c.role === 'mail') { c.cruise = 60; c.runT = 8 + rng() * 8; }
+          else if (c.role === 'icecream') { c.cruise = 45; c.runT = 12 + rng() * 10; }
           else if (c.role === 'police') { c.cruise = 85; c.runT = 90 + rng() * 70; }
           else if (c.role === 'plow') c.cruise = 70;
           c.speed = c.cruise;
@@ -2671,15 +2753,24 @@ export class Life {
         }
       }
       // the bus's stops and the cruiser's pull-overs: a timed halt, then on again
-      if (c.role === 'bus' || c.role === 'police' || c.role === 'mail') {
+      if (c.role === 'bus' || c.role === 'police' || c.role === 'mail' || c.role === 'icecream') {
         // the mail truck and the cruiser pull to the kerb for their stops; the bus stays in the lane
         if (c.role !== 'bus') c.kerb += ((c.stopT > 0 ? 0.7 : 0) - c.kerb) * Math.min(1, dt * 1.2);
         if (c.stopT > 0) { c.stopT -= dt; want = 0; }
         else {
           c.runT -= dt;
           if (c.runT <= 0 && c.t > 40 && c.t < c.total - 40) {
-            c.stopT = c.role === 'bus' ? 7 : c.role === 'mail' ? 3 : 18;
-            c.runT = c.role === 'bus' ? 22 + rng() * 22 : c.role === 'mail' ? 10 + rng() * 8 : 100 + rng() * 80;
+            c.stopT = c.role === 'bus' ? 7 : c.role === 'mail' ? 3 : c.role === 'icecream' ? 10 : 18;
+            c.runT = c.role === 'bus' ? 22 + rng() * 22 : c.role === 'mail' ? 10 + rng() * 8 : c.role === 'icecream' ? 14 + rng() * 12 : 100 + rng() * 80;
+          }
+        }
+        if (c.role === 'icecream') {
+          // the tune, every seven seconds, for anyone within earshot
+          this.iceT -= dt;
+          if (this.iceT <= 0) {
+            this.iceT = 7;
+            const d = Math.hypot(c.root.position.x - px, c.root.position.z - pz);
+            this.audio?.iceCream(Math.max(0, Math.min(1, 1 - (d - 160) / 700)));
           }
         }
       }

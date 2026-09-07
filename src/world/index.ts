@@ -1444,6 +1444,24 @@ export class WorldIndex {
             ctx.fillStyle = STYLE.road.edgeline ?? '#e8e8e2';
             ctx.fillRect(-46, 0, 3, r.w / 2 - 2);
             ctx.fillRect(43, -r.w / 2 + 2, 3, r.w / 2 - 2);
+            // the pavement RR: a big X with an R each side, in each approach lane,
+            // turned to read to the driver coming up on it
+            const lane = r.w / 4;
+            for (const side of [1, -1]) {
+              ctx.save();
+              ctx.translate(side * -92, side * lane);
+              ctx.rotate(side > 0 ? Math.PI / 2 : -Math.PI / 2);
+              ctx.strokeStyle = STYLE.road.edgeline ?? '#e8e8e2';
+              ctx.lineWidth = 2.4;
+              ctx.beginPath();
+              ctx.moveTo(-6, -9); ctx.lineTo(6, 9); ctx.moveTo(6, -9); ctx.lineTo(-6, 9);
+              ctx.stroke();
+              ctx.fillStyle = STYLE.road.edgeline ?? '#e8e8e2';
+              ctx.font = '700 12px system-ui, sans-serif';
+              ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+              ctx.fillText('R', -13, 0); ctx.fillText('R', 13, 0);
+              ctx.restore();
+            }
             ctx.restore();
           }
         }

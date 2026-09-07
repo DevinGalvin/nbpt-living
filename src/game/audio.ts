@@ -360,6 +360,14 @@ export class GameAudio {
     for (const [hz, at] of notes) this.pluck(t0 + at, hz, 0.17, 1.3);
   }
 
+  // the ice cream truck's tune: a bright little phrase on the music box, over and over
+  iceCream(level = 1) {
+    if (!this.ctx || !this.enabled || level < 0.02) return;
+    const t0 = this.ctx.currentTime + 0.03;
+    const notes: [number, number][] = [[783.99, 0], [783.99, 0.18], [880, 0.36], [783.99, 0.54], [1046.5, 0.72], [987.77, 1.0], [783.99, 1.36], [783.99, 1.54], [880, 1.72], [783.99, 1.9], [1174.7, 2.08], [1046.5, 2.36]];
+    for (const [hz, at] of notes) this.pluck(t0 + at, hz, 0.11 * level, 0.9);
+  }
+
   // two quick yips for Clipper
   bark() {
     if (!this.ctx || !this.enabled) return;
