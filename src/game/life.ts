@@ -8,6 +8,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { captureHumanoid, poseWalk, type Humanoid } from '../three/humanoid';
 import { TOWN } from '@town';
 import type { GameAudio } from './audio';
+import { goldenInject } from '../three/golden';
 
 // Ambient life: pedestrians who follow the sidewalk network exactly, cars
 // that drive road polylines, and boats cruising the real water. Nothing spawns
@@ -932,7 +933,7 @@ class TrafficCar {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
         if (/wheel/i.test(o.name)) this.wheels.push(o);
-        if (m.userData.paint) { const mat = (m.material as THREE.MeshStandardMaterial).clone(); mat.color.set(paint); m.material = mat; }
+        if (m.userData.paint) { const mat = (m.material as THREE.MeshStandardMaterial).clone(); mat.color.set(paint); mat.onBeforeCompile = goldenInject; m.material = mat; }
       });
       this.wheelR = Math.max(1.5, model.size.y * 0.22);
       this.root.add(body);

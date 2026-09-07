@@ -4,6 +4,7 @@ import { WorldIndex, CHUNK, centroidOf, walkLine as walkLineD, obbOf, type OBB, 
 import { STYLE, SEASON, TREES, pick, hash32, mulberry32 } from '../world/style';
 import { clapboardTex, shingleTex, brickTex, plankTex, normalFromTexture, signTex, SIGN_ROWS } from './textures';
 import { WATER_Y, isFreezableWater } from './water';
+import { goldenInject } from './golden';
 import { GFX } from '../gfx';
 import { cloudInject, cloudTex } from './clouds';
 import { PROPS } from './assets';
@@ -211,25 +212,7 @@ function windInject(shader: { uniforms: Record<string, unknown>; vertexShader: s
   }
 }`);
 }
-// Golden hour on the walls: a warm rim where a face turns away from the eye, and a
-// warm wash where it faces the low sun. Fragment-side, so the flat-shaded brick gets
-// the light a low sun actually gives it. uGolden 0..1 from the sky, dir in world space.
-const goldenUniforms = { uGolden: { value: 0 }, uGoldenDir: { value: new THREE.Vector3(0, 1, 0) } };
-export function setDecorGolden(k: number, dir: THREE.Vector3) { goldenUniforms.uGolden.value = k; goldenUniforms.uGoldenDir.value.copy(dir); }
-function goldenInject(shader: { uniforms: Record<string, unknown>; fragmentShader: string }) {
-  shader.uniforms.uGolden = goldenUniforms.uGolden;
-  shader.uniforms.uGoldenDir = goldenUniforms.uGoldenDir;
-  shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', '#include <common>\nuniform float uGolden;\nuniform vec3 uGoldenDir;')
-    .replace('#include <opaque_fragment>', `
-if (uGolden > 0.001) {
-  vec3 sd = normalize((viewMatrix * vec4(uGoldenDir, 0.0)).xyz);
-  float rimF = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 3.0);
-  float sunF = clamp(dot(normal, sd), 0.0, 1.0);
-  outgoingLight += vec3(1.0, 0.62, 0.32) * uGolden * (rimF * 0.5 + sunF * sunF * 0.45) * (0.4 + diffuseColor.rgb);
-}
-#include <opaque_fragment>`);
-}
+export { setDecorGolden } from './golden';
 let winUniforms: { uNight: { value: number } } | null = null;
 /** night 0..1 from the sky; drives every lit window in every chunk */
 export function setWindowNight(n: number) {
@@ -11489,6 +11472,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const ring = poly.p;
     const rng = mulberry32(hash32(pi, 41, 9));
     let acc = 0, benchAcc = 90;
+    // ⛸ winter: the rink lights, a post every seventy pixels round the bank with a
+    // sagging string of bulbs between, so the skaters have their evening
+    let postAcc = 40;
+    let lastPost: { x: number; z: number; g: number } | null = null;
     for (let i = 0; i + 3 < ring.length; i += 2) {
       const x0 = ring[i], z0 = ring[i + 1], x1 = ring[i + 2], z1 = ring[i + 3];
       const len = Math.hypot(x1 - x0, z1 - z0);
@@ -11500,7 +11487,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       for (let t = 0; t < len; t += 9) {
         const x = x0 + tx * t, z = z0 + tz * t;
         acc += 9; benchAcc += 9;
-        if (x < ox || x >= ox + CHUNK || z < oy || z >= oy + CHUNK) continue;
+        if (x < ox || x >= ox + CHUNK || z < oy || z >= oy + CHUNK) { lastPost = null; continue; }   // a string never spans a stretch this chunk did not walk
         // rushes just inside the edge, in clumps
         if (rng() < 0.42) {
           const rx = x + nx * (2 + rng() * 4), rz = z + nz * (2 + rng() * 4);
@@ -11510,6 +11497,31 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
           for (let b = 0; b < blades; b++) {
             const a = rng() * 6.283, off = 0.6 + rng() * 1.6;
             cone(buckets[PLAIN], rx + Math.cos(a) * off, g - 0.5, rz + Math.sin(a) * off, 0.55, 9 + rng() * 6, c);
+          }
+        }
+        if (SEASON === 'winter') {
+          postAcc += 9;
+          if (postAcc >= 72) {
+            postAcc = 0;
+            const pxp = x - nx * 9, pzp = z - nz * 9;
+            const gp = index.heightAtPx(pxp, pzp);
+            buckets[PLANK].box(pxp, pzp, 0.7, 0.7, gp, gp + 21, '#4a3a2a');
+            buckets[PLAIN].box(pxp, pzp, 1.2, 1.2, gp + 20.4, gp + 21.4, '#2a2a2a');
+            if (lastPost && Math.hypot(pxp - lastPost.x, pzp - lastPost.z) < 130) {
+              const sx = lastPost.x, sz = lastPost.z, ex = pxp, ez = pzp;
+              const L = Math.hypot(ex - sx, ez - sz);
+              const n = Math.max(2, Math.floor(L / 7));
+              const ux = (ex - sx) / L, uz = (ez - sz) / L;
+              for (let k = 1; k < n; k++) {
+                const f = k / n;
+                const wx = sx + (ex - sx) * f, wz = sz + (ez - sz) * f;
+                const wy = lastPost.g + (gp - lastPost.g) * f + 20.5 - Math.sin(f * Math.PI) * 3.5;
+                tmp.set(BULBS[k % BULBS.length]);
+                buckets[GLOW].quad(wx - ux * 1.05, wy - 1.05, wz - uz * 1.05, wx + ux * 1.05, wy - 1.05, wz + uz * 1.05,
+                  wx + ux * 1.05, wy + 1.05, wz + uz * 1.05, wx - ux * 1.05, wy + 1.05, wz - uz * 1.05, nx, 0, nz, tmp.r, tmp.g, tmp.b);
+              }
+            }
+            lastPost = { x: pxp, z: pzp, g: gp };
           }
         }
         // a bench on the bank every hundred-odd px, facing the water

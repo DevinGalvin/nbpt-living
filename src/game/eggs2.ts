@@ -57,6 +57,10 @@ export const MORE_CARDS: Record<string, Card> = {
     t: 'Fetch!', s: 'Cashman Park · the lawn by the ramp',
     b: 'A tennis ball, thrown as far as an arm can throw it, and a dog who brings it back every single time. This is the whole point of a park. Bring it back and she throws it again.'
   },
+  tideclock: {
+    t: 'The Tide Clock', s: 'the Coast Guard station',
+    b: 'Two highs and two lows a day, about six hours apart, and the clock on the station wall keeps them. When the needle is at the bottom the flats at Joppa are out and the clam diggers are on them; at the top the river is up to the boardwalk. Watch it for a day and you will know the river better than most.'
+  },
   chalk: {
     t: 'Chalk on the Bricks', s: 'Inn Street · this morning',
     b: 'Somebody with a bucket of chalk got here before you. A hopscotch, a sun, a house with too many windows, and a dog that looks a lot like you. The rain will take it tonight, and tomorrow there will be a new one.'
@@ -132,6 +136,7 @@ export class MoreEggs {
   private cat: THREE.Group | null = null;
   private catHead: THREE.Group | null = null;
   private catBaseY = 0;
+  private tideNeedle: THREE.Object3D | null = null;
   private catAt = { x: 0, z: 0 };
   private flyCool = 0;
   private flyBusy = false;
@@ -377,6 +382,32 @@ export class MoreEggs {
           g.position.set(this.bellAt.x, gy(this.bellAt.x, this.bellAt.z), this.bellAt.z);
           scene.add(g);
           this.dyn.push({ id: 'buoy', x: this.bellAt.x, z: this.bellAt.z, label: '🔔 PULL THE ROPE', r: 56 });
+          // 🌊 the tide clock, on a post beside the bell: a dial that keeps the river's real tide
+          const tc = new THREE.Group();
+          const tpost = box(1.2, 18, 1.2, '#e8e4da'); tpost.position.y = 9; tc.add(tpost);
+          const dc = document.createElement('canvas'); dc.width = dc.height = 128;
+          const d2 = dc.getContext('2d')!;
+          d2.fillStyle = '#f4efe2'; d2.beginPath(); d2.arc(64, 64, 62, 0, Math.PI * 2); d2.fill();
+          d2.strokeStyle = '#2a3a5a'; d2.lineWidth = 4; d2.beginPath(); d2.arc(64, 64, 60, 0, Math.PI * 2); d2.stroke();
+          d2.fillStyle = '#2a3a5a'; d2.font = '700 15px system-ui, sans-serif'; d2.textAlign = 'center';
+          d2.fillText('HIGH', 64, 24); d2.fillText('LOW', 64, 116);
+          d2.font = '600 11px system-ui, sans-serif'; d2.fillText('EBB', 104, 68); d2.fillText('FLOOD', 26, 68);
+          for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; d2.beginPath(); d2.moveTo(64 + Math.cos(a) * 52, 64 + Math.sin(a) * 52); d2.lineTo(64 + Math.cos(a) * 58, 64 + Math.sin(a) * 58); d2.stroke(); }
+          d2.font = '700 9px system-ui, sans-serif'; d2.fillText('TIDE', 64, 50);
+          const dialTex = new THREE.CanvasTexture(dc); dialTex.colorSpace = THREE.SRGBColorSpace;
+          const dial = new THREE.Mesh(new THREE.CircleGeometry(6.5, 24), new THREE.MeshLambertMaterial({ map: dialTex, side: THREE.DoubleSide }));
+          dial.position.set(0, 21, 0); tc.add(dial);
+          const back = new THREE.Mesh(new THREE.CylinderGeometry(6.8, 6.8, 1.2, 24), lam('#2a3a5a')); back.rotation.x = Math.PI / 2; back.position.set(0, 21, -0.7); tc.add(back);
+          const needle = new THREE.Group(); needle.position.set(0, 21, 0.4);
+          const hand = box(0.7, 5.6, 0.3, '#c8262a'); hand.position.y = 2.6; needle.add(hand);
+          const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.5, 10), lam('#2a2a2a')); hub.rotation.x = Math.PI / 2; needle.add(hub);
+          tc.add(needle);
+          this.tideNeedle = needle;
+          const tx = this.bellAt.x + 14, tz = this.bellAt.z;
+          tc.position.set(tx, gy(tx, tz), tz);
+          tc.rotation.y = Math.atan2(cx - tx, cz - tz) + Math.PI;   // the dial faces away from the station, toward the walk
+          scene.add(tc);
+          this.dyn.push({ id: 'tideclock', x: tx, z: tz, label: '🌊 READ THE TIDE', r: 50 });
         }
       }
     }
@@ -771,6 +802,8 @@ export class MoreEggs {
   update(dt: number, px: number, pz: number, night: number, tod: number, stillT: number) {
     this.t += dt;
     this.updateFetch(dt, px, pz, stillT);
+    // the tide clock's needle: high at the top, low at the bottom, the river's own phase
+    if (this.tideNeedle) this.tideNeedle.rotation.z = -(tod * Math.PI * 4 - Math.PI);
     for (let i = this.fx.length - 1; i >= 0; i--) if (!this.fx[i](dt)) this.fx.splice(i, 1);
 
     // plovers: peck, and run along the tide line when the dog comes close

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { goldenInject } from './golden';
 
 // Real 3D props — cars, street furniture — from CC0 packs (Kenney, KayKit; see
 // public/models/CREDITS.md), packed at build time into one meshopt-compressed GLB
@@ -171,16 +172,16 @@ function bakeScene(scene: THREE.Group): PropModel | null {
   let material: THREE.Material;
   if (textured) {
     let m = atlasMats.get(atlas!);
-    if (!m) { m = new THREE.MeshLambertMaterial({ map: atlas }); atlasMats.set(atlas!, m); }
+    if (!m) { m = new THREE.MeshLambertMaterial({ map: atlas }); m.onBeforeCompile = goldenInject; atlasMats.set(atlas!, m); }
     material = m;
   } else {
-    if (!vertexMat) vertexMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.05, envMapIntensity: 0.5 });
+    if (!vertexMat) { vertexMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.05, envMapIntensity: 0.5 }); vertexMat.onBeforeCompile = goldenInject; }
     material = vertexMat;
   }
   // Car paint was a mirror of the sky (roughness 0.28, env 0.9): every white or silver
   // car bloomed under the sun and pulled the eye off the town. Satin now, with a little
   // of the sky in it — a car in the street, not a highlight on it.
-  if (!paintMat) paintMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.08, envMapIntensity: 0.35 });
+  if (!paintMat) { paintMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.08, envMapIntensity: 0.35 }); paintMat.onBeforeCompile = goldenInject; }
   // the original tree, baked the same way, for props with moving parts (car wheels)
   const root = new THREE.Group();
   root.applyMatrix4(bake);
