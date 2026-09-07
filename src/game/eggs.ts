@@ -792,6 +792,9 @@ export class EggRunner {
 
   // ---------- shared FX ----------
 
+  /** a bark reaches the second drawer too: the cat, the seal, the plovers */
+  bark(px: number, pz: number) { this.more.bark(px, pz); }
+
   burst(x: number, y: number, z: number, hex: string, n = 50, withPop = true, size = 3.4, lifeMax = 1.7) {
     const pos = new Float32Array(n * 3);
     const vel: number[] = [];

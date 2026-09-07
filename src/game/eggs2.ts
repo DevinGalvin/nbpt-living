@@ -123,11 +123,15 @@ export class MoreEggs {
   private sealAt = { x: 0, z: 0 };
   private sealUp = 0;
   private sealCool = 30;
+  private sealFollow = 0;      // seconds the seal has been keeping pace
+  private catHop = 0;
+  private lastPx = 0; private lastPz = 0; private dogSpeed = 0;
   private cannon: THREE.Group | null = null;
   private cannonAt = { x: 1040, z: -1120, dx: 1, dz: 0 };
   private diggers: { g: THREE.Group; ph: number }[] = [];
   private cat: THREE.Group | null = null;
   private catHead: THREE.Group | null = null;
+  private catBaseY = 0;
   private catAt = { x: 0, z: 0 };
   private flyCool = 0;
   private flyBusy = false;
@@ -292,7 +296,7 @@ export class MoreEggs {
         g.position.set(this.catAt.x, gy(this.catAt.x, this.catAt.z) + 8.6, this.catAt.z);
         g.rotation.y = Math.atan2(best.nx, best.nz) - Math.PI / 2;
         scene.add(g);
-        this.cat = g; this.catHead = headG;
+        this.cat = g; this.catHead = headG; this.catBaseY = g.position.y;
         this.dyn.push({ id: 'shopcat', x: this.catAt.x, z: this.catAt.z, label: '🐈 PSST', r: 60 });
       }
     }
@@ -637,6 +641,13 @@ export class MoreEggs {
     return out;
   }
 
+  /** 🐕 a bark: the cat jumps, the seal ducks, the plovers scatter — whoever is in earshot */
+  bark(px: number, pz: number) {
+    if (this.cat && this.catHop <= 0 && (px - this.catAt.x) ** 2 + (pz - this.catAt.z) ** 2 < 220 * 220) { this.catHop = 0.6; this.audio.pop(); }
+    if (this.seal && this.sealUp > 0 && (px - this.sealAt.x) ** 2 + (pz - this.sealAt.z) ** 2 < 500 * 500) this.sealUp = Math.min(this.sealUp, 0.6);
+    if (this.plovers.length && (px - this.plovers[0].g.position.x) ** 2 + (pz - this.plovers[0].g.position.z) ** 2 < 300 * 300) this.scatterPlovers();
+  }
+
   /** returns true when the tag was one of ours */
   interact(tag: string): boolean {
     const card = MORE_CARDS[tag];
@@ -784,13 +795,25 @@ export class MoreEggs {
     }
 
     // the seal surfaces now and then when someone is on the boardwalk
+    // how fast the dog is going, for the seal's curiosity
+    { const mx = px - this.lastPx, mz = pz - this.lastPz; this.dogSpeed = dt > 0 ? Math.hypot(mx, mz) / dt : 0; this.lastPx = px; this.lastPz = pz; }
     if (this.seal) {
       if (this.sealUp > 0) {
         this.sealUp -= dt;
-        const k = Math.min(1, (7 - this.sealUp) * 1.5), fade = Math.min(1, this.sealUp * 1.5);
+        // a slow walker along the boardwalk is worth following: the seal keeps pace
+        // along the shore, and stays up as long as the dog does not run, up to half a minute
+        const near = (px - this.sealAt.x) ** 2 + (pz - this.sealAt.z) ** 2 < 360 * 360;
+        if (near && this.dogSpeed > 4 && this.dogSpeed < 260 && this.sealFollow < 30) {   // a walk, not a sprint
+          const want = px - this.sealAt.x;
+          const step = Math.max(-34 * dt, Math.min(34 * dt, want));
+          this.sealAt.x += step; this.seal.position.x = this.sealAt.x;
+          this.sealFollow += dt;
+          if (this.sealUp < 2.5) this.sealUp = 2.5;
+        }
+        const k = Math.min(1, (7 - Math.min(7, this.sealUp)) * 1.5 + (this.sealFollow > 0 ? 1 : 0)), fade = Math.min(1, this.sealUp * 1.5);
         this.seal.position.y = WATER_Y + TIDE.value - 9 + 10.5 * Math.min(k, fade) + Math.sin(this.t * 1.3) * 0.4;
         this.seal.rotation.y = Math.atan2(px - this.sealAt.x, pz - this.sealAt.z) - Math.PI / 2;
-        if (this.sealUp <= 0) { this.seal.position.y = WATER_Y - 9; this.sealCool = 40 + Math.random() * 50; }
+        if (this.sealUp <= 0) { this.seal.position.y = WATER_Y - 9; this.sealCool = 40 + Math.random() * 50; this.sealFollow = 0; }
       } else {
         this.sealCool -= dt;
         if (this.sealCool <= 0 && (px - this.sealAt.x) ** 2 + (pz - this.sealAt.z) ** 2 < 600 * 600) {
@@ -819,6 +842,8 @@ export class MoreEggs {
       w = Math.max(-1.1, Math.min(1.1, w));
       this.catHead.rotation.y += (w - this.catHead.rotation.y) * Math.min(1, dt * 3);
       const tail = this.cat.children[this.cat.children.length - 1]; tail.rotation.y = Math.sin(this.t * 1.6) * 0.5;
+      // the hop: straight up and back down, ears back
+      if (this.catHop > 0) { this.catHop -= dt; const k = Math.max(0, this.catHop / 0.6); this.cat.position.y = this.catBaseY + Math.sin(k * Math.PI) * 9; }
     }
 
     // a firefly lands on the nose of a dog that holds still on a summer lawn after dark

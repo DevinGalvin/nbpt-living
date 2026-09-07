@@ -308,6 +308,12 @@ export class Game {
   private angelIdx = 0;
   private angelTex: THREE.CanvasTexture | null = null;
   private pawTex: THREE.CanvasTexture | null = null;
+  // 🍂 leaf piles in fall: raked to the kerb, and a dog who runs into one sends it flying
+  private piles: { g: THREE.Group; x: number; z: number; flat: number }[] = [];
+  private pileT = 0;
+  // 📷 photo mode: a Polaroid of the moment, with the place and the date
+  private photoWanted = false;
+  private photoEl: HTMLElement | null = null;
   // 🚆 riding the train to the next town: the kid is aboard, the camera rides the
   // first coach, and once the town is out of sight the next town's build takes over
   private onTrain = false;
@@ -735,6 +741,7 @@ export class Game {
       this.hud.initBark(() => this.barkPress(), () => this.barkRelease());
       // B barks (Devin's pick); F stays as a quiet alias for anyone who learned it
       window.addEventListener('keydown', (e) => { if ((e.code === 'KeyB' || e.code === 'KeyF') && !e.repeat && !this.hud.dialogueOpen) this.barkPress(); });
+      window.addEventListener('keydown', (e) => { if (e.code === 'KeyP' && !e.repeat && !this.hud.dialogueOpen) this.takePhoto(); });
       window.addEventListener('keyup', (e) => { if (e.code === 'KeyB' || e.code === 'KeyF') this.barkRelease(); });
       this.hud.setDogControls();   // BARK = B, SKATE = K, skateboard icon, help line
     }
@@ -1242,8 +1249,10 @@ export class Game {
     this.audio.bark();
     const pl = this.player as Dog;
     pl.bark?.();
-    // a bark carries — any deer in earshot bolts, no wary step in between
+    // a bark carries — any deer in earshot bolts, no wary step in between; gulls go up,
+    // walkers turn to look, the cat jumps, the seal ducks
     if (this.life && !this.inside) this.life.scare(this.px, this.pz);
+    if (this.eggs && !this.inside) this.eggs.bark(this.px, this.pz);
     // WOOF! at Clipper's screen spot — the same projection the pet-tap uses
     const p = this.player.root.position.clone();
     p.y += 14;
@@ -2642,6 +2651,7 @@ export class Game {
     // louder by the river, a rumour from uptown
     this.updatePuddles(dt, sky.wet);
     this.updateSnowAngel(dt);
+    if (SEASON === 'fall') this.updatePiles(dt);
     if (sky.mist > 0.4 && !this.inside) {
       this.foghornT -= dt;
       if (this.foghornT <= 0) { this.foghornT = 24 + Math.random() * 10; this.audio.foghorn(sky.mist * (this.nearWater ? 1 : 0.5)); }
@@ -2843,6 +2853,7 @@ export class Game {
       this.shotWanted = null;
       cb(this.grabThumb());
     }
+    if (this.photoWanted) { this.photoWanted = false; this.makePolaroid(); }
   }
 
   // ---------- 👀 when is there anything to look up AT? ----------
@@ -3163,6 +3174,111 @@ export class Game {
   }
 
   // ---------- travel & search ----------
+
+  /** 🍂 leaf piles: a few raked to the kerb near the kid, out of view when they come; run into one and it flies */
+  private updatePiles(dt: number) {
+    if (this.inside || this.flying) return;
+    // keep eight piles within reach; recycle the far ones somewhere new along a sidewalk
+    if (this.piles.length < 8) this.pileT -= dt;
+    for (const p of this.piles) {
+      if (p.flat > 0) { p.flat -= dt; const k = p.flat > 24 ? 0.35 : 0.35 + (1 - p.flat / 24) * 0.65; p.g.scale.set(1 + (1 - k) * 0.4, k, 1 + (1 - k) * 0.4); }
+      const dx = p.x - this.px, dz = p.z - this.pz;
+      const d2 = dx * dx + dz * dz;
+      if (d2 > 2200 * 2200) { p.x = 0; p.z = 1e7; p.g.position.set(0, 0, 1e7); continue; }
+      if (p.flat <= 0 && d2 < 17 * 17 && this.lastSpeed > 80) {
+        // the dive: a burst of leaves in the fall colours, the pile flat for a while
+        p.flat = 26;
+        for (const hex of ['#e07a28', '#cc4e26', '#ecc14a', '#b8642a']) this.eggs?.burst(p.x, this.kidY + 6, p.z, hex, 14, false, 3, 1.3);
+        this.audio.paper();
+      }
+    }
+    if (this.pileT > 0) return;
+    this.pileT = 2;
+    // a spot: a sidewalk vertex 500–1500 px off, behind or beside the camera, on grass beside the walk
+    const fx = Math.sin(this.camAz), fz = Math.cos(this.camAz);
+    const want = this.piles.find((p) => p.z === 1e7) ?? (this.piles.length < 8 ? null : undefined);
+    if (want === undefined) return;
+    for (let tries = 0; tries < 24; tries++) {
+      const a = Math.random() * Math.PI * 2, d = 500 + Math.random() * 1000;
+      const sx = this.px + Math.cos(a) * d, sz = this.pz + Math.sin(a) * d;
+      const key = Math.floor(sx / CHUNK) + ',' + Math.floor(sz / CHUNK);
+      const paths = this.index.bucket(key).paths.map((i) => this.world.paths[i]).filter((p) => (p.c === 'side' || p.c === 'foot') && p.p.length >= 4);
+      if (!paths.length) continue;
+      const path = paths[Math.floor(Math.random() * paths.length)];
+      const vi = Math.floor(Math.random() * (path.p.length / 2 - 1)) * 2;
+      const ax = path.p[vi], az = path.p[vi + 1], bx = path.p[vi + 2], bz = path.p[vi + 3];
+      const l = Math.hypot(bx - ax, bz - az) || 1;
+      const nx = -(bz - az) / l, nz = (bx - ax) / l;
+      const side = Math.random() < 0.5 ? 1 : -1;
+      const x = (ax + bx) / 2 + nx * 11 * side, z = (az + bz) / 2 + nz * 11 * side;
+      if (this.index.isBlocked(x, z) || this.index.isWaterAt(x, z) || this.index.onPavedAt(x, z)) continue;
+      const ddx = x - this.px, ddz = z - this.pz, dd = Math.hypot(ddx, ddz);
+      if (dd < 500 || (ddx / dd) * fx + (ddz / dd) * fz > 0.2) continue;   // beside or behind: never in view
+      let p = want;
+      if (!p) {
+        const g = new THREE.Group();
+        const cols = ['#e07a28', '#cc4e26', '#ecc14a', '#b8642a', '#d98c30'];
+        for (let i = 0; i < 7; i++) {
+          const m = new THREE.Mesh(new THREE.SphereGeometry(4 + Math.random() * 3, 7, 5), new THREE.MeshLambertMaterial({ color: cols[i % cols.length] }));
+          m.scale.set(1, 0.55, 1); m.position.set((Math.random() - 0.5) * 12, 1.5 + Math.random() * 2, (Math.random() - 0.5) * 12); m.castShadow = true;
+          g.add(m);
+        }
+        this.scene.add(g);
+        p = { g, x, z, flat: 0 };
+        this.piles.push(p);
+      }
+      p.x = x; p.z = z; p.flat = 0; p.g.scale.set(1, 1, 1);
+      p.g.position.set(x, this.index.heightAtPx(x, z), z);
+      break;
+    }
+  }
+
+  /** 📷 press P: the next frame becomes a Polaroid */
+  takePhoto() { if (!this.photoEl) this.photoWanted = true; }
+
+  private makePolaroid() {
+    let url: string | null = null;
+    try {
+      const src = this.renderer.domElement;
+      const W = 1040, H = 1240, pad = 44, imgW = W - pad * 2, imgH = 900;
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d')!;
+      g.fillStyle = '#f7f4ec'; g.fillRect(0, 0, W, H);
+      // the square-ish window, cropped from the middle of the frame
+      const ar = imgW / imgH;
+      let sw = src.width, sh = src.width / ar;
+      if (sh > src.height) { sh = src.height; sw = sh * ar; }
+      g.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, pad, pad, imgW, imgH);
+      // the caption: where, and when, in a hand
+      const street = this.hud.currentStreet() || '';
+      const where = street ? street + ', ' + TOWN.name : TOWN.name;
+      const d = new Date();
+      g.fillStyle = '#3a3430';
+      g.font = 'italic 600 44px Georgia, serif'; g.textAlign = 'center';
+      g.fillText(where, W / 2, pad + imgH + 112);
+      g.font = 'italic 500 30px Georgia, serif'; g.fillStyle = '#6a625a';
+      g.fillText(d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) + '  ·  Clipper', W / 2, pad + imgH + 168);
+      url = c.toDataURL('image/jpeg', 0.9);
+    } catch { url = null; }
+    if (!url) return;
+    this.audio.pop();
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;inset:0;z-index:70;background:rgba(10,8,8,.72);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px';
+    const img = document.createElement('img');
+    img.src = url; img.style.cssText = 'max-height:72vh;max-width:88vw;box-shadow:0 20px 60px rgba(0,0,0,.6);transform:rotate(-2.5deg);border-radius:4px';
+    el.appendChild(img);
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:10px';
+    const save = document.createElement('a');
+    save.textContent = '💾 SAVE'; save.href = url; save.download = 'clipper-' + Date.now() + '.jpg';
+    save.style.cssText = 'background:#d8b94a;color:#1b1512;border-radius:10px;padding:10px 18px;font:700 15px system-ui,sans-serif;text-decoration:none';
+    const close = document.createElement('button');
+    close.textContent = 'CLOSE'; close.style.cssText = 'background:#2e2622;color:#f2e9d6;border:1px solid #5a524a;border-radius:10px;padding:10px 18px;font:700 15px system-ui,sans-serif;cursor:pointer';
+    close.onclick = () => { el.remove(); this.photoEl = null; };
+    row.appendChild(save); row.appendChild(close);
+    el.appendChild(row);
+    document.body.appendChild(el);
+    this.photoEl = el;
+  }
 
   /** 💦 after rain the tar holds puddles; run through them and they splash, and the paws print wet behind you */
   private updatePuddles(dt: number, wet: number) {

@@ -3811,7 +3811,11 @@ export class Hud {
     }, 230);
   }
 
+  private lastStreet: string | null = null;
+  /** the street the pill is showing, for the photo caption */
+  currentStreet(): string | null { return this.lastStreet; }
   setStreet(name: string | null) {
+    this.lastStreet = name;
     const txt = this.pill.querySelector('.txt') as HTMLElement;
     if (!name) {
       this.pill.style.display = 'none';

@@ -1090,14 +1090,19 @@ class Gull {
     this.phase = rng() * 6;
   }
 
+  /** seconds of alarm left: a bark sends the gull up and round twice as fast */
+  startle = 0;
+  private lift = 0;
   glide(dt: number, t: number) {
-    this.ang += this.spin * dt;
+    if (this.startle > 0) this.startle -= dt;
+    this.lift += ((this.startle > 0 ? 70 : 0) - this.lift) * Math.min(1, dt * 1.5);
+    this.ang += this.spin * dt * (1 + (this.startle > 0 ? 1.4 : 0));
     const x = this.cx + Math.cos(this.ang) * this.radius;
     const z = this.cz + Math.sin(this.ang) * this.radius;
-    this.root.position.set(x, this.alt + Math.sin(t * 0.0011 + this.phase) * 9, z);
+    this.root.position.set(x, this.alt + this.lift + Math.sin(t * 0.0011 + this.phase) * 9, z);
     this.root.rotation.y = this.ang + (this.spin > 0 ? Math.PI / 2 : -Math.PI / 2);
     this.root.rotation.z = (this.spin > 0 ? 1 : -1) * 0.32; // bank into the turn
-    const flap = Math.sin(t * 0.006 + this.phase) * 0.5;
+    const flap = Math.sin(t * (this.startle > 0 ? 0.014 : 0.006) + this.phase) * 0.5;
     this.wingL.rotation.z = 0.2 + flap;
     this.wingR.rotation.z = -0.2 - flap;
   }
@@ -1982,6 +1987,17 @@ export class Life {
         const dx = m.root.position.x - x, dz = m.root.position.z - z;
         if (dx * dx + dz * dz < 450 * 450) { g.mood = 'flee'; break; }
       }
+    }
+    // gulls in earshot go up and round; walkers stop and look at who's barking
+    for (const gl of this.gulls) {
+      if (!gl.active) continue;
+      const dx = gl.root.position.x - x, dz = gl.root.position.z - z;
+      if (dx * dx + dz * dz < 420 * 420) gl.startle = 3;
+    }
+    for (const p of this.peds) {
+      if (!p.pts.length) continue;
+      const dx = x - p.root.position.x, dz = z - p.root.position.z;
+      if (dx * dx + dz * dz < 150 * 150) { p.pause = Math.max(p.pause, 1.4); p.pauseFace = Math.atan2(dx, dz); }
     }
   }
 
