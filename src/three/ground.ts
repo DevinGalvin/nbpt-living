@@ -8,16 +8,27 @@ import { cloudTex } from './clouds';
 // their own touches: a long-wave ripple in the sand, and a fine tar sheen darkening on
 // the roads. One extra texture fetch; runs on every tier.
 
-const GROUND_UNIFORMS = { uLawnMap: { value: null as ReturnType<typeof cloudTex> | null } };
+const GROUND_UNIFORMS = {
+  uLawnMap: { value: null as ReturnType<typeof cloudTex> | null },
+  uWet: { value: 0 },                                    // rain, 0..1, from the sky
+  uSkyCol: { value: [0.6, 0.66, 0.74] as number[] }      // what a puddle reflects
+};
+/** rain 0..1 and the sky colour the puddles hold; called once a frame by Game */
+export function setGroundWet(wet: number, r: number, g: number, b: number) {
+  GROUND_UNIFORMS.uWet.value = wet;
+  const c = GROUND_UNIFORMS.uSkyCol.value; c[0] = r; c[1] = g; c[2] = b;
+}
 
 export function groundInject(shader: { uniforms: Record<string, unknown>; vertexShader: string; fragmentShader: string }) {
   if (!GROUND_UNIFORMS.uLawnMap.value) GROUND_UNIFORMS.uLawnMap.value = cloudTex();
   shader.uniforms.uLawnMap = GROUND_UNIFORMS.uLawnMap;
+  shader.uniforms.uWet = GROUND_UNIFORMS.uWet;
+  shader.uniforms.uSkyCol = GROUND_UNIFORMS.uSkyCol;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', '#include <common>\nvarying vec3 vGroundW;')
     .replace('#include <project_vertex>', '#include <project_vertex>\nvGroundW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', '#include <common>\nuniform sampler2D uLawnMap;\nvarying vec3 vGroundW;')
+    .replace('#include <common>', '#include <common>\nuniform sampler2D uLawnMap;\nuniform float uWet;\nuniform vec3 uSkyCol;\nvarying vec3 vGroundW;')
     .replace('#include <map_fragment>', `#include <map_fragment>
 {
   vec3 c = diffuseColor.rgb;
@@ -38,6 +49,14 @@ export function groundInject(shader: { uniforms: Record<string, unknown>; vertex
   c = mix(c, c * (0.90 + 0.16 * v), sand * 0.8);
   // asphalt: patchy tar tone, the older lifts a shade lighter
   c = mix(c, c * (0.92 + 0.16 * big), tar * 0.7);
+  // rain: the tar darkens as it wets, and the hollows fill — puddles holding the sky,
+  // where the same noise at street scale dips lowest
+  if (uWet > 0.001) {
+    float hollow = texture2D(uLawnMap, vGroundW.xz * (1.0 / 260.0) + 0.61).r;
+    float puddle = smoothstep(0.66, 0.74, hollow + 0.10 * uWet) * tar;
+    c *= 1.0 - 0.28 * uWet * tar;
+    c = mix(c, uSkyCol * 0.92, puddle * uWet * 0.8);
+  }
   diffuseColor.rgb = c;
 }`);
 }

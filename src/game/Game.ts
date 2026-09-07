@@ -4,7 +4,7 @@ import { cloudInject, updateClouds } from '../three/clouds';
 import { Post } from '../three/post';
 import { ChunkProps } from '../three/props';
 import { SHORE, uploadShoreHeights, shoreInjectGround, waterMask, fitShoreline } from '../three/shore';
-import { groundInject } from '../three/ground';
+import { groundInject, setGroundWet } from '../three/ground';
 import type { WorldData } from '../world/types';
 import { WorldIndex, CHUNK } from '../world/index';
 import { Terrain } from '../world/terrain';
@@ -2572,6 +2572,7 @@ export class Game {
     }
     setWindowNight(lampOn);
     setDecorWind(t);
+    setGroundWet(sky.wet, sky.fog.r * 1.08, sky.fog.g * 1.08, sky.fog.b * 1.1);
     updateClouds(dt, sky.night, sky.wet, GFX.clouds);
     this.farTown?.tick(this.px, this.pz);
     for (let i = 0; i < this.lampGlows.length; i++) {
