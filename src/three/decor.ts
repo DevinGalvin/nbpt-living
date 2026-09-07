@@ -1175,10 +1175,40 @@ function hull(bk: Bucket, x: number, z: number, hl: number, hw: number,
 function carHalfWidth(seed: number): number {
   return (PROPS?.car(seed)?.size.x ?? 14) / 2;
 }
+// Every parked car placed in the chunk being built, as an oriented rectangle, so the
+// next one can refuse to overlap it: the stall rows of two aisles, a kerb car at a
+// way's end and the next way's first, a driveway car and the kerb — each placed on
+// its own and each, now and then, on top of another (Devin: "cars intersecting").
+let parkedCars: number[] = [];   // x, z, ang, halfLength, halfWidth
+function carOverlaps(x: number, z: number, ang: number, hl: number, hw: number): boolean {
+  const c = Math.cos(ang), s = Math.sin(ang);
+  for (let i = 0; i + 4 < parkedCars.length; i += 5) {
+    const ox = parkedCars[i] - x, oz = parkedCars[i + 1] - z;
+    if (ox * ox + oz * oz > 60 * 60) continue;
+    const oa = parkedCars[i + 2], ohl = parkedCars[i + 3], ohw = parkedCars[i + 4];
+    const oc = Math.cos(oa), os = Math.sin(oa);
+    // separating axes: both rectangles' long and short axes
+    const axes: [number, number][] = [[c, s], [-s, c], [oc, os], [-os, oc]];
+    let separated = false;
+    for (const [ax, az] of axes) {
+      const d = Math.abs(ox * ax + oz * az);
+      const rA = hl * Math.abs(c * ax + s * az) + hw * Math.abs(-s * ax + c * az);
+      const rB = ohl * Math.abs(oc * ax + os * az) + ohw * Math.abs(-os * ax + oc * az);
+      if (d > rA + rB + 1.5) { separated = true; break; }
+    }
+    if (!separated) return true;
+  }
+  return false;
+}
 function car(bk: Bucket, x: number, z: number, ang: number, hex: string, g = 0, seed?: number) {
+  const sd = seed ?? hash32(Math.round(x), Math.round(z), 311);
+  const model = PROPS?.car(sd);
+  const hl = (model?.size.z ?? 36) / 2, hw = (model?.size.x ?? 14) / 2;
+  if (carOverlaps(x, z, ang, hl, hw)) return;
+  parkedCars.push(x, z, ang, hl, hw);
   if (propSink && PROPS) {
     // a real car from the kit; the fleet mix is picked per spot so it never changes on rebuild
-    propSink.add(PROPS.car(seed ?? hash32(Math.round(x), Math.round(z), 311)), x, g, z, ang, 1, hex);
+    propSink.add(model, x, g, z, ang, 1, hex);
     return;
   }
   const ca = Math.cos(ang), sa = Math.sin(ang);
@@ -10048,6 +10078,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   signalSink = [];
   wireSink = new Bucket();
   spillSink = [];
+  parkedCars = [];
   const [ckx, cky] = key.split(',').map(Number);
   const ox = ckx * CHUNK, oy = cky * CHUNK;
 

@@ -169,12 +169,15 @@ export class Sky {
     }
     const rg = new THREE.BufferGeometry();
     rg.setAttribute('position', new THREE.BufferAttribute(rp, 3));
+    // rain drops are thin and the same size at every distance (no fat streaks next to
+    // the camera, which was what made the old rain distracting); snow keeps its flakes
     this.rainMat = new THREE.PointsMaterial({
-      color: this.snowMode ? '#ffffff' : '#9fb4c4',
-      size: this.snowMode ? 4 : 2.4, transparent: true, opacity: 0, depthWrite: false, fog: true
+      color: this.snowMode ? '#ffffff' : '#c3ced6',
+      size: this.snowMode ? 4 : 1.4, sizeAttenuation: this.snowMode, transparent: true, opacity: 0, depthWrite: false, fog: true
     });
     this.rain = new THREE.Points(rg, this.rainMat);
     this.rain.frustumCulled = false;
+    if (!this.snowMode) rg.setDrawRange(0, 620);   // half the drops of the snow's flakes
 
     // The clouds themselves. Their shadows have crossed the ground since pass 3 with
     // nothing in the sky to cast them; this is the layer that does. A flat sheet at
@@ -295,17 +298,22 @@ export class Sky {
       this.tod = (this.tod + dt / this.period) % 1;
     }
 
-    // ---- weather: only winter precipitates (snow). No rain in the other seasons. ----
-    if (!this.snowMode) {
-      this.wetTarget = 0;                       // rain removed — spring/summer/fall stay clear
-    } else if (this.forced !== null) {
+    // ---- weather: snow showers in winter; in the other seasons a light rain shower
+    // now and then, rarer and gentler than the snow (Devin: the old rain was distracting;
+    // the snow showers are loved). Summer gets half as many.
+    if (this.forced !== null) {
       this.wetTarget = this.forced;
     } else {
-      // winter snow comes and goes in showers
       this.wetTimer -= dt;
       if (this.wetTimer <= 0) {
-        if (this.wetTarget > 0) { this.wetTarget = 0; this.wetTimer = 100 + Math.random() * 150; }
-        else { this.wetTarget = 0.55 + Math.random() * 0.45; this.wetTimer = 45 + Math.random() * 70; }
+        if (this.snowMode) {
+          if (this.wetTarget > 0) { this.wetTarget = 0; this.wetTimer = 100 + Math.random() * 150; }
+          else { this.wetTarget = 0.55 + Math.random() * 0.45; this.wetTimer = 45 + Math.random() * 70; }
+        } else {
+          const summer = SEASON === 'summer';
+          if (this.wetTarget > 0) { this.wetTarget = 0; this.wetTimer = (summer ? 420 : 240) + Math.random() * 300; }
+          else { this.wetTarget = 0.35 + Math.random() * 0.3; this.wetTimer = 35 + Math.random() * 40; }
+        }
       }
     }
     this.wet += (this.wetTarget - this.wet) * Math.min(1, dt * 0.35);
@@ -331,8 +339,10 @@ export class Sky {
       const grey = OVERCAST.clone().multiplyScalar(0.35 + day * 0.6);
       zen.lerp(grey, wet * 0.72);
       hor.lerp(grey, wet * 0.72);
-      sunI *= 1 - wet * 0.6;
-      hemiI *= 1 - wet * 0.22;
+      // overcast is flat light: the sun nearly out (its shadows with it), the sky
+      // carrying the scene instead
+      sunI *= 1 - wet * 0.85;
+      hemiI *= 1 + wet * 0.1;
     }
     s.sunIntensity = sunI;
     s.hemiIntensity = hemiI;
@@ -404,7 +414,7 @@ export class Sky {
     this.moon.visible = elev < 0.04 && !this.cine;   // …and no moon rising mid-cutaway either
 
     // ---- precipitation ----
-    this.rainMat.opacity = clamp(wet * 1.15, 0, 1) * (this.snowMode ? 0.85 : 0.6);
+    this.rainMat.opacity = clamp(wet * 1.15, 0, 1) * (this.snowMode ? 0.85 : 0.34);
     this.rain.visible = this.rainMat.opacity > 0.02;
     if (this.rain.visible) {
       const a = (this.rain.geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array;

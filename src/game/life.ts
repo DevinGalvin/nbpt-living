@@ -1638,7 +1638,7 @@ export class Life {
     const rng = mulberry32(hash32(Math.floor(t), 3, 7));
     this.smoke.update(dt, px, pz, night, this.chimneySource);
     this.fireflies.update(dt, t, px, pz, night, this.index, (x, z) => this.groundAt(x, z));
-    this.signals.update(dt, t, px, pz, this.signalSource);
+    this.signals.update(dt, t / 1000, px, pz, this.signalSource);   // the clock is in ms; the cycle wants seconds
 
     for (const p of this.peds) {
       const dx = p.root.position.x - px, dz = p.root.position.z - pz;
@@ -1830,7 +1830,7 @@ export class Life {
         const here = alongPolyline(c.pts, c.t);
         if (here) {
           const vx = here.dx * c.dir, vz = here.dz * c.dir;
-          const red = this.signals.redAhead(c.root.position.x, c.root.position.z, vx, vz, t);
+          const red = this.signals.redAhead(c.root.position.x, c.root.position.z, vx, vz, t / 1000);
           if (red >= 0 && red < 34) {
             let tail = false;
             for (const o of this.cars) {
