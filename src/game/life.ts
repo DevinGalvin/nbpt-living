@@ -7,6 +7,7 @@ import { PROPS } from '../three/assets';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { captureHumanoid, poseWalk, type Humanoid } from '../three/humanoid';
 import { TOWN } from '@town';
+import type { GameAudio } from './audio';
 
 // Ambient life: pedestrians who follow the sidewalk network exactly, cars
 // that drive road polylines, and boats cruising the real water. Nothing spawns
@@ -680,6 +681,39 @@ function buildMailTruck(root: THREE.Group, wheels: THREE.Object3D[], beacons: Be
   // the hazards, amber, both corners of the tail, blinking together while it is stopped
   beacon(root, beacons, 'amber', -6, 8.5, -18.5, 0, 1.4, 6);
   beacon(root, beacons, 'amber', 6, 8.5, -18.5, 0, 1.4, 6);
+}
+
+// 🚧 a grade crossing: where a street crosses the line, a gate on the right-hand
+// approach of each side — post, crossbuck, two red lamps that alternate, and the
+// striped arm that drops while the train is near. Cars stop at the arm.
+interface Crossing {
+  x: number; z: number;
+  t: number;                 // distance along the rail chain
+  gates: THREE.Group[];
+  arms: THREE.Object3D[];
+  beacons: Beacon[];
+  down: number;              // 0 up .. 1 down
+  active: boolean;
+  bellT: number;
+  horned: boolean;
+}
+function buildGate(w: number): { g: THREE.Group; arm: THREE.Object3D; beacons: Beacon[] } {
+  const g = new THREE.Group();
+  const beacons: Beacon[] = [];
+  const post = box(2.4, 26, 2.4, '#d8d9d4'); post.position.y = 13; g.add(post);
+  const base = box(5, 2, 5, '#6e7276'); base.position.y = 1; base.castShadow = false; g.add(base);
+  for (const r of [-1, 1]) { const b = box(12, 1.5, 0.8, '#f2f1ea'); b.position.set(0, 23, 1.6); b.rotation.z = r * Math.PI / 4; b.castShadow = false; g.add(b); }
+  const lampBox = box(9, 3, 1.6, '#2a2a2a'); lampBox.position.set(0, 17.5, 1.4); lampBox.castShadow = false; g.add(lampBox);
+  beacon(g, beacons, 'red', -3, 17.5, 2.4, 0, 1.6, 7);
+  beacon(g, beacons, 'red', 3, 17.5, 2.4, 0.5, 1.6, 7);
+  // the arm: hinged at the post, reaching past the centre line when it is down
+  const L = Math.max(30, w * 0.56);
+  const arm = new THREE.Group(); arm.position.set(1.6, 11, 0);
+  const bar = box(L, 1.4, 1.0, '#f4f2ea'); bar.position.x = L / 2; bar.castShadow = false; arm.add(bar);
+  for (const k of [0.2, 0.45, 0.7, 0.95]) { const st = box(L * 0.1, 1.6, 1.2, '#c8262a'); st.position.x = L * k; st.castShadow = false; arm.add(st); }
+  const weight = box(5, 5, 2.2, '#2a2a2a'); weight.position.x = -4; weight.castShadow = false; arm.add(weight);
+  g.add(arm);
+  return { g, arm, beacons };
 }
 
 // 🚆 the commuter train. One purple loco and three silver coaches on the real rail
@@ -1648,6 +1682,8 @@ export class Life {
   private emsT = 500; private emsRun = 0;
   private forceMail = false;
   private train: Train | null = null;
+  private crossings: Crossing[] = [];
+  private audio: GameAudio | null = null;
   private rail: number[] = []; private railLen = 0; private stationT = 0; private railOut = 1;
   private fireT = 300;         // seconds until the engine's next run (counts down while it's home)
   private fireRun = 0;         // seconds left on the current run
@@ -1666,7 +1702,8 @@ export class Life {
   private pups: { d: LeashDog; w: Walker }[] = [];   // pet dogs at heel on their leashes
   private deerG: { members: Deer[]; cx: number; cz: number; mood: 'calm' | 'wary' | 'flee'; active: boolean }[] = [];
 
-  constructor(scene: THREE.Scene, index: WorldIndex) {
+  constructor(scene: THREE.Scene, index: WorldIndex, audio?: GameAudio) {
+    this.audio = audio ?? null;
     this.index = index;
     this.smoke = new Smoke(scene);
     this.fireflies = new Fireflies(scene);
@@ -1750,6 +1787,7 @@ export class Life {
         else if (q?.get('train') === 'arrive') { this.train.state = 'away'; this.train.timer = 1; }
         this.placeTrain();
         scene.add(this.train.root);
+        this.buildCrossings(scene);
       }
     }
     for (let i = 0; i < BOATS; i++) {
@@ -1982,6 +2020,79 @@ export class Life {
     return { pts, len, at, out: len - at > at ? 1 : -1 };
   }
 
+  /** every street that crosses the line at grade gets its gates */
+  private buildCrossings(scene: THREE.Scene) {
+    const r = this.rail;
+    const seg = (ax: number, az: number, bx: number, bz: number, cx: number, cz: number, dx: number, dz: number): [number, number, number] | null => {
+      const d = (bx - ax) * (dz - cz) - (bz - az) * (dx - cx);
+      if (Math.abs(d) < 1e-9) return null;
+      const t = ((cx - ax) * (dz - cz) - (cz - az) * (dx - cx)) / d;
+      const u = ((cx - ax) * (bz - az) - (cz - az) * (bx - ax)) / d;
+      if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+      return [ax + (bx - ax) * t, az + (bz - az) * t, u];
+    };
+    let acc = 0;
+    const railAcc: number[] = [];
+    for (let j = 0; j + 3 < r.length; j += 2) { railAcc.push(acc); acc += Math.hypot(r[j + 2] - r[j], r[j + 3] - r[j + 1]); }
+    for (const rd of this.index.world.roads) {
+      if (rd.b || rd.l || !TOWN_ROADS.includes(rd.c)) continue;
+      for (let i = 0; i + 3 < rd.p.length; i += 2) {
+        for (let j = 0; j + 3 < r.length; j += 2) {
+          const h = seg(rd.p[i], rd.p[i + 1], rd.p[i + 2], rd.p[i + 3], r[j], r[j + 1], r[j + 2], r[j + 3]);
+          if (!h) continue;
+          if (this.crossings.some((c) => (c.x - h[0]) ** 2 + (c.z - h[1]) ** 2 < 60 * 60)) continue;
+          const dx = rd.p[i + 2] - rd.p[i], dz = rd.p[i + 3] - rd.p[i + 1];
+          const dl = Math.hypot(dx, dz) || 1;
+          const th = Math.atan2(dx / dl, dz / dl);
+          const t = railAcc[j / 2] + Math.hypot(r[j + 2] - r[j], r[j + 3] - r[j + 1]) * h[2];
+          const c: Crossing = { x: h[0], z: h[1], t, gates: [], arms: [], beacons: [], down: 0, active: false, bellT: 0, horned: false };
+          // one gate per approach, on the right-hand side, 34 px before the rails
+          for (const side of [1, -1]) {
+            const built = buildGate(rd.w);
+            const ang = th + (side > 0 ? 0 : Math.PI);
+            const lx = -(rd.w / 2 + 8), lz = -34;
+            const gx = h[0] + lx * Math.cos(ang) + lz * Math.sin(ang);
+            const gz = h[1] - lx * Math.sin(ang) + lz * Math.cos(ang);
+            built.g.position.set(gx, this.groundAt(gx, gz), gz);
+            built.g.rotation.y = ang;
+            built.arm.rotation.z = Math.PI / 2;
+            c.gates.push(built.g); c.arms.push(built.arm); c.beacons.push(...built.beacons);
+            scene.add(built.g);
+          }
+          this.crossings.push(c);
+        }
+      }
+    }
+  }
+
+  private updateCrossings(dt: number, t: number, px: number, pz: number) {
+    const tr = this.train;
+    if (!tr || !this.crossings.length) return;
+    const moving = tr.state === 'out' || tr.state === 'in';
+    const tail = tr.head - this.railOut * 3 * 96;
+    const lo = Math.min(tr.head, tail) - 1100, hi = Math.max(tr.head, tail) + 1100;
+    let nearest: Crossing | null = null, nd = Infinity;
+    for (const c of this.crossings) {
+      c.active = moving && c.t > lo && c.t < hi;
+      c.down += ((c.active ? 1 : 0) - c.down) * Math.min(1, dt * 0.9);
+      for (const a of c.arms) a.rotation.z = (Math.PI / 2) * (1 - c.down);
+      for (const b of c.beacons) b.mat.opacity = c.active && ((t * b.rate + b.phase) % 1) < 0.5 ? 0.9 : 0;
+      const d = Math.hypot(c.x - px, c.z - pz);
+      if (c.active && d < nd) { nd = d; nearest = c; }
+      if (!c.active) c.horned = false;
+      else if (!c.horned && Math.abs(c.t - tr.head) < 720) {
+        // the horn, two longs' worth, as the engine reaches the whistle post
+        c.horned = true;
+        const sp = alongPolyline(this.rail, tr.head);
+        if (sp) this.audio?.trainHorn(Math.max(0, Math.min(1, 1 - (Math.hypot(sp.x - px, sp.z - pz) - 300) / 2200)));
+      }
+    }
+    if (nearest) {
+      nearest.bellT -= dt;
+      if (nearest.bellT <= 0) { nearest.bellT = 0.5; this.audio?.crossingBell(Math.max(0, Math.min(1, 1 - (nd - 200) / 1300))); }
+    }
+  }
+
   private placeTrain() {
     const tr = this.train!;
     for (let i = 0; i < tr.cars.length; i++) {
@@ -2001,7 +2112,11 @@ export class Life {
     const standHead = this.stationT + this.railOut * 140;
     if (tr.state === 'stand') {
       tr.timer -= dt;
-      if (tr.timer <= 0) { tr.state = 'out'; tr.speed = 0; }
+      if (tr.timer <= 0) {
+        tr.state = 'out'; tr.speed = 0;
+        const sp = alongPolyline(this.rail, tr.head);
+        if (sp) this.audio?.trainHorn(Math.max(0, Math.min(1, 1 - (Math.hypot(sp.x - px, sp.z - pz) - 300) / 2200)));
+      }
     } else if (tr.state === 'out') {
       tr.speed = Math.min(230, tr.speed + 28 * dt);
       tr.head += this.railOut * tr.speed * dt;
@@ -2038,7 +2153,7 @@ export class Life {
       // slow to a stop exactly at the platform: v² = 2·a·s
       const want = Math.min(230, Math.sqrt(Math.max(0, 2 * 26 * left)));
       tr.speed = Math.min(want, tr.speed + 28 * dt);
-      if (left <= 1.5 || tr.speed < 2) { tr.head = standHead; tr.speed = 0; tr.state = 'stand'; tr.timer = 120 + Math.random() * 90; }
+      if (left <= 1.5 || (tr.speed < 2 && left < 30)) { tr.head = standHead; tr.speed = 0; tr.state = 'stand'; tr.timer = 120 + Math.random() * 90; }
       else tr.head -= this.railOut * Math.min(left, tr.speed * dt);
     }
     this.placeTrain();
@@ -2074,6 +2189,7 @@ export class Life {
     if (this.emsRun > 0) this.emsRun = Math.max(0, this.emsRun - dt);
     else this.emsT -= dt;
     this.updateTrain(dt, px, pz, fx, fz);
+    this.updateCrossings(dt, t / 1000, px, pz);
     this.smoke.update(dt, px, pz, night, this.chimneySource);
     this.fireflies.update(dt, t, px, pz, night, this.index, (x, z) => this.groundAt(x, z));
     this.signals.update(dt, t / 1000, px, pz, this.signalSource);   // the clock is in ms; the cycle wants seconds
@@ -2290,6 +2406,9 @@ export class Life {
         const off = c.roadW * 0.22 * c.dir;
         const sx = sp.x - sp.dz * off, sz = sp.z + sp.dx * off;
         if ((sx - px) ** 2 + (sz - pz) ** 2 < 24 * 24) { want = 0; break probe; }
+        for (const xg of this.crossings) {
+          if (xg.down > 0.15 && (sx - xg.x) ** 2 + (sz - xg.z) ** 2 < 46 * 46) { want = 0; break probe; }
+        }
         for (const p of this.peds) {
           if (!p.pts.length) continue;
           if ((sx - p.root.position.x) ** 2 + (sz - p.root.position.z) ** 2 < 19 * 19) { want = 0; break probe; }

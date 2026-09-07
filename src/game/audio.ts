@@ -701,6 +701,51 @@ export class GameAudio {
     }
   }
 
+  // the commuter train's air horn: a diesel two-tone chord, long, with the
+  // distance in the level — near the platform it fills the ear, a mile off it's a rumour
+  trainHorn(level = 1) {
+    if (!this.ctx || !this.enabled || level < 0.02) return;
+    const t0 = this.ctx.currentTime + 0.04;
+    for (const [hz, vel] of [[311, 0.06], [370, 0.05], [466, 0.035], [155, 0.03]] as const) {
+      const o = this.ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = hz;
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 900 + 600 * level;
+      const g = this.ctx.createGain();
+      const v = vel * level;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(v, t0 + 0.12);
+      g.gain.setValueAtTime(v, t0 + 1.3);
+      g.gain.linearRampToValueAtTime(0.0001, t0 + 1.7);
+      o.connect(f);
+      f.connect(g);
+      g.connect(this.master);
+      o.start(t0);
+      o.stop(t0 + 1.8);
+    }
+  }
+
+  // one clang of a grade-crossing bell (Life rings it on a beat while the gates are down)
+  crossingBell(level = 1) {
+    if (!this.ctx || !this.enabled || level < 0.02) return;
+    const t0 = this.ctx.currentTime + 0.01;
+    for (const [ratio, vel, dur] of [[1, 0.12, 0.5], [2.4, 0.05, 0.3], [3.9, 0.03, 0.18]] as const) {
+      const o = this.ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = 1760 * ratio;
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(vel * level, t0 + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(g);
+      g.connect(this.master);
+      o.start(t0);
+      o.stop(t0 + dur + 0.05);
+    }
+  }
+
   // "…polo." — two faint marimba notes from across the fences
   polo() {
     if (!this.ctx || !this.enabled) return;

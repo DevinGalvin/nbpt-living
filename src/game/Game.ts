@@ -543,7 +543,7 @@ export class Game {
     if (water.ice) this.scene.add(water.ice);
     this.waterUpdate = water.update;
 
-    this.life = new Life(this.scene, this.index);
+    this.life = new Life(this.scene, this.index, this.audio);
     this.life.chimneySource = () => { const out: number[][] = []; for (const e of this.chunks.values()) if (e.chimneys.length) out.push(e.chimneys); return out; };
     this.life.signalSource = () => { const out: number[][] = []; for (const e of this.chunks.values()) if (e.signals.length) out.push(e.signals); return out; };
     if (!BARE) this.gillis = new GillisBridge(this.scene, this.index, world);
