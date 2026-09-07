@@ -95,6 +95,9 @@ export interface TownPack {
   // Bridges with a structure above the deck. A bridge chain passing within 120 px of
   // the point gets it: 'suspension' (towers, cables, hangers) or 'truss' (steel lattice).
   bridges?: { x: number; z: number; kind: 'suspension' | 'truss' }[];
+  /** road widths in metres by class, overriding the build's table: a town whose main
+   *  streets carry two lanes and a parking lane each side is wider than the default */
+  roadWidths?: Record<string, number>;
 
   // ambient-life seasonal attractions (null = the town skips that behavior)
   attractions: {

@@ -659,7 +659,7 @@ export class WorldIndex {
       if (seen.has(ri)) continue;
       seen.add(ri);
       const r = w.roads[ri];
-      if (!['tertiary', 'residential', 'unclassified', 'living_street'].includes(r.c) || r.b || r.w < 24) continue;
+      if (!['secondary', 'tertiary', 'residential', 'unclassified', 'living_street'].includes(r.c) || r.b || r.w < 24) continue;   // High Street has its poles too
       if (this.downtownRoad(ri)) continue;
       const side = hash32(ri) % 2 === 0 ? -1 : 1;   // the lamps' odd stops take the other side
       let k = 0;
@@ -1392,12 +1392,18 @@ export class WorldIndex {
         strokeLine(ctx, offsetLine(r.p, -(r.w / 2 - 1.4)));
       }
     }
-    ctx.setLineDash([16, 26]);
+    // a solid double yellow down the main streets, the way High Street is painted;
+    // the trunk keeps its dashes
     ctx.strokeStyle = STYLE.road.centerline;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 1.8;
     for (const r of roads) {
-      if (r.c === 'primary' || r.c === 'secondary' || r.c === 'trunk') strokeLine(ctx, r.p);
+      if (r.c !== 'primary' && r.c !== 'secondary') continue;
+      strokeLine(ctx, offsetLine(r.p, 1.6));
+      strokeLine(ctx, offsetLine(r.p, -1.6));
     }
+    ctx.setLineDash([16, 26]);
+    ctx.lineWidth = 2.5;
+    for (const r of roads) if (r.c === 'trunk') strokeLine(ctx, r.p);
     ctx.setLineDash([]);
 
     // highways read as highways: solid edge lines on each shoulder + a dashed
@@ -1408,7 +1414,16 @@ export class WorldIndex {
     const wideCurve = this.wideCurveSet();
     for (const r of roads) {
       const hwy = r.c === 'motorway' || r.c === 'motorway_link' || r.c === 'trunk' || r.c === 'trunk_link';
-      const wide = r.w >= 90 && (r.c === 'primary' || r.c === 'secondary');
+      // a main street in town: two lanes inside a white line, a parking lane and a bike
+      // shoulder outside it (High Street, kerb to kerb, in Devin's photo)
+      const parkingLane = !hwy && r.w >= 72 && r.w < 112 && (r.c === 'primary' || r.c === 'secondary' || r.c === 'tertiary');
+      if (parkingLane) {
+        ctx.lineWidth = 1.7;
+        strokeLine(ctx, offsetLine(r.p, r.w / 2 - 20));
+        strokeLine(ctx, offsetLine(r.p, -(r.w / 2 - 20)));
+        continue;
+      }
+      const wide = r.w >= 112 && (r.c === 'primary' || r.c === 'secondary');
       if ((!hwy && !wide) || r.w < 12) continue;
       ctx.lineWidth = 1.7;
       strokeLine(ctx, offsetLine(r.p, r.w / 2 - 2.2));
@@ -1418,7 +1433,7 @@ export class WorldIndex {
         ctx.lineWidth = 2;
         strokeLine(ctx, r.p);
         ctx.setLineDash([]);
-      } else if (r.w >= 90 && !wideCurve.has(r)) {
+      } else if (r.w >= 112 && !wideCurve.has(r)) {
         // straight enough for interior lane dashes; on curving wide streets the
         // offset parallels wander off the pavement, so we keep only the edge
         // lines + yellow centerline (Devin: "reads cluttered on curves"). Curvature

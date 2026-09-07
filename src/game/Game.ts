@@ -387,6 +387,8 @@ export class Game {
   constructor(world: WorldData, terrain: Terrain) {
     this.world = world;
     this.terrain = terrain;
+    // the town's own road widths, before anything measures a street
+    if (TOWN.roadWidths) for (const r of world.roads) { const m = TOWN.roadWidths[r.c]; if (m) r.w = Math.round(m * 8); }
     this.index = new WorldIndex(world, terrain);
 
     // weak/integrated GPUs can't afford MSAA; skip it there. The dynamic-resolution

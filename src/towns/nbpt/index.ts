@@ -38,6 +38,10 @@ export const TOWN: TownPack = {
   holidayTree: { x: -100, z: -48 },                        // Market Square
   // the Chain Bridge (1792; the suspension span, 1910) and the Hines Bridge at Deer Island
   bridges: [{ x: -24631, z: -21363, kind: 'suspension' }, { x: -24207, z: -20067, kind: 'truss' }],
+  // High Street and the other main streets are two travel lanes plus a parking lane and a
+  // bike shoulder, about twelve metres kerb to kerb; the tertiaries ten. The build's ten
+  // and nine left no room for the cars to park without sitting in the lane.
+  roadWidths: { secondary: 12, tertiary: 10 },
   // the brick-sidewalk core: State Street up to High, Pleasant, Inn, Water and
   // Merrimac Streets through Market Square, and the side streets between them
   downtown: { x: -100, z: -48, r: 2600, streets: ['State Street', 'Pleasant Street', 'Inn Street', 'Water Street', 'Merrimac Street',
