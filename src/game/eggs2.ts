@@ -397,13 +397,18 @@ export class MoreEggs {
           const dialTex = new THREE.CanvasTexture(dc); dialTex.colorSpace = THREE.SRGBColorSpace;
           const dial = new THREE.Mesh(new THREE.CircleGeometry(6.5, 24), new THREE.MeshLambertMaterial({ map: dialTex, side: THREE.DoubleSide }));
           dial.position.set(0, 21, 0); tc.add(dial);
-          const back = new THREE.Mesh(new THREE.CylinderGeometry(6.8, 6.8, 1.2, 24), lam('#2a3a5a')); back.rotation.x = Math.PI / 2; back.position.set(0, 21, -0.7); tc.add(back);
-          const needle = new THREE.Group(); needle.position.set(0, 21, 0.4);
-          const hand = box(0.7, 5.6, 0.3, '#c8262a'); hand.position.y = 2.6; needle.add(hand);
-          const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.5, 10), lam('#2a2a2a')); hub.rotation.x = Math.PI / 2; needle.add(hub);
+          // no back plate: the dial reads from either side of the post, the needle too (a rim instead)
+          const rim = new THREE.Mesh(new THREE.TorusGeometry(6.7, 0.5, 6, 24), lam('#2a3a5a')); rim.position.set(0, 21, 0); tc.add(rim);
+          const needle = new THREE.Group(); needle.position.set(0, 21, 0);
+          const hand = box(0.7, 5.6, 0.9, '#c8262a'); hand.position.y = 2.6; needle.add(hand);
+          const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 1.1, 10), lam('#2a2a2a')); hub.rotation.x = Math.PI / 2; needle.add(hub);
           tc.add(needle);
           this.tideNeedle = needle;
-          const tx = this.bellAt.x + 14, tz = this.bellAt.z;
+          // beside the bell along the wall, never into it: step sideways to the line from the station's middle
+          const ddx = cx - this.bellAt.x, ddz = cz - this.bellAt.z, dl = Math.hypot(ddx, ddz) || 1;
+          let tx = this.bellAt.x - ddz / dl * 16, tz = this.bellAt.z + ddx / dl * 16;
+          if (index.isBlocked(tx, tz)) { tx = this.bellAt.x + ddz / dl * 16; tz = this.bellAt.z - ddx / dl * 16; }
+          tx -= ddx / dl * 7; tz -= ddz / dl * 7;   // and a step out from the wall, so the dial is not in the brick
           tc.position.set(tx, gy(tx, tz), tz);
           tc.rotation.y = Math.atan2(cx - tx, cz - tz) + Math.PI;   // the dial faces away from the station, toward the walk
           scene.add(tc);
