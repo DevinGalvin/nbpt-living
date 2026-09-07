@@ -211,6 +211,25 @@ function windInject(shader: { uniforms: Record<string, unknown>; vertexShader: s
   }
 }`);
 }
+// Golden hour on the walls: a warm rim where a face turns away from the eye, and a
+// warm wash where it faces the low sun. Fragment-side, so the flat-shaded brick gets
+// the light a low sun actually gives it. uGolden 0..1 from the sky, dir in world space.
+const goldenUniforms = { uGolden: { value: 0 }, uGoldenDir: { value: new THREE.Vector3(0, 1, 0) } };
+export function setDecorGolden(k: number, dir: THREE.Vector3) { goldenUniforms.uGolden.value = k; goldenUniforms.uGoldenDir.value.copy(dir); }
+function goldenInject(shader: { uniforms: Record<string, unknown>; fragmentShader: string }) {
+  shader.uniforms.uGolden = goldenUniforms.uGolden;
+  shader.uniforms.uGoldenDir = goldenUniforms.uGoldenDir;
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform float uGolden;\nuniform vec3 uGoldenDir;')
+    .replace('#include <opaque_fragment>', `
+if (uGolden > 0.001) {
+  vec3 sd = normalize((viewMatrix * vec4(uGoldenDir, 0.0)).xyz);
+  float rimF = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 3.0);
+  float sunF = clamp(dot(normal, sd), 0.0, 1.0);
+  outgoingLight += vec3(1.0, 0.62, 0.32) * uGolden * (rimF * 0.5 + sunF * sunF * 0.45) * (0.4 + diffuseColor.rgb);
+}
+#include <opaque_fragment>`);
+}
 let winUniforms: { uNight: { value: number } } | null = null;
 /** night 0..1 from the sky; drives every lit window in every chunk */
 export function setWindowNight(n: number) {
@@ -11651,7 +11670,7 @@ function decorMaterials(): THREE.Material[] {
     const mk = (map: THREE.CanvasTexture | null, bump = 0, roof = false, wind = false) => {
       const m = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
       if (wind) m.defines = { USE_UV: '' };   // the untextured material still needs the uv attribute for the wind weight
-      m.onBeforeCompile = (s) => { if (roof) roofInject(s); if (GFX.clouds > 0) cloudInject(s); if (wind) windInject(s); };
+      m.onBeforeCompile = (s) => { if (roof) roofInject(s); if (GFX.clouds > 0) cloudInject(s); if (wind) windInject(s); goldenInject(s); };
       if (map) m.map = map;
       if (map && bump > 0 && GFX.normalMaps) {
         m.normalMap = normalFromTexture(map, bump);

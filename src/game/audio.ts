@@ -393,6 +393,51 @@ export class GameAudio {
     }
   }
 
+  // a cheer from the seawall: a few voices going up together, over a clap of noise
+  cheer(level = 1) {
+    if (!this.ctx || !this.noiseBuf || !this.enabled || level < 0.02) return;
+    const t0 = this.ctx.currentTime + 0.03;
+    for (let v = 0; v < 5; v++) {
+      const o = this.ctx.createOscillator();
+      o.type = 'sawtooth';
+      const base = 220 + v * 37 + Math.random() * 30;
+      o.frequency.setValueAtTime(base, t0 + v * 0.04);
+      o.frequency.exponentialRampToValueAtTime(base * 1.6, t0 + 0.5 + v * 0.04);
+      o.frequency.exponentialRampToValueAtTime(base * 1.2, t0 + 1.1 + v * 0.04);
+      const f = this.ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900 + v * 120; f.Q.value = 1.4;
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0 + v * 0.04);
+      g.gain.exponentialRampToValueAtTime(0.035 * level, t0 + 0.15 + v * 0.04);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.2 + v * 0.04);
+      o.connect(f); f.connect(g); g.connect(this.master);
+      o.start(t0 + v * 0.04); o.stop(t0 + 1.3 + v * 0.04);
+    }
+    const src = this.ctx.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
+    const nf = this.ctx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 1800; nf.Q.value = 0.7;
+    const ng = this.ctx.createGain();
+    ng.gain.setValueAtTime(0.0001, t0); ng.gain.exponentialRampToValueAtTime(0.06 * level, t0 + 0.2); ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.4);
+    src.connect(nf); nf.connect(ng); ng.connect(this.master);
+    src.start(t0); src.stop(t0 + 1.5);
+  }
+
+  // the wind: a bed of low noise that the storm turns up and the calm turns off
+  private windGain: GainNode | null = null;
+  setWind(level: number) {
+    if (!this.ctx || !this.noiseBuf) return;
+    if (!this.windGain) {
+      const src = this.ctx.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
+      const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 420; f.Q.value = 0.6;
+      const lfo = this.ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.17;
+      const lg = this.ctx.createGain(); lg.gain.value = 180;
+      lfo.connect(lg); lg.connect(f.frequency); lfo.start();
+      this.windGain = this.ctx.createGain(); this.windGain.gain.value = 0;
+      src.connect(f); f.connect(this.windGain); this.windGain.connect(this.master);
+      src.start();
+    }
+    const want = this.enabled ? Math.max(0, Math.min(1, level)) * 0.16 : 0;
+    this.windGain.gain.setTargetAtTime(want, this.ctx.currentTime, 0.8);
+  }
+
   // two quick yips for Clipper
   bark() {
     if (!this.ctx || !this.enabled) return;

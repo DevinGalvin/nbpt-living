@@ -64,6 +64,8 @@ export interface SkyState {
   elev: number;                 // sun elevation, -1 (midnight) .. +1 (noon)
   wet: number;                  // precipitation intensity 0..1
   mist: number;                 // river fog 0..1: a morning now and then, the far bank gone
+  golden: number;               // the low-sun band 0..1, for the warm rim on the walls
+  storm: number;                // the nor'easter 0..1: sideways snow, whiteout, wind
   night: number;                // 0 (full day) .. 1 (lamps-on dark) — drives street lamps
 }
 
@@ -90,13 +92,17 @@ export class Sky {
   private wetTarget = 0;
   private mist = 0;
   private forceMist = typeof location !== 'undefined' && new URLSearchParams(location.search).get('fog') === '1';
+  private storm = 0;
+  private stormT = 150;          // seconds left of the storm
+  private stormNext = 900 + Math.random() * 900;
+  private forceStorm = typeof location !== 'undefined' && new URLSearchParams(location.search).get('storm') === '1';
   private wetTimer = 70;
   private forced: number | null = null;
 
   readonly state: SkyState = {
     sunDir: new THREE.Vector3(0, 1, 0), sunColor: new THREE.Color(), sunIntensity: 1.3,
     hemiSky: new THREE.Color(), hemiGround: new THREE.Color(), hemiIntensity: 0.5,
-    fog: new THREE.Color(), elev: 1, wet: 0, night: 0, mist: 0
+    fog: new THREE.Color(), elev: 1, wet: 0, night: 0, mist: 0, golden: 0, storm: 0
   };
 
   constructor(scene: THREE.Scene, opts: { startTod?: number; period?: number; snow?: boolean }) {
@@ -304,8 +310,18 @@ export class Sky {
     // ---- weather: snow showers in winter; in the other seasons a light rain shower
     // now and then, rarer and gentler than the snow (Devin: the old rain was distracting;
     // the snow showers are loved). Summer gets half as many.
+    // ---- the nor'easter: winter only, rare, a few minutes of sideways snow and whiteout
+    let stormOn = false;
+    if (this.snowMode) {
+      if (this.forceStorm) stormOn = true;
+      else if (this.stormT > 0 && this.stormNext <= 0) { this.stormT -= dt; stormOn = true; if (this.stormT <= 0) { this.stormNext = 1200 + Math.random() * 1200; this.stormT = 150 + Math.random() * 90; } }
+      else this.stormNext -= dt;
+    }
+    this.storm += ((stormOn ? 1 : 0) - this.storm) * Math.min(1, dt * 0.15);
     if (this.forced !== null) {
       this.wetTarget = this.forced;
+    } else if (stormOn) {
+      this.wetTarget = 1;
     } else {
       this.wetTimer -= dt;
       if (this.wetTimer <= 0) {
@@ -328,7 +344,7 @@ export class Sky {
       const morning = this.tod > 0.22 && this.tod < 0.34;
       const fogDay = doy % 3 === 1 && SEASON !== 'winter';
       const want = this.forceMist || (fogDay && morning && this.wetTarget <= 0) ? 1 : 0;
-      this.mist += (want - this.mist) * Math.min(1, dt * 0.1);
+      this.mist += (Math.max(want, this.storm * 0.7) - this.mist) * Math.min(1, dt * 0.1);
     }
 
     // ---- sun geometry + palette ----
@@ -377,6 +393,8 @@ export class Sky {
     s.hemiIntensity = hemiI;
     s.fog.copy(hor);
     s.mist = this.mist;
+    s.golden = golden * (1 - wet) * (1 - this.mist);
+    s.storm = this.storm;
     s.elev = elev;
     s.wet = wet;
     s.night = clamp(1 - day * 1.2, 0, 1);   // lamps ramp on through dusk, full at night
@@ -448,10 +466,12 @@ export class Sky {
     this.rain.visible = this.rainMat.opacity > 0.02;
     if (this.rain.visible) {
       const a = (this.rain.geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array;
-      const slant = this.snowMode ? 16 : 40;
+      // in the nor'easter the snow comes in sideways off the water, twice as fast
+      const slant = this.snowMode ? 16 + this.storm * 220 : 40;
+      const fall = 1 + this.storm * 0.9;
       for (let i = 0; i < this.rainV.length; i++) {
-        a[i * 3 + 1] -= this.rainV[i] * dt;
-        a[i * 3] += (this.snowMode ? Math.sin(t * 0.0011 + i) * slant : slant) * dt;
+        a[i * 3 + 1] -= this.rainV[i] * fall * dt;
+        a[i * 3] += (this.snowMode ? Math.sin(t * 0.0011 + i) * 16 + (slant - 16) * (0.7 + 0.3 * Math.sin(t * 0.003 + i * 0.3)) : slant) * dt;
         if (a[i * 3 + 1] < 0) {
           a[i * 3] = px + (Math.random() - 0.5) * 2000;
           a[i * 3 + 1] = 520 + Math.random() * 200;

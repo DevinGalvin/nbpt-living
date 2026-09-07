@@ -31,6 +31,7 @@ const ROAD_CLASSES = ['motorway', 'motorway_link', 'primary', 'secondary', 'tert
 const TOWN_ROADS = ['primary', 'secondary', 'tertiary', 'residential', 'unclassified'];   // no highway for the bus and the plow
 const MAIL_ROADS = ['tertiary', 'residential', 'unclassified'];   // the mail truck works the side streets
 const SCHOOL_KIDS = 6;
+const WIND_TO = Math.PI * 0.25;   // the summer sea breeze: from the southwest, blowing toward the northeast
 const HOP_CLASSES = ['side', 'foot', 'ped', 'board', 'cycle', 'crossing']; // crossings = legal street crossing
 
 // seasonal attractions — per-town (src/towns/<id>/index.ts); a town without a
@@ -771,7 +772,13 @@ class SmallBoat {
     this.root.rotation.y = this.heading;
     this.root.rotation.z = Math.sin(t * 1.3 + this.phase) * 0.04;
     if (this.paddle) { const k = Math.min(1, this.speed / 40); this.paddle.rotation.z = Math.sin(t * 5.5 + this.phase) * 0.55 * k; this.paddle.rotation.y = Math.sin(t * 5.5 + this.phase) * 0.25 * k; }
-    if (this.sail) this.sail.rotation.y = 0.5 + Math.sin(t * 0.7 + this.phase) * 0.25;
+    if (this.sail) {
+      // the sail sets to the prevailing southwesterly: eased out on a run, sheeted in close-hauled
+      let rel = WIND_TO - this.heading;
+      while (rel > Math.PI) rel -= Math.PI * 2; while (rel < -Math.PI) rel += Math.PI * 2;
+      const want = Math.max(-1.25, Math.min(1.25, rel * 0.55)) + Math.sin(t * 0.9 + this.phase) * 0.08;
+      this.sail.rotation.y += (want - this.sail.rotation.y) * Math.min(1, dt * 1.2);
+    }
     return d;
   }
 }
@@ -2604,7 +2611,14 @@ export class Life {
           const tgt = k.leg === 'out' ? this.raceBuoy : this.raceStart;
           const tx = tgt.x + Math.cos(a) * k.lane * 0.6, tz = tgt.z - Math.sin(a) * k.lane * 0.6;
           const left = k.b.step(dt, t, tx, tz, k.pace * (0.9 + 0.2 * Math.sin(t * 0.3 + k.lane)));
-          if (left < 40) { if (k.leg === 'out') k.leg = 'back'; else k.leg = 'done'; }
+          if (left < 40) {
+            if (k.leg === 'out') k.leg = 'back';
+            else {
+              k.leg = 'done';
+              // the first one home gets the cheer from the seawall
+              if (!this.kayaks.some((o) => o !== k && o.leg === 'done')) this.audio?.cheer(Math.max(0, Math.min(1, 1 - (Math.hypot(this.raceStart.x - px, this.raceStart.z - pz) - 200) / 900)));
+            }
+          }
         }
         // everyone home (or the heat timed out) and nobody watching: pack up
         if ((running === 0 || this.raceT <= 0) && this.okToSpawn(this.raceStart.x, this.raceStart.z, px, pz, fx, fz, 700, 2600)) {
