@@ -2413,6 +2413,8 @@ export class Life {
     this.fireflies.update(dt, t, px, pz, night, this.index, (x, z) => this.groundAt(x, z));
     this.signals.update(dt, t / 1000, px, pz, this.signalSource);   // the clock is in ms; the cycle wants seconds
 
+    // the parade draws a crowd: whoever is on the sidewalk stops and turns to watch it pass
+    const paradeEngine = this.paradeOn ? this.cars.find((c) => c.parade) ?? null : null;
     for (const p of this.peds) {
       const dx = p.root.position.x - px, dz = p.root.position.z - pz;
       if (dx * dx + dz * dz > 1900 * 1900 || !p.pts.length) {
@@ -2447,6 +2449,10 @@ export class Life {
           const here = alongPolyline(p.pts, Math.max(0.5, Math.min(p.total - 0.5, p.t)));
           p.pauseFace = here ? Math.atan2(here.dx, here.dz) + (Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2) : p.pauseFace;
         }
+      }
+      if (paradeEngine) {
+        const ex = paradeEngine.root.position.x - p.root.position.x, ez = paradeEngine.root.position.z - p.root.position.z;
+        if (ex * ex + ez * ez < 170 * 170) { p.pause = Math.max(p.pause, 0.6); p.pauseFace = Math.atan2(ex, ez); }
       }
       const ended = p.advance(dt, this.groundAt(p.root.position.x, p.root.position.z, p.root.position.y));
       if (ended) {

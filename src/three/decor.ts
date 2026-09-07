@@ -9751,6 +9751,25 @@ const TOWEL_HUES = ['#e06a5a', '#4a90c2', '#ecd06f', '#6cb087', '#d889a8', '#f2f
 const UMB_HUES = ['#d8543f', '#3f7fc4', '#e0b53c', '#52a06b', '#c84a6b'];
 const HAIR_HUES = ['#2a2320', '#4a3520', '#7a5a30', '#c8a86a', '#8a8a8a'];
 
+// the lifeguard chair: a tall white stand up by the tide line, a guard sat under a red
+// umbrella with the rescue can hung beside the seat. One or two per swimming beach.
+function lifeguardChair(bk: Bucket, x: number, z: number, g: number, ang: number, rng: () => number) {
+  const white = '#f2f0ea';
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  for (const [u, v] of [[-4, -3], [4, -3], [-4, 3], [4, 3]] as const) {
+    const lx = x + ca * v - sa * u, lz = z + sa * v + ca * u;
+    bk.box(lx, lz, 0.7, 0.7, g, g + 17, white);
+  }
+  rotBox(bk, x, z, 9, 7, g + 16.5, g + 18, ang, white);                         // seat
+  rotBox(bk, x - ca * 3.2, z - sa * 3.2, 9, 1, g + 18, g + 26, ang, white);     // back
+  rotBox(bk, x, z, 10, 1.2, g + 9, g + 10, ang, white);                          // the step
+  rotBox(bk, x + ca * 4.2, z + sa * 4.2, 9, 1, g + 10, g + 15, ang, white);     // ladder face
+  bk.box(x - ca * 3, z - sa * 3, 0.5, 0.5, g + 18, g + 34, '#d8d4c8');          // umbrella pole
+  cone(bk, x - ca * 3, g + 30, z - sa * 3, 11, 5, new THREE.Color('#d8543f'), 0.85, 7);
+  rotBox(bk, x - sa * 5.6, z + ca * 5.6, 1.4, 3.2, g + 14.5, g + 17.5, ang, '#e0523f');   // rescue can
+  beachgoer(bk, x, z, g + 18, ang, rng, 'sit');
+}
+
 // a blocky beachgoer facing `ang`: standing, sitting, or lying flat (sunbathing)
 function beachgoer(bk: Bucket, x: number, z: number, g: number, ang: number, rng: () => number,
                    pose: 'stand' | 'sit' | 'lie', kid = false) {
@@ -11357,6 +11376,26 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         beachgoer(buckets[PLAIN], x, z, g, rng() * Math.PI * 2, rng, 'stand', rng() < 0.35);
         if (rng() < 0.4) beachDog(buckets[PLAIN], x + 6 + rng() * 5, z + (rng() - 0.5) * 10, g, rng() * Math.PI * 2);
       }, 8);
+      // the lifeguard chair: from the middle of the beach, walk toward the nearest water
+      // and set the stand forty-five pixels short of it, facing the surf
+      {
+        let cxm = 0, czm = 0, nn = 0;
+        for (let i = 0; i < poly.p.length; i += 2) { cxm += poly.p[i]; czm += poly.p[i + 1]; nn++; }
+        cxm /= nn; czm /= nn;
+        let bestA = -1, bestD = Infinity;
+        for (let k = 0; k < 24; k++) {
+          const a = (k / 24) * Math.PI * 2;
+          for (let d = 40; d <= 1100; d += 20) {
+            if (index.isWaterAt(cxm + Math.cos(a) * d, czm + Math.sin(a) * d)) { if (d < bestD) { bestD = d; bestA = a; } break; }
+          }
+        }
+        if (bestA >= 0 && bestD > 60) {
+          const lx = cxm + Math.cos(bestA) * (bestD - 45), lz = czm + Math.sin(bestA) * (bestD - 45);
+          if (Math.floor(lx / CHUNK) === ckx && Math.floor(lz / CHUNK) === cky && !index.isWaterAt(lx, lz)) {
+            lifeguardChair(buckets[PLAIN], lx, lz, index.heightAtPx(lx, lz), bestA, mulberry32(pi + 1313));
+          }
+        }
+      }
     }
   }
 

@@ -1406,6 +1406,50 @@ export class WorldIndex {
     for (const r of roads) if (r.c === 'trunk') strokeLine(ctx, r.p);
     ctx.setLineDash([]);
 
+    // grade crossings: where the line crosses a street at grade the road paint had
+    // buried the rails; repaint the crossing as the timber-and-rubber panel it is,
+    // the two rails through it and a white stop bar on each approach
+    for (const ri of bucket.rails) {
+      const rp = w.rails[ri].p;
+      for (const r of roads) {
+        if (r.b || r.l || r.c === 'service' || r.c === 'motorway' || r.c === 'motorway_link' || r.c === 'trunk') continue;
+        for (let i = 0; i + 3 < r.p.length; i += 2) {
+          for (let j = 0; j + 3 < rp.length; j += 2) {
+            const ax = r.p[i], ay = r.p[i + 1], bx = r.p[i + 2], by = r.p[i + 3];
+            const cx2 = rp[j], cy2 = rp[j + 1], dx2 = rp[j + 2], dy2 = rp[j + 3];
+            const den = (bx - ax) * (dy2 - cy2) - (by - ay) * (dx2 - cx2);
+            if (Math.abs(den) < 1e-9) continue;
+            const t = ((cx2 - ax) * (dy2 - cy2) - (cy2 - ay) * (dx2 - cx2)) / den;
+            const u = ((cx2 - ax) * (by - ay) - (cy2 - ay) * (bx - ax)) / den;
+            if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+            const ix = ax + (bx - ax) * t, iy = ay + (by - ay) * t;
+            const ra = Math.atan2(dy2 - cy2, dx2 - cx2);
+            const half = r.w / 2 + 4;
+            ctx.save();
+            ctx.translate(ix, iy);
+            ctx.rotate(ra);
+            ctx.fillStyle = '#6a655f';
+            ctx.fillRect(-half, -14, half * 2, 28);
+            ctx.strokeStyle = STYLE.rail.tie;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-half, -5); ctx.lineTo(half, -5);
+            ctx.moveTo(-half, 5); ctx.lineTo(half, 5);
+            ctx.stroke();
+            ctx.restore();
+            // the stop bars, across each approach lane 30 px short of the panel
+            ctx.save();
+            ctx.translate(ix, iy);
+            ctx.rotate(Math.atan2(by - ay, bx - ax));
+            ctx.fillStyle = STYLE.road.edgeline ?? '#e8e8e2';
+            ctx.fillRect(-46, 0, 3, r.w / 2 - 2);
+            ctx.fillRect(43, -r.w / 2 + 2, 3, r.w / 2 - 2);
+            ctx.restore();
+          }
+        }
+      }
+    }
+
     // highways read as highways: solid edge lines on each shoulder + a dashed
     // white lane divider (motorways are one-way carriageways — yellow would be
     // wrong). Mid-block way seams join cleanly (round caps, same offset); real
