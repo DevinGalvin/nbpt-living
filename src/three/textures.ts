@@ -200,3 +200,42 @@ export function normalFromTexture(src: THREE.CanvasTexture, strength = 1): THREE
   t.anisotropy = 4;
   return t;
 }
+
+// The shop-sign atlas: sixteen boards, one per row, a trade word on a painted board in
+// the downtown palette. Generic trades rather than real names: at kid height a street
+// of BOOKS, COFFEE and CHOWDER reads as Newburyport without naming anyone's shop.
+export const SIGN_ROWS = 16;
+let signCache: THREE.CanvasTexture | null = null;
+export function signTex(): THREE.CanvasTexture {
+  if (signCache) return signCache;
+  const words = ['BOOKS', 'COFFEE', 'BAKERY', 'ANTIQUES', 'GALLERY', 'FLOWERS', 'ICE CREAM', 'TOYS',
+    'PIZZA', 'TAVERN', 'WINE', 'CANDY', 'BIKES', 'CHOWDER', 'GIFTS', 'BARBER'];
+  const boards = ['#1f3d2b', '#1c1c1e', '#5a1f22', '#1d2a45', '#efe6cf', '#3d2a1c', '#2a4a5a', '#6b1f2e'];
+  const inks = ['#e9d8a0', '#efe6cf', '#e9d8a0', '#efe6cf', '#1c1c1e', '#e9d8a0', '#efe6cf', '#e9d8a0'];
+  const W = 512, H = 32;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H * SIGN_ROWS;
+  const g = c.getContext('2d')!;
+  for (let i = 0; i < SIGN_ROWS; i++) {
+    const y = i * H;
+    g.fillStyle = boards[i % boards.length];
+    g.fillRect(0, y, W, H);
+    // a painted border
+    g.strokeStyle = inks[i % inks.length];
+    g.globalAlpha = 0.55;
+    g.lineWidth = 2;
+    g.strokeRect(6, y + 3, W - 12, H - 6);
+    g.globalAlpha = 1;
+    g.fillStyle = inks[i % inks.length];
+    g.font = 'bold 26px Georgia, "Times New Roman", serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(words[i], W / 2, y + H / 2 + 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  signCache = t;
+  return t;
+}

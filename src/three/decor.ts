@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { WorldData, Building, Poly } from '../world/types';
 import { WorldIndex, CHUNK, centroidOf, walkLine as walkLineD, obbOf, type OBB, distToPolylineSq, floatOutForWinter } from '../world/index';
 import { STYLE, SEASON, TREES, pick, hash32, mulberry32 } from '../world/style';
-import { clapboardTex, shingleTex, brickTex, plankTex, normalFromTexture } from './textures';
+import { clapboardTex, shingleTex, brickTex, plankTex, normalFromTexture, signTex, SIGN_ROWS } from './textures';
 import { WATER_Y } from './water';
 import { GFX } from '../gfx';
 import { cloudInject, cloudTex } from './clouds';
@@ -158,7 +158,7 @@ class Bucket {
   }
 }
 
-const PLAIN = 0, CLAP = 1, BRICK = 2, SHINGLE = 3, PLANK = 4, GLOW = 5, WINDOW = 6;
+const PLAIN = 0, CLAP = 1, BRICK = 2, SHINGLE = 3, PLANK = 4, GLOW = 5, WINDOW = 6, SIGN = 7;
 
 // Windows that light up as night falls. Every window emitter drops a warm quad into
 // this bucket, just proud of the glass, with a per-window turn-on threshold in uv.x;
@@ -167,6 +167,7 @@ const PLAIN = 0, CLAP = 1, BRICK = 2, SHINGLE = 3, PLANK = 4, GLOW = 5, WINDOW =
 let winGlow: Bucket | null = null;
 // unlit bucket for lit shop interiors, set per chunk build like winGlow
 let shopGlow: Bucket | null = null;
+let signBk: Bucket | null = null;   // the lettered shop signs (textured, see signTex)
 const GOODS = ['#c8443c', '#e3a83c', '#3b7a5a', '#3f5f9a', '#d9d2c2', '#7b4a8a', '#e07b4c', '#f0e6c8'];
 const WIN_WARM = new THREE.Color('#ffc978');
 /** returns the night threshold the window comes on at, or -1 when it never lights */
@@ -760,6 +761,8 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
       const mx = a.x + ux * (len / 2), my = a.y + uy * (len / 2);
       tmp.set(awningHex).multiplyScalar(0.72);
       billboard(plain, mx, my, nx, nz, ux, uy, Math.min(len / 2 - 5, 30), 2.2, g + 22.5, 0.4, tmp.r, tmp.g, tmp.b);
+      // the lettered board on the band: sixteen trades in the atlas, one per shop
+      if (signBk) signBoard(signBk, mx, my, nx, nz, ux, uy, Math.min(len / 2 - 6, 19), 2.4, g + 22.6, 0.6, hash32(seed, i, 23) % SIGN_ROWS);
     }
     for (let c = 1; c <= cols && windows < maxWin; c++) {
       const t = gap * c;
@@ -847,7 +850,8 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
           const sg = shopGlow ?? plain;
           billboard(sg, wx, wy, nx, nz, ux, uy, 4.2, 1.1, g + 14.6, 0.85, 0.94, 0.84, 0.66);
           const bx = wx + ux * 4.2 + nx * 3.4, by = wy + uy * 4.2 - nz * 3.4;
-          rotBox(plain, bx, -by, 3.0, 0.3, g + 17, g + 20, Math.atan2(nz, nx), awningHex);
+          if (signBk) bladeSign(signBk, wx + ux * 4.2, -(wy + uy * 4.2), nx, nz, ux, -uy, g + 16.2, g + 20.4, hash32(seed, i, 23) % SIGN_ROWS);
+          else rotBox(plain, bx, -by, 3.0, 0.3, g + 17, g + 20, Math.atan2(nz, nx), awningHex);
           rotBox(plain, wx + ux * 4.2 + nx * 0.6, -(wy + uy * 4.2 - nz * 0.6), 0.6, 0.25, g + 19.4, g + 19.9, Math.atan2(nz, nx), '#2a2a2a');
         }
       }
@@ -928,6 +932,28 @@ function billboard(bk: Bucket, x: number, y2: number, nx: number, nz: number,
   const ax = px - ux * hw, ay = py - uy * hw;
   const bx = px + ux * hw, by = py + uy * hw;
   bk.quad(ax, yC - hh, -ay, bx, yC - hh, -by, bx, yC + hh, -by, ax, yC + hh, -ay, nx, 0, nz, r, g, b);
+}
+
+// A lettered sign board from the atlas: the same placement as billboard(), with the
+// atlas row's strip of texture across it, mirrored on the back face so the word
+// reads from either side of the street.
+function signBoard(bk: Bucket, x: number, y2: number, nx: number, nz: number,
+                   ux: number, uy: number, hw: number, hh: number, yC: number, off: number, row: number) {
+  const px = x + nx * off, py = y2 - nz * off;
+  const ax = px - ux * hw, ay = py - uy * hw;
+  const bx = px + ux * hw, by = py + uy * hw;
+  const v0 = 1 - (row + 1) / SIGN_ROWS, v1 = 1 - row / SIGN_ROWS;
+  bk.quadUV(ax, yC - hh, -ay, bx, yC - hh, -by, bx, yC + hh, -by, ax, yC + hh, -ay, nx, 0, nz, 1, 1, 1, 0, v0, 1, v0, 1, v1, 0, v1);
+}
+// …and the blade sign hung out over the sidewalk: a board standing out from the wall
+// along its normal, lettered on both faces
+function bladeSign(bk: Bucket, wx: number, wz: number, nx: number, nz: number, tx: number, tz: number,
+                   y0: number, y1: number, row: number) {
+  const ax = wx + nx * 0.6, az = wz + nz * 0.6, bx = wx + nx * 6.6, bz = wz + nz * 6.6;
+  const v0 = 1 - (row + 1) / SIGN_ROWS, v1 = 1 - row / SIGN_ROWS;
+  const e = 0.12;
+  bk.quadUV(ax + tx * e, y0, az + tz * e, bx + tx * e, y0, bz + tz * e, bx + tx * e, y1, bz + tz * e, ax + tx * e, y1, az + tz * e, tx, 0, tz, 1, 1, 1, 0, v0, 1, v0, 1, v1, 0, v1);
+  bk.quadUV(bx - tx * e, y0, bz - tz * e, ax - tx * e, y0, az - tz * e, ax - tx * e, y1, az - tz * e, bx - tx * e, y1, bz - tz * e, -tx, 0, -tz, 1, 1, 1, 0, v0, 1, v0, 1, v1, 0, v1);
 }
 
 // a billboard shaded top-to-bottom: window glass mirrors the sky above and the dark
@@ -9981,9 +10007,10 @@ function styledHouse(buckets: Bucket[], b: Building, g: number, index: WorldInde
 export interface ChunkDecor { mesh: THREE.Mesh | null; props: THREE.Group | null; chimneys: number[]; signals: number[]; spills: number[] }
 
 export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): ChunkDecor | null {
-  const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
+  const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
   winGlow = GFX.nightWindows ? buckets[WINDOW] : null;
   shopGlow = buckets[GLOW];
+  signBk = buckets[SIGN];
   propSink = PROPS ? new ChunkProps() : null;
   chimneySink = [];
   signalSink = [];
@@ -10375,8 +10402,14 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         if (!index.isBlocked(px, pz)) {
           const ang = Math.atan2(kt.ty, kt.tx);
           rotBox(buckets[PLAIN], px, pz, 2.6, 2.6, g, g + 3.6, ang, lh % 2 ? '#2f4a3a' : '#3a3a3c');
-          const fc = new THREE.Color(['#d8506a', '#e8b23a', '#f2f0e6', '#c4405a'][lh % 4]);
-          blobCanopy(buckets[PLAIN], px, g + 4.6, pz, 2.4, fc, lh | 1);
+          if (SEASON === 'winter') {
+            // boughs in the planter, and snow on them
+            blobCanopy(buckets[PLAIN], px, g + 4.6, pz, 2.4, new THREE.Color('#2f5a3a'), lh | 1);
+            blobCanopy(buckets[PLAIN], px, g + 6.2, pz, 1.6, new THREE.Color('#eef1f3'), (lh >> 2) | 1);
+          } else {
+            const fc = new THREE.Color(['#d8506a', '#e8b23a', '#f2f0e6', '#c4405a'][lh % 4]);
+            blobCanopy(buckets[PLAIN], px, g + 4.6, pz, 2.4, fc, lh | 1);
+          }
         }
         if (lh % 100 < 50) {
           const bx = lamp.x - kt.tx * 14, bz = lamp.y - kt.ty * 14;
@@ -10797,9 +10830,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       buckets[PLAIN].box(p.x, p.y, 1.1, 1.1, g, top, '#6e5a44');
       const ang = Math.atan2(p.ny, p.nx) + Math.PI / 2;   // the crossarm sits across the street line
       rotBox(buckets[PLAIN], p.x, p.y, 6.5, 0.5, top - 4.4, top - 3.4, ang, '#5e4b37');
+      if (SEASON === 'winter') rotBox(buckets[PLAIN], p.x, p.y, 6.5, 0.6, top - 3.4, top - 2.9, ang, '#eef1f3');
       if (p.seed % 4 === 0) {
         // the transformer can, hung below the arm on the street side
         buckets[PLAIN].box(p.x + p.ny * 1.6, p.y - p.nx * 1.6, 1.6, 1.6, top - 15, top - 9.5, '#7c8084');
+        if (SEASON === 'winter') buckets[PLAIN].box(p.x + p.ny * 1.6, p.y - p.nx * 1.6, 1.7, 1.7, top - 9.5, top - 8.9, '#eef1f3');
       }
     }
     for (let i = 0; i + 3 < wires.length; i += 4) {
@@ -11063,7 +11098,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       }
     } else {
       // deciduous: tapered trunk + clustered canopy
-      const hue = (h1 >> 4) % 3; // green / yellow-green / dark green
+      const hue = (h1 >> 4) % TREES.deciduous.length; // every hue in the season's palette: an October street is red, orange and gold, not one yellow
       const base = TREES.deciduous[hue % TREES.deciduous.length];
       const c = new THREE.Color(base).multiplyScalar(variation);
       const canopyY = g + t.r * 1.6 + 8;
@@ -11224,6 +11259,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       buckets[PLAIN].box(cx2, cz2, 0.45, 0.45, g, g + 21, '#6d7d70');
       rotBox(buckets[PLAIN], cx2 + a1.dx * 3.2, cz2 + a1.dy * 3.2, 4.2, 0.22, g + 19.2, g + 21, Math.atan2(a1.dy, a1.dx), '#2f6b3f');
       rotBox(buckets[PLAIN], cx2 + a2.dx * 3.2, cz2 + a2.dy * 3.2, 4.2, 0.22, g + 17.2, g + 19, Math.atan2(a2.dy, a2.dx), '#2f6b3f');
+      if (SEASON === 'winter') rotBox(buckets[PLAIN], cx2 + a1.dx * 3.2, cz2 + a1.dy * 3.2, 4.2, 0.4, g + 21, g + 21.6, Math.atan2(a1.dy, a1.dx), '#eef1f3');
     }
   }
 
@@ -11414,7 +11450,8 @@ function decorMaterials(): THREE.Material[] {
     winUniforms = windows.uniforms as { uNight: { value: number } };
     _mats = [mk(null), mk(clapboardTex(), 0.9), mk(brickTex(), 1.6), mk(shingleTex(), 0.9, true), mk(plankTex(), 1.4),
              new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }),
-             windows];
+             windows,
+             mk(signTex())];
   }
   return _mats;
 }
