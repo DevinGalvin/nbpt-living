@@ -1531,7 +1531,12 @@ export class WorldIndex {
       if ((bb[0] + bb[2]) / 2 > PLUM_X) k = 'sand';
     }
     // grass-surface aprons read as worn turf, not asphalt; frozen ponds go to ice
+    // The bed of tidal water is painted as mud, not water-blue: the water mesh covers
+    // it at high tide, and at low tide the shallow Joppa basin bares as the flats it
+    // really is. Ponds keep their blue (they do not tide) and freeze in winter.
+    const tidalBed = (poly.k === 'water' || poly.k === 'ocean') && !isFreezableWater(poly);
     ctx.fillStyle = (SEASON === 'winter' && poly.k === 'water' && isFreezableWater(poly)) ? '#c8dde8'
+      : tidalBed ? (SEASON === 'winter' ? '#8e8d84' : '#8f8a74')
       : poly.k === 'apron' && poly.s === 'grass' ? '#abbd84' : terrainFill(k);
     tracePoly(ctx, poly);
     ctx.fill('evenodd');

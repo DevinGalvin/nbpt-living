@@ -187,12 +187,12 @@ export class MoreEggs {
     const jf = lm('joppa-flats');
     if (jf && SEASON !== 'winter') {
       let placed = 0;
-      for (let tries = 0; tries < 400 && placed < 4; tries++) {
+      for (let tries = 0; tries < 1200 && placed < 4; tries++) {
         const a = Math.random() * 6.28, d = 60 + Math.random() * 700;
         const x = jf.x + Math.cos(a) * d, z = jf.y + Math.sin(a) * d;
         if (!index.isWaterAt(x, z)) continue;
         const h = index.heightAtPx(x, z);
-        if (h < WATER_Y - 4.6 || h > WATER_Y - 1) continue;   // under water at high tide, out at low
+        if (h < WATER_Y - 1.15 || h > WATER_Y - 0.2) continue;   // under water at high tide, out at low
         const g = new THREE.Group();
         const boots = box(2.2, 6, 2.2, '#2f3a2a'); boots.position.y = 3; g.add(boots);
         const body = box(4.4, 6, 3, ['#c9a33a', '#8a4a3a', '#3a5a8a'][placed % 3]); body.position.y = 9; g.add(body);
@@ -410,7 +410,7 @@ export class MoreEggs {
     if (this.seal && this.sealUp > 0) out.push({ id: 'seal', x: this.sealAt.x, z: this.sealAt.z, label: '🦭 LOOK AT THE RIVER', r: 520 });
     if (this.balloon && this.balloon.visible) out.push({ id: 'balloon', x: this.balloon.position.x, z: this.balloon.position.z, label: '🎈 LOOK UP', r: 1800 });
     if (this.ducks.length) out.push({ id: 'ducklings', x: this.duckAt.x, z: this.duckAt.z, label: '🐥 FOLLOW THE DUCKLINGS', r: 90 });
-    if (this.diggers.length && TIDE.value < -2.6) out.push({ id: 'diggers', x: this.diggers[0].g.position.x, z: this.diggers[0].g.position.z, label: '🪣 WATCH THEM DIG', r: 110 });
+    if (this.diggers.length && TIDE.value < -0.8) out.push({ id: 'diggers', x: this.diggers[0].g.position.x, z: this.diggers[0].g.position.z, label: '🪣 WATCH THEM DIG', r: 110 });
     return out;
   }
 
@@ -495,7 +495,7 @@ export class MoreEggs {
 
     // the clam diggers come out with the flats
     if (this.diggers.length) {
-      const out = TIDE.value < -2.6;
+      const out = TIDE.value < -0.8;
       for (const d of this.diggers) {
         d.g.visible = out;
         if (out) { d.g.rotation.x = 0.55 + Math.max(0, Math.sin(this.t * 1.1 + d.ph)) * 0.35; }

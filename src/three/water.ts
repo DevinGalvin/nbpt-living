@@ -234,6 +234,9 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
 // The tide, in px above (+) or below (-) the mean water level, for everything that
 // floats: boats, the seal, the ducks on the river. Set once a frame by water.update.
 export const TIDE = { value: 0 };
-/** two lows a day on the town's clock: high at midnight and noon, low at six and six */
-export function tideAt(tod: number): number { return -5 * Math.cos(tod * Math.PI * 4); }
+/** two lows a day on the town's clock: low at midnight and noon, high at six and six. The
+ *  synthetic bed lies within a hand's breadth of the surface over the whole Joppa basin, so
+ *  the range is 0.15 m each way: enough to bare the last metre of every shore, not enough to
+ *  drain the basin into a plain. */
+export function tideAt(tod: number): number { return -1.2 * Math.cos(tod * Math.PI * 4); }
 export { WATER_Y };
