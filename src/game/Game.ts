@@ -311,9 +311,6 @@ export class Game {
   // 🍂 leaf piles in fall: raked to the kerb, and a dog who runs into one sends it flying
   private piles: { g: THREE.Group; x: number; z: number; flat: number }[] = [];
   private pileT = 0;
-  // 📷 photo mode: a Polaroid of the moment, with the place and the date
-  private photoWanted = false;
-  private photoEl: HTMLElement | null = null;
   // 🚆 riding the train to the next town: the kid is aboard, the camera rides the
   // first coach, and once the town is out of sight the next town's build takes over
   private onTrain = false;
@@ -741,8 +738,6 @@ export class Game {
       this.hud.initBark(() => this.barkPress(), () => this.barkRelease());
       // B barks (Devin's pick); F stays as a quiet alias for anyone who learned it
       window.addEventListener('keydown', (e) => { if ((e.code === 'KeyB' || e.code === 'KeyF') && !e.repeat && !this.hud.dialogueOpen) this.barkPress(); });
-      window.addEventListener('keydown', (e) => { if (e.code === 'KeyP' && !e.repeat && !this.hud.dialogueOpen) this.takePhoto(); });
-      document.querySelector('#hud .photo-btn')?.addEventListener('click', () => this.takePhoto());
       window.addEventListener('keyup', (e) => { if (e.code === 'KeyB' || e.code === 'KeyF') this.barkRelease(); });
       this.hud.setDogControls();   // BARK = B, SKATE = K, skateboard icon, help line
     }
@@ -2854,7 +2849,6 @@ export class Game {
       this.shotWanted = null;
       cb(this.grabThumb());
     }
-    if (this.photoWanted) { this.photoWanted = false; this.makePolaroid(); }
   }
 
   // ---------- 👀 when is there anything to look up AT? ----------
@@ -3233,53 +3227,6 @@ export class Game {
       p.g.position.set(x, this.index.heightAtPx(x, z), z);
       break;
     }
-  }
-
-  /** 📷 press P: the next frame becomes a Polaroid */
-  takePhoto() { if (!this.photoEl) this.photoWanted = true; }
-
-  private makePolaroid() {
-    let url: string | null = null;
-    try {
-      const src = this.renderer.domElement;
-      const W = 1040, H = 1240, pad = 44, imgW = W - pad * 2, imgH = 900;
-      const c = document.createElement('canvas'); c.width = W; c.height = H;
-      const g = c.getContext('2d')!;
-      g.fillStyle = '#f7f4ec'; g.fillRect(0, 0, W, H);
-      // the square-ish window, cropped from the middle of the frame
-      const ar = imgW / imgH;
-      let sw = src.width, sh = src.width / ar;
-      if (sh > src.height) { sh = src.height; sw = sh * ar; }
-      g.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, pad, pad, imgW, imgH);
-      // the caption: where, and when, in a hand
-      const street = this.hud.currentStreet() || '';
-      const where = street ? street + ', ' + TOWN.name : TOWN.name;
-      const d = new Date();
-      g.fillStyle = '#3a3430';
-      g.font = 'italic 600 44px Georgia, serif'; g.textAlign = 'center';
-      g.fillText(where, W / 2, pad + imgH + 112);
-      g.font = 'italic 500 30px Georgia, serif'; g.fillStyle = '#6a625a';
-      g.fillText(d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) + '  ·  Clipper', W / 2, pad + imgH + 168);
-      url = c.toDataURL('image/jpeg', 0.9);
-    } catch { url = null; }
-    if (!url) return;
-    this.audio.pop();
-    const el = document.createElement('div');
-    el.style.cssText = 'position:fixed;inset:0;z-index:70;background:rgba(10,8,8,.72);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px';
-    const img = document.createElement('img');
-    img.src = url; img.style.cssText = 'max-height:72vh;max-width:88vw;box-shadow:0 20px 60px rgba(0,0,0,.6);transform:rotate(-2.5deg);border-radius:4px';
-    el.appendChild(img);
-    const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:10px';
-    const save = document.createElement('a');
-    save.textContent = '💾 SAVE'; save.href = url; save.download = 'clipper-' + Date.now() + '.jpg';
-    save.style.cssText = 'background:#d8b94a;color:#1b1512;border-radius:10px;padding:10px 18px;font:700 15px system-ui,sans-serif;text-decoration:none';
-    const close = document.createElement('button');
-    close.textContent = 'CLOSE'; close.style.cssText = 'background:#2e2622;color:#f2e9d6;border:1px solid #5a524a;border-radius:10px;padding:10px 18px;font:700 15px system-ui,sans-serif;cursor:pointer';
-    close.onclick = () => { el.remove(); this.photoEl = null; };
-    row.appendChild(save); row.appendChild(close);
-    el.appendChild(row);
-    document.body.appendChild(el);
-    this.photoEl = el;
   }
 
   /** 💦 after rain the tar holds puddles; run through them and they splash, and the paws print wet behind you */
