@@ -52,6 +52,8 @@ export const TOWN: TownPack = {
     frogPond: { x: -3273, z: 2964 },   // skaters loop on the frozen pond (Bartlet Mall)
     sledHill: { top: { x: 2534, z: 8380 }, dir: { x: 0, z: 1 }, run: 270 },   // March's Hill, due south to the flat
     graveyard: { x: -4418, z: 3470 },  // Old Hill Burying Ground
+    parade: { street: 'State Street', toward: { x: 93, z: 88 } },   // the Santa parade comes down State Street to Market Square
+    concertPark: 'Central Waterfront Park',                          // summer concerts on the waterfront lawn
   },
 
   fall: {

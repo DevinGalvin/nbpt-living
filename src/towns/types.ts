@@ -104,6 +104,10 @@ export interface TownPack {
     frogPond: Vec2 | null;                                  // winter skaters loop here
     sledHill: { top: Vec2; dir: Vec2; run: number } | null; // winter sledders
     graveyard: Vec2 | null;                                 // fall graveyard mist + the witch circles here
+    /** winter: Santa rides the fire engine down this street toward `toward`, elves marching behind */
+    parade?: { street: string; toward: Vec2 };
+    /** summer evenings: a concert on the lawn of this named park */
+    concertPark?: string;
   };
 
   // fall atmosphere (Halloween towns run moodier)

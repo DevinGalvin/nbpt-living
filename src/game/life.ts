@@ -178,6 +178,7 @@ class Walker {
   sepX = 0;          // persistent side-step so walkers never overlap
   sepZ = 0;
   size = 1;          // the body scale — a leashed dog strings its leash to the hand
+  lane = 0;          // a fixed side-step from the path (parade columns)
 
   constructor(seed: number, costume?: string) {
     const rng = mulberry32(seed);
@@ -194,6 +195,7 @@ class Walker {
     else if (costume === 'pumpkin') shirt = '#d9772a';
     else if (costume === 'vampire') { shirt = '#1d1d24'; skin = '#e7e4dc'; }
     else if (costume === 'devil') shirt = '#9a2f2a';
+    else if (costume === 'elf') { shirt = '#2e7d3a'; }
     const person = !costume && PROPS ? PROPS.get(PEOPLE[Math.floor(rng() * PEOPLE.length)]) : undefined;
     if (person) {
       // a real person from the kit: clone the skinned mesh and its skeleton, then drive
@@ -245,6 +247,11 @@ class Walker {
         const collar = box(7, 2.4, 3, '#141019'); collar.position.set(0, 22.4, -1.2); this.heading.add(collar);
       } else if (costume === 'devil') {
         for (const sx of [-1, 1]) { const horn = cone(0.7, 2.4, '#6e1a16'); horn.position.set(sx * 2.1, 30.4, 0); horn.rotation.z = sx * -0.3; this.heading.add(horn); }
+      } else if (costume === 'elf') {
+        pail.visible = false;
+        const hat = cone(3.6, 7.5, '#c8262a'); hat.position.y = 31.5; this.heading.add(hat);
+        const pom = sph(1.2, '#f4f0e8'); pom.position.y = 35.2; this.heading.add(pom);
+        const bell = sph(1.1, '#e8c04a'); bell.position.set(6.4, 16.5, 1.6); this.heading.add(bell);   // a sleigh bell in the hand
       }
       this.size = 0.6 + rng() * 0.1;
     } else {
@@ -275,8 +282,8 @@ class Walker {
     const clamped = Math.max(0.5, Math.min(this.total - 0.5, this.t));
     const spot = alongPolyline(this.pts, clamped);
     if (spot) {
-      this.root.position.x = spot.x;
-      this.root.position.z = spot.z;
+      this.root.position.x = spot.x - spot.dz * this.lane;
+      this.root.position.z = spot.z + spot.dx * this.lane;
       this.face = lerpAngle(this.face, Math.atan2(spot.dx * this.dir, spot.dz * this.dir), Math.min(1, dt * 6));
       this.phase += dt * this.cadence;
       const s = Math.sin(this.phase) * 0.55 * this.stride;
@@ -576,7 +583,7 @@ function buildBus(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beacon[]
   root.add(arm);
   return arm;
 }
-function buildEngine(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beacon[]) {
+function buildEngine(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beacon[]): THREE.Group {
   const red = '#b3231d';
   const cab = rbox(20, 20, 24, 1.6, red); cab.position.set(0, 15, 26);
   const bodyBox = rbox(20, 15, 50, 1.4, red); bodyBox.position.set(0, 12.5, -12);
@@ -602,6 +609,24 @@ function buildEngine(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beaco
   beacon(root, beacons, 'red', 6, 26.6, 26, 0.5, 3.2, 9);
   beacon(root, beacons, 'red', -8, 20.5, -37.5, 0.25, 3.2, 8);
   beacon(root, beacons, 'red', 8, 20.5, -37.5, 0.75, 3.2, 8);
+  // 🎅 Santa, up on the hose bed for the parade — hidden the rest of the year
+  const santa = new THREE.Group();
+  const coat = cap(3.8, 5, '#c8262a'); coat.scale.set(1.25, 1, 0.95); coat.position.y = 7.5;
+  const belt = box(9, 1.4, 6.5, '#2a2320'); belt.position.y = 6.2; belt.castShadow = false;
+  const head = sph(3.3, '#eec39a', 1, 0.95, 0.95); head.position.y = 14.5;
+  const beard = sph(3.4, '#f4f0e8', 1.05, 0.9, 0.9); beard.position.set(0, 13.2, 1.2);
+  const hat = cone(3.4, 7, '#c8262a'); hat.position.set(0, 19.5, 0); hat.rotation.z = 0.25;
+  const brim = sph(3.7, '#f4f0e8', 1.05, 0.35, 1.05); brim.position.y = 16.6;
+  const pom = sph(1.3, '#f4f0e8'); pom.position.set(-1.8, 22.6, 0);
+  const armDown = cap(1.3, 4.5, '#c8262a', true); armDown.position.set(-5.4, 11, 0);
+  const wave = cap(1.3, 4.5, '#c8262a', true); wave.position.set(5.4, 11.5, 0); wave.rotation.z = -2.6; wave.name = 'wave';
+  const mitt = sph(1.5, '#f4f0e8'); mitt.position.set(0, -7, 0); wave.add(mitt);
+  santa.add(coat, belt, head, beard, hat, brim, pom, armDown, wave);
+  santa.position.set(0, 23, -18);
+  santa.rotation.y = Math.PI / 2;   // sat facing the sidewalk
+  santa.visible = false;
+  root.add(santa);
+  return santa;
 }
 function buildCruiser(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beacon[]) {
   const model = PROPS?.get('police-car');
@@ -777,13 +802,16 @@ class TrafficCar {
   ignoreRed = false;
   /** 0 = in the lane, 1 = pulled over to the kerb (the mail truck at a box) */
   kerb = 0;
+  /** Santa on the engine (parade only) */
+  rider: THREE.Group | null = null;
+  parade = false;
 
   constructor(seed: number, role: CarRole = 'car') {
     this.role = role;
     const rng = mulberry32(seed);
     if (role !== 'car') {
       if (role === 'bus') this.arm = buildBus(this.root, this.wheels, this.beacons);
-      else if (role === 'fire') buildEngine(this.root, this.wheels, this.beacons);
+      else if (role === 'fire') this.rider = buildEngine(this.root, this.wheels, this.beacons);
       else if (role === 'police') buildCruiser(this.root, this.wheels, this.beacons);
       else if (role === 'ems') buildAmbulance(this.root, this.wheels, this.beacons);
       else if (role === 'mail') buildMailTruck(this.root, this.wheels, this.beacons);
@@ -857,6 +885,10 @@ class TrafficCar {
         const on = this.lights && ph < 0.34;
         b.mat.opacity = on ? 0.9 : 0;
       }
+    }
+    if (this.rider) {
+      this.rider.visible = this.parade;
+      if (this.parade) { const w = this.rider.getObjectByName('wave'); if (w) w.rotation.z = -2.6 + Math.sin(t * 5) * 0.35; }
     }
     if (this.arm) {
       const want = this.stopT > 0 ? 1 : 0;
@@ -1683,6 +1715,15 @@ export class Life {
   private forceMail = false;
   private train: Train | null = null;
   private crossings: Crossing[] = [];
+  // 🎅 the Santa parade: the engine down the parade street at a walk, elves behind
+  private elves: Walker[] = [];
+  private paradeRoad: { pts: number[]; total: number; dir: number; w: number } | null = null;
+  private paradeOn = false;
+  private forceParade = false;
+  private jingleT = 0;
+  // 🎸 the summer concert on the waterfront lawn
+  private concert: { root: THREE.Group; players: THREE.Object3D[]; arms: THREE.Object3D[]; lights: THREE.MeshBasicMaterial[]; on: boolean; built: boolean } | null = null;
+  private forceConcert = false;
   private audio: GameAudio | null = null;
   private rail: number[] = []; private railLen = 0; private stationT = 0; private railOut = 1;
   private fireT = 300;         // seconds until the engine's next run (counts down while it's home)
@@ -1776,6 +1817,37 @@ export class Life {
     this.forceBus = q?.get('bus') === '1';
     this.forcePlow = q?.get('plow') === '1';
     this.forceMail = q?.get('mail') === '1';
+    this.forceParade = q?.get('parade') === '1';
+    this.forceConcert = q?.get('concert') === '1';
+    // the parade route: the named street, walked toward the square
+    const pr = TOWN.attractions.parade;
+    if (pr && (SEASON === 'winter' || this.forceParade)) {
+      let best: { pts: number[]; total: number; dir: number; w: number } | null = null, bd = Infinity;
+      for (const rd of index.world.roads) {
+        if (rd.n !== pr.street || !TOWN_ROADS.includes(rd.c)) continue;
+        const total = polyLen(rd.p);
+        if (total < 600) continue;
+        const d0 = (rd.p[0] - pr.toward.x) ** 2 + (rd.p[1] - pr.toward.z) ** 2;
+        const d1 = (rd.p[rd.p.length - 2] - pr.toward.x) ** 2 + (rd.p[rd.p.length - 1] - pr.toward.z) ** 2;
+        const d = Math.min(d0, d1);
+        if (d < bd) { bd = d; best = { pts: rd.p, total, dir: d0 < d1 ? -1 : 1, w: rd.w }; }
+      }
+      if (best && bd < 300 * 300) {
+        this.paradeRoad = best;
+        for (let i = 0; i < 10; i++) {
+          const e = new Walker(i * 97 + 5, 'elf');
+          e.root.position.set(0, 0, 1e7);
+          e.pts = [];
+          this.elves.push(e);
+          scene.add(e.root);
+        }
+      }
+    }
+    if (TOWN.attractions.concertPark && (SEASON === 'summer' || this.forceConcert)) {
+      this.concert = { root: new THREE.Group(), players: [], arms: [], lights: [], on: false, built: false };
+      this.concert.root.visible = false;
+      scene.add(this.concert.root);
+    }
     // the train, on the real line through the town's station
     if (TOWN.trainPlatform) {
       const line = this.railLine(TOWN.trainPlatform.x, TOWN.trainPlatform.z);
@@ -2159,6 +2231,151 @@ export class Life {
     this.placeTrain();
   }
 
+  /** 🎅 the parade: on winter afternoons the engine crawls the parade street with Santa up top and the elves behind */
+  private updateParade(dt: number, px: number, pz: number, fx: number, fz: number, tod: number) {
+    if (!this.paradeRoad) return;
+    const engine = this.cars.find((c) => c.role === 'fire');
+    if (!engine) return;
+    const want = this.forceParade || (SEASON === 'winter' && tod > 0.6 && tod < 0.68);
+    if (want && !this.paradeOn) {
+      // step off from the far end, only when nobody is looking at it
+      const r = this.paradeRoad;
+      const t0 = r.dir > 0 ? 220 : r.total - 220;   // room behind the engine for the columns
+      const at = alongPolyline(r.pts, t0);
+      if (!at || !this.okToSpawn(at.x, at.z, px, pz, fx, fz, 500, 2500)) return;
+      this.paradeOn = true;
+      engine.dormant = false; engine.parade = true; engine.pts = r.pts; engine.total = r.total; engine.roadW = r.w;
+      engine.dir = r.dir; engine.t = t0; engine.cruise = 24; engine.speed = 0; engine.kerb = 0;
+      engine.step(0.016, this.groundAt(at.x, at.z));
+      engine.root.position.set(at.x, this.groundAt(at.x, at.z), at.z);
+      for (let i = 0; i < this.elves.length; i++) {
+        const e = this.elves[i];
+        e.pts = r.pts; e.total = r.total; e.dir = r.dir;
+        e.t = t0 - r.dir * (70 + Math.floor(i / 2) * 22);
+        e.lane = (i % 2 ? 9 : -9) * r.dir;
+        e.pause = 0; e.speed = 24; e.cadence = 9; e.stride = 0.9;
+        const s = alongPolyline(r.pts, Math.max(0.5, Math.min(r.total - 0.5, e.t)));
+        if (s) e.root.position.set(s.x, this.groundAt(s.x, s.z), s.z);
+      }
+      return;
+    }
+    if (!this.paradeOn) return;
+    // the end of the route, or the hour gone by and nobody watching: the parade is over
+    const atEnd = this.paradeRoad.dir > 0 ? engine.t >= this.paradeRoad.total - 40 : engine.t <= 40;
+    const hidden = this.okToSpawn(engine.root.position.x, engine.root.position.z, px, pz, fx, fz, 900, 2500);
+    if (atEnd) { engine.cruise = 0; }
+    if ((atEnd || !want) && hidden) {
+      this.paradeOn = false; engine.parade = false; engine.dormant = true; engine.pts = []; engine.lights = false;
+      engine.root.position.set(0, 0, 1e7);
+      for (const e of this.elves) { e.pts = []; e.root.position.set(0, 0, 1e7); }
+      return;
+    }
+    engine.lights = true;
+    for (const e of this.elves) {
+      if (!e.pts.length) continue;
+      // march at the engine's pace, and stand when it stands
+      e.speed = engine.speed;
+      if (engine.speed < 1) e.pause = 0.05;
+      e.advance(dt, this.groundAt(e.root.position.x, e.root.position.z, e.root.position.y));
+    }
+    this.jingleT -= dt;
+    if (this.jingleT <= 0) {
+      this.jingleT = 4.5;
+      if ((engine.root.position.x - px) ** 2 + (engine.root.position.z - pz) ** 2 < 520 * 520) this.audio?.jingle();
+    }
+  }
+
+  /** 🎸 the summer concert: a stage on the park lawn, a trio playing, blankets and people on the grass */
+  private updateConcert(dt: number, t: number, px: number, pz: number, fx: number, fz: number, tod: number) {
+    const c = this.concert;
+    if (!c) return;
+    const day = Math.floor(Date.now() / 864e5);
+    const want = this.forceConcert || (SEASON === 'summer' && tod > 0.76 && tod < 0.9 && day % 2 === 0);
+    if (!c.built) {
+      if (!want) return;
+      const park = this.index.world.polys.find((p) => p.k === 'park' && p.n === TOWN.attractions.concertPark);
+      if (!park) { this.concert = null; return; }
+      let cx = 0, cz = 0, n = 0;
+      for (let i = 0; i < park.p.length; i += 2) { cx += park.p[i]; cz += park.p[i + 1]; n++; }
+      cx /= n; cz /= n;
+      // face the stage toward the most lawn: the heading whose samples stay on grass
+      let bestA = 0, bestScore = -1;
+      for (let k = 0; k < 16; k++) {
+        const a = (k / 16) * Math.PI * 2;
+        let score = 0;
+        for (const d of [90, 170, 250, 330]) {
+          const x = cx + Math.sin(a) * d, z = cz + Math.cos(a) * d;
+          if (pointInPoly(x, z, park) && !this.index.isWaterAt(x, z) && !this.index.isBlocked(x, z)) score++;
+        }
+        if (score > bestScore) { bestScore = score; bestA = a; }
+      }
+      const g = this.groundAt(cx, cz);
+      c.root.position.set(cx, g, cz);
+      c.root.rotation.y = bestA;
+      // the stage: a deck, a back wall, two truss towers with lamps, lights along the lip
+      const deck = box(110, 9, 52, '#3a3634'); deck.position.set(0, 4.5, -10); c.root.add(deck);
+      const back = box(110, 40, 3, '#26292d'); back.position.set(0, 29, -36); c.root.add(back);
+      const banner = box(70, 12, 0.6, '#c8262a'); banner.position.set(0, 42, -34.5); banner.castShadow = false; c.root.add(banner);
+      for (const sx of [-1, 1]) {
+        const tower = box(4, 46, 4, '#55595e'); tower.position.set(sx * 58, 23, 4); c.root.add(tower);
+        const lamp = new THREE.MeshBasicMaterial({ color: 0xfff1d0, fog: false });
+        const can = new THREE.Mesh(new THREE.SphereGeometry(2.4, 8, 6), lamp); can.position.set(sx * 58, 45, 6); c.root.add(can);
+        c.lights.push(lamp);
+      }
+      // string lights along the front edge of the deck
+      for (let i = -50; i <= 50; i += 8) {
+        const m = new THREE.MeshBasicMaterial({ color: [0xff5a48, 0xffd24a, 0x5ad066, 0x5aa5ff][((i + 50) / 8) % 4], fog: false });
+        const b = new THREE.Mesh(new THREE.SphereGeometry(0.9, 6, 5), m); b.position.set(i, 10, 16.5); c.root.add(b);
+        c.lights.push(m);
+      }
+      // the trio: guitar, bass, and a singer at the mic
+      for (const [x, z, hex, inst] of [[-26, 2, '#3e5c84', 'guitar'], [0, -6, '#b03a32', 'mic'], [26, 2, '#54652c', 'bass']] as const) {
+        const p = new THREE.Group();
+        const legs = cap(3.2, 8, '#3b4d6b'); legs.position.y = 8; p.add(legs);
+        const body = cap(3.6, 5.6, hex); body.scale.set(1.3, 1, 0.85); body.position.y = 17; p.add(body);
+        const head = sph(3.7, SKINS[(x + 30) % SKINS.length], 1, 0.95, 0.95); head.position.y = 26.5; p.add(head);
+        const hair = sph(3.85, HAIRS[(z + 10) % HAIRS.length], 1.02, 0.68, 1); hair.position.y = 27.9; p.add(hair);
+        const arm = cap(1.2, 4.8, hex, true); arm.position.set(5.8, 22, 2); arm.rotation.x = -1.2; p.add(arm);
+        const arm2 = cap(1.2, 4.8, hex, true); arm2.position.set(-5.8, 22, 2); arm2.rotation.x = -0.9; p.add(arm2);
+        if (inst === 'mic') { const st = box(0.6, 26, 0.6, '#2a2a2a'); st.position.set(0, 13, 8); p.add(st); const mic = sph(1.2, '#4a4a4a'); mic.position.set(0, 26, 8); p.add(mic); }
+        else { const gtr = box(inst === 'bass' ? 5 : 6, 12, 2.2, inst === 'bass' ? '#3a2a1c' : '#b8662a'); gtr.position.set(1, 16, 5); gtr.rotation.z = 0.5; p.add(gtr); const neck = box(1.2, 12, 1, '#2a1c12'); neck.position.set(-5, 21, 5); neck.rotation.z = 0.5; p.add(neck); }
+        p.position.set(x, 9, z);
+        c.root.add(p); c.players.push(p); c.arms.push(arm);
+      }
+      // the crowd: blankets on the grass in front, people sat on them
+      const rng = mulberry32(4242);
+      let placed = 0;
+      for (let tries = 0; tries < 80 && placed < 18; tries++) {
+        const lx = (rng() - 0.5) * 220, lz = 60 + rng() * 210;
+        const wx = cx + Math.sin(bestA) * lz + Math.cos(bestA) * lx, wz = cz + Math.cos(bestA) * lz - Math.sin(bestA) * lx;
+        if (!pointInPoly(wx, wz, park) || this.index.isWaterAt(wx, wz) || this.index.isBlocked(wx, wz)) continue;
+        const bl = new THREE.Mesh(new THREE.PlaneGeometry(22 + rng() * 10, 16 + rng() * 8), mat(['#b03a32', '#3e5c84', '#c8a142', '#2e6e63', '#7c4a68', '#e0d6c4'][Math.floor(rng() * 6)]));
+        bl.rotation.x = -Math.PI / 2; bl.rotation.z = (rng() - 0.5) * 0.6; bl.position.set(lx, this.groundAt(wx, wz) - g + 0.4, lz); bl.receiveShadow = true; c.root.add(bl);
+        const people = 1 + Math.floor(rng() * 2.4);
+        for (let k = 0; k < people; k++) {
+          const s = new THREE.Group();
+          const bod = cap(3, 3.6, SHIRTS[Math.floor(rng() * SHIRTS.length)]); bod.scale.set(1.25, 1, 0.9); bod.position.y = 5.5; s.add(bod);
+          const hd = sph(3.2, SKINS[Math.floor(rng() * SKINS.length)], 1, 0.95, 0.95); hd.position.y = 12; s.add(hd);
+          const hr = sph(3.35, HAIRS[Math.floor(rng() * HAIRS.length)], 1.02, 0.68, 1); hr.position.y = 13.3; s.add(hr);
+          s.position.set(lx + (k - (people - 1) / 2) * 8, this.groundAt(wx, wz) - g, lz - 2);
+          s.rotation.y = Math.PI + (rng() - 0.5) * 0.5;   // facing the stage
+          c.root.add(s);
+        }
+        placed++;
+      }
+      c.built = true;
+    }
+    // on and off only while the lawn is out of sight
+    if (want !== c.on) {
+      const hidden = this.okToSpawn(c.root.position.x, c.root.position.z, px, pz, fx, fz, 700, 2500);
+      if (hidden) { c.on = want; c.root.visible = want; }
+    }
+    if (!c.on) return;
+    // the band plays: strumming arms, the singer sways
+    for (let i = 0; i < c.arms.length; i++) c.arms[i].rotation.x = -1.2 + Math.sin(t * (i === 1 ? 2.2 : 7) + i) * (i === 1 ? 0.15 : 0.35);
+    for (let i = 0; i < c.players.length; i++) c.players[i].rotation.y = Math.sin(t * 1.3 + i * 2) * 0.12;
+  }
+
   private roadSpot(px: number, pz: number, fx: number, fz: number, rng: () => number, classes: string[] = ROAD_CLASSES, near?: { x: number; z: number; r: number }): { pts: number[]; w: number; total: number; t: number; dir: number; c: string } | null {
     for (let tries = 0; tries < 12; tries++) {
       const ax = near ? near.x : px, az = near ? near.z : pz, span = near ? near.r * 2 : 4400;
@@ -2190,6 +2407,8 @@ export class Life {
     else this.emsT -= dt;
     this.updateTrain(dt, px, pz, fx, fz);
     this.updateCrossings(dt, t / 1000, px, pz);
+    this.updateParade(dt, px, pz, fx, fz, tod);
+    this.updateConcert(dt, t / 1000, px, pz, fx, fz, tod);
     this.smoke.update(dt, px, pz, night, this.chimneySource);
     this.fireflies.update(dt, t, px, pz, night, this.index, (x, z) => this.groundAt(x, z));
     this.signals.update(dt, t / 1000, px, pz, this.signalSource);   // the clock is in ms; the cycle wants seconds
@@ -2339,6 +2558,11 @@ export class Life {
       // the service fleet keeps hours: the bus runs the school bell, the engine runs
       // when a call comes, the plow runs after snow, the cruiser is always out
       if (c.role !== 'car') {
+        if (c.parade) {
+          // on parade: Life.updateParade drives the schedule; only the crawl and the brakes run here
+          c.lights = true;
+          c.dress(t / 1000, dt);
+        } else {
         const onDuty = c.role === 'bus' ? (this.forceBus || (tod > 0.29 && tod < 0.345) || (tod > 0.595 && tod < 0.645))
           : c.role === 'fire' ? this.fireRun > 0
           : c.role === 'ems' ? this.emsRun > 0
@@ -2364,8 +2588,9 @@ export class Life {
         }
         c.lights = c.role === 'fire' || c.role === 'ems' || c.role === 'plow' || c.stopT > 0;
         c.dress(t / 1000, dt);
+        }
       }
-      if (dx * dx + dz * dz > 2700 * 2700 || !c.pts.length) {
+      if (!c.parade && (dx * dx + dz * dz > 2700 * 2700 || !c.pts.length)) {
         const home = c.role === 'fire' ? this.fireHome : c.role === 'ems' ? this.emsHome : null;
         const near = home && (home.x - px) ** 2 + (home.z - pz) ** 2 < 2400 * 2400 ? { x: home.x, z: home.z, r: 420 } : undefined;
         const road = this.roadSpot(px, pz, fx, fz, rng, c.role === 'bus' || c.role === 'plow' ? TOWN_ROADS : c.role === 'mail' ? MAIL_ROADS : ROAD_CLASSES, near)
