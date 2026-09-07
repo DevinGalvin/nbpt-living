@@ -3211,7 +3211,7 @@ export class Game {
       const nx = -(bz - az) / l, nz = (bx - ax) / l;
       const side = Math.random() < 0.5 ? 1 : -1;
       const x = (ax + bx) / 2 + nx * 11 * side, z = (az + bz) / 2 + nz * 11 * side;
-      if (this.index.isBlocked(x, z) || this.index.isWaterAt(x, z) || this.index.onPavedAt(x, z)) continue;
+      if (this.index.isBlocked(x, z) || this.index.isWaterAt(x, z) || this.index.onPavedAt(x, z) || this.index.downtownAt(x, z)) continue;   // yards, not the brick core
       const ddx = x - this.px, ddz = z - this.pz, dd = Math.hypot(ddx, ddz);
       if (dd < 500 || (ddx / dd) * fx + (ddz / dd) * fz > 0.2) continue;   // beside or behind: never in view
       let p = want;
