@@ -63,6 +63,7 @@ export interface SkyState {
   fog: THREE.Color;
   elev: number;                 // sun elevation, -1 (midnight) .. +1 (noon)
   wet: number;                  // precipitation intensity 0..1
+  mist: number;                 // river fog 0..1: a morning now and then, the far bank gone
   night: number;                // 0 (full day) .. 1 (lamps-on dark) — drives street lamps
 }
 
@@ -87,13 +88,15 @@ export class Sky {
 
   private wet = 0;
   private wetTarget = 0;
+  private mist = 0;
+  private forceMist = typeof location !== 'undefined' && new URLSearchParams(location.search).get('fog') === '1';
   private wetTimer = 70;
   private forced: number | null = null;
 
   readonly state: SkyState = {
     sunDir: new THREE.Vector3(0, 1, 0), sunColor: new THREE.Color(), sunIntensity: 1.3,
     hemiSky: new THREE.Color(), hemiGround: new THREE.Color(), hemiIntensity: 0.5,
-    fog: new THREE.Color(), elev: 1, wet: 0, night: 0
+    fog: new THREE.Color(), elev: 1, wet: 0, night: 0, mist: 0
   };
 
   constructor(scene: THREE.Scene, opts: { startTod?: number; period?: number; snow?: boolean }) {
@@ -317,6 +320,16 @@ export class Sky {
       }
     }
     this.wet += (this.wetTarget - this.wet) * Math.min(1, dt * 0.35);
+    // ---- river fog: one morning in three outside winter the fog sits on the river
+    // until mid-morning and burns off. It builds and lifts slowly, never blinks.
+    {
+      const d = new Date();
+      const doy = Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 864e5);
+      const morning = this.tod > 0.22 && this.tod < 0.34;
+      const fogDay = doy % 3 === 1 && SEASON !== 'winter';
+      const want = this.forceMist || (fogDay && morning && this.wetTarget <= 0) ? 1 : 0;
+      this.mist += (want - this.mist) * Math.min(1, dt * 0.1);
+    }
 
     // ---- sun geometry + palette ----
     const raw = sunAltitude(this.tod);
@@ -344,9 +357,20 @@ export class Sky {
       sunI *= 1 - wet * 0.85;
       hemiI *= 1 + wet * 0.1;
     }
+    if (this.mist > 0.01) {
+      // fog is white light from everywhere: the horizon and the zenith go to a pale
+      // grey, the sun to a glow with no shadow to speak of
+      const m = this.mist;
+      const fogGrey = new THREE.Color('#dde1e3').multiplyScalar(0.4 + day * 0.6);
+      hor.lerp(fogGrey, m * 0.9);
+      zen.lerp(fogGrey, m * 0.7);
+      sunI *= 1 - m * 0.72;
+      hemiI *= 1 + m * 0.25;
+    }
     s.sunIntensity = sunI;
     s.hemiIntensity = hemiI;
     s.fog.copy(hor);
+    s.mist = this.mist;
     s.elev = elev;
     s.wet = wet;
     s.night = clamp(1 - day * 1.2, 0, 1);   // lamps ramp on through dusk, full at night

@@ -368,6 +368,31 @@ export class GameAudio {
     for (const [hz, at] of notes) this.pluck(t0 + at, hz, 0.11 * level, 0.9);
   }
 
+  // the foghorn: a long low chord from out past the jetties, swelling and falling away
+  foghorn(level = 1) {
+    if (!this.ctx || !this.enabled || level < 0.02) return;
+    const t0 = this.ctx.currentTime + 0.05;
+    for (const [hz, vel] of [[87, 0.09], [130.8, 0.05], [174, 0.02]] as const) {
+      const o = this.ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = hz;
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 260;
+      const g = this.ctx.createGain();
+      const v = vel * level;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(v, t0 + 0.6);
+      g.gain.setValueAtTime(v, t0 + 2.2);
+      g.gain.linearRampToValueAtTime(0.0001, t0 + 3.2);
+      o.connect(f);
+      f.connect(g);
+      g.connect(this.master);
+      o.start(t0);
+      o.stop(t0 + 3.3);
+    }
+  }
+
   // two quick yips for Clipper
   bark() {
     if (!this.ctx || !this.enabled) return;

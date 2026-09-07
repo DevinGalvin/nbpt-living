@@ -294,6 +294,7 @@ export class Game {
   private farTown: FarTown | null = null;   // every building as a box, shown where no chunk is loaded
   // desktop sees twice as far: with the far town standing in the haze there is nothing to hide
   private farFog = false;
+  private foghornT = 5;
   private flightEnabled = true;   // ✈️ scenic flight is now PUBLIC — open to everyone (was dev-gated behind ?fly)
   private keys = new Set<string>();
   private chunks = new Map<string, ChunkEntry>();
@@ -2594,6 +2595,12 @@ export class Game {
 
     if (this.waterUpdate && !this.inside) this.waterUpdate(t, this.sky.state, tideAt(this.sky.tod));
     if (this.life && !this.inside) this.life.update(dt, this.px, this.pz, t, Math.sin(this.camAz), Math.cos(this.camAz), sky.night, this.sky.tod, sky.wet);
+    // the foghorn out on the water while the fog is down: every half minute or so,
+    // louder by the river, a rumour from uptown
+    if (sky.mist > 0.4 && !this.inside) {
+      this.foghornT -= dt;
+      if (this.foghornT <= 0) { this.foghornT = 24 + Math.random() * 10; this.audio.foghorn(sky.mist * (this.nearWater ? 1 : 0.5)); }
+    }
     if (this.gillis && !this.inside) this.gillis.update(dt);
     if (this.inTunnel) this.tunnel!.update(dt, this.px, this.pz);
     else if (this.interior) this.interior.update(dt, this.px, this.pz);
@@ -3041,6 +3048,9 @@ export class Game {
       }
       // the reach changes with the kayak and the cutaways; the fog eases between its two
       // reaches over a couple of seconds instead of the far bank blinking in
+      // river fog pulls the reach right in: the far bank goes first, then the next block
+      const mist = this.sky.state.mist;
+      if (mist > 0.001) { tn = tn * (1 - mist * 0.92) + 40 * mist; tf = tf * (1 - mist * 0.86) + 900 * mist; }
       const k = snap ? 1 : Math.min(1, dt * 1.2);
       fog.near += (tn - fog.near) * k;
       fog.far += (tf - fog.far) * k;

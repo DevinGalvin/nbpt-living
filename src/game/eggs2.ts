@@ -49,6 +49,14 @@ export const MORE_CARDS: Record<string, Card> = {
     t: 'The Bell Answers', s: 'the Coast Guard station · 1791',
     b: 'You rang the station bell, and out in the channel the bell buoy answered, the way it has for every boat that came home in the fog since the Coast Guard was born on this river. Ring it again. It always answers.'
   },
+  bottle: {
+    t: 'Message in a Bottle', s: 'the wrack line · Plum Island',
+    b: ''   // the week's note goes here (see NOTES)
+  },
+  fetch: {
+    t: 'Fetch!', s: 'Cashman Park · the lawn by the ramp',
+    b: 'A tennis ball, thrown as far as an arm can throw it, and a dog who brings it back every single time. This is the whole point of a park. Bring it back and she throws it again.'
+  },
   chalk: {
     t: 'Chalk on the Bricks', s: 'Inn Street · this morning',
     b: 'Somebody with a bucket of chalk got here before you. A hopscotch, a sun, a house with too many windows, and a dog that looks a lot like you. The rain will take it tonight, and tomorrow there will be a new one.'
@@ -84,6 +92,19 @@ type Host = {
 };
 
 const lam = (hex: string) => new THREE.MeshLambertMaterial({ color: hex });
+// the notes in the bottle, one a week, from kids who live here
+const NOTES = [
+  'Hi. My name is Ava and I am 8. I live near the Mall. If you find this, go look at the frogs in the pond. They are real. Not the metal ones. Write back. — Ava',
+  'To whoever finds this: the best rock for skipping is under the Chain Bridge on the Newburyport side. Do not tell my brother. — Theo, age 9',
+  'I am writing this on the beach because my dad said the tide would take it to Portugal. If you are in Portugal, hello. If you are on Plum Island, the tide did not go very far. — Mae',
+  'Things I saw today: a seal, a heron, two clam guys, and a dog with a stick bigger than the dog. Good day. — Sam, 7',
+  'Dear finder, my grandpa says the fog horn is the river clearing its throat. I believe him. — Lucy',
+  'If you are a dog reading this, good dog. If you are a person, there is a really good puddle by the boardwalk after rain. — Noah, age 6 and three quarters',
+  'We rode bikes on the rail trail all the way to the marsh and back and my legs are noodles. Worth it. — Iris',
+  'My favorite thing about Newburyport is the fireworks over the water in the summer and that everyone says hi. — Ben, 8',
+  'I lost a red mitten on High Street in January. If you find it, it is mine. If it is summer now, never mind. — Ruby',
+  'Note to the future: the ice cream truck comes down our street around four. Be ready. — Jonah, age 9',
+];
 const box = (w: number, h: number, d: number, hex: string) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), lam(hex)); m.castShadow = true; return m; };
 const dayOfYear = () => { const d = new Date(); return Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 864e5); };
 
@@ -91,6 +112,10 @@ export class MoreEggs {
   private t = 0;
   private fx: ((dt: number) => boolean)[] = [];
   private dyn: Spot[] = [];
+  private bottle: THREE.Group | null = null;
+  // 🎾 fetch: the thrower on the park lawn, and the ball's whole flight
+  private fetch: { g: THREE.Group; arm: THREE.Object3D; ball: THREE.Mesh; x: number; z: number; dx: number; dz: number;
+    state: 'idle' | 'wind' | 'fly' | 'ground' | 'carry' | 'rest'; t: number; from: THREE.Vector3; to: THREE.Vector3; throws: number; cool: number; lastDog: { x: number; z: number }; dogDir: { x: number; z: number } } | null = null;
 
   private plovers: { g: THREE.Group; hx: number; hz: number; run: number; dir: number }[] = [];
   private shoreDir = 1;
@@ -391,6 +416,79 @@ export class MoreEggs {
       this.dyn.push({ id: 'chalk', x: px, z: pz, label: '🖍 LOOK DOWN', r: 50 });
     }
 
+    // 9b. a message in a bottle on the wrack line, one day a week (?bottle=1 to force)
+    if (dayOfYear() % 7 === 2 || new URLSearchParams(location.search).get('bottle') === '1') {
+      // the town's own beach: the swimming beach nearest the centre of the map
+      let beach = -1, beachD = Infinity;
+      index.world.polys.forEach((p, pi) => {
+        if (p.k !== 'sand' || !index.isBeachPoly(pi)) return;
+        const d = p.p[0] * p.p[0] + p.p[1] * p.p[1];
+        if (d < beachD) { beachD = d; beach = pi; }
+      });
+      if (beach >= 0) {
+        const p = index.world.polys[beach];
+        let cx = 0, cz = 0, n = 0;
+        for (let i = 0; i < p.p.length; i += 2) { cx += p.p[i]; cz += p.p[i + 1]; n++; }
+        cx /= n; cz /= n;
+        let bestA = -1, bestD = Infinity;
+        for (let k = 0; k < 24; k++) {
+          const a = (k / 24) * Math.PI * 2;
+          for (let d = 40; d <= 1100; d += 20) if (index.isWaterAt(cx + Math.cos(a) * d, cz + Math.sin(a) * d)) { if (d < bestD) { bestD = d; bestA = a; } break; }
+        }
+        if (bestA >= 0 && bestD > 60) {
+          const bx = cx + Math.cos(bestA) * (bestD - 30) + Math.sin(bestA) * 40, bz = cz + Math.sin(bestA) * (bestD - 30) - Math.cos(bestA) * 40;
+          const g = new THREE.Group();
+          const glass = new THREE.MeshLambertMaterial({ color: '#b9ddd2', transparent: true, opacity: 0.72 });
+          const body = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 6.2, 10), glass); body.castShadow = true; g.add(body);
+          const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.1, 2.6, 10), glass); neck.position.y = 4.3; g.add(neck);
+          const cork = box(1.3, 1.5, 1.3, '#b98a55'); cork.position.y = 6; g.add(cork);
+          const paper = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 4.6, 8), lam('#f4efe0')); g.add(paper);
+          g.rotation.z = Math.PI / 2 - 0.22; g.rotation.y = (dayOfYear() % 5) * 1.1;
+          g.position.set(bx, gy(bx, bz) + 1.5, bz);
+          scene.add(g);
+          this.bottle = g;
+          this.dyn.push({ id: 'bottle', x: bx, z: bz, label: '🍾 PICK UP', r: 42 });
+        }
+      }
+    }
+
+    // 9c. fetch on the Cashman Park lawn: a woman with a tennis ball, all year
+    {
+      const park = index.world.polys.find((p) => p.k === 'park' && p.n === 'Cashman Park');
+      if (park) {
+        let cx = 0, cz = 0, n = 0;
+        for (let i = 0; i < park.p.length; i += 2) { cx += park.p[i]; cz += park.p[i + 1]; n++; }
+        cx /= n; cz /= n;
+        // stand where the lawn runs longest: the heading with clear grass out to 200 px
+        let bestA = 0, bestScore = -1;
+        for (let k = 0; k < 16; k++) {
+          const a = (k / 16) * Math.PI * 2;
+          let score = 0;
+          for (const d of [40, 90, 140, 200]) { const x = cx + Math.sin(a) * d, z = cz + Math.cos(a) * d; if (!index.isBlocked(x, z) && !index.isWaterAt(x, z)) score++; else break; }
+          if (score > bestScore) { bestScore = score; bestA = a; }
+        }
+        if (bestScore >= 3 && !index.isBlocked(cx, cz)) {
+          const g = new THREE.Group();
+          const skin = '#e8c39e', shirt = '#4a7ab8', pants = '#3b4d6b';
+          for (const sx of [-2.4, 2.4]) { const leg = box(2.2, 8, 2.2, pants); leg.position.set(sx, 4, 0); g.add(leg); }
+          const bodyM = box(7.5, 7, 4.2, shirt); bodyM.position.y = 11.5; g.add(bodyM);
+          const head = new THREE.Mesh(new THREE.SphereGeometry(3.6, 10, 8), lam(skin)); head.position.y = 18.8; head.castShadow = true; g.add(head);
+          const hair = new THREE.Mesh(new THREE.SphereGeometry(3.8, 10, 8), lam('#5e3c22')); hair.scale.set(1, 0.7, 1); hair.position.y = 20.1; g.add(hair);
+          const cap = new THREE.Mesh(new THREE.CylinderGeometry(3.9, 3.9, 1.2, 12), lam('#c8262a')); cap.position.y = 21.4; g.add(cap);
+          const armL = box(1.7, 7, 1.7, shirt); armL.position.set(-5.2, 11.5, 0); g.add(armL);
+          const arm = new THREE.Group(); arm.position.set(5.2, 15, 0);
+          const armR = box(1.7, 7, 1.7, shirt); armR.position.y = -3.5; arm.add(armR);
+          g.add(arm);
+          const ball = new THREE.Mesh(new THREE.SphereGeometry(1.7, 10, 8), lam('#d7e84a')); ball.castShadow = true;
+          ball.position.set(5.2, 7.6, 1.6); g.add(ball);   // in the hand
+          g.position.set(cx, gy(cx, cz), cz);
+          g.rotation.y = bestA;
+          scene.add(g);
+          this.fetch = { g, arm, ball, x: cx, z: cz, dx: Math.sin(bestA), dz: Math.cos(bestA), state: 'idle', t: 0, from: new THREE.Vector3(), to: new THREE.Vector3(), throws: 0, cool: 0, lastDog: { x: 0, z: 0 }, dogDir: { x: 0, z: 1 } };
+        }
+      }
+    }
+
     // 10. the Maudslay balloon, one morning in ten (?balloon=1 to force)
     const md = lm('maudslay');
     if (md) {
@@ -510,6 +608,7 @@ export class MoreEggs {
 
   spots(): Spot[] {
     const out = this.dyn.slice();
+    if (this.fetch && this.fetch.state === 'idle' && this.fetch.cool <= 0) out.push({ id: 'fetch', x: this.fetch.x, z: this.fetch.z, label: '🎾 FETCH', r: 110 });
     if (this.seal && this.sealUp > 0) out.push({ id: 'seal', x: this.sealAt.x, z: this.sealAt.z, label: '🦭 LOOK AT THE RIVER', r: 520 });
     if (this.balloon && this.balloon.visible) out.push({ id: 'balloon', x: this.balloon.position.x, z: this.balloon.position.z, label: '🎈 LOOK UP', r: 1800 });
     if (this.ducks.length) out.push({ id: 'ducklings', x: this.duckAt.x, z: this.duckAt.z, label: '🐥 FOLLOW THE DUCKLINGS', r: 90 });
@@ -533,7 +632,91 @@ export class MoreEggs {
       case 'turtles': this.spookTurtles(); this.host.showCard(card, this.host.found(tag)); return true;
       case 'plovers': this.scatterPlovers(); this.host.showCard(card, this.host.found(tag)); return true;
       case 'shopcat': this.audio.pop(); this.host.showCard(card, this.host.found(tag)); return true;
+      case 'bottle': {
+        const week = Math.floor(dayOfYear() / 7);
+        this.host.showCard({ ...card, b: NOTES[week % NOTES.length] }, this.host.found(tag));
+        if (this.bottle) { this.host.hearts(this.bottle.position.x, this.bottle.position.y + 6, this.bottle.position.z); this.scene.remove(this.bottle); this.bottle = null; }
+        this.dyn = this.dyn.filter((d) => d.id !== 'bottle');
+        return true;
+      }
+      case 'fetch':
+        if (this.fetch && this.fetch.state === 'idle') { this.throwBall(); if (!this.host.found(tag)) this.host.showCard(card, true); }
+        return true;
       default: this.host.showCard(card, this.host.found(tag)); return true;
+    }
+  }
+
+  /** 🎾 wind up and throw the ball down the lawn */
+  private throwBall() {
+    const f = this.fetch;
+    if (!f) return;
+    f.state = 'wind'; f.t = 0;
+    // the landing spot: down the lawn, a little to one side, shortened if the grass runs out
+    let dist = 150 + Math.random() * 60;
+    const side = (Math.random() - 0.5) * 70;
+    const sx = f.dz, sz = -f.dx;
+    for (; dist > 60; dist -= 20) {
+      const x = f.x + f.dx * dist + sx * side, z = f.z + f.dz * dist + sz * side;
+      if (!this.index.isBlocked(x, z) && !this.index.isWaterAt(x, z)) break;
+    }
+    const tx = f.x + f.dx * dist + sx * side, tz = f.z + f.dz * dist + sz * side;
+    f.to.set(tx, this.index.heightAtPx(tx, tz) + 1.7, tz);
+    f.from.set(f.x + f.dx * 4, this.index.heightAtPx(f.x, f.z) + 17, f.z + f.dz * 4);
+  }
+
+  private updateFetch(dt: number, px: number, pz: number, stillT: number) {
+    const f = this.fetch;
+    if (!f) return;
+    // the dog's heading, from where it was a moment ago
+    const mx = px - f.lastDog.x, mz = pz - f.lastDog.z;
+    if (mx * mx + mz * mz > 0.5) { const l = Math.hypot(mx, mz); f.dogDir = { x: mx / l, z: mz / l }; }
+    f.lastDog = { x: px, z: pz };
+    const dDog2 = (px - f.x) ** 2 + (pz - f.z) ** 2;
+    if (f.cool > 0) { f.cool -= dt; if (f.cool <= 0) f.throws = 0; }
+    const g = this.index.heightAtPx(f.x, f.z);
+    if (f.state === 'idle') {
+      f.arm.rotation.x = Math.sin(this.t * 1.3) * 0.08;
+      f.ball.position.set(5.2, 7.6, 1.6);
+      // a dog who walks up and waits gets a throw without asking
+      if (f.cool <= 0 && f.throws === 0 && dDog2 < 90 * 90 && stillT > 1.5) this.throwBall();
+      return;
+    }
+    if (f.state === 'rest') {
+      // done for now: a wave, then a breather before the next round
+      f.arm.rotation.x = -2.6 + Math.sin(this.t * 6) * 0.3;
+      if (f.cool <= 0) f.state = 'idle';
+      return;
+    }
+    f.t += dt;
+    if (f.state === 'wind') {
+      f.arm.rotation.x = -Math.min(1, f.t / 0.45) * 2.4;   // back
+      if (f.t >= 0.45) { f.state = 'fly'; f.t = 0; this.audio.pop(); f.ball.position.set(0, 0, 0); f.g.remove(f.ball); this.scene.add(f.ball); }
+      return;
+    }
+    if (f.state === 'fly') {
+      const k = Math.min(1, f.t / 1.1);
+      f.arm.rotation.x = -2.4 + Math.min(1, f.t / 0.25) * 3.2;   // through
+      f.ball.position.lerpVectors(f.from, f.to, k);
+      f.ball.position.y += Math.sin(k * Math.PI) * 42;
+      if (k >= 1) { f.state = 'ground'; f.t = 0; f.arm.rotation.x = 0; }
+      return;
+    }
+    if (f.state === 'ground') {
+      f.arm.rotation.x = Math.sin(this.t * 1.3) * 0.08;
+      if ((px - f.ball.position.x) ** 2 + (pz - f.ball.position.z) ** 2 < 20 * 20) { f.state = 'carry'; this.audio.plink(); }
+      return;
+    }
+    if (f.state === 'carry') {
+      f.ball.position.set(px + f.dogDir.x * 10, this.index.heightAtPx(px, pz) + 8.5, pz + f.dogDir.z * 10);
+      if (dDog2 < 44 * 44) {
+        // brought back: hearts, and another throw a moment later (six a visit)
+        f.throws++;
+        this.host.hearts(f.x, g + 24, f.z);
+        this.audio.jingle();
+        f.g.add(f.ball); f.ball.position.set(5.2, 7.6, 1.6);
+        if (f.throws >= 6) { f.state = 'rest'; f.cool = 150; }
+        else { f.state = 'idle'; setTimeout(() => { if (this.fetch && this.fetch.state === 'idle') this.throwBall(); }, 1100); }
+      }
     }
   }
 
@@ -557,6 +740,7 @@ export class MoreEggs {
 
   update(dt: number, px: number, pz: number, night: number, tod: number, stillT: number) {
     this.t += dt;
+    this.updateFetch(dt, px, pz, stillT);
     for (let i = this.fx.length - 1; i >= 0; i--) if (!this.fx[i](dt)) this.fx.splice(i, 1);
 
     // plovers: peck, and run along the tide line when the dog comes close
