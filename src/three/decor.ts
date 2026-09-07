@@ -10824,9 +10824,15 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const tall = pl.c === 'line';
     const poleH = tall ? 80 : 54;
     const pts = pl.p;
+    // a mapped distribution pole in the downtown core is a mapping leftover: the wires
+    // there went underground in the restoration, and a pole in the brick apron on
+    // Middle Street is not something anyone in town has seen. Poles and spans inside
+    // the core are skipped; the line carries on outside it.
+    const core = (x: number, z: number) => !tall && index.downtownAt(x, z);
     for (let i = 0; i < pts.length; i += 2) {
       const px2 = pts[i], pz2 = pts[i + 1];
       if (px2 < ox || px2 >= ox + CHUNK || pz2 < oy || pz2 >= oy + CHUNK) continue;
+      if (core(px2, pz2)) continue;
       const g = index.heightAtPx(px2, pz2);
       buckets[PLAIN].box(px2, pz2, tall ? 1.4 : 1, tall ? 1.4 : 1, g, g + poleH, tall ? '#84878a' : '#7a5c40');
       const j = i + 3 < pts.length ? i + 2 : i - 2;
@@ -10840,6 +10846,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const x0 = pts[i], z0 = pts[i + 1], x1 = pts[i + 2], z1 = pts[i + 3];
       const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
       if (mx < ox || mx >= ox + CHUNK || mz < oy || mz >= oy + CHUNK) continue;
+      if (core(x0, z0) || core(x1, z1)) continue;
       const span = Math.hypot(x1 - x0, z1 - z0);
       if (span < 2 || span > 1400) continue;
       const y0w = index.heightAtPx(x0, z0) + poleH - 3.6;
