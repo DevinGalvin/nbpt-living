@@ -4,6 +4,7 @@ import { Hud } from './hud';
 import { GameAudio } from './audio';
 import { WATER_Y } from '../three/water';
 import { SEASON } from '../world/style';
+import { MoreEggs, MORE_CARDS } from './eggs2';
 
 // Easter eggs. No beacons, no glints, no objectives — the entire point is
 // that nobody tells you. Every secret sits at a real place with a real story
@@ -186,7 +187,7 @@ const CARDS: Record<string, Card> = {
   }
 };
 
-const TOTAL = STATUES.length + 16; // 8 statues + the one-offs below
+const TOTAL = STATUES.length + 16 + Object.keys(MORE_CARDS).length; // 8 statues + the one-offs below + the second drawer (eggs2)
 
 // the wider hunt, hinted exactly once — appended to whichever card comes first
 const FIRST_HINT = '\n\nThat’s one. Newburyport keeps ' + TOTAL + ' of these — no maps, no arrows, no glowing markers. Pet the dog. Stand very still where the river meets the sea. Try old magic words in the travel search.';
@@ -422,6 +423,7 @@ export class EggRunner {
   private serpentCool = 0;
   private planeBusy = false;
   private runway: number[] | null = null;
+  private more: MoreEggs;
 
   constructor(
     scene: THREE.Scene, index: WorldIndex, hud: Hud, audio: GameAudio,
@@ -458,6 +460,12 @@ export class EggRunner {
     }
 
     this.buildWorldDressing();
+    this.more = new MoreEggs(scene, index, audio, {
+      showCard: (c, isNew) => this.showCard(c, isNew),
+      found: (id) => this.found(id),
+      hearts: (x, y, z) => this.hearts(x, y, z),
+      dogPos: () => this.dogPos()
+    });
 
     // statues: the unfound wait in the wild; the found already stand at home
     for (const s of STATUES) {
@@ -1300,6 +1308,7 @@ export class EggRunner {
       if (d < r && d < bd) { bd = d; best = { tag, x, z, label, r }; }
     };
     for (const s of SPOTS) consider(s.id, s.x, s.z, s.label, s.r ?? 56);
+    for (const s of this.more.spots()) consider(s.id, s.x, s.z, s.label, s.r ?? 56);
     for (const s of STATUES) {
       if (!this.foundSet.has(s.id)) consider(s.id, s.x, s.z, '🗿 RECOVER', 58);
     }
@@ -1319,8 +1328,9 @@ export class EggRunner {
     if (this.found('pet')) this.showCard(CARDS.pet, true);
   }
 
-  update(dt: number, px: number, pz: number, suppressed: boolean) {
+  update(dt: number, px: number, pz: number, suppressed: boolean, night = 0, tod = 0.5) {
     this.t += dt;
+    this.more.update(dt, px, pz, night, tod, this.stillT);
     for (let i = this.fx.length - 1; i >= 0; i--) {
       if (!this.fx[i](dt)) this.fx.splice(i, 1);
     }
@@ -1369,6 +1379,7 @@ export class EggRunner {
       this.recoverStatue(statue);
       return;
     }
+    if (this.more.interact(it.tag)) return;
     switch (it.tag) {
       case 'bell': {
         this.audio.toll(2);

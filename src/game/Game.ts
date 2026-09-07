@@ -1335,7 +1335,7 @@ export class Game {
     if (p.z > 1) return;            // dog is behind the camera
     const dx = (p.x * 0.5 + 0.5) * window.innerWidth;
     const dy = (-p.y * 0.5 + 0.5) * window.innerHeight;
-    if (Math.hypot(sx - dx, sy - dy) < 75) this.eggs.petDog();
+    if (Math.hypot(sx - dx, sy - dy) < 75) { this.eggs.petDog(); this.life?.waveSledders(); }
   }
 
   // surfaces the button the moment the bike is earned
@@ -2604,7 +2604,7 @@ export class Game {
       const raceBusy = this.race ? (this.race.active || this.race.nearActive) : false;
       if (this.history) this.history.update(dt, this.px, this.pz, (this.quest?.nearActive ?? false) || this.flying || raceBusy);
       // eggs speak last: quest beats, then race flags, then history markers, then secrets
-      if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.flying || (this.quest?.nearActive ?? false) || raceBusy || (this.history ? this.history.nearActive : false));
+      if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.flying || (this.quest?.nearActive ?? false) || raceBusy || (this.history ? this.history.nearActive : false), sky.night, this.sky.tod);
     }
     this.audio.update(dt, movingNow && !this.riding && !this.swimming, this.sprinting, () =>
       this.inside ? 'hard'

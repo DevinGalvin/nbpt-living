@@ -1318,6 +1318,8 @@ class Sledder {
   private legR: THREE.Mesh;
   private index: WorldIndex;
   private dist: number; private spd = 18; private state: 'down' | 'up' = 'down'; private wait = 0; private ph = 0;
+  private arm: THREE.Mesh | null = null;   // raised to wave back when Clipper barks
+  wave = 0;
 
   constructor(seed: number, index: WorldIndex, startDist: number) {
     this.index = index; this.dist = startDist;
@@ -1333,6 +1335,7 @@ class Sledder {
     const hairCap = sph(3.35, hair, 1.02, 0.68, 1); hairCap.position.y = 20.1;
     const scarf = box(6, 2, 6, SCARVES[Math.floor(rng() * SCARVES.length)]); scarf.position.y = 15.4;
     this.kid.add(this.legL, this.legR, torso, head, hairCap, scarf);
+    this.arm = cap(1.1, 5.2, '#c94a3a', true); this.arm.position.set(3.4, 15.5, 0); this.arm.rotation.x = 0.4; this.arm.visible = false; this.kid.add(this.arm);
     this.kid.scale.setScalar(0.86 + rng() * 0.16);
     this.tilt.add(this.sled, this.kid);
     this.root.add(this.tilt);
@@ -1352,6 +1355,10 @@ class Sledder {
   }
 
   update(dt: number) {
+    if (this.arm) {
+      if (this.wave > 0) { this.wave -= dt; this.arm.visible = true; this.arm.rotation.x = -2.6; this.arm.rotation.z = Math.sin(this.wave * 9) * 0.5; }
+      else this.arm.visible = false;
+    }
     if (this.state === 'down') {
       this.spd = Math.min(165, this.spd + 95 * dt);            // build speed downhill
       this.dist += this.spd * dt;
@@ -1385,6 +1392,8 @@ export class Life {
   private signals: Signals;
   /** the chimney tops of every loaded chunk (set by Game) */
   chimneySource: () => Iterable<number[]> = () => [];
+  /** the sledding kids wave back when Clipper barks */
+  waveSledders() { for (const s of this.sledders) s.wave = 2.4; }
   /** the traffic-signal heads of every loaded chunk (set by Game) */
   signalSource: () => Iterable<number[]> = () => [];
   private cars: TrafficCar[] = [];

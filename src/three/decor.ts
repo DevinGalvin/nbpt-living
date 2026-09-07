@@ -11211,6 +11211,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         const g = index.heightAtPx(cx, cz);
         buckets[PLAIN].box(cx, cz, 0.6, 0.6, g, g + 52, '#e6e6e2');
         buckets[PLAIN].box(cx + 3.2, cz, 3.2, 0.15, g + 44, g + 49, '#b03030');
+        buckets[PLAIN].windLast(36, (x) => Math.max(0, Math.min(1, (x - cx - 0.6) / 5.8)) * 0.9);   // the rotary flag flies in the same wind as the trees
         let rad = 0; for (const r of arcs) for (let i = 0; i < r.p.length; i += 2) rad += Math.hypot(r.p[i] - cx, r.p[i + 1] - cz); rad /= n;
         const inner = Math.max(20, rad - arcs[0].w / 2 - 14);
         for (let a = 0; a < Math.PI * 2; a += 0.55) {
