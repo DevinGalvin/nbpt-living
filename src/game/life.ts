@@ -26,6 +26,8 @@ const HAIRS = ['#4a3320', '#23201c', '#8a6232', '#b8b2a4', '#5e3c22', '#d8c690']
 const CAR_COLORS = ['#b5443a', '#3e5c84', '#d8d5cc', '#3a3c40', '#7c8b96', '#5e7e54', '#c8b04a', '#7a4a68'];
 
 const WALK_CLASSES = ['side', 'foot', 'ped', 'board', 'cycle'];
+const ROAD_CLASSES = ['motorway', 'motorway_link', 'primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'trunk'];
+const TOWN_ROADS = ['primary', 'secondary', 'tertiary', 'residential', 'unclassified'];   // no highway for the bus and the plow
 const HOP_CLASSES = ['side', 'foot', 'ped', 'board', 'cycle', 'crossing']; // crossings = legal street crossing
 
 // seasonal attractions — per-town (src/towns/<id>/index.ts); a town without a
@@ -517,6 +519,129 @@ class Fireflies {
   }
 }
 
+// 🚌🚒🚓 the town's service fleet — the vehicles a kid actually waits to see.
+// Procedural at kit scale (8 px = 1 m). Each one lives in Life.cars so the
+// ordinary braking / red-light / no-teleport rules apply to it too.
+export type CarRole = 'car' | 'bus' | 'fire' | 'police' | 'plow';
+interface Beacon { mat: THREE.MeshBasicMaterial; phase: number; rate: number }
+let beaconTex: { red?: THREE.CanvasTexture; blue?: THREE.CanvasTexture; amber?: THREE.CanvasTexture; white?: THREE.CanvasTexture } = {};
+function beaconMat(kind: 'red' | 'blue' | 'amber' | 'white'): THREE.MeshBasicMaterial {
+  if (!beaconTex[kind]) beaconTex[kind] = kind === 'red' ? glowTex(255, 40, 30) : kind === 'blue' ? glowTex(60, 110, 255) : kind === 'amber' ? glowTex(255, 170, 40) : glowTex(255, 245, 225);
+  return new THREE.MeshBasicMaterial({ map: beaconTex[kind], transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0, fog: false, side: THREE.DoubleSide });
+}
+/** a flashing lamp: a small coloured lens plus a glow disc that blinks; the lens stays lit-looking so the bar reads by day */
+function beacon(group: THREE.Group, list: Beacon[], kind: 'red' | 'blue' | 'amber' | 'white', x: number, y: number, z: number, phase: number, rate = 2.4, glow = 7) {
+  const lensHex = kind === 'red' ? '#d8302a' : kind === 'blue' ? '#3a5cff' : kind === 'amber' ? '#f0a62a' : '#f6f2e8';
+  const lens = box(2.4, 1.6, 2.4, lensHex);
+  lens.castShadow = false;
+  lens.position.set(x, y, z);
+  const mat = beaconMat(kind);
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(glow, glow), mat);
+  g.position.set(x, y, z);
+  g.renderOrder = 6;
+  // a glow that always faces up-and-out: two crossed quads, so it shows from the side and above
+  const g2 = g.clone(); g2.rotation.y = Math.PI / 2;
+  const g3 = g.clone(); g3.rotation.x = -Math.PI / 2;
+  group.add(lens, g, g2, g3);
+  list.push({ mat, phase, rate });
+}
+function buildBus(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beacon[]): THREE.Object3D {
+  const yellow = '#e9b52a';
+  const body = rbox(20, 19, 70, 1.6, yellow); body.position.set(0, 14.5, -8);       // the long body, from y 5 to 24
+  const hood = rbox(18, 10, 16, 1.6, yellow); hood.position.set(0, 10, 34);          // conventional (Type C) nose
+  const stripe = box(20.4, 1.2, 70, '#1f1f1f'); stripe.position.set(0, 12.8, -8); stripe.castShadow = false;
+  const stripe2 = box(20.4, 1.2, 70, '#1f1f1f'); stripe2.position.set(0, 20.6, -8); stripe2.castShadow = false;
+  const glass = box(20.6, 5.4, 60, '#2a3036'); glass.position.set(0, 17.2, -9); glass.castShadow = false;   // the window band
+  const wind = box(17, 6, 1, '#2a3036'); wind.position.set(0, 18, 26.6); wind.castShadow = false;             // windshield
+  const bumper = box(19, 3, 1.5, '#2b2b2b'); bumper.position.set(0, 5.5, 42.2); bumper.castShadow = false;
+  const bumperB = bumper.clone(); bumperB.position.set(0, 5.5, -43.5);
+  root.add(body, hood, stripe, stripe2, glass, wind, bumper, bumperB);
+  for (const [lx, lz] of [[-9, 26], [9, 26], [-9, -22], [9, -22]] as const) {
+    const w = cylX(3.4, 3.2, '#23241f'); w.position.set(lx, 3.4, lz); wheels.push(w); root.add(w);
+  }
+  // the four red flashers on the roof corners — they blink in pairs when the bus stops
+  for (const [x, z, ph] of [[-8, 22, 0], [8, 22, 0.5], [-8, -40, 0.5], [8, -40, 0]] as const) beacon(root, beacons, 'red', x, 25, z, ph, 1.6, 8);
+  // the stop arm on the driver's side: an octagon on a hinge that swings out
+  const arm = new THREE.Group();
+  const post = box(0.6, 0.6, 9, '#3a3a3a'); post.position.set(0, 0, -4.5); post.castShadow = false;
+  const sign = new THREE.Mesh(new THREE.CircleGeometry(4.2, 8), mat('#c8261f')); sign.position.set(0, 0, -9.5); sign.rotation.y = Math.PI / 2;
+  const rim = new THREE.Mesh(new THREE.RingGeometry(3.6, 4.2, 8), mat('#f4f0e8')); rim.position.set(0.05, 0, -9.5); rim.rotation.y = Math.PI / 2;
+  const rim2 = rim.clone(); rim2.position.x = -0.05; rim2.rotation.y = -Math.PI / 2;
+  arm.add(post, sign, rim);
+  arm.add(rim2);
+  arm.position.set(-10.3, 16, 20);   // hinge on the left, just behind the driver's window
+  arm.rotation.y = -Math.PI / 2;     // folded flat along the side
+  root.add(arm);
+  return arm;
+}
+function buildEngine(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beacon[]) {
+  const red = '#b3231d';
+  const cab = rbox(20, 20, 24, 1.6, red); cab.position.set(0, 15, 26);
+  const bodyBox = rbox(20, 15, 50, 1.4, red); bodyBox.position.set(0, 12.5, -12);
+  const panels = box(20.6, 8, 46, '#c9ccd0'); panels.position.set(0, 10, -12); panels.castShadow = false;   // roll-up compartment doors
+  const glass = box(20.6, 5.5, 8, '#2a3036'); glass.position.set(0, 19, 30); glass.castShadow = false;
+  const wind = box(17, 7, 1, '#2a3036'); wind.position.set(0, 19, 38.3); wind.castShadow = false;
+  const bumper = box(21, 3.5, 2, '#d4d6d8'); bumper.position.set(0, 5.5, 39.5); bumper.castShadow = false;
+  const grille = box(15, 6, 1, '#8a8e94'); grille.position.set(0, 10, 38.4); grille.castShadow = false;
+  // the ladder, aluminium, laid along the top of the body
+  const rail1 = box(1, 1, 52, '#d0d3d6'); rail1.position.set(-4, 20.8, -12);
+  const rail2 = rail1.clone(); rail2.position.x = 4;
+  root.add(cab, bodyBox, panels, glass, wind, bumper, grille, rail1, rail2);
+  for (let i = -5; i <= 5; i++) { const r = box(8, 0.7, 0.7, '#d0d3d6'); r.position.set(0, 20.8, -12 + i * 4.6); r.castShadow = false; root.add(r); }
+  const hose = box(12, 2.5, 30, '#c9c19c'); hose.position.set(0, 21.5, -20); hose.castShadow = false;
+  root.add(hose);
+  for (const [lx, lz] of [[-9, 24], [9, 24], [-9, -18], [9, -18]] as const) {
+    const w = cylX(3.6, 3.4, '#23241f'); w.position.set(lx, 3.6, lz); wheels.push(w); root.add(w);
+  }
+  // the light bar across the cab roof: red, white, red, and two more red at the tail
+  const bar = box(16, 1.6, 3, '#2a2a2a'); bar.position.set(0, 25.8, 26); bar.castShadow = false; root.add(bar);
+  beacon(root, beacons, 'red', -6, 26.6, 26, 0, 3.2, 9);
+  beacon(root, beacons, 'white', 0, 26.6, 26, 0.33, 3.2, 8);
+  beacon(root, beacons, 'red', 6, 26.6, 26, 0.5, 3.2, 9);
+  beacon(root, beacons, 'red', -8, 20.5, -37.5, 0.25, 3.2, 8);
+  beacon(root, beacons, 'red', 8, 20.5, -37.5, 0.75, 3.2, 8);
+}
+function buildCruiser(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beacon[]) {
+  const model = PROPS?.get('police-car');
+  let top = 12, len = 38, wid = 14;
+  if (model) {
+    const body = model.root.clone(true);
+    body.traverse((o) => { if ((o as THREE.Mesh).isMesh && /wheel/i.test(o.name)) wheels.push(o); });
+    root.add(body);
+    top = model.size.y; len = model.size.z; wid = model.size.x;
+  } else {
+    const body = rbox(14, 7, 36, 2.2, '#f0eee8'); body.position.y = 6.5;
+    const cabin = rbox(12, 6.4, 17, 2.4, '#2e3338'); cabin.position.set(0, 11.8, -2);
+    const doors = box(14.4, 5, 16, '#1c1f24'); doors.position.set(0, 6.5, 0); doors.castShadow = false;
+    root.add(body, cabin, doors);
+    for (const [lx, lz] of [[-7.2, 11], [7.2, 11], [-7.2, -11], [7.2, -11]] as const) {
+      const w = cylX(2.6, 2.4, '#23241f'); w.position.set(lx, 2.6, lz); wheels.push(w); root.add(w);
+    }
+    top = 15;
+  }
+  const bar = box(wid * 0.8, 1.4, 2.6, '#22252a'); bar.position.set(0, top + 0.7, len * 0.02); bar.castShadow = false; root.add(bar);
+  beacon(root, beacons, 'blue', -wid * 0.26, top + 1.4, len * 0.02, 0, 4, 8);
+  beacon(root, beacons, 'red', wid * 0.26, top + 1.4, len * 0.02, 0.5, 4, 8);
+}
+function buildPlow(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beacon[]) {
+  const orange = '#d9822b';
+  const cab = rbox(16, 13, 18, 1.6, orange); cab.position.set(0, 11.5, 14);
+  const bed = box(17, 9, 30, orange); bed.position.set(0, 10.5, -12);
+  const load = box(15, 3, 26, '#8d8a80'); load.position.set(0, 16, -12); load.castShadow = false;   // the sand/salt heap
+  const glass = box(16.4, 4.5, 6, '#2a3036'); glass.position.set(0, 14.5, 16); glass.castShadow = false;
+  const wind = box(13, 5, 1, '#2a3036'); wind.position.set(0, 14.5, 23.2); wind.castShadow = false;
+  root.add(cab, bed, load, glass, wind);
+  // the blade: a wide steel wing hung ahead of the bumper, angled to throw snow to the right
+  const blade = box(30, 8, 1.6, '#c9a13a'); blade.position.set(0, 4.6, 31); blade.rotation.y = -0.42;
+  const edge = box(30, 1.2, 1.7, '#5e5a52'); edge.position.set(0, 1.0, 31); edge.rotation.y = -0.42; edge.castShadow = false;
+  const frame = box(2, 2, 10, '#3a3a3a'); frame.position.set(0, 5, 26); frame.castShadow = false;
+  root.add(blade, edge, frame);
+  for (const [lx, lz] of [[-7.5, 14], [7.5, 14], [-7.5, -16], [7.5, -16]] as const) {
+    const w = cylX(3.4, 3.2, '#23241f'); w.position.set(lx, 3.4, lz); wheels.push(w); root.add(w);
+  }
+  beacon(root, beacons, 'amber', 0, 18.8, 14, 0, 1.4, 9);
+}
+
 class TrafficCar {
   root = new THREE.Group();
   pts: number[] = [];
@@ -531,8 +656,35 @@ class TrafficCar {
   private wheels: THREE.Object3D[] = [];
   private wheelR = 2.6;
 
-  constructor(seed: number) {
+  readonly role: CarRole;
+  private beacons: Beacon[] = [];
+  private arm: THREE.Object3D | null = null;
+  private armOut = 0;
+  /** beacons flashing (the engine on a run, the cruiser on a stop, the plow at work, the bus at a stop) */
+  lights = false;
+  /** seconds left standing still at a stop (bus) or a pull-over (police) */
+  stopT = 0;
+  /** seconds until the next stop / the end of the run */
+  runT = 0;
+  /** off the road entirely, waiting for its hour */
+  dormant = false;
+  ignoreRed = false;
+
+  constructor(seed: number, role: CarRole = 'car') {
+    this.role = role;
     const rng = mulberry32(seed);
+    if (role !== 'car') {
+      if (role === 'bus') this.arm = buildBus(this.root, this.wheels, this.beacons);
+      else if (role === 'fire') buildEngine(this.root, this.wheels, this.beacons);
+      else if (role === 'police') buildCruiser(this.root, this.wheels, this.beacons);
+      else buildPlow(this.root, this.wheels, this.beacons);
+      this.wheelR = role === 'police' ? 2.6 : 3.4;
+      this.ignoreRed = role === 'fire';
+      const len = role === 'bus' ? 86 : role === 'fire' ? 80 : role === 'plow' ? 56 : 38;
+      const wid = role === 'police' ? 14 : role === 'plow' ? 16 : 20;
+      this.addLights(wid, len, role === 'police' ? 6 : 8);
+      return;
+    }
     const model = PROPS?.car(seed * 2654435761);
     if (model) {
       // a real car from the kit: the baked tree keeps its wheel nodes, so they can turn,
@@ -584,6 +736,23 @@ class TrafficCar {
     pool.position.set(0, 0.35, length / 2 + length * 0.7);
     pool.renderOrder = 4;
     this.root.add(pool);
+  }
+
+  /** the flashers and the stop arm, once a frame; `t` in seconds */
+  dress(t: number, dt: number) {
+    if (this.beacons.length) {
+      for (const b of this.beacons) {
+        // a hard strobe: on for a third of the cycle, off otherwise
+        const ph = (t * b.rate + b.phase) % 1;
+        const on = this.lights && ph < 0.34;
+        b.mat.opacity = on ? 0.9 : 0;
+      }
+    }
+    if (this.arm) {
+      const want = this.stopT > 0 ? 1 : 0;
+      this.armOut += (want - this.armOut) * Math.min(1, dt * 3);
+      this.arm.rotation.y = -Math.PI / 2 + this.armOut * Math.PI / 2;
+    }
   }
 
   step(dt: number, groundY: number): boolean {
@@ -1397,6 +1566,12 @@ export class Life {
   /** the traffic-signal heads of every loaded chunk (set by Game) */
   signalSource: () => Iterable<number[]> = () => [];
   private cars: TrafficCar[] = [];
+  private fireHome: { x: number; z: number } | null = null;
+  private fireT = 300;         // seconds until the engine's next run (counts down while it's home)
+  private fireRun = 0;         // seconds left on the current run
+  private plowT = 0;           // seconds of plowing left after the last snow
+  private forceBus = false;
+  private forcePlow = false;
   private boats: WanderBoat[] = [];
   private gulls: Gull[] = [];
   private skaters: Skater[] = [];      // winter: figures looping on the frozen Frog Pond
@@ -1451,6 +1626,29 @@ export class Life {
       this.cars.push(car);
       scene.add(car.root);
     }
+    // the service fleet: one of each, parked off-world until their hour
+    for (const role of ['bus', 'fire', 'police', 'plow'] as CarRole[]) {
+      if (role === 'plow' && SEASON !== 'winter') continue;
+      if (role === 'bus' && SEASON === 'summer') continue;   // no school in summer
+      const v = new TrafficCar(role.length * 977 + 13, role);
+      v.dormant = true;
+      v.pts = [];
+      v.root.position.set(0, 0, 1e7);
+      this.cars.push(v);
+      scene.add(v.root);
+    }
+    // the fire engine starts its runs from the real station when the map names one
+    const station = index.world.buildings.find((b) => b.n && /fire (department|station)/i.test(b.n) && !/west|newbury fire/i.test(b.n))
+      ?? index.world.buildings.find((b) => b.n && /fire (department|station)/i.test(b.n));
+    if (station) {
+      let sx = 0, sz = 0, n = 0;
+      for (let i = 0; i < station.p.length; i += 2) { sx += station.p[i]; sz += station.p[i + 1]; n++; }
+      this.fireHome = { x: sx / n, z: sz / n };
+    }
+    const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
+    this.fireT = q?.get('fire') === '1' ? 0 : 240 + Math.random() * 300;
+    this.forceBus = q?.get('bus') === '1';
+    this.forcePlow = q?.get('plow') === '1';
     for (let i = 0; i < BOATS; i++) {
       const b = new WanderBoat(i * 313 + 29);
       b.root.position.set(0, 0, 1e7);
@@ -1624,27 +1822,33 @@ export class Life {
     return candidates.length ? candidates[Math.floor(rng() * candidates.length)] : null;
   }
 
-  private roadSpot(px: number, pz: number, fx: number, fz: number, rng: () => number): { pts: number[]; w: number; total: number; t: number; dir: number; c: string } | null {
+  private roadSpot(px: number, pz: number, fx: number, fz: number, rng: () => number, classes: string[] = ROAD_CLASSES, near?: { x: number; z: number; r: number }): { pts: number[]; w: number; total: number; t: number; dir: number; c: string } | null {
     for (let tries = 0; tries < 12; tries++) {
-      const cx = Math.floor((px + (rng() - 0.5) * 4400) / CHUNK);
-      const cz = Math.floor((pz + (rng() - 0.5) * 4400) / CHUNK);
+      const ax = near ? near.x : px, az = near ? near.z : pz, span = near ? near.r * 2 : 4400;
+      const cx = Math.floor((ax + (rng() - 0.5) * span) / CHUNK);
+      const cz = Math.floor((az + (rng() - 0.5) * span) / CHUNK);
       const bucket = this.index.buckets.get(cx + ',' + cz);
       if (!bucket || !bucket.roads.length) continue;
       const r = this.index.world.roads[bucket.roads[Math.floor(rng() * bucket.roads.length)]];
-      if (!['motorway', 'motorway_link', 'primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'trunk'].includes(r.c)) continue;
+      if (!classes.includes(r.c)) continue;
       const total = polyLen(r.p);
       if (total < 260) continue;
       const t = 30 + rng() * (total - 60);
       const spot = alongPolyline(r.p, t);
       if (!spot) continue;
-      if (!this.okToSpawn(spot.x, spot.z, px, pz, fx, fz, 1100, 2500)) continue;
+      if (near && (spot.x - near.x) ** 2 + (spot.z - near.z) ** 2 > near.r * near.r) continue;
+      if (!this.okToSpawn(spot.x, spot.z, px, pz, fx, fz, near ? 260 : 1100, 2500)) continue;
       return { pts: r.p, w: r.w, total, t, dir: rng() < 0.5 ? 1 : -1, c: r.c };
     }
     return null;
   }
 
-  update(dt: number, px: number, pz: number, t: number, fx: number, fz: number, night = 0) {
+  update(dt: number, px: number, pz: number, t: number, fx: number, fz: number, night = 0, tod = 0.5, wet = 0) {
     const rng = mulberry32(hash32(Math.floor(t), 3, 7));
+    // the service fleet's clocks
+    if (SEASON === 'winter') { if (wet > 0.3) this.plowT = 180; else this.plowT = Math.max(0, this.plowT - dt); }
+    if (this.fireRun > 0) this.fireRun = Math.max(0, this.fireRun - dt);
+    else this.fireT -= dt;
     this.smoke.update(dt, px, pz, night, this.chimneySource);
     this.fireflies.update(dt, t, px, pz, night, this.index, (x, z) => this.groundAt(x, z));
     this.signals.update(dt, t / 1000, px, pz, this.signalSource);   // the clock is in ms; the cycle wants seconds
@@ -1791,9 +1995,35 @@ export class Life {
 
     for (const c of this.cars) {
       const dx = c.root.position.x - px, dz = c.root.position.z - pz;
+      // the service fleet keeps hours: the bus runs the school bell, the engine runs
+      // when a call comes, the plow runs after snow, the cruiser is always out
+      if (c.role !== 'car') {
+        const onDuty = c.role === 'bus' ? (this.forceBus || (tod > 0.29 && tod < 0.345) || (tod > 0.595 && tod < 0.645))
+          : c.role === 'fire' ? this.fireRun > 0
+          : c.role === 'plow' ? (this.forcePlow || this.plowT > 0)
+          : true;
+        if (c.role === 'fire' && this.fireRun <= 0 && this.fireT <= 0) {
+          // a call: the run lasts a minute and a half, then it goes home
+          this.fireRun = 90;
+          this.fireT = 400 + rng() * 300;
+        }
+        if (!onDuty) {
+          // off duty: leave the road as soon as nobody is looking, never in view
+          if (!c.dormant && (!c.pts.length || this.okToSpawn(c.root.position.x, c.root.position.z, px, pz, fx, fz, 900, 2500))) {
+            c.dormant = true; c.pts = []; c.lights = false; c.stopT = 0;
+            c.root.position.set(0, 0, 1e7);
+          }
+          if (c.dormant) continue;
+        }
+        c.lights = c.role === 'fire' || c.role === 'plow' || c.stopT > 0;
+        c.dress(t / 1000, dt);
+      }
       if (dx * dx + dz * dz > 2700 * 2700 || !c.pts.length) {
-        const road = this.roadSpot(px, pz, fx, fz, rng);
+        const near = c.role === 'fire' && this.fireHome && (this.fireHome.x - px) ** 2 + (this.fireHome.z - pz) ** 2 < 2400 * 2400 ? { x: this.fireHome.x, z: this.fireHome.z, r: 420 } : undefined;
+        const road = this.roadSpot(px, pz, fx, fz, rng, c.role === 'bus' || c.role === 'plow' ? TOWN_ROADS : ROAD_CLASSES, near)
+          ?? (near ? this.roadSpot(px, pz, fx, fz, rng) : null);
         if (road) {
+          c.dormant = false;
           c.pts = road.pts;
           c.roadW = road.w;
           c.total = road.total;
@@ -1805,6 +2035,10 @@ export class Life {
             : road.c === 'trunk' ? 190 + rng() * 40
             : road.c === 'primary' ? 140 + rng() * 40
             : 115 + rng() * 60;
+          if (c.role === 'bus') { c.cruise = 95; c.runT = 20 + rng() * 20; }
+          else if (c.role === 'fire') c.cruise = 205;
+          else if (c.role === 'police') { c.cruise = 85; c.runT = 90 + rng() * 70; }
+          else if (c.role === 'plow') c.cruise = 70;
           c.speed = c.cruise;
           c.step(0.016, this.groundAt(c.root.position.x, c.root.position.z));
           const at = alongPolyline(c.pts, c.t);
@@ -1835,7 +2069,7 @@ export class Life {
       // a red light: stop at the line, but only when no car is close behind, so the
       // stop never grows into a queue (a queue on State Street was the one thing the
       // town was asked not to have)
-      if (want > 0) {
+      if (want > 0 && !c.ignoreRed) {
         const here = alongPolyline(c.pts, c.t);
         if (here) {
           const vx = here.dx * c.dir, vz = here.dz * c.dir;
@@ -1850,6 +2084,25 @@ export class Life {
             }
             if (!tail) want = 0;
           }
+        }
+      }
+      // the bus's stops and the cruiser's pull-overs: a timed halt, then on again
+      if (c.role === 'bus' || c.role === 'police') {
+        if (c.stopT > 0) { c.stopT -= dt; want = 0; }
+        else {
+          c.runT -= dt;
+          if (c.runT <= 0 && c.t > 40 && c.t < c.total - 40) {
+            c.stopT = c.role === 'bus' ? 7 : 18;
+            c.runT = c.role === 'bus' ? 22 + rng() * 22 : 100 + rng() * 80;
+          }
+        }
+      }
+      // a school bus with its arm out stops the street both ways
+      if (c.role !== 'fire' && c.stopT <= 0) {
+        for (const o of this.cars) {
+          if (o === c || o.role !== 'bus' || o.stopT <= 0 || o.pts !== c.pts) continue;
+          const ahead = (o.t - c.t) * c.dir;
+          if (ahead > 0 && ahead < 140) { want = 0; break; }
         }
       }
       c.speed += (want - c.speed) * Math.min(1, dt * (want > c.speed ? 1.5 : 10));

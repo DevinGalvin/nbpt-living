@@ -2593,7 +2593,7 @@ export class Game {
     }
 
     if (this.waterUpdate && !this.inside) this.waterUpdate(t, this.sky.state, tideAt(this.sky.tod));
-    if (this.life && !this.inside) this.life.update(dt, this.px, this.pz, t, Math.sin(this.camAz), Math.cos(this.camAz), sky.night);
+    if (this.life && !this.inside) this.life.update(dt, this.px, this.pz, t, Math.sin(this.camAz), Math.cos(this.camAz), sky.night, this.sky.tod, sky.wet);
     if (this.gillis && !this.inside) this.gillis.update(dt);
     if (this.inTunnel) this.tunnel!.update(dt, this.px, this.pz);
     else if (this.interior) this.interior.update(dt, this.px, this.pz);
