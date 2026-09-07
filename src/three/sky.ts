@@ -344,11 +344,13 @@ export class Sky {
     s.sunColor.copy(DUSK_SUN).lerp(DAY_SUN, day);
     // golden hour: with the sun low but up, warm it and turn it up a notch and take a
     // little off the sky, so the brick on the sunny side of the street catches fire
-    const golden = elev > 0.01 ? tw : 0;
-    if (golden > 0) s.sunColor.lerp(new THREE.Color('#ffb257'), golden * 0.45);
+    // the band starts well above the horizon: the sun drops fast here, and a golden
+    // hour that only exists at dusk proper is a golden minute
+    const golden = elev > 0.01 ? clamp(1 - (elev - 0.02) / 0.5, 0, 1) : 0;
+    if (golden > 0) s.sunColor.lerp(new THREE.Color('#ffb257'), golden * 0.55);
     // a little more sun and a little less sky than before, so a lit wall and a shaded
     // one are two different things
-    let sunI = (0.82 + day * 0.98) * (1 + golden * 0.32);   // moonlight floor at night (brief night, so a bit brighter)
+    let sunI = (0.82 + day * 0.98) * (1 + golden * 0.42);   // moonlight floor at night (brief night, so a bit brighter)
     let hemiI = (0.8 - day * 0.02) * (1 - golden * 0.14);   // moonlit ambient — visible, the dark spell is short now
     s.hemiSky.copy(NIGHT_HEMI_SKY).lerp(DAY_HEMI_SKY, day);
     s.hemiGround.copy(NIGHT_HEMI_GND).lerp(DAY_HEMI_GND, day);
