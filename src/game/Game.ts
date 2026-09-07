@@ -3185,7 +3185,7 @@ export class Game {
       const dx = p.x - this.px, dz = p.z - this.pz;
       const d2 = dx * dx + dz * dz;
       if (d2 > 2200 * 2200) { p.x = 0; p.z = 1e7; p.g.position.set(0, 0, 1e7); continue; }
-      if (p.flat <= 0 && d2 < 17 * 17 && this.lastSpeed > 80) {
+      if (p.flat <= 0 && d2 < 24 * 24 && this.lastSpeed > 80) {
         // the dive: a burst of leaves in the fall colours, the pile flat for a while
         p.flat = 26;
         for (const hex of ['#e07a28', '#cc4e26', '#ecc14a', '#b8642a']) this.eggs?.burst(p.x, this.kidY + 6, p.z, hex, 14, false, 3, 1.3);
@@ -3218,9 +3218,10 @@ export class Game {
       if (!p) {
         const g = new THREE.Group();
         const cols = ['#e07a28', '#cc4e26', '#ecc14a', '#b8642a', '#d98c30'];
-        for (let i = 0; i < 7; i++) {
-          const m = new THREE.Mesh(new THREE.SphereGeometry(4 + Math.random() * 3, 7, 5), new THREE.MeshLambertMaterial({ color: cols[i % cols.length] }));
-          m.scale.set(1, 0.55, 1); m.position.set((Math.random() - 0.5) * 12, 1.5 + Math.random() * 2, (Math.random() - 0.5) * 12); m.castShadow = true;
+        for (let i = 0; i < 10; i++) {
+          // a real rake-pile is knee-high on a kid: two dogs across, one dog high
+          const m = new THREE.Mesh(new THREE.SphereGeometry(7 + Math.random() * 5, 7, 5), new THREE.MeshLambertMaterial({ color: cols[i % cols.length] }));
+          m.scale.set(1, 0.5, 1); m.position.set((Math.random() - 0.5) * 22, 2 + Math.random() * 3, (Math.random() - 0.5) * 22); m.castShadow = true;
           g.add(m);
         }
         this.scene.add(g);
