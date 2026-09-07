@@ -3573,6 +3573,10 @@ function wireSpan(bk: Bucket, ax: number, ay: number, az: number, bx: number, by
   seg(mx, my, mz, bx, by, bz);
 }
 
+// How full the parking lots are, by season: the waterfront lots are full on a July
+// Saturday and empty in February, and a winter town with summer lots reads wrong.
+const LOT_FILL = SEASON === 'summer' ? 30 : SEASON === 'fall' ? 22 : SEASON === 'spring' ? 18 : 11;
+
 // Foundation planting: the row of clipped shrubs against the front wall, either side
 // of the door, a bigger one at each corner. It is what separates a house that has
 // been lived in from a box set down on a lawn, and it is twenty triangles a bush.
@@ -10634,7 +10638,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
             const sx = x - tz * sSide * off, sz = z + tx * sSide * off;
             if (sx < ox || sx >= ox + CHUNK || sz < oy || sz >= oy + CHUNK) continue;
             const h2 = hash32(Math.round(sx * 2), Math.round(sz * 2), 97);
-            if (h2 % 100 > 30) continue;   // a lot is never full; the sea of cars was the town's loudest thing from above
+            if (h2 % 100 > LOT_FILL) continue;   // a lot is never full; the sea of cars was the town's loudest thing from above
             if (!pointInPolyD(sx, sz, poly)) continue;
             // stalls never guard against buildings/water — a lot polygon that laps a
             // building footprint or the shoreline (Cummings Center wraps a giant
@@ -10670,7 +10674,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         const z = obb.cz + l0 * sa + w0 * ca;
         if (x < ox || x >= ox + CHUNK || z < oy || z >= oy + CHUNK) continue;
         const h2 = hash32(Math.round(x * 2), Math.round(z * 2), 97);
-        if (h2 % 100 > 24) continue;
+        if (h2 % 100 > LOT_FILL * 0.8) continue;
         if (!pointInPolyD(x, z, poly)) continue;
         if (!pointInPolyD(x + nx2 * 11, z + nz2 * 11, poly) || !pointInPolyD(x - nx2 * 11, z - nz2 * 11, poly)) continue;
         if (index.isBlocked(x, z) || index.isWaterAt(x, z)) continue;   // never park inside a building or on water
