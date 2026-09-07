@@ -73,6 +73,8 @@ export const GFX = {
   // The visible cloud layer is a full-sky transparent pass; the cloud SHADOWS are one
   // texture fetch and stay on everywhere. Off on touch screens; ?sky=0 turns it off anywhere.
   skyClouds: flag('sky', 'sky', !coarse),
+  // wind on the flags and the tree crowns: a vertex-shader sway on the decor mesh, desktop only (?wind=0 off)
+  wind: q.get('wind') !== '0' && !coarse,
   // Ground texture size per chunk. The canvas is painted at 768 (one texel per world px,
   // 12.5 cm); phones keep 70 of them resident and that is what they run out of. 576 on
   // touch screens is 17 cm a texel and 44% less memory, unseen on a phone-sized screen.

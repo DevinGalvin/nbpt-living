@@ -8,7 +8,7 @@ import { groundInject } from '../three/ground';
 import type { WorldData } from '../world/types';
 import { WorldIndex, CHUNK } from '../world/index';
 import { Terrain } from '../world/terrain';
-import { buildChunkDecor, setWindowNight } from '../three/decor';
+import { buildChunkDecor, setWindowNight, setDecorWind } from '../three/decor';
 import { detailTex } from '../three/textures';
 import { buildWater, WATER_Y } from '../three/water';
 import { FarTown } from '../three/farTown';
@@ -2571,6 +2571,7 @@ export class Game {
       }
     }
     setWindowNight(lampOn);
+    setDecorWind(t);
     updateClouds(dt, sky.night, sky.wet, GFX.clouds);
     this.farTown?.tick(this.px, this.pz);
     for (let i = 0; i < this.lampGlows.length; i++) {

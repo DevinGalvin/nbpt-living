@@ -110,6 +110,12 @@ class Bucket {
   tagLast(v: number) {
     for (let k = this.uv.length - 12; k < this.uv.length; k += 2) this.uv[k] = v;
   }
+  // wind weight for the last `count` vertices, in uv.y: the PLAIN material's vertex
+  // shader sways a vertex by it (flags, canopies); everything else leaves it at 0
+  windLast(count: number, w: (x: number, y: number, z: number) => number) {
+    const n = this.pos.length / 3;
+    for (let i = Math.max(0, n - count); i < n; i++) this.uv[i * 2 + 1] = w(this.pos[i * 3], this.pos[i * 3 + 1], this.pos[i * 3 + 2]);
+  }
 
   quadUV(ax: number, ay: number, az: number, bx: number, by: number, bz: number,
          cx: number, cy: number, cz: number, dx: number, dy: number, dz: number,
@@ -183,6 +189,28 @@ function windowGlow(x: number, y2: number, nx: number, nz: number, ux: number, u
   return th;
 }
 
+// Wind on the decor mesh: the PLAIN material's vertex shader moves any vertex whose
+// uv.y is set (flags, tree canopies) by a slow sum of sines in world space. Desktop only.
+const windUniforms = { uWind: { value: 0 } };
+/** seconds; called once a frame by Game */
+export function setDecorWind(t: number) { windUniforms.uWind.value = t; }
+function windInject(shader: { uniforms: Record<string, unknown>; vertexShader: string }) {
+  shader.uniforms.uWind = windUniforms.uWind;
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', '#include <common>\nuniform float uWind;')
+    .replace('#include <begin_vertex>', `#include <begin_vertex>
+{
+  float w = uv.y;
+  if (w > 0.001) {
+    float g = sin(uWind * 0.9 + position.x * 0.012 + position.z * 0.017);          // the gust, slow and wide
+    float f = sin(uWind * 2.4 + position.x * 0.09 + position.z * 0.07) * 0.45;      // the flutter
+    float a = w * (0.55 + 0.45 * g);
+    transformed.x += (g + f) * a * 1.4;
+    transformed.z += (cos(uWind * 1.7 + position.z * 0.08) * 0.6 + f * 0.5) * a * 1.1;
+    transformed.y -= w * w * 0.25 * (0.5 + 0.5 * g);
+  }
+}`);
+}
 let winUniforms: { uNight: { value: number } } | null = null;
 /** night 0..1 from the sky; drives every lit window in every chunk */
 export function setWindowNight(n: number) {
@@ -1021,6 +1049,8 @@ function porchFlag(bk: Bucket, x: number, y2: number, nx: number, nz: number, ux
   const cx1 = tx - sx * sl * 0.28, cy1 = ty - sy * sl * 0.28, cz1 = tz - sz * sl * 0.28;
   bk.quad(cx1, cy1 + 0.02, cz1, tx, ty + 0.02, tz, tx, ty - drop * 0.5, tz, cx1, cy1 - drop * 0.5, cz1, ax, 0, az, tmp.r, tmp.g, tmp.b);
   bk.quad(cx1, cy1 - drop * 0.5, cz1, tx, ty - drop * 0.5, tz, tx, ty + 0.02, tz, cx1, cy1 + 0.02, cz1, -ax, 0, -az, tmp.r * 0.85, tmp.g * 0.85, tmp.b * 0.85);
+  // the flag waves: the free end most, the hoist not at all
+  bk.windLast(72, (x, y, z) => { const t = ((x - bx) * sx + (y - by) * sy + (z - bz) * sz) / sl; return Math.max(0, Math.min(1, (t - 0.35) / 0.65)) * 0.9; });
 }
 
 // storefront awning: sloped canvas top + hanging valance
@@ -1884,7 +1914,7 @@ function bareTree(bk: Bucket, x: number, y: number, z: number, r: number, seed: 
 // by where it points — sunlit on top, occluded underneath, the odd leaf-mass a shade
 // off. Twenty triangles; the octahedron it replaces was eight, and read as a lollipop.
 const _cC = new THREE.Color();
-function blobCanopy(bk: Bucket, x: number, y: number, z: number, r: number, color: THREE.Color, seed: number) {
+function blobCanopy(bk: Bucket, x: number, y: number, z: number, r: number, color: THREE.Color, seed: number, wind = 0) {
   const rng = mulberry32(seed);
   const N = 5;
   const rot = rng() * Math.PI * 2;
@@ -1925,6 +1955,8 @@ function blobCanopy(bk: Bucket, x: number, y: number, z: number, r: number, colo
     face(up[i], lo[j], up[j]);
     face(lo[i], bot, lo[j]);
   }
+  // a canopy in the wind: the crown moves, the underside barely
+  if (wind > 0) bk.windLast(N * 12, (_x, py) => wind * Math.max(0.15, Math.min(1, (py - yLo) / yH)));
 }
 
 // War Memorial Stadium: the real NHS football field (the mapped american_football
@@ -11107,10 +11139,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (SEASON === 'winter') {
         bareTree(buckets[PLAIN], t.x, canopyY - t.r * 0.3, t.y, t.r * 1.15, h1 | 1);
       } else {
-        blobCanopy(buckets[PLAIN], t.x, canopyY, t.y, t.r * 1.12, c, h1 | 1);
+        const wind = GFX.wind ? (t.r > 18 ? 0.55 : 0.8) : 0;
+        blobCanopy(buckets[PLAIN], t.x, canopyY, t.y, t.r * 1.12, c, h1 | 1, wind);
         const j = ((h1 >> 12) % 100) / 100 - 0.5;
-        blobCanopy(buckets[PLAIN], t.x + j * t.r * 0.9, canopyY + t.r * 0.5, t.y - Math.abs(j) * t.r * 0.5, t.r * 0.7, c.clone().multiplyScalar(1.1), (h1 >> 2) | 1);
-        blobCanopy(buckets[PLAIN], t.x - j * t.r * 0.7, canopyY + t.r * 0.7, t.y + Math.abs(j) * t.r * 0.45, t.r * 0.6, c.clone().multiplyScalar(0.92), (h1 >> 5) | 1);
+        blobCanopy(buckets[PLAIN], t.x + j * t.r * 0.9, canopyY + t.r * 0.5, t.y - Math.abs(j) * t.r * 0.5, t.r * 0.7, c.clone().multiplyScalar(1.1), (h1 >> 2) | 1, wind);
+        blobCanopy(buckets[PLAIN], t.x - j * t.r * 0.7, canopyY + t.r * 0.7, t.y + Math.abs(j) * t.r * 0.45, t.r * 0.6, c.clone().multiplyScalar(0.92), (h1 >> 5) | 1, wind);
       }
       if (SEASON === 'winter' && t.x * t.x + t.y * t.y < 1500 * 1500) {
         // downtown shade trees get light wraps too
@@ -11453,9 +11486,10 @@ function decorMaterials(): THREE.Material[] {
   if (!_mats) {
     // normal-map strength per surface: mortar and plank gaps are deep, clapboard and
     // shingle courses are shallow steps
-    const mk = (map: THREE.CanvasTexture | null, bump = 0, roof = false) => {
+    const mk = (map: THREE.CanvasTexture | null, bump = 0, roof = false, wind = false) => {
       const m = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
-      m.onBeforeCompile = (s) => { if (roof) roofInject(s); if (GFX.clouds > 0) cloudInject(s); };
+      if (wind) m.defines = { USE_UV: '' };   // the untextured material still needs the uv attribute for the wind weight
+      m.onBeforeCompile = (s) => { if (roof) roofInject(s); if (GFX.clouds > 0) cloudInject(s); if (wind) windInject(s); };
       if (map) m.map = map;
       if (map && bump > 0 && GFX.normalMaps) {
         m.normalMap = normalFromTexture(map, bump);
@@ -11504,7 +11538,7 @@ function decorMaterials(): THREE.Material[] {
     });
     // the merged uniforms object is a copy — point the setter at the live one
     winUniforms = windows.uniforms as { uNight: { value: number } };
-    _mats = [mk(null), mk(clapboardTex(), 0.9), mk(brickTex(), 1.6), mk(shingleTex(), 0.9, true), mk(plankTex(), 1.4),
+    _mats = [mk(null, 0, false, GFX.wind), mk(clapboardTex(), 0.9), mk(brickTex(), 1.6), mk(shingleTex(), 0.9, true), mk(plankTex(), 1.4),
              new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }),
              windows,
              mk(signTex())];
