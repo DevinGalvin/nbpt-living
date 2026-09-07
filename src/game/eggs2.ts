@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WorldIndex } from '../world/index';
+import { WorldIndex, CHUNK, pointInPoly } from '../world/index';
 import { GameAudio } from './audio';
 import { WATER_Y, TIDE } from '../three/water';
 import { SEASON } from '../world/style';
@@ -459,15 +459,34 @@ export class MoreEggs {
         let cx = 0, cz = 0, n = 0;
         for (let i = 0; i < park.p.length; i += 2) { cx += park.p[i]; cz += park.p[i + 1]; n++; }
         cx /= n; cz /= n;
-        // stand where the lawn runs longest: the heading with clear grass out to 200 px
+        // stand on the grass (the park's middle can be its parking lot) where the lawn
+        // runs longest: the nearest spot to the middle with clear grass out to 200 px
+        const grass = (x: number, z: number) => {
+          if (index.isBlocked(x, z) || index.isWaterAt(x, z) || index.onPavedAt(x, z)) return false;
+          // the roads test misses the parking lots; check the lot polygons in this cell
+          for (const pi of index.bucket(Math.floor(x / CHUNK) + ',' + Math.floor(z / CHUNK)).polys) {
+            const pp = index.world.polys[pi];
+            if ((pp.k === 'parking' || pp.k === 'pitch') && pointInPoly(x, z, pp)) return false;
+          }
+          return true;
+        };
         let bestA = 0, bestScore = -1;
-        for (let k = 0; k < 16; k++) {
-          const a = (k / 16) * Math.PI * 2;
-          let score = 0;
-          for (const d of [40, 90, 140, 200]) { const x = cx + Math.sin(a) * d, z = cz + Math.cos(a) * d; if (!index.isBlocked(x, z) && !index.isWaterAt(x, z)) score++; else break; }
-          if (score > bestScore) { bestScore = score; bestA = a; }
+        outer: for (const r of [0, 70, 140, 210, 280, 350]) {
+          for (let j = 0; j < 12; j++) {
+            const b = (j / 12) * Math.PI * 2;
+            const sx0 = cx + Math.sin(b) * r, sz0 = cz + Math.cos(b) * r;
+            if (!grass(sx0, sz0)) continue;
+            for (let k = 0; k < 16; k++) {
+              const a = (k / 16) * Math.PI * 2;
+              let score = 0;
+              for (const d of [40, 90, 140, 200]) { if (grass(sx0 + Math.sin(a) * d, sz0 + Math.cos(a) * d)) score++; else break; }
+              if (score > bestScore) { bestScore = score; bestA = a; }
+            }
+            if (bestScore >= 4) { cx = sx0; cz = sz0; break outer; }
+            bestScore = -1;
+          }
         }
-        if (bestScore >= 3 && !index.isBlocked(cx, cz)) {
+        if (bestScore >= 4) {
           const g = new THREE.Group();
           const skin = '#e8c39e', shirt = '#4a7ab8', pants = '#3b4d6b';
           for (const sx of [-2.4, 2.4]) { const leg = box(2.2, 8, 2.2, pants); leg.position.set(sx, 4, 0); g.add(leg); }
