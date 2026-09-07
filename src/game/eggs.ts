@@ -464,7 +464,8 @@ export class EggRunner {
       showCard: (c, isNew) => this.showCard(c, isNew),
       found: (id) => this.found(id),
       hearts: (x, y, z) => this.hearts(x, y, z),
-      dogPos: () => this.dogPos()
+      dogPos: () => this.dogPos(),
+      burst: (x, y, z, hex, n, pop, size, life) => this.burst(x, y, z, hex, n, pop, size, life)
     });
 
     // statues: the unfound wait in the wild; the found already stand at home

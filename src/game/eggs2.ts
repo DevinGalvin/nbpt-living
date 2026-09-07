@@ -57,6 +57,18 @@ export const MORE_CARDS: Record<string, Card> = {
     t: 'The Maudslay Balloon', s: 'one morning in ten',
     b: 'So far off and so slow you took a minute to notice it: a hot-air balloon over the Maudslay fields, riding the morning air down the river valley. They launch from the farms upriver on still mornings. This is one of the still mornings.'
   },
+  fireworks: {
+    t: 'Yankee Homecoming', s: 'the last week of July · over the river',
+    b: 'Every summer since 1958 the town throws itself a week-long party, and it ends with fireworks over the Merrimack, watched from the boardwalk, the lawn, the boats, and every rooftop with a ladder. Tonight is the night. The gulls have gone to bed. Nobody else has.'
+  },
+  heron: {
+    t: 'The Great Blue Heron', s: 'the Little River marsh',
+    b: 'Grey, taller than you, standing on one leg in the reeds like it has been there since the marsh was made, and gone the moment you got too close: a slow lift, four wingbeats, and down again farther up the river. It will let you get exactly this near and no nearer. Every time.'
+  },
+  owl: {
+    t: 'A Snowy Owl', s: 'Plum Island · January',
+    b: 'You thought it was a fence post. Then the fence post turned its head. Snowy owls come down from the Arctic to Plum Island in the hard winters and sit on the posts along the refuge road all day, and birders drive up from Boston to see one. You did not have to drive.'
+  },
   ducklings: {
     t: 'Ducklings', s: 'the Frog Pond · spring',
     b: 'One mother, five ducklings, a line across the pond and up onto the grass and back down again, in that exact order, all day. Do not get between them. The mother has views on that. The frogs are not consulted.'
@@ -68,6 +80,7 @@ type Host = {
   found(id: string): boolean;
   hearts(x: number, y: number, z: number): void;
   dogPos(): { x: number; z: number };
+  burst(x: number, y: number, z: number, hex: string, n: number, pop: boolean, size: number, life: number): void;
 };
 
 const lam = (hex: string) => new THREE.MeshLambertMaterial({ color: hex });
@@ -102,6 +115,21 @@ export class MoreEggs {
   private balloon: THREE.Group | null = null;
   private balloonDay = false;
   private ducks: { g: THREE.Group; lag: number }[] = [];
+  private showAt = { x: 0, z: 0 };
+  private showLeft = 0;          // seconds of fireworks left tonight
+  private showDone = false;      // one show a night
+  private showNext = 0;
+  private heron: THREE.Group | null = null;
+  private heronWings: THREE.Mesh[] = [];
+  private heronAt = { x: 0, z: 0 };
+  private heronFly = 0;          // seconds left in the air
+  private heronFrom = { x: 0, z: 0 };
+  private heronTo = { x: 0, z: 0 };
+  private marsh: [number, number][] = [];
+  private owl: THREE.Group | null = null;
+  private owlHead: THREE.Group | null = null;
+  private owlAt = { x: 0, z: 0 };
+  private owlGone = 0;
   private duckT = 0;
   private duckAt = { x: 0, z: 0 };
 
@@ -383,6 +411,81 @@ export class MoreEggs {
       }
     }
 
+    // 14. Yankee Homecoming: fireworks over the river, from the boardwalk (the last week
+    // of July on the real calendar, and one night in twelve otherwise; ?fireworks=1 forces)
+    if (this.seal) this.showAt = { x: this.sealAt.x, z: this.sealAt.z };
+
+    // 15. the great blue heron in the Little River marsh below the station
+    const st2 = lm('mbta');
+    if (st2 && SEASON !== 'winter') {
+      let best: { p: number[]; d: number } | null = null;
+      for (const poly of index.world.polys) {
+        if (poly.k !== 'wetland') continue;
+        let cx = 0, cz = 0; const n = poly.p.length / 2;
+        for (let k = 0; k < n; k++) { cx += poly.p[k * 2]; cz += poly.p[k * 2 + 1]; }
+        cx /= n; cz /= n;
+        const d = Math.hypot(cx - st2.x, cz - st2.y);
+        if (d < 2600 && (!best || d < best.d)) best = { p: poly.p, d };
+      }
+      if (best) {
+        // standing spots: points inside the marsh, not in open water
+        const pts = best.p;
+        let minx = 1e9, minz = 1e9, maxx = -1e9, maxz = -1e9;
+        for (let k = 0; k < pts.length; k += 2) { minx = Math.min(minx, pts[k]); maxx = Math.max(maxx, pts[k]); minz = Math.min(minz, pts[k + 1]); maxz = Math.max(maxz, pts[k + 1]); }
+        const inPoly = (x: number, z: number) => { let inside = false; for (let i = 0, j = pts.length - 2; i < pts.length; j = i, i += 2) { const xi = pts[i], zi = pts[i + 1], xj = pts[j], zj = pts[j + 1]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside; } return inside; };
+        for (let tries = 0; tries < 300 && this.marsh.length < 12; tries++) {
+          const x = minx + Math.random() * (maxx - minx), z = minz + Math.random() * (maxz - minz);
+          if (inPoly(x, z) && !index.isWaterAt(x, z) && !index.isBlocked(x, z)) this.marsh.push([x, z]);
+        }
+        if (this.marsh.length) {
+          const g = new THREE.Group();
+          const body = box(4.2, 3.4, 8, '#8d97a0'); body.position.y = 15; g.add(body);
+          const neck = box(1.4, 9, 1.4, '#9aa3ab'); neck.position.set(0, 21, 3.2); neck.rotation.x = -0.35; g.add(neck);
+          const head = box(2.2, 2, 3.4, '#9aa3ab'); head.position.set(0, 25.5, 4.6); g.add(head);
+          const bill = box(0.6, 0.6, 4, '#d8b04a'); bill.position.set(0, 25.3, 8); g.add(bill);
+          const leg = box(0.5, 13, 0.5, '#6b6f5a'); leg.position.set(0.6, 6.5, 0); g.add(leg);
+          const leg2 = box(0.5, 6, 0.5, '#6b6f5a'); leg2.position.set(-0.8, 12, -1); leg2.rotation.x = 1.2; g.add(leg2);
+          for (const sgn of [-1, 1]) { const w = box(10, 0.4, 5, '#7f8990'); w.position.set(sgn * 5.5, 16.5, -0.5); w.visible = false; g.add(w); this.heronWings.push(w); }
+          const [hx, hz] = this.marsh[0];
+          this.heronAt = { x: hx, z: hz };
+          g.position.set(hx, gy(hx, hz), hz);
+          g.rotation.y = Math.random() * 6.28;
+          scene.add(g);
+          this.heron = g;
+        }
+      }
+    }
+
+    // 16. a snowy owl on a fence post along the refuge road, winter only
+    const pl = lm('pi-light');
+    if (pl && SEASON === 'winter') {
+      let best: { x: number; z: number; d: number } | null = null;
+      for (const r of index.world.roads) {
+        if (r.c === 'service') continue;
+        for (let k = 0; k + 3 < r.p.length; k += 2) {
+          const ax = r.p[k], az = r.p[k + 1], bx = r.p[k + 2], bz = r.p[k + 3];
+          const vx = bx - ax, vz = bz - az, l2 = vx * vx + vz * vz || 1;
+          const tt = Math.max(0, Math.min(1, ((pl.x - ax) * vx + (pl.y - az) * vz) / l2));
+          const qx = ax + vx * tt, qz = az + vz * tt, d = Math.hypot(qx - pl.x, qz - pl.y);
+          if (d < 900 && (!best || d < best.d)) { const nl = Math.sqrt(l2); best = { x: qx - vz / nl * (r.w / 2 + 14), z: qz + vx / nl * (r.w / 2 + 14), d }; }
+        }
+      }
+      if (best && !index.isWaterAt(best.x, best.z) && !index.isBlocked(best.x, best.z)) {
+        this.owlAt = { x: best.x, z: best.z };
+        const g = new THREE.Group();
+        const post = box(1.4, 12, 1.4, '#6f6353'); post.position.y = 6; g.add(post);
+        const body = box(3.2, 4.4, 3.0, '#f1f0ea'); body.position.y = 14.2; g.add(body);
+        const headG = new THREE.Group();
+        const head = box(3.0, 2.6, 2.8, '#f6f5f0'); headG.add(head);
+        for (const sgn of [-1, 1]) { const eye = box(0.6, 0.6, 0.3, '#e8c531'); eye.position.set(sgn * 0.7, 0.3, 1.45); headG.add(eye); }
+        headG.position.y = 17.5; g.add(headG);
+        g.position.set(best.x, gy(best.x, best.z), best.z);
+        scene.add(g);
+        this.owl = g; this.owlHead = headG;
+        this.dyn.push({ id: 'owl', x: best.x, z: best.z, label: '🦉 LOOK AT THE FENCE POST', r: 130 });
+      }
+    }
+
     // 13. ducklings on the Frog Pond in spring
     if (fp && SEASON === 'spring') {
       const mk = (w: number, hex: string) => {
@@ -410,6 +513,8 @@ export class MoreEggs {
     if (this.seal && this.sealUp > 0) out.push({ id: 'seal', x: this.sealAt.x, z: this.sealAt.z, label: '🦭 LOOK AT THE RIVER', r: 520 });
     if (this.balloon && this.balloon.visible) out.push({ id: 'balloon', x: this.balloon.position.x, z: this.balloon.position.z, label: '🎈 LOOK UP', r: 1800 });
     if (this.ducks.length) out.push({ id: 'ducklings', x: this.duckAt.x, z: this.duckAt.z, label: '🐥 FOLLOW THE DUCKLINGS', r: 90 });
+    if (this.showLeft > 0) out.push({ id: 'fireworks', x: this.showAt.x, z: this.showAt.z, label: '🎆 WATCH', r: 1700 });
+    if (this.heron && this.heronFly <= 0) out.push({ id: 'heron', x: this.heronAt.x, z: this.heronAt.z, label: '🪶 QUIET NOW', r: 230 });
     if (this.diggers.length && TIDE.value < -0.8) out.push({ id: 'diggers', x: this.diggers[0].g.position.x, z: this.diggers[0].g.position.z, label: '🪣 WATCH THEM DIG', r: 110 });
     return out;
   }
@@ -498,7 +603,7 @@ export class MoreEggs {
       const out = TIDE.value < -0.8;
       for (const d of this.diggers) {
         d.g.visible = out;
-        if (out) { d.g.rotation.x = 0.55 + Math.max(0, Math.sin(this.t * 1.1 + d.ph)) * 0.35; }
+        if (out) { d.g.rotation.x = 0.28 + Math.max(0, Math.sin(this.t * 1.1 + d.ph)) * 0.22; }   // bent to the rake, straightening to empty it
       }
     }
 
@@ -554,6 +659,69 @@ export class MoreEggs {
         const k = (tod - 0.27) / 0.2;
         const x = b.x - 1600 + k * 3200, z = b.z + Math.sin(k * 3) * 300;
         this.balloon.position.set(x, this.index.heightAtPx(x, z) + 380 + Math.sin(this.t * 0.3) * 8, z);
+      }
+    }
+
+    // Yankee Homecoming: the show starts after full dark, once a night, when someone is
+    // near enough to the river to see it
+    if (this.seal) {
+      const day = dayOfYear();
+      const q = new URLSearchParams(location.search);
+      const showNight = q.get('fireworks') === '1' || (day >= 206 && day <= 212) || day % 12 === 5;
+      if (night < 0.5) this.showDone = false;
+      if (showNight && !this.showDone && this.showLeft <= 0 && night > 0.85 && (px - this.showAt.x) ** 2 + (pz - this.showAt.z) ** 2 < 1500 * 1500) {
+        this.showLeft = 95; this.showDone = true; this.showNext = 0;
+      }
+      if (this.showLeft > 0) {
+        this.showLeft -= dt; this.showNext -= dt;
+        if (this.showNext <= 0) {
+          this.showNext = this.showLeft < 12 ? 0.5 : 1.6 + Math.random() * 1.6;   // the finale comes fast
+          const colors = ['#ffd24a', '#e8634a', '#7ce8f4', '#9ae86a', '#d88ae8', '#f6f3e8', '#ff9a3c'];
+          const x = this.showAt.x + (Math.random() - 0.5) * 600, z = this.showAt.z + (Math.random() - 0.5) * 300;
+          this.host.burst(x, WATER_Y + 220 + Math.random() * 160, z, colors[Math.floor(Math.random() * colors.length)], 90, true, 7, 2.4);
+        }
+      }
+    }
+
+    // the heron: a lift, a slow loop, and down again farther up the marsh
+    if (this.heron) {
+      if (this.heronFly > 0) {
+        this.heronFly -= dt;
+        const k = 1 - this.heronFly / 12;
+        const x = this.heronFrom.x + (this.heronTo.x - this.heronFrom.x) * k, z = this.heronFrom.z + (this.heronTo.z - this.heronFrom.z) * k;
+        const gyy = this.index.heightAtPx(x, z);
+        this.heron.position.set(x, gyy + Math.sin(k * Math.PI) * 70, z);
+        this.heron.rotation.y = Math.atan2(this.heronTo.x - this.heronFrom.x, this.heronTo.z - this.heronFrom.z);
+        const flap = Math.sin(this.t * 4.5) * 0.7;
+        this.heronWings[0].rotation.z = 0.2 + flap; this.heronWings[1].rotation.z = -0.2 - flap;
+        if (this.heronFly <= 0) { this.heronAt = { ...this.heronTo }; this.heron.position.y = gyy; for (const w of this.heronWings) w.visible = false; }
+      } else {
+        this.heron.position.y = this.index.heightAtPx(this.heronAt.x, this.heronAt.z) + Math.sin(this.t * 0.6) * 0.15;
+        if ((px - this.heronAt.x) ** 2 + (pz - this.heronAt.z) ** 2 < 200 * 200 && this.marsh.length > 1) {
+          let to = this.marsh[Math.floor(Math.random() * this.marsh.length)];
+          for (let tries = 0; tries < 6 && Math.hypot(to[0] - this.heronAt.x, to[1] - this.heronAt.z) < 180; tries++) to = this.marsh[Math.floor(Math.random() * this.marsh.length)];
+          this.heronFrom = { ...this.heronAt }; this.heronTo = { x: to[0], z: to[1] }; this.heronFly = 12;
+          for (const w of this.heronWings) w.visible = true;
+          this.audio.gull();
+        }
+      }
+    }
+
+    // the owl: a head that turns, and a bird that leaves if you press it
+    if (this.owl && this.owlHead) {
+      const dx = px - this.owlAt.x, dz = pz - this.owlAt.z, d2 = dx * dx + dz * dz;
+      if (this.owlGone > 0) {
+        this.owlGone -= dt;
+        const k = Math.min(1, (60 - this.owlGone) / 6);
+        this.owl.children[1].visible = this.owl.children[2].visible = k < 1;   // body and head leave; the post stays
+        if (k < 1) { this.owl.children[1].position.y = 14.2 + k * 120; this.owl.children[2].position.y = 17.5 + k * 120; this.owl.children[1].position.x = this.owl.children[2].position.x = k * 260; }
+        if (this.owlGone <= 0) { this.owl.children[1].position.set(0, 14.2, 0); this.owl.children[2].position.set(0, 17.5, 0); this.owl.children[1].visible = this.owl.children[2].visible = true; }
+      } else {
+        const want = d2 < 160 * 160 ? Math.atan2(dx, dz) - this.owl.rotation.y : 0;
+        let w = want; while (w > Math.PI) w -= 2 * Math.PI; while (w < -Math.PI) w += 2 * Math.PI;
+        w = Math.max(-2.4, Math.min(2.4, w));   // an owl can nearly look behind itself
+        this.owlHead.rotation.y += (w - this.owlHead.rotation.y) * Math.min(1, dt * 2.5);
+        if (d2 < 45 * 45) this.owlGone = 60;
       }
     }
 
