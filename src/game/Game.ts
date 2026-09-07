@@ -3050,7 +3050,7 @@ export class Game {
       // reaches over a couple of seconds instead of the far bank blinking in
       // river fog pulls the reach right in: the far bank goes first, then the next block
       const mist = this.sky.state.mist;
-      if (mist > 0.001) { tn = tn * (1 - mist * 0.92) + 40 * mist; tf = tf * (1 - mist * 0.86) + 900 * mist; }
+      if (mist > 0.001) { tn = tn * (1 - mist) + 60 * mist; tf = tf * (1 - mist) + 640 * mist; }
       const k = snap ? 1 : Math.min(1, dt * 1.2);
       fog.near += (tn - fog.near) * k;
       fog.far += (tf - fog.far) * k;
