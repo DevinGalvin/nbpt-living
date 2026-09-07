@@ -792,7 +792,7 @@ export class EggRunner {
 
   // ---------- shared FX ----------
 
-  private burst(x: number, y: number, z: number, hex: string, n = 50, withPop = true, size = 3.4, lifeMax = 1.7) {
+  burst(x: number, y: number, z: number, hex: string, n = 50, withPop = true, size = 3.4, lifeMax = 1.7) {
     const pos = new Float32Array(n * 3);
     const vel: number[] = [];
     for (let i = 0; i < n; i++) {

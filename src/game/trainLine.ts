@@ -30,4 +30,4 @@ export const BRANCH_BOSTON: LineStop[] = [
   { name: 'North Station', town: 'boston' },
 ];
 /** towns whose build has a platform on the line (see each town's trainPlatform) */
-export const BOARDABLE = new Set(['nbpt', 'ipswich', 'beverly', 'gloucester']);
+export const BOARDABLE = new Set(['nbpt', 'ipswich', 'beverly', 'manchester', 'gloucester', 'rockport']);

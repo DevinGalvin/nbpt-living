@@ -42,7 +42,7 @@ export const TOWN: TownPack = {
   // a lighter mix than Rockport's, which keeps more white clapboard in the mix.
   shingleZones: [{ x: -1200, z: 3600, r: 8000, p: 0.5 }],   // village + harbor + Singing Beach
   sledLane: null,
-  trainPlatform: null,                    // the Rockport line runs through and Manchester HAS a stop — but OSM doesn't name it here, so there's no honest point to place. Add via manualBuildings or an OSM edit.
+  trainPlatform: { x: -824, z: 2131 },    // Manchester station on Beach Street (42.5736 N, 70.7702 W), snapped to the line
   holidayTree: { x: -280, z: 3490 },      // Masconomo Park — the green between downtown and the harbor
 
   attractions: {

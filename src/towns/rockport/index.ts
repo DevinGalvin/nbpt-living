@@ -46,7 +46,7 @@ export const TOWN: TownPack = {
     { x: -5800, z: -14600, r: 3200, p: 0.6 },   // Pigeon Cove
   ],
   sledLane: null,
-  trainPlatform: null,                    // Rockport is the END of the MBTA Rockport line — but OSM doesn't name the station here, so there's no honest point to place. Add via manualBuildings or an OSM edit.
+  trainPlatform: { x: -4556, z: 72 },     // Rockport station on Railroad Avenue, the end of the line (42.6559 N, 70.6270 W), snapped to the rails
   holidayTree: { x: 2053, z: -2288 },     // Dock Square
 
   attractions: {

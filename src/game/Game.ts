@@ -297,6 +297,17 @@ export class Game {
   // desktop sees twice as far: with the far town standing in the haze there is nothing to hide
   private farFog = false;
   private foghornT = 5;
+  // 💦 puddle stomping after rain: splashes off the paws and wet prints that fade
+  private puddleT = 0;
+  private prints: { m: THREE.Mesh; life: number }[] = [];
+  private printIdx = 0;
+  private printSide = 1;
+  // ❄️ snow angels: a roll in the snow that leaves the shape behind
+  private snowAngelT = 0;
+  private angels: THREE.Mesh[] = [];
+  private angelIdx = 0;
+  private angelTex: THREE.CanvasTexture | null = null;
+  private pawTex: THREE.CanvasTexture | null = null;
   // 🚆 riding the train to the next town: the kid is aboard, the camera rides the
   // first coach, and once the town is out of sight the next town's build takes over
   private onTrain = false;
@@ -330,6 +341,7 @@ export class Game {
   private diggingNow = false;
   private dirtAcc = 0;
   private lastSpeed = 0;           // real px/s this frame — the dig gate wants "standing still"
+  private lastVx = 0; private lastVz = 1;   // the real heading this frame, for prints and the angel
   private bones: Set<string> = new Set();
   private swimming = false;        // 🏊 in the water, on the dog's own four legs
   private rippleAcc = 0;
@@ -2261,6 +2273,7 @@ export class Game {
     if (this.inside) this.sprinting = false;
     let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
+    if (this.snowAngelT > 0) speed = 0; // flat on his back in the snow
     if (this.sniffing) speed *= 0.4;    // nose down = a careful, readable creep
     // the dog-paddle: 200 cruising, 320 with RUN held — a harbor or a lake is a long
     // way across at a paddle, and the run button should mean something in the water too
@@ -2397,6 +2410,7 @@ export class Game {
     this.px = nx;
     this.pz = nz;
     this.lastSpeed = Math.hypot(realVx, realVz);
+    if (this.lastSpeed > 1) { this.lastVx = realVx / this.lastSpeed; this.lastVz = realVz / this.lastSpeed; }
     // 🏊 in or out of the water this frame? Walking in starts the paddle — no button,
     // the water just stops being a wall. Climbing out earns the wet-dog shake.
     const wasSwimming = this.swimming;
@@ -2626,6 +2640,8 @@ export class Game {
     }
     // the foghorn out on the water while the fog is down: every half minute or so,
     // louder by the river, a rumour from uptown
+    this.updatePuddles(dt, sky.wet);
+    this.updateSnowAngel(dt);
     if (sky.mist > 0.4 && !this.inside) {
       this.foghornT -= dt;
       if (this.foghornT <= 0) { this.foghornT = 24 + Math.random() * 10; this.audio.foghorn(sky.mist * (this.nearWater ? 1 : 0.5)); }
@@ -2766,6 +2782,8 @@ export class Game {
       const door = !this.onTrain && !this.flying && !this.kayaking && !this.inside && !this.riding ? this.life?.trainDoor() ?? null : null;
       if (this.flying) act = { label: '🛬 LAND', cb: () => this.land() };
       else if (door && Math.hypot(this.px - door.x, this.pz - door.z) < 70) act = { label: '🚆 BOARD', cb: () => this.openTrainBoard() };
+      else if (SEASON === 'winter' && this.snowAngelT <= 0 && this.lastSpeed < 6 && !this.inside && !this.onWater && !this.swimming && !this.riding && !this.kayaking && !this.flying
+        && !this.index.onPavedAt(this.px, this.pz) && !this.index.isWaterAt(this.px, this.pz)) act = { label: '❄️ SNOW ANGEL', cb: () => this.snowAngel() };
       else if (this.kayaking) { if (this.landNear()) act = { label: '🛶 HOP OUT', cb: () => this.exitKayak() }; }
       else if (!this.inside && !this.boating && !this.sweeping) {
         if (this.flightEnabled && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
@@ -3145,6 +3163,99 @@ export class Game {
   }
 
   // ---------- travel & search ----------
+
+  /** 💦 after rain the tar holds puddles; run through them and they splash, and the paws print wet behind you */
+  private updatePuddles(dt: number, wet: number) {
+    for (const p of this.prints) {
+      if (p.life <= 0) continue;
+      p.life -= dt;
+      (p.m.material as THREE.MeshBasicMaterial).opacity = Math.min(0.6, p.life * 0.14);
+      if (p.life <= 0) p.m.visible = false;
+    }
+    if (wet < 0.25 || this.inside || this.onWater || this.swimming || this.flying || this.riding || this.kayaking || this.lastSpeed < 70) return;
+    if (!this.index.onPavedAt(this.px, this.pz)) return;
+    this.puddleT -= dt;
+    if (this.puddleT > 0) return;
+    this.puddleT = 0.2;
+    this.eggs?.burst(this.px, this.kidY + 3, this.pz, '#dfeaf2', 12, false, 2.2, 0.55);
+    // the print: a wet paw, alternating sides, laid just behind the kid on his heading
+    if (!this.pawTex) {
+      const c = document.createElement('canvas'); c.width = c.height = 32;
+      const g = c.getContext('2d')!;
+      g.fillStyle = '#1a1c20';
+      g.beginPath(); g.ellipse(16, 20, 7, 6, 0, 0, Math.PI * 2); g.fill();
+      for (const [x, y] of [[8, 9], [14, 6], [20, 6], [25, 10]]) { g.beginPath(); g.ellipse(x, y, 2.6, 3.2, 0, 0, Math.PI * 2); g.fill(); }
+      this.pawTex = new THREE.CanvasTexture(c);
+    }
+    const heading = Math.atan2(this.lastVx, this.lastVz);
+    const sx = Math.cos(heading) * 4 * this.printSide, sz = -Math.sin(heading) * 4 * this.printSide;
+    this.printSide = -this.printSide;
+    let p = this.prints[this.printIdx % 28];
+    if (!p) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(6, 7), new THREE.MeshBasicMaterial({ map: this.pawTex, transparent: true, opacity: 0.6, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; m.renderOrder = 3;
+      this.scene.add(m);
+      p = { m, life: 0 };
+      this.prints[this.printIdx % 28] = p;
+    }
+    this.printIdx++;
+    p.life = 7;
+    p.m.visible = true;
+    p.m.position.set(this.px + sx - Math.sin(heading) * 6, this.kidY + 0.3, this.pz + sz - Math.cos(heading) * 6);
+    p.m.rotation.z = heading;
+    (p.m.material as THREE.MeshBasicMaterial).opacity = 0.6;
+  }
+
+  /** ❄️ down on his back in the snow, a wriggle, and the angel stays until spring (or the eighth one) */
+  private snowAngel() {
+    if (this.snowAngelT > 0) return;
+    this.snowAngelT = 2.6;
+    this.audio.pop();
+  }
+
+  private updateSnowAngel(dt: number) {
+    if (this.snowAngelT <= 0) return;
+    const root = this.player.root;
+    this.snowAngelT -= dt;
+    if (this.snowAngelT > 0) {
+      // on his back, wriggling: the roll, a lift so the legs clear the snow, a wag of the whole dog
+      const k = Math.min(1, (2.6 - this.snowAngelT) / 0.35);
+      root.rotation.z = Math.PI * k;
+      root.position.y = this.kidY + 9 * k;
+      root.rotation.y += Math.sin(this.snowAngelT * 14) * 0.08;
+      if (Math.random() < dt * 6) this.eggs?.burst(this.px, this.kidY + 6, this.pz, '#ffffff', 6, false, 2.4, 0.8);
+      return;
+    }
+    // up again, and the shape left behind
+    root.rotation.z = 0;
+    root.position.y = this.kidY;
+    if (!this.angelTex) {
+      const c = document.createElement('canvas'); c.width = 96; c.height = 96;
+      const g = c.getContext('2d')!;
+      g.fillStyle = 'rgba(110,132,160,0.78)';   // pressed snow reads blue-grey against the white
+      // the pressed body, and the sweeps the legs made
+      g.beginPath(); g.ellipse(48, 50, 16, 24, 0, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.ellipse(48, 22, 10, 9, 0, 0, Math.PI * 2); g.fill();
+      for (const sgn of [-1, 1]) {
+        g.beginPath(); g.moveTo(48, 34); g.quadraticCurveTo(48 + sgn * 44, 26, 48 + sgn * 40, 48); g.quadraticCurveTo(48 + sgn * 30, 44, 48, 44); g.fill();
+        g.beginPath(); g.moveTo(48, 62); g.quadraticCurveTo(48 + sgn * 40, 70, 48 + sgn * 30, 90); g.quadraticCurveTo(48 + sgn * 22, 78, 48, 74); g.fill();
+      }
+      this.angelTex = new THREE.CanvasTexture(c);
+    }
+    let m = this.angels[this.angelIdx % 8];
+    if (!m) {
+      m = new THREE.Mesh(new THREE.PlaneGeometry(46, 46), new THREE.MeshBasicMaterial({ map: this.angelTex, transparent: true, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; m.renderOrder = 3;
+      this.scene.add(m);
+      this.angels[this.angelIdx % 8] = m;
+    }
+    this.angelIdx++;
+    m.position.set(this.px, this.kidY + 0.4, this.pz);
+    m.rotation.z = Math.atan2(this.lastVx, this.lastVz) + Math.PI;
+    m.visible = true;
+    this.eggs?.burst(this.px, this.kidY + 8, this.pz, '#ffffff', 24, false, 2.6, 1.1);
+    this.audio.jingle();
+  }
 
   /** 🚆 the timetable: pick a stop down the line */
   private openTrainBoard() {
