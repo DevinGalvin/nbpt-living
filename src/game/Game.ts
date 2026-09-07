@@ -10,7 +10,7 @@ import { WorldIndex, CHUNK } from '../world/index';
 import { Terrain } from '../world/terrain';
 import { buildChunkDecor, setWindowNight, setDecorWind } from '../three/decor';
 import { detailTex } from '../three/textures';
-import { buildWater, WATER_Y } from '../three/water';
+import { buildWater, WATER_Y, tideAt } from '../three/water';
 import { FarTown } from '../three/farTown';
 import { Sky, type SkyState } from '../three/sky';
 import { Kid, Dog, Bike, Skateboard, buildKayak } from '../three/actors';
@@ -343,7 +343,7 @@ export class Game {
   private lastTownSay = -1e9;
   private sprinting = false;
   private debugVec: { x: number; y: number; until: number } | null = null;
-  private waterUpdate: ((t: number, sky?: SkyState) => void) | null = null;
+  private waterUpdate: ((t: number, sky?: SkyState, tide?: number) => void) | null = null;
   private kidY = 0;
   private wedgeDir = 0;   // committed glance side while wedged on a wall/shore — one direction per wedge, so the deflection can't ±flip into an infinite shake
   private hopT = 0; private wasNearFence = false;       // kid hops low fences
@@ -2590,7 +2590,7 @@ export class Game {
       }
     }
 
-    if (this.waterUpdate && !this.inside) this.waterUpdate(t, this.sky.state);
+    if (this.waterUpdate && !this.inside) this.waterUpdate(t, this.sky.state, tideAt(this.sky.tod));
     if (this.life && !this.inside) this.life.update(dt, this.px, this.pz, t, Math.sin(this.camAz), Math.cos(this.camAz), sky.night);
     if (this.gillis && !this.inside) this.gillis.update(dt);
     if (this.inTunnel) this.tunnel!.update(dt, this.px, this.pz);

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { WorldIndex, CHUNK, pointInPoly, distToPolylineSq } from '../world/index';
 import { hash32, mulberry32, SEASON } from '../world/style';
-import { WATER_Y } from '../three/water';
+import { WATER_Y, TIDE } from '../three/water';
 import { PROPS } from '../three/assets';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { captureHumanoid, poseWalk, type Humanoid } from '../three/humanoid';
@@ -713,7 +713,7 @@ class WanderBoat {
     this.root.rotation.y = this.heading;
     this.root.position.x += Math.sin(this.heading) * this.speed * dt;
     this.root.position.z += Math.cos(this.heading) * this.speed * dt;
-    this.root.position.y = WATER_Y + Math.sin(t * 0.0013 + this.bobPhase) * 0.5;
+    this.root.position.y = WATER_Y + TIDE.value + Math.sin(t * 0.0013 + this.bobPhase) * 0.5;
     this.root.rotation.z = Math.sin(t * 0.0009 + this.bobPhase) * 0.04;
     return Math.hypot(dx, dz) < 70;
   }

@@ -41,6 +41,7 @@ function ringToVec2(ring: number[]): THREE.Vector2[] {
 export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mesh | null; update: (t: number) => void } {
   const pos: number[] = [];
   const col: number[] = [];
+  const tidal: number[] = [];
   const river = new THREE.Color('#3a8ecb');
   const ocean = new THREE.Color('#2c7cb5');
 
@@ -67,6 +68,7 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
           } else {
             pos.push(all[idx].x, WATER_Y, -all[idx].y);
             col.push(c.r, c.g, c.b);
+            tidal.push(isFreezableWater(poly) ? 0 : 1);   // the river and the sea rise and fall; a pond does not
           }
         }
       }
@@ -78,6 +80,7 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setAttribute('tidal', new THREE.Float32BufferAttribute(tidal, 1));
 
   const uniforms = THREE.UniformsUtils.merge([
     THREE.UniformsLib.fog,
@@ -99,10 +102,14 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
     vertexShader: `
       varying vec3 vWorld;
       varying vec3 vColor;
+      varying float vTidal;
+      attribute float tidal;
+      uniform float uTide;
       #include <fog_pars_vertex>
       void main() {
         vColor = color;
-        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vTidal = tidal;
+        vec4 wp = modelMatrix * vec4(position.x, position.y + uTide * tidal, position.z, 1.0);
         vWorld = wp.xyz;
         vec4 mvPosition = viewMatrix * wp;
         gl_Position = projectionMatrix * mvPosition;
@@ -111,6 +118,8 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
     `,
     fragmentShader: `
       uniform float uTime;
+      uniform float uTide;
+      varying float vTidal;
       uniform vec3 uSky, uSunDir, uSunCol;
       uniform float uSunI;
       uniform sampler2D uCloudMap;
@@ -162,7 +171,7 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
         float ground = shoreGround(vWorld.xz);
         // depth of the bed below the surface, in px. The bed is synthetic (see
         // Terrain.addBathymetry): a shelf for a few nodes out, then 8 m of open water
-        float depth = uWaterY - ground;
+        float depth = uWaterY + uTide * vTidal - ground;
         float shallow = 1.0 - smoothstep(0.0, 22.0, depth);
         base = mix(base, base * vec3(0.92, 1.12, 1.06) + vec3(0.05, 0.08, 0.06), shallow * 0.8);
         float lap = noise(vWorld.xz * 0.05 + vec2(uTime * 0.25, uTime * 0.18));
@@ -208,8 +217,10 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
   return {
     mesh,
     ice,
-    update: (t: number, sky?: { fog: THREE.Color; sunDir: THREE.Vector3; sunColor: THREE.Color; sunIntensity: number }) => {
+    update: (t: number, sky?: { fog: THREE.Color; sunDir: THREE.Vector3; sunColor: THREE.Color; sunIntensity: number }, tide = 0) => {
       (mat.uniforms.uTime as { value: number }).value = t / 1000;
+      SHORE.uTide.value = tide;
+      TIDE.value = tide;
       if (sky) {
         (mat.uniforms.uSky.value as THREE.Color).copy(sky.fog);
         (mat.uniforms.uSunDir.value as THREE.Vector3).copy(sky.sunDir);
@@ -220,4 +231,9 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
   };
 }
 
+// The tide, in px above (+) or below (-) the mean water level, for everything that
+// floats: boats, the seal, the ducks on the river. Set once a frame by water.update.
+export const TIDE = { value: 0 };
+/** two lows a day on the town's clock: high at midnight and noon, low at six and six */
+export function tideAt(tod: number): number { return -5 * Math.cos(tod * Math.PI * 4); }
 export { WATER_Y };

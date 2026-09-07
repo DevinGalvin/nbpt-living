@@ -13,7 +13,8 @@ export const SHORE = {
   // x0, y0, 1/spacing, and the px-per-metre scale of the stored values
   uHeightMeta: { value: new THREE.Vector4(0, 0, 0, 0) },
   uHeightSize: { value: new THREE.Vector2(1, 1) },
-  uWaterY: { value: 0 }   // set by buildWater (water.ts owns WATER_Y; importing it here would be circular)
+  uWaterY: { value: 0 },  // set by buildWater (water.ts owns WATER_Y; importing it here would be circular)
+  uTide: { value: 0 }     // the tide, px above (+) or below (-) the mean; set once a frame by Game via water.update
 };
 
 // binary dilation by a square of radius r, as two 1-D passes (O(n·r) instead of O(n·r²))
@@ -205,15 +206,16 @@ export function shoreInjectGround(shader: { uniforms: Record<string, unknown>; v
   shader.uniforms.uHeightMeta = SHORE.uHeightMeta;
   shader.uniforms.uHeightSize = SHORE.uHeightSize;
   shader.uniforms.uWaterY = SHORE.uWaterY;
+  shader.uniforms.uTide = SHORE.uTide;
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', '#include <common>\nvarying vec3 vShoreW;')
     .replace('#include <project_vertex>', '#include <project_vertex>\nvShoreW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
   shader.fragmentShader = shader.fragmentShader
-    .replace('#include <common>', `#include <common>\nvarying vec3 vShoreW;\n${shoreParsGlsl}`)
+    .replace('#include <common>', `#include <common>\nvarying vec3 vShoreW;\nuniform float uTide;\n${shoreParsGlsl}`)
     .replace('#include <map_fragment>', `#include <map_fragment>
 {
   // wet sand and mud: darker from the waterline up to ~0.6 m above it, fading out
-  float above = vShoreW.y - uWaterY;
+  float above = vShoreW.y - uWaterY - uTide;   // the waterline moves with the tide; the wet band follows it
   float wet = 1.0 - smoothstep(0.0, 5.0, above);
   diffuseColor.rgb *= 1.0 - 0.28 * wet;
   // the wrack line: a broken strip of weed and shell where the last high tide stopped

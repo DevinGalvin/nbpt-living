@@ -1186,6 +1186,28 @@ export class WorldIndex {
       this.fillPoly(ctx, poly, pi, bucket);
       if (poly.k === 'water' || poly.k === 'ocean') waterPolys.push(poly);
     }
+    // the flats: the water polys are painted water-blue, and the tide now drops the
+    // river half a metre twice a day, so the last few metres inside every tidal
+    // shoreline are painted as wet mud and sand — under the water at high tide, the
+    // flats at low. Ponds keep their blue: they do not tide.
+    ctx.save();
+    ctx.lineJoin = 'round';
+    for (const poly of waterPolys) {
+      if (isFreezableWater(poly)) continue;
+      ctx.save();
+      tracePoly(ctx, poly);
+      ctx.clip('evenodd');
+      ctx.strokeStyle = SEASON === 'winter' ? '#8e8d84' : '#8f8a74';
+      ctx.lineWidth = 44;
+      tracePoly(ctx, poly);
+      ctx.stroke();
+      ctx.strokeStyle = SEASON === 'winter' ? '#7f7f78' : '#7d7a66';
+      ctx.lineWidth = 16;
+      tracePoly(ctx, poly);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
     ctx.strokeStyle = STYLE.shoreline;
     ctx.lineWidth = 3;
     ctx.lineJoin = 'round';

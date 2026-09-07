@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { WorldIndex } from '../world/index';
 import { GameAudio } from './audio';
-import { WATER_Y } from '../three/water';
+import { WATER_Y, TIDE } from '../three/water';
 import { SEASON } from '../world/style';
 import { TOWN } from '@town';
 
@@ -22,8 +22,12 @@ export const MORE_CARDS: Record<string, Card> = {
     b: 'A round grey head, two big eyes, a long look at you, and gone. The seals follow the fish up the river in the cold months and sometimes haul out on the sandbars at Joppa. Nobody in town is ever not excited to see one.'
   },
   cannon: {
-    t: 'The Noon Gun', s: 'Custom House · 1835',
-    b: 'The Custom House watched every ship that came up the river, and a cannon on the wharf let the town know the time. This one still goes off at noon. The gulls have never gotten used to it.'
+    t: 'The Custom House Cannon', s: 'the wharf · 1835',
+    b: 'An iron cannon on a wooden carriage, pointed at the river the way it has been since the Custom House watched every ship come up it. It has not been fired in anyone\'s lifetime and it is not going to start now. Kids climb on it. That is what it is for.'
+  },
+  diggers: {
+    t: 'Clam Diggers', s: 'Joppa Flats · low tide',
+    b: 'When the tide goes out at Joppa the flats come up, and so do the diggers: rakes, buckets, boots, bent double for the two hours the mud is out. Newburyport clams have gone to Boston tables since before the Custom House. The tide comes back twice a day. So do they.'
   },
   shopcat: {
     t: 'The Shop Cat', s: 'State Street · in the window',
@@ -83,7 +87,7 @@ export class MoreEggs {
   private sealCool = 30;
   private cannon: THREE.Group | null = null;
   private cannonAt = { x: 1040, z: -1120, dx: 1, dz: 0 };
-  private firedNoon = false;
+  private diggers: { g: THREE.Group; ph: number }[] = [];
   private cat: THREE.Group | null = null;
   private catHead: THREE.Group | null = null;
   private catAt = { x: 0, z: 0 };
@@ -176,7 +180,33 @@ export class MoreEggs {
       g.rotation.y = Math.atan2(-this.cannonAt.dz, this.cannonAt.dx);
       scene.add(g);
       this.cannon = g;
-      this.dyn.push({ id: 'cannon', x: cx, z: cz, label: '💥 FIRE THE CANNON', r: 60 });
+      this.dyn.push({ id: 'cannon', x: cx, z: cz, label: '🧱 CLIMB ON', r: 60 });
+    }
+
+    // 3b. clam diggers on the Joppa flats: standing on mud that the low tide uncovers
+    const jf = lm('joppa-flats');
+    if (jf && SEASON !== 'winter') {
+      let placed = 0;
+      for (let tries = 0; tries < 400 && placed < 4; tries++) {
+        const a = Math.random() * 6.28, d = 60 + Math.random() * 700;
+        const x = jf.x + Math.cos(a) * d, z = jf.y + Math.sin(a) * d;
+        if (!index.isWaterAt(x, z)) continue;
+        const h = index.heightAtPx(x, z);
+        if (h < WATER_Y - 4.6 || h > WATER_Y - 1) continue;   // under water at high tide, out at low
+        const g = new THREE.Group();
+        const boots = box(2.2, 6, 2.2, '#2f3a2a'); boots.position.y = 3; g.add(boots);
+        const body = box(4.4, 6, 3, ['#c9a33a', '#8a4a3a', '#3a5a8a'][placed % 3]); body.position.y = 9; g.add(body);
+        const head = box(2.6, 2.6, 2.6, '#d6b08c'); head.position.y = 13.5; g.add(head);
+        const rake = box(0.5, 12, 0.5, '#8a6a3a'); rake.position.set(3.2, 5.5, 0); rake.rotation.z = 0.5; g.add(rake);
+        const bucket = box(3, 3, 3, '#e6e2d8'); bucket.position.set(-4, 1.5, 2); g.add(bucket);
+        g.position.set(x, h, z);
+        g.rotation.y = Math.random() * 6.28;
+        g.visible = false;
+        scene.add(g);
+        this.diggers.push({ g, ph: Math.random() * 6 });
+        placed++;
+      }
+      void placed;   // the diggers' spot is offered only while the flats are out (see spots())
     }
 
     // 4. the shop cat in a State Street window (the wall nearest the Fowle's sign)
@@ -380,6 +410,7 @@ export class MoreEggs {
     if (this.seal && this.sealUp > 0) out.push({ id: 'seal', x: this.sealAt.x, z: this.sealAt.z, label: '🦭 LOOK AT THE RIVER', r: 520 });
     if (this.balloon && this.balloon.visible) out.push({ id: 'balloon', x: this.balloon.position.x, z: this.balloon.position.z, label: '🎈 LOOK UP', r: 1800 });
     if (this.ducks.length) out.push({ id: 'ducklings', x: this.duckAt.x, z: this.duckAt.z, label: '🐥 FOLLOW THE DUCKLINGS', r: 90 });
+    if (this.diggers.length && TIDE.value < -2.6) out.push({ id: 'diggers', x: this.diggers[0].g.position.x, z: this.diggers[0].g.position.z, label: '🪣 WATCH THEM DIG', r: 110 });
     return out;
   }
 
@@ -388,7 +419,7 @@ export class MoreEggs {
     const card = MORE_CARDS[tag];
     if (!card) return false;
     switch (tag) {
-      case 'cannon': this.fireCannon(); setTimeout(() => this.host.showCard(card, this.host.found(tag)), 900); return true;
+      case 'cannon': this.host.hearts(this.cannonAt.x, this.index.heightAtPx(this.cannonAt.x, this.cannonAt.z) + 10, this.cannonAt.z); this.host.showCard(card, this.host.found(tag)); return true;
       case 'buoy':
         this.audio.bell();
         setTimeout(() => this.audio.toll(1), 2200);
@@ -398,32 +429,6 @@ export class MoreEggs {
       case 'plovers': this.scatterPlovers(); this.host.showCard(card, this.host.found(tag)); return true;
       case 'shopcat': this.audio.pop(); this.host.showCard(card, this.host.found(tag)); return true;
       default: this.host.showCard(card, this.host.found(tag)); return true;
-    }
-  }
-
-  private fireCannon() {
-    if (!this.cannon) return;
-    this.audio.thump();
-    const { x, z, dx, dz } = this.cannonAt;
-    const y = this.index.heightAtPx(x, z) + 5;
-    // a puff of smoke from the muzzle, rolling out and thinning
-    const c = document.createElement('canvas'); c.width = c.height = 64;
-    const g = c.getContext('2d')!; const grd = g.createRadialGradient(32, 32, 0, 32, 32, 32);
-    grd.addColorStop(0, 'rgba(230,228,222,0.8)'); grd.addColorStop(1, 'rgba(230,228,222,0)'); g.fillStyle = grd; g.fillRect(0, 0, 64, 64);
-    const tex = new THREE.CanvasTexture(c);
-    for (let i = 0; i < 5; i++) {
-      const m = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.8 });
-      const s = new THREE.Sprite(m); s.position.set(x + dx * 8, y, z + dz * 8); this.scene.add(s);
-      let age = -i * 0.08;
-      this.fx.push((dt) => {
-        age += dt;
-        if (age < 0) return true;
-        if (age > 2.6) { this.scene.remove(s); m.dispose(); return false; }
-        const k = age / 2.6;
-        s.position.set(x + dx * (8 + k * 40 + i * 3), y + k * 14 + i, z + dz * (8 + k * 40) + (i - 2) * 2);
-        const sz = 6 + k * 22; s.scale.set(sz, sz, 1); m.opacity = 0.8 * (1 - k);
-        return true;
-      });
     }
   }
 
@@ -475,7 +480,7 @@ export class MoreEggs {
       if (this.sealUp > 0) {
         this.sealUp -= dt;
         const k = Math.min(1, (7 - this.sealUp) * 1.5), fade = Math.min(1, this.sealUp * 1.5);
-        this.seal.position.y = WATER_Y - 9 + 10.5 * Math.min(k, fade) + Math.sin(this.t * 1.3) * 0.4;
+        this.seal.position.y = WATER_Y + TIDE.value - 9 + 10.5 * Math.min(k, fade) + Math.sin(this.t * 1.3) * 0.4;
         this.seal.rotation.y = Math.atan2(px - this.sealAt.x, pz - this.sealAt.z) - Math.PI / 2;
         if (this.sealUp <= 0) { this.seal.position.y = WATER_Y - 9; this.sealCool = 40 + Math.random() * 50; }
       } else {
@@ -488,10 +493,13 @@ export class MoreEggs {
       }
     }
 
-    // the noon gun
-    if (this.cannon) {
-      if (tod > 0.5 && tod < 0.52 && !this.firedNoon) { this.firedNoon = true; if ((px - this.cannonAt.x) ** 2 + (pz - this.cannonAt.z) ** 2 < 900 * 900) this.fireCannon(); }
-      if (tod < 0.49) this.firedNoon = false;
+    // the clam diggers come out with the flats
+    if (this.diggers.length) {
+      const out = TIDE.value < -2.6;
+      for (const d of this.diggers) {
+        d.g.visible = out;
+        if (out) { d.g.rotation.x = 0.55 + Math.max(0, Math.sin(this.t * 1.1 + d.ph)) * 0.35; }
+      }
     }
 
     // the shop cat watches the dog go by
