@@ -28,6 +28,7 @@ const CAR_COLORS = ['#b5443a', '#3e5c84', '#d8d5cc', '#3a3c40', '#7c8b96', '#5e7
 const WALK_CLASSES = ['side', 'foot', 'ped', 'board', 'cycle'];
 const ROAD_CLASSES = ['motorway', 'motorway_link', 'primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'trunk'];
 const TOWN_ROADS = ['primary', 'secondary', 'tertiary', 'residential', 'unclassified'];   // no highway for the bus and the plow
+const MAIL_ROADS = ['tertiary', 'residential', 'unclassified'];   // the mail truck works the side streets
 const HOP_CLASSES = ['side', 'foot', 'ped', 'board', 'cycle', 'crossing']; // crossings = legal street crossing
 
 // seasonal attractions — per-town (src/towns/<id>/index.ts); a town without a
@@ -522,7 +523,7 @@ class Fireflies {
 // 🚌🚒🚓 the town's service fleet — the vehicles a kid actually waits to see.
 // Procedural at kit scale (8 px = 1 m). Each one lives in Life.cars so the
 // ordinary braking / red-light / no-teleport rules apply to it too.
-export type CarRole = 'car' | 'bus' | 'fire' | 'police' | 'plow';
+export type CarRole = 'car' | 'bus' | 'fire' | 'police' | 'plow' | 'ems' | 'mail';
 interface Beacon { mat: THREE.MeshBasicMaterial; phase: number; rate: number }
 let beaconTex: { red?: THREE.CanvasTexture; blue?: THREE.CanvasTexture; amber?: THREE.CanvasTexture; white?: THREE.CanvasTexture } = {};
 function beaconMat(kind: 'red' | 'blue' | 'amber' | 'white'): THREE.MeshBasicMaterial {
@@ -642,6 +643,77 @@ function buildPlow(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beacon[
   beacon(root, beacons, 'amber', 0, 18.8, 14, 0, 1.4, 9);
 }
 
+function buildAmbulance(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beacon[]) {
+  const white = '#f1f0ea';
+  const cab = rbox(16, 12, 18, 1.8, white); cab.position.set(0, 10, 24);
+  const bodyBox = rbox(19, 17, 36, 1.6, white); bodyBox.position.set(0, 13.5, -4);
+  const stripe = box(19.4, 2.4, 36, '#c0322a'); stripe.position.set(0, 9.5, -4); stripe.castShadow = false;   // the red belt line
+  const stripeC = box(16.4, 2.4, 18, '#c0322a'); stripeC.position.set(0, 9.5, 24); stripeC.castShadow = false;
+  const glass = box(16.4, 4.5, 6, '#2a3036'); glass.position.set(0, 13, 26); glass.castShadow = false;
+  const wind = box(13, 5, 1, '#2a3036'); wind.position.set(0, 13, 33.2); wind.castShadow = false;
+  const bumper = box(17, 2.5, 1.5, '#6e7276'); bumper.position.set(0, 4.5, 33.5); bumper.castShadow = false;
+  const cross = box(0.8, 5, 1.2, '#2a6fd6'); cross.position.set(-9.9, 15, -4); cross.castShadow = false;   // the Star of Life, as a blue cross
+  const cross2 = box(0.8, 1.2, 5, '#2a6fd6'); cross2.position.set(-9.9, 15, -4); cross2.castShadow = false;
+  const cross3 = cross.clone(); cross3.position.x = 9.9; const cross4 = cross2.clone(); cross4.position.x = 9.9;
+  root.add(cab, bodyBox, stripe, stripeC, glass, wind, bumper, cross, cross2, cross3, cross4);
+  for (const [lx, lz] of [[-7.5, 22], [7.5, 22], [-7.5, -12], [7.5, -12]] as const) {
+    const w = cylX(3, 3, '#23241f'); w.position.set(lx, 3, lz); wheels.push(w); root.add(w);
+  }
+  // a row of red and white across the front of the box, red at the tail
+  for (const [x, k, ph] of [[-7, 'red', 0], [-2.4, 'white', 0.33], [2.4, 'white', 0.66], [7, 'red', 0.5]] as const) beacon(root, beacons, k, x, 22.8, 13.5, ph, 3.2, 8);
+  beacon(root, beacons, 'red', -7, 21.5, -22.5, 0.25, 3.2, 8);
+  beacon(root, beacons, 'red', 7, 21.5, -22.5, 0.75, 3.2, 8);
+}
+function buildMailTruck(root: THREE.Group, wheels: THREE.Object3D[], beacons: Beacon[]) {
+  const white = '#eeece6';
+  const body = rbox(15, 13, 28, 1.6, white); body.position.set(0, 10.5, -4);       // the tall box of a mail truck
+  const hood = rbox(13, 6, 10, 1.4, white); hood.position.set(0, 6.5, 14);
+  const glass = box(15.4, 4.5, 10, '#2a3036'); glass.position.set(0, 13, 4); glass.castShadow = false;
+  const wind = box(12, 5.5, 1, '#2a3036'); wind.position.set(0, 12.5, 10.2); wind.castShadow = false;
+  const red = box(15.4, 1.4, 20, '#c8322a'); red.position.set(0, 8.4, -8); red.castShadow = false;       // the red and blue stripes
+  const blue = box(15.4, 1.4, 20, '#2d4f9e'); blue.position.set(0, 6.8, -8); blue.castShadow = false;
+  const bumper = box(14, 2, 1.2, '#6e7276'); bumper.position.set(0, 3.5, 19.2); bumper.castShadow = false;
+  root.add(body, hood, glass, wind, red, blue, bumper);
+  for (const [lx, lz] of [[-6.5, 12], [6.5, 12], [-6.5, -12], [6.5, -12]] as const) {
+    const w = cylX(2.4, 2.2, '#23241f'); w.position.set(lx, 2.4, lz); wheels.push(w); root.add(w);
+  }
+  // the hazards, amber, both corners of the tail, blinking together while it is stopped
+  beacon(root, beacons, 'amber', -6, 8.5, -18.5, 0, 1.4, 6);
+  beacon(root, beacons, 'amber', 6, 8.5, -18.5, 0, 1.4, 6);
+}
+
+// 🚆 the commuter train. One purple loco and three silver coaches on the real rail
+// line: it stands at the platform, leaves down the line until it is out of sight,
+// waits a while off the map, and comes back in, slowing to a stop at the platform.
+class Train {
+  root = new THREE.Group();
+  cars: THREE.Group[] = [];
+  /** 'stand' at the platform, 'out' running away, 'away' off the map, 'in' arriving */
+  state: 'stand' | 'out' | 'away' | 'in' = 'stand';
+  timer = 150;
+  head = 0;       // the loco's centre, distance along the line
+  speed = 0;
+  constructor() {
+    for (let i = 0; i < 4; i++) {
+      const loco = i === 0;
+      const g = new THREE.Group();
+      for (const o of [-30, 30]) { const t = box(9, 4.5, 13, '#26282b'); t.position.set(0, 2.25, o); t.castShadow = false; g.add(t); }
+      const body = rbox(11, 20.5, 84, 2.2, loco ? '#73277f' : '#c7ccd1'); body.position.y = 14.75; g.add(body);
+      const stripe = box(11.4, 2.6, 83, loco ? '#d7d2c6' : '#73277f'); stripe.position.y = 13.3; stripe.castShadow = false; g.add(stripe);
+      if (loco) {
+        const shield = box(10.4, 7, 10, '#16212c'); shield.position.set(0, 20.5, 27); shield.castShadow = false; g.add(shield);   // the windscreen
+        const rad = rbox(9.4, 3, 30, 1.6, '#5a1f63'); rad.position.set(0, 26.5, -6); g.add(rad);                                    // roof radiator
+        const lamp = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), carLightMats().headMat); lamp.position.set(0, 22, 42.3); lamp.renderOrder = 5; g.add(lamp);
+      } else {
+        const win = box(11.4, 6, 74, '#15202b'); win.position.set(0, 18.5, 0); win.castShadow = false; g.add(win);   // the window band
+        const roof = rbox(9.6, 2.4, 84, 1.4, '#9aa0a6'); roof.position.y = 26.2; g.add(roof);
+      }
+      this.cars.push(g);
+      this.root.add(g);
+    }
+  }
+}
+
 class TrafficCar {
   root = new THREE.Group();
   pts: number[] = [];
@@ -669,6 +741,8 @@ class TrafficCar {
   /** off the road entirely, waiting for its hour */
   dormant = false;
   ignoreRed = false;
+  /** 0 = in the lane, 1 = pulled over to the kerb (the mail truck at a box) */
+  kerb = 0;
 
   constructor(seed: number, role: CarRole = 'car') {
     this.role = role;
@@ -677,12 +751,14 @@ class TrafficCar {
       if (role === 'bus') this.arm = buildBus(this.root, this.wheels, this.beacons);
       else if (role === 'fire') buildEngine(this.root, this.wheels, this.beacons);
       else if (role === 'police') buildCruiser(this.root, this.wheels, this.beacons);
+      else if (role === 'ems') buildAmbulance(this.root, this.wheels, this.beacons);
+      else if (role === 'mail') buildMailTruck(this.root, this.wheels, this.beacons);
       else buildPlow(this.root, this.wheels, this.beacons);
-      this.wheelR = role === 'police' ? 2.6 : 3.4;
-      this.ignoreRed = role === 'fire';
-      const len = role === 'bus' ? 86 : role === 'fire' ? 80 : role === 'plow' ? 56 : 38;
-      const wid = role === 'police' ? 14 : role === 'plow' ? 16 : 20;
-      this.addLights(wid, len, role === 'police' ? 6 : 8);
+      this.wheelR = role === 'police' ? 2.6 : role === 'mail' ? 2.4 : role === 'ems' ? 3 : 3.4;
+      this.ignoreRed = role === 'fire' || role === 'ems';
+      const len = role === 'bus' ? 86 : role === 'fire' ? 80 : role === 'ems' ? 66 : role === 'plow' ? 56 : role === 'mail' ? 40 : 38;
+      const wid = role === 'police' ? 14 : role === 'plow' ? 16 : role === 'mail' ? 15 : role === 'ems' ? 18 : 20;
+      this.addLights(wid, len, role === 'police' ? 6 : role === 'mail' ? 6 : 8);
       return;
     }
     const model = PROPS?.car(seed * 2654435761);
@@ -766,7 +842,8 @@ class TrafficCar {
     if (spot) {
       // the lane sits inside the parked cars: on a wide street they take the outer 20 px
       // of each side, on a narrow one they sit half up on the kerb (see decor.ts kerb life)
-      const off = this.roadW * (this.roadW >= 72 ? 0.16 : 0.2) * this.dir;
+      const lane = this.roadW * (this.roadW >= 72 ? 0.16 : 0.2);
+      const off = (lane + this.kerb * Math.max(0, this.roadW * 0.5 - 16 - lane)) * this.dir;
       this.root.position.x = spot.x - spot.dz * off;
       this.root.position.z = spot.z + spot.dx * off;
       const ang = Math.atan2(spot.dx * this.dir, spot.dz * this.dir);
@@ -1567,6 +1644,11 @@ export class Life {
   signalSource: () => Iterable<number[]> = () => [];
   private cars: TrafficCar[] = [];
   private fireHome: { x: number; z: number } | null = null;
+  private emsHome: { x: number; z: number } | null = null;
+  private emsT = 500; private emsRun = 0;
+  private forceMail = false;
+  private train: Train | null = null;
+  private rail: number[] = []; private railLen = 0; private stationT = 0; private railOut = 1;
   private fireT = 300;         // seconds until the engine's next run (counts down while it's home)
   private fireRun = 0;         // seconds left on the current run
   private plowT = 0;           // seconds of plowing left after the last snow
@@ -1627,7 +1709,7 @@ export class Life {
       scene.add(car.root);
     }
     // the service fleet: one of each, parked off-world until their hour
-    for (const role of ['bus', 'fire', 'police', 'plow'] as CarRole[]) {
+    for (const role of ['bus', 'fire', 'police', 'plow', 'ems', 'mail'] as CarRole[]) {
       if (role === 'plow' && SEASON !== 'winter') continue;
       if (role === 'bus' && SEASON === 'summer') continue;   // no school in summer
       const v = new TrafficCar(role.length * 977 + 13, role);
@@ -1645,10 +1727,31 @@ export class Life {
       for (let i = 0; i < station.p.length; i += 2) { sx += station.p[i]; sz += station.p[i + 1]; n++; }
       this.fireHome = { x: sx / n, z: sz / n };
     }
+    const hospital = index.world.buildings.find((b) => b.n && /hospital/i.test(b.n) && !/heliport/i.test(b.n));
+    if (hospital) {
+      let sx = 0, sz = 0, n = 0;
+      for (let i = 0; i < hospital.p.length; i += 2) { sx += hospital.p[i]; sz += hospital.p[i + 1]; n++; }
+      this.emsHome = { x: sx / n, z: sz / n };
+    }
     const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
     this.fireT = q?.get('fire') === '1' ? 0 : 240 + Math.random() * 300;
+    this.emsT = q?.get('ems') === '1' ? 0 : 420 + Math.random() * 400;
     this.forceBus = q?.get('bus') === '1';
     this.forcePlow = q?.get('plow') === '1';
+    this.forceMail = q?.get('mail') === '1';
+    // the train, on the real line through the town's station
+    if (TOWN.trainPlatform) {
+      const line = this.railLine(TOWN.trainPlatform.x, TOWN.trainPlatform.z);
+      if (line) {
+        this.rail = line.pts; this.railLen = line.len; this.stationT = line.at; this.railOut = line.out;
+        this.train = new Train();
+        this.train.head = this.stationT + this.railOut * 140;
+        if (q?.get('train') === 'depart') this.train.timer = 3;
+        else if (q?.get('train') === 'arrive') { this.train.state = 'away'; this.train.timer = 1; }
+        this.placeTrain();
+        scene.add(this.train.root);
+      }
+    }
     for (let i = 0; i < BOATS; i++) {
       const b = new WanderBoat(i * 313 + 29);
       b.root.position.set(0, 0, 1e7);
@@ -1822,6 +1925,125 @@ export class Life {
     return candidates.length ? candidates[Math.floor(rng() * candidates.length)] : null;
   }
 
+  /** chain the rail segments through the point nearest (x,z) into one long polyline */
+  private railLine(x: number, z: number): { pts: number[]; len: number; at: number; out: number } | null {
+    const rails = this.index.world.rails;
+    if (!rails.length) return null;
+    let best = -1, bestD = Infinity;
+    for (let i = 0; i < rails.length; i++) {
+      const d = distToPolylineSq(x, z, rails[i].p);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    if (best < 0 || bestD > 400 * 400) return null;
+    const used = new Set<number>([best]);
+    let pts = rails[best].p.slice();
+    // grow from either end: the unused segment whose end lands on ours, straightest first
+    const grow = (atEnd: boolean) => {
+      for (let step = 0; step < 40; step++) {
+        const ex = atEnd ? pts[pts.length - 2] : pts[0], ez = atEnd ? pts[pts.length - 1] : pts[1];
+        const hx = atEnd ? ex - pts[pts.length - 4] : ex - pts[2], hz = atEnd ? ez - pts[pts.length - 3] : ez - pts[3];
+        const hl = Math.hypot(hx, hz) || 1;
+        let pick = -1, pickRev = false, pickScore = -2;
+        for (let i = 0; i < rails.length; i++) {
+          if (used.has(i)) continue;
+          const p = rails[i].p;
+          if (p.length < 4) continue;
+          for (const rev of [false, true]) {
+            const sx = rev ? p[p.length - 2] : p[0], sz = rev ? p[p.length - 1] : p[1];
+            if ((sx - ex) ** 2 + (sz - ez) ** 2 > 40 * 40) continue;
+            const nx = rev ? p[p.length - 4] - sx : p[2] - sx, nz = rev ? p[p.length - 3] - sz : p[3] - sz;
+            const nl = Math.hypot(nx, nz) || 1;
+            const score = (hx * nx + hz * nz) / (hl * nl);
+            if (score > pickScore) { pickScore = score; pick = i; pickRev = rev; }
+          }
+        }
+        if (pick < 0 || pickScore < 0.3) break;
+        used.add(pick);
+        let p = rails[pick].p.slice();
+        // orient the piece to run away from the junction; growing at the front it
+        // is then turned round so its far end leads into ours
+        if (pickRev !== !atEnd) { const r: number[] = []; for (let i = p.length - 2; i >= 0; i -= 2) r.push(p[i], p[i + 1]); p = r; }
+        pts = atEnd ? pts.concat(p.slice(2)) : p.slice(0, -2).concat(pts);
+      }
+    };
+    grow(true); grow(false);
+    const len = polyLen(pts);
+    // the platform's distance along the line
+    let at = 0, acc = 0, bd = Infinity;
+    for (let i = 0; i + 3 < pts.length; i += 2) {
+      const ax = pts[i], az = pts[i + 1], dx = pts[i + 2] - ax, dz = pts[i + 3] - az;
+      const l2 = dx * dx + dz * dz || 1;
+      const tt = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+      const d = (ax + dx * tt - x) ** 2 + (az + dz * tt - z) ** 2;
+      if (d < bd) { bd = d; at = acc + Math.sqrt(l2) * tt; }
+      acc += Math.sqrt(l2);
+    }
+    // outbound is the long way: a terminus has the yard on one side and the line on the other
+    return { pts, len, at, out: len - at > at ? 1 : -1 };
+  }
+
+  private placeTrain() {
+    const tr = this.train!;
+    for (let i = 0; i < tr.cars.length; i++) {
+      const d = Math.max(2, Math.min(this.railLen - 2, tr.head - this.railOut * i * 96));
+      const sp = alongPolyline(this.rail, d);
+      if (!sp) continue;
+      const g = tr.cars[i];
+      g.position.set(sp.x, this.groundAt(sp.x, sp.z) + 1.2, sp.z);
+      g.rotation.y = Math.atan2(sp.dx * this.railOut, sp.dz * this.railOut);
+    }
+  }
+
+  private updateTrain(dt: number, px: number, pz: number, fx: number, fz: number) {
+    const tr = this.train;
+    if (!tr) return;
+    const tailT = tr.head - this.railOut * 3 * 96;
+    const standHead = this.stationT + this.railOut * 140;
+    if (tr.state === 'stand') {
+      tr.timer -= dt;
+      if (tr.timer <= 0) { tr.state = 'out'; tr.speed = 0; }
+    } else if (tr.state === 'out') {
+      tr.speed = Math.min(230, tr.speed + 28 * dt);
+      tr.head += this.railOut * tr.speed * dt;
+      // gone: every car past the end of the line, or the whole train out of sight
+      const outEnd = this.railOut > 0 ? tailT > this.railLen - 4 : tailT < 4;
+      let hidden = true;
+      for (const g of tr.cars) if (!this.okToSpawn(g.position.x, g.position.z, px, pz, fx, fz, 1400, 2600)) { hidden = false; break; }
+      if (outEnd || (hidden && Math.abs(tr.head - standHead) > 1600)) {
+        tr.state = 'away'; tr.timer = 160 + Math.random() * 120;
+        tr.root.position.set(0, 0, 1e7);
+        return;
+      }
+    } else if (tr.state === 'away') {
+      tr.timer -= dt;
+      if (tr.timer <= 0) {
+        // come back in from as far out as the line allows, but never where the kid is looking
+        const side = this.railOut > 0 ? this.railLen - 4 - standHead : standHead - 4;
+        let d = Math.min(side, 2800);
+        let ok = false;
+        for (let k = 0; k < 6 && !ok; k++) {
+          const hd = standHead + this.railOut * d;
+          const sp = alongPolyline(this.rail, hd);
+          ok = !!sp && this.okToSpawn(sp.x, sp.z, px, pz, fx, fz, 1400, 2600);
+          if (!ok) d = Math.min(side, d + 1200);
+          if (d >= side && k > 0) break;
+        }
+        if (!ok) { tr.timer = 20; return; }   // try again in a bit
+        tr.head = standHead + this.railOut * d;
+        tr.state = 'in'; tr.speed = 230;
+        tr.root.position.set(0, 0, 0);
+      } else return;
+    } else if (tr.state === 'in') {
+      const left = (tr.head - standHead) * this.railOut;
+      // slow to a stop exactly at the platform: v² = 2·a·s
+      const want = Math.min(230, Math.sqrt(Math.max(0, 2 * 26 * left)));
+      tr.speed = Math.min(want, tr.speed + 28 * dt);
+      if (left <= 1.5 || tr.speed < 2) { tr.head = standHead; tr.speed = 0; tr.state = 'stand'; tr.timer = 120 + Math.random() * 90; }
+      else tr.head -= this.railOut * Math.min(left, tr.speed * dt);
+    }
+    this.placeTrain();
+  }
+
   private roadSpot(px: number, pz: number, fx: number, fz: number, rng: () => number, classes: string[] = ROAD_CLASSES, near?: { x: number; z: number; r: number }): { pts: number[]; w: number; total: number; t: number; dir: number; c: string } | null {
     for (let tries = 0; tries < 12; tries++) {
       const ax = near ? near.x : px, az = near ? near.z : pz, span = near ? near.r * 2 : 4400;
@@ -1849,6 +2071,9 @@ export class Life {
     if (SEASON === 'winter') { if (wet > 0.3) this.plowT = 180; else this.plowT = Math.max(0, this.plowT - dt); }
     if (this.fireRun > 0) this.fireRun = Math.max(0, this.fireRun - dt);
     else this.fireT -= dt;
+    if (this.emsRun > 0) this.emsRun = Math.max(0, this.emsRun - dt);
+    else this.emsT -= dt;
+    this.updateTrain(dt, px, pz, fx, fz);
     this.smoke.update(dt, px, pz, night, this.chimneySource);
     this.fireflies.update(dt, t, px, pz, night, this.index, (x, z) => this.groundAt(x, z));
     this.signals.update(dt, t / 1000, px, pz, this.signalSource);   // the clock is in ms; the cycle wants seconds
@@ -2000,12 +2225,18 @@ export class Life {
       if (c.role !== 'car') {
         const onDuty = c.role === 'bus' ? (this.forceBus || (tod > 0.29 && tod < 0.345) || (tod > 0.595 && tod < 0.645))
           : c.role === 'fire' ? this.fireRun > 0
+          : c.role === 'ems' ? this.emsRun > 0
           : c.role === 'plow' ? (this.forcePlow || this.plowT > 0)
+          : c.role === 'mail' ? (this.forceMail || (tod > 0.38 && tod < 0.7))
           : true;
         if (c.role === 'fire' && this.fireRun <= 0 && this.fireT <= 0) {
           // a call: the run lasts a minute and a half, then it goes home
           this.fireRun = 90;
           this.fireT = 400 + rng() * 300;
+        }
+        if (c.role === 'ems' && this.emsRun <= 0 && this.emsT <= 0) {
+          this.emsRun = 80;
+          this.emsT = 500 + rng() * 400;
         }
         if (!onDuty) {
           // off duty: leave the road as soon as nobody is looking, never in view
@@ -2015,12 +2246,13 @@ export class Life {
           }
           if (c.dormant) continue;
         }
-        c.lights = c.role === 'fire' || c.role === 'plow' || c.stopT > 0;
+        c.lights = c.role === 'fire' || c.role === 'ems' || c.role === 'plow' || c.stopT > 0;
         c.dress(t / 1000, dt);
       }
       if (dx * dx + dz * dz > 2700 * 2700 || !c.pts.length) {
-        const near = c.role === 'fire' && this.fireHome && (this.fireHome.x - px) ** 2 + (this.fireHome.z - pz) ** 2 < 2400 * 2400 ? { x: this.fireHome.x, z: this.fireHome.z, r: 420 } : undefined;
-        const road = this.roadSpot(px, pz, fx, fz, rng, c.role === 'bus' || c.role === 'plow' ? TOWN_ROADS : ROAD_CLASSES, near)
+        const home = c.role === 'fire' ? this.fireHome : c.role === 'ems' ? this.emsHome : null;
+        const near = home && (home.x - px) ** 2 + (home.z - pz) ** 2 < 2400 * 2400 ? { x: home.x, z: home.z, r: 420 } : undefined;
+        const road = this.roadSpot(px, pz, fx, fz, rng, c.role === 'bus' || c.role === 'plow' ? TOWN_ROADS : c.role === 'mail' ? MAIL_ROADS : ROAD_CLASSES, near)
           ?? (near ? this.roadSpot(px, pz, fx, fz, rng) : null);
         if (road) {
           c.dormant = false;
@@ -2037,6 +2269,8 @@ export class Life {
             : 115 + rng() * 60;
           if (c.role === 'bus') { c.cruise = 95; c.runT = 20 + rng() * 20; }
           else if (c.role === 'fire') c.cruise = 205;
+          else if (c.role === 'ems') c.cruise = 195;
+          else if (c.role === 'mail') { c.cruise = 60; c.runT = 8 + rng() * 8; }
           else if (c.role === 'police') { c.cruise = 85; c.runT = 90 + rng() * 70; }
           else if (c.role === 'plow') c.cruise = 70;
           c.speed = c.cruise;
@@ -2087,18 +2321,20 @@ export class Life {
         }
       }
       // the bus's stops and the cruiser's pull-overs: a timed halt, then on again
-      if (c.role === 'bus' || c.role === 'police') {
+      if (c.role === 'bus' || c.role === 'police' || c.role === 'mail') {
+        // the mail truck and the cruiser pull to the kerb for their stops; the bus stays in the lane
+        if (c.role !== 'bus') c.kerb += ((c.stopT > 0 ? 0.7 : 0) - c.kerb) * Math.min(1, dt * 1.2);
         if (c.stopT > 0) { c.stopT -= dt; want = 0; }
         else {
           c.runT -= dt;
           if (c.runT <= 0 && c.t > 40 && c.t < c.total - 40) {
-            c.stopT = c.role === 'bus' ? 7 : 18;
-            c.runT = c.role === 'bus' ? 22 + rng() * 22 : 100 + rng() * 80;
+            c.stopT = c.role === 'bus' ? 7 : c.role === 'mail' ? 3 : 18;
+            c.runT = c.role === 'bus' ? 22 + rng() * 22 : c.role === 'mail' ? 10 + rng() * 8 : 100 + rng() * 80;
           }
         }
       }
       // a school bus with its arm out stops the street both ways
-      if (c.role !== 'fire' && c.stopT <= 0) {
+      if (c.role !== 'fire' && c.role !== 'ems' && c.stopT <= 0) {
         for (const o of this.cars) {
           if (o === c || o.role !== 'bus' || o.stopT <= 0 || o.pts !== c.pts) continue;
           const ahead = (o.t - c.t) * c.dir;

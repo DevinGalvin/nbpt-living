@@ -10006,6 +10006,69 @@ function railCar(bk: Bucket, cx: number, cz: number, ang: number, g: number, loc
   }
 }
 
+// where the town tree stands: on the Mall's grass, off the pond, away from the paths
+let treeSpot: { x: number; z: number } | null | undefined;
+function holidayTreeSpot(world: WorldData, index: WorldIndex): { x: number; z: number } | null {
+  if (treeSpot !== undefined) return treeSpot;
+  treeSpot = null;
+  const pond = TOWN.attractions.frogPond;
+  if (!pond) return null;
+  let park: Poly | null = null, bd = Infinity;
+  for (const p of world.polys) {
+    if (p.k !== 'park' || !pointInPolyD(pond.x, pond.z, p)) continue;
+    const d = distToPolylineSq(pond.x, pond.z, p.p);
+    if (d < bd) { bd = d; park = p; }
+  }
+  if (!park) return null;
+  for (let r = 170; r <= 720; r += 50) {   // the Mall's pond is big: walk out until the grass
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2 + 0.2;
+      const x = pond.x + Math.cos(a) * r, z = pond.z + Math.sin(a) * r;
+      if (!pointInPolyD(x, z, park) || index.isWaterAt(x, z) || index.isBlocked(x, z)) continue;
+      let clear = true;
+      for (let j = 0; j < 8 && clear; j++) {
+        const b = (j / 8) * Math.PI * 2;
+        if (index.isWaterAt(x + Math.cos(b) * 48, z + Math.sin(b) * 48) || index.isBlocked(x + Math.cos(b) * 48, z + Math.sin(b) * 48)) clear = false;
+      }
+      if (clear) { treeSpot = { x, z }; return treeSpot; }
+    }
+  }
+  return null;
+}
+function holidayTree(buckets: Bucket[], x: number, z: number, g: number) {
+  const green = new THREE.Color('#2f5a3a');
+  buckets[PLANK].box(x, z, 2.6, 2.6, g - 2, g + 14, '#4a3524');
+  // four tiers, each skirted dark underneath, snow-tipped on top
+  const tiers: [number, number, number][] = [[52, 10, 46], [42, 34, 42], [31, 60, 36], [19, 84, 30]];
+  for (let i = 0; i < tiers.length; i++) {
+    const [r, y0, h] = tiers[i];
+    cone(buckets[PLAIN], x, g + y0, z, r, h, green, 0.72, 41 + i * 7);
+    cone(buckets[PLAIN], x, g + y0 + h * 0.62, z, r * 0.4, h * 0.38 + 0.5, new THREE.Color('#e9edf0'), 1, 0);   // snow at the tip
+  }
+  // the bulbs: a spiral down the tree, one every eleven pixels of the way round
+  const bk = buckets[GLOW];
+  const top = g + 108, bottom = g + 12;
+  let bi = 0;
+  for (let s = 0; s < 1; s += 0.0055) {
+    const y = top - s * (top - bottom);
+    const rr = 6 + s * 50;              // the cone's radius at this height, a hair outside the needles
+    const a = s * Math.PI * 2 * 9;
+    const bx = x + Math.cos(a) * (rr + 1.2), bz = z + Math.sin(a) * (rr + 1.2);
+    tmp.set(BULBS[bi++ % BULBS.length]);
+    const nx = Math.cos(a), nz = Math.sin(a);
+    const tx = -nz * 1.1, tz = nx * 1.1;
+    bk.quad(bx - tx, y - 1.1, bz - tz, bx + tx, y - 1.1, bz + tz, bx + tx, y + 1.1, bz + tz, bx - tx, y + 1.1, bz - tz, nx, 0, nz, tmp.r, tmp.g, tmp.b);
+  }
+  // the star: two crossed gold quads
+  tmp.set('#ffe27a');
+  const sy = g + 116;
+  for (const [nx, nz] of [[1, 0], [0, 1]] as const) {
+    const tx = -nz * 4.5, tz = nx * 4.5;
+    bk.quad(x - tx, sy - 4.5, z - tz, x + tx, sy - 4.5, z + tz, x + tx, sy + 4.5, z + tz, x - tx, sy + 4.5, z - tz, nx, 0, nz, tmp.r, tmp.g, tmp.b);
+    bk.quad(x + tx, sy - 4.5, z + tz, x - tx, sy - 4.5, z - tz, x - tx, sy + 4.5, z - tz, x + tx, sy + 4.5, z + tz, -nx, 0, -nz, tmp.r, tmp.g, tmp.b);
+  }
+}
+
 // the commuter-rail train standing at the station: loco + a few coaches,
 // laid along the rail's true heading
 function mbtaTrain(buckets: Bucket[], x: number, z: number, ang: number, index: WorldIndex) {
@@ -10875,7 +10938,15 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         if (d < bestD) { bestD = d; bestAng = Math.atan2(ez, ex); bx = qx; bz = qz; }
       }
     }
-    if (bestD < 1e9) mbtaTrain(buckets, bx, bz, bestAng, index);
+    // the standing train is Life's now (it leaves and comes back); the platform stays
+    void bestD; void bestAng; void bx; void bz; void mbtaTrain;
+  }
+
+  // 🎄 the town tree: in winter the Mall's big spruce is lit — a spiral of bulbs
+  // and a star, on the lawn beside the pond, the way the tree lighting leaves it
+  if (SEASON === 'winter' && TOWN.attractions.frogPond) {
+    const spot = holidayTreeSpot(world, index);
+    if (spot && Math.floor(spot.x / CHUNK) === ckx && Math.floor(spot.z / CHUNK) === cky) holidayTree(buckets, spot.x, spot.z, index.heightAtPx(spot.x, spot.z));
   }
 
   // utility poles down the side streets, and the wires between them (see
