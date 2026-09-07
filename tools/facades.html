@@ -1,0 +1,138 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Clipper Town · storefront facades</title>
+<style>
+  body { font: 15px/1.4 system-ui, sans-serif; margin: 0; background: #1b1512; color: #f2e9d6; }
+  header { padding: 14px 18px; border-bottom: 1px solid #3a2f28; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  header b { color: #d8b94a; font-size: 17px; }
+  main { display: grid; grid-template-columns: 1fr 340px; gap: 0; min-height: calc(100vh - 60px); }
+  #stage { position: relative; background: #0e0b0a; display: flex; align-items: center; justify-content: center; overflow: auto; }
+  #photo { max-width: 100%; max-height: calc(100vh - 80px); display: block; cursor: crosshair; }
+  #marks { position: absolute; left: 0; top: 0; pointer-events: none; }
+  aside { padding: 16px; border-left: 1px solid #3a2f28; display: flex; flex-direction: column; gap: 12px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #b8ab98; }
+  input, select { font: 15px system-ui, sans-serif; padding: 7px 9px; border-radius: 8px; border: 1px solid #5a524a; background: #2a2320; color: #f2e9d6; }
+  button { font: 700 14px system-ui, sans-serif; padding: 9px 14px; border-radius: 10px; border: 0; background: #73277f; color: #fff; cursor: pointer; }
+  button.gold { background: #d8b94a; color: #1b1512; }
+  button.quiet { background: #2e2622; color: #f2e9d6; border: 1px solid #5a524a; }
+  #list { display: flex; flex-direction: column; gap: 6px; }
+  .tile { display: flex; gap: 8px; align-items: center; background: #2a2320; border-radius: 8px; padding: 6px; }
+  .tile canvas { width: 96px; height: 48px; border-radius: 4px; background: #000; }
+  .tile span { flex: 1; font-size: 13px; }
+  .tile i { color: #8a8074; font-style: normal; font-size: 12px; }
+  #help { font-size: 13px; color: #b8ab98; }
+  #preview { width: 100%; border-radius: 8px; background: #000; }
+</style>
+<header>
+  <b>📷 Storefront facades</b>
+  <input type="file" id="file" accept="image/*">
+  <span id="help">Open a photo of a shop front. Click its four corners: top-left, top-right, bottom-right, bottom-left. Name it as the map names it. ADD. Repeat. EXPORT writes facades.json + facades.png for towns/&lt;town&gt;/public/.</span>
+</header>
+<main>
+  <div id="stage"><img id="photo" alt=""><canvas id="marks"></canvas></div>
+  <aside>
+    <label>Business name, exactly as on the map<input id="name" placeholder="Jabberwocky Bookshop"></label>
+    <label>Width of the photographed face, metres<input id="widthM" type="number" value="8" step="0.5" min="2"></label>
+    <label>Covers<select id="floors"><option value="1">the ground floor (a shop in a block)</option><option value="all">the whole face, ground to eave</option></select></label>
+    <label>Tile size<select id="tile"><option value="512x256">512 × 256 (ground floor)</option><option value="512x512">512 × 512 (whole face)</option><option value="256x128">256 × 128 (small)</option></select></label>
+    <canvas id="preview" width="512" height="256"></canvas>
+    <div style="display:flex;gap:8px"><button id="add">ADD</button><button id="clear" class="quiet">CLEAR CORNERS</button></div>
+    <div id="list"></div>
+    <div style="display:flex;gap:8px;margin-top:auto"><button id="export" class="gold">EXPORT</button><button id="load" class="quiet">LOAD facades.json</button><input type="file" id="loadfile" accept=".json,.png" multiple hidden></div>
+  </aside>
+</main>
+<script>
+// A dependency-free tool: the photo is drawn to a canvas, the four corners you click
+// define a quadrilateral, and a homography maps it to a flat tile (inverse-mapped per
+// pixel, bilinear). Tiles are shelf-packed into one atlas and exported with a manifest.
+const $ = (s) => document.querySelector(s);
+const photo = $('#photo'), marks = $('#marks'), preview = $('#preview');
+let img = null, corners = [], items = [], tiles = [];
+$('#file').onchange = (e) => { const f = e.target.files[0]; if (!f) return; const url = URL.createObjectURL(f); img = new Image(); img.onload = () => { photo.src = url; corners = []; setTimeout(draw, 50); if (!$('#name').value) $('#name').value = f.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' '); }; img.src = url; };
+function draw() {
+  marks.width = photo.clientWidth; marks.height = photo.clientHeight; marks.style.left = photo.offsetLeft + 'px'; marks.style.top = photo.offsetTop + 'px';
+  const g = marks.getContext('2d'); g.clearRect(0, 0, marks.width, marks.height);
+  g.strokeStyle = '#d8b94a'; g.fillStyle = '#d8b94a'; g.lineWidth = 2;
+  const sx = marks.width / (img ? img.naturalWidth : 1), sy = marks.height / (img ? img.naturalHeight : 1);
+  corners.forEach((c, i) => { g.beginPath(); g.arc(c.x * sx, c.y * sy, 6, 0, Math.PI * 2); g.fill(); g.fillText(String(i + 1), c.x * sx + 8, c.y * sy - 8); });
+  if (corners.length === 4) { g.beginPath(); corners.forEach((c, i) => i ? g.lineTo(c.x * sx, c.y * sy) : g.moveTo(c.x * sx, c.y * sy)); g.closePath(); g.stroke(); rectify(); }
+}
+photo.onclick = (e) => { if (!img || corners.length >= 4) return; const r = photo.getBoundingClientRect(); corners.push({ x: (e.clientX - r.left) / r.width * img.naturalWidth, y: (e.clientY - r.top) / r.height * img.naturalHeight }); draw(); };
+$('#clear').onclick = () => { corners = []; draw(); };
+window.onresize = draw;
+// homography from the unit square to the quad (top-left, top-right, bottom-right, bottom-left)
+function homography(q) {
+  const [p0, p1, p2, p3] = q;
+  const dx1 = p1.x - p2.x, dx2 = p3.x - p2.x, dx3 = p0.x - p1.x + p2.x - p3.x;
+  const dy1 = p1.y - p2.y, dy2 = p3.y - p2.y, dy3 = p0.y - p1.y + p2.y - p3.y;
+  const den = dx1 * dy2 - dx2 * dy1;
+  const g = (dx3 * dy2 - dx2 * dy3) / den, h = (dx1 * dy3 - dx3 * dy1) / den;
+  const a = p1.x - p0.x + g * p1.x, b = p3.x - p0.x + h * p3.x, c = p0.x;
+  const d = p1.y - p0.y + g * p1.y, e = p3.y - p0.y + h * p3.y, f = p0.y;
+  return (u, v) => { const w = g * u + h * v + 1; return [(a * u + b * v + c) / w, (d * u + e * v + f) / w]; };
+}
+let tileCanvas = null;
+function rectify() {
+  const [tw, th] = $('#tile').value.split('x').map(Number);
+  const src = document.createElement('canvas'); src.width = img.naturalWidth; src.height = img.naturalHeight;
+  const sg = src.getContext('2d'); sg.drawImage(img, 0, 0);
+  const sd = sg.getImageData(0, 0, src.width, src.height).data;
+  const H = homography(corners);
+  const out = new ImageData(tw, th);
+  for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
+    const [px, py] = H((x + 0.5) / tw, (y + 0.5) / th);
+    const x0 = Math.floor(px), y0 = Math.floor(py), fx = px - x0, fy = py - y0;
+    const i = (y * tw + x) * 4;
+    for (let ch = 0; ch < 3; ch++) {
+      const s = (xx, yy) => { xx = Math.max(0, Math.min(src.width - 1, xx)); yy = Math.max(0, Math.min(src.height - 1, yy)); return sd[(yy * src.width + xx) * 4 + ch]; };
+      out.data[i + ch] = s(x0, y0) * (1 - fx) * (1 - fy) + s(x0 + 1, y0) * fx * (1 - fy) + s(x0, y0 + 1) * (1 - fx) * fy + s(x0 + 1, y0 + 1) * fx * fy;
+    }
+    out.data[i + 3] = 255;
+  }
+  tileCanvas = document.createElement('canvas'); tileCanvas.width = tw; tileCanvas.height = th; tileCanvas.getContext('2d').putImageData(out, 0, 0);
+  preview.width = tw; preview.height = th; preview.getContext('2d').drawImage(tileCanvas, 0, 0);
+}
+$('#add').onclick = () => {
+  if (!tileCanvas) { alert('Click the four corners first.'); return; }
+  const name = $('#name').value.trim(); if (!name) { alert('Name the business as the map names it.'); return; }
+  items.push({ name, widthM: parseFloat($('#widthM').value) || 8, floors: $('#floors').value === 'all' ? 'all' : 1 });
+  tiles.push(tileCanvas);
+  const row = document.createElement('div'); row.className = 'tile';
+  const c = document.createElement('canvas'); c.width = tileCanvas.width; c.height = tileCanvas.height; c.getContext('2d').drawImage(tileCanvas, 0, 0);
+  const s = document.createElement('span'); s.innerHTML = name + '<br><i>' + items[items.length - 1].widthM + ' m · ' + (items[items.length - 1].floors === 'all' ? 'whole face' : 'ground floor') + '</i>';
+  const del = document.createElement('button'); del.className = 'quiet'; del.textContent = '✕'; del.onclick = () => { const k = tiles.indexOf(c.__tile); items.splice(k, 1); tiles.splice(k, 1); row.remove(); };
+  c.__tile = tileCanvas; row.append(c, s, del); $('#list').appendChild(row);
+  corners = []; tileCanvas = null; draw(); $('#name').value = '';
+};
+$('#export').onclick = () => {
+  if (!tiles.length) { alert('Nothing to export yet.'); return; }
+  // shelf packing into the smallest power-of-two square that fits
+  let size = 1024, placed = null;
+  for (; size <= 8192; size *= 2) {
+    let x = 0, y = 0, rowH = 0; placed = [];
+    let ok = true;
+    for (const t of tiles) { if (x + t.width > size) { x = 0; y += rowH; rowH = 0; } if (y + t.height > size) { ok = false; break; } placed.push({ u: x, v: y }); x += t.width; rowH = Math.max(rowH, t.height); }
+    if (ok) break;
+  }
+  const atlas = document.createElement('canvas'); atlas.width = atlas.height = size;
+  const g = atlas.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, size, size);
+  tiles.forEach((t, i) => g.drawImage(t, placed[i].u, placed[i].v));
+  const manifest = { atlas: 'facades.png', size, items: items.map((it, i) => ({ ...it, u: placed[i].u, v: placed[i].v, w: tiles[i].width, h: tiles[i].height })) };
+  const dl = (name, href) => { const a = document.createElement('a'); a.href = href; a.download = name; document.body.appendChild(a); a.click(); a.remove(); };
+  dl('facades.json', URL.createObjectURL(new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' })));
+  atlas.toBlob((b) => dl('facades.png', URL.createObjectURL(b)), 'image/png');
+};
+// reload an existing set to add to it: the manifest plus its atlas
+$('#load').onclick = () => $('#loadfile').click();
+$('#loadfile').onchange = async (e) => {
+  const files = [...e.target.files]; const jf = files.find((f) => f.name.endsWith('.json')), pf = files.find((f) => f.name.endsWith('.png'));
+  if (!jf || !pf) { alert('Pick both facades.json and facades.png.'); return; }
+  const man = JSON.parse(await jf.text());
+  const at = new Image(); at.src = URL.createObjectURL(pf); await at.decode();
+  for (const it of man.items) {
+    const c = document.createElement('canvas'); c.width = it.w; c.height = it.h; c.getContext('2d').drawImage(at, it.u, it.v, it.w, it.h, 0, 0, it.w, it.h);
+    tileCanvas = c; $('#name').value = it.name; $('#widthM').value = it.widthM; $('#floors').value = it.floors === 'all' ? 'all' : '1';
+    $('#add').onclick();
+  }
+};
+</script>

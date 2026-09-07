@@ -1,5 +1,6 @@
 import { Game } from './game/Game';
 import { Terrain } from './world/terrain';
+import { loadFacades } from './three/facades';
 import type { WorldData } from './world/types';
 import { TOWN } from '@town';
 import { loadProps, setProps } from './three/assets';
@@ -96,6 +97,7 @@ async function boot() {
           .catch((err) => { console.warn('terrain unavailable, world will be flat:', err); return new Terrain(); })
   ]);
   await propsLoad;
+  await loadFacades();   // the town's photographed storefronts, if it has any
   if (sub) sub.textContent = subText; // restore the flavor line while the world meshes build
   new Game(world, terrain); // debug hooks live on window.nbpt (see Game ctor)
 }

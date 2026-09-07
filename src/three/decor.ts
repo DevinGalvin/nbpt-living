@@ -5,6 +5,7 @@ import { STYLE, SEASON, TREES, pick, hash32, mulberry32 } from '../world/style';
 import { clapboardTex, shingleTex, brickTex, plankTex, normalFromTexture, signTex, SIGN_ROWS } from './textures';
 import { WATER_Y, isFreezableWater } from './water';
 import { goldenInject } from './golden';
+import { FACADES, type FacadeItem } from './facades';
 import { GFX } from '../gfx';
 import { cloudInject, cloudTex } from './clouds';
 import { PROPS } from './assets';
@@ -165,7 +166,7 @@ class Bucket {
   }
 }
 
-const PLAIN = 0, CLAP = 1, BRICK = 2, SHINGLE = 3, PLANK = 4, GLOW = 5, WINDOW = 6, SIGN = 7;
+const PLAIN = 0, CLAP = 1, BRICK = 2, SHINGLE = 3, PLANK = 4, GLOW = 5, WINDOW = 6, SIGN = 7, FACADE = 8;
 
 // Windows that light up as night falls. Every window emitter drops a warm quad into
 // this bucket, just proud of the glass, with a per-window turn-on threshold in uv.x;
@@ -10047,6 +10048,83 @@ function railCar(bk: Bucket, cx: number, cz: number, ang: number, g: number, loc
   }
 }
 
+// ---------- 📷 photo facades ----------
+// Which building each photographed business belongs to, resolved once per world: by
+// the building's own name first, else the POI of that name and the building that
+// contains it (or the nearest within 80 px). The POI's spot also says where along
+// the street face the shop is, for a shop that is one bay of a longer block.
+let facadeCache: { index: WorldIndex; map: Map<number, { item: FacadeItem; x: number; z: number }[]> } | null = null;
+function facadeItemsFor(index: WorldIndex): Map<number, { item: FacadeItem; x: number; z: number }[]> {
+  if (facadeCache && facadeCache.index === index) return facadeCache.map;
+  const map = new Map<number, { item: FacadeItem; x: number; z: number }[]>();
+  const world = index.world;
+  const add = (bi: number, item: FacadeItem, x: number, z: number) => { const arr = map.get(bi) ?? []; arr.push({ item, x, z }); map.set(bi, arr); };
+  for (const item of FACADES.items) {
+    const want = item.name.trim().toLowerCase();
+    let done = false;
+    world.buildings.forEach((b, bi) => {
+      if (done || !b.n || b.n.trim().toLowerCase() !== want) return;
+      const [cx, cz] = centroidOf(b.p);
+      add(bi, item, cx, cz); done = true;
+    });
+    if (done) continue;
+    const poi = world.pois.find((p) => p.n && p.n.trim().toLowerCase() === want) ?? (item.at ? { x: item.at[0], y: item.at[1] } : null);
+    if (!poi) continue;
+    const key = Math.floor(poi.x / CHUNK) + ',' + Math.floor(poi.y / CHUNK);
+    let host = -1, hostD2 = 80 * 80;
+    for (const bi of index.bucket(key).buildings) {
+      const pts = world.buildings[bi].p;
+      if (pointInRingD(poi.x, poi.y, pts)) { host = bi; hostD2 = 0; break; }
+      const d2 = distToPolylineSq(poi.x, poi.y, pts);
+      if (d2 < hostD2) { hostD2 = d2; host = bi; }
+    }
+    if (host >= 0) add(host, item, poi.x, poi.y);
+  }
+  facadeCache = { index, map };
+  return map;
+}
+// lay the tile on the street face: centred where the shop is along the wall, as wide
+// as the photographed face, ground floor or the whole height, a hair proud of the brick
+function photoFacade(bk: Bucket, b: Building, item: FacadeItem, atX: number, atZ: number, index: WorldIndex) {
+  // the face the shop is on: the building's edge nearest the shop's point (a block on a
+  // corner has two street faces; the door decides), outward normal by the centroid
+  const [ccx, ccz] = centroidOf(b.p);
+  let fs = { x: 0, z: 0, tx: 1, tz: 0, nx: 0, nz: 1, len: 0 };
+  let bd = Infinity;
+  for (let i = 0; i + 1 < b.p.length; i += 2) {
+    const x0 = b.p[i], z0 = b.p[i + 1], x1 = b.p[(i + 2) % b.p.length], z1 = b.p[(i + 3) % b.p.length];
+    const len = Math.hypot(x1 - x0, z1 - z0);
+    if (len < 12) continue;
+    const dx = x1 - x0, dz = z1 - z0;
+    const t = Math.max(0, Math.min(1, ((atX - x0) * dx + (atZ - z0) * dz) / (len * len)));
+    const d = (x0 + dx * t - atX) ** 2 + (z0 + dz * t - atZ) ** 2;
+    if (d < bd) {
+      bd = d;
+      let nx = -dz / len, nz = dx / len;
+      const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+      if ((mx - ccx) * nx + (mz - ccz) * nz < 0) { nx = -nx; nz = -nz; }
+      fs = { x: mx, z: mz, tx: dx / len, tz: dz / len, nx, nz, len };
+    }
+  }
+  if (fs.len < 8) return;
+  void index;
+  let g = -Infinity;
+  for (let i = 0; i < b.p.length; i += 2) g = Math.max(g, index.heightAtPx(b.p[i], b.p[i + 1]));
+  const { eave } = buildingDims(b, ringAreaM2(b.p));
+  const h = item.floors === 'all' ? eave : Math.min(eave, 30);
+  const w = Math.min(fs.len - 2, Math.max(16, item.widthM * 8));
+  // along the face, measured the way someone on the sidewalk sees it: their right is
+  // (nz, -nx) when they face the wall, so the photo's left edge lands on their left
+  const rx = fs.nz, rz = -fs.nx;
+  let s = (atX - fs.x) * rx + (atZ - fs.z) * rz;
+  s = Math.max(-fs.len / 2 + w / 2 + 1, Math.min(fs.len / 2 - w / 2 - 1, s));
+  const cx = fs.x + rx * s + fs.nx * 0.45, cz = fs.z + rz * s + fs.nz * 0.45;
+  const ax = cx - rx * w / 2, az = cz - rz * w / 2, bx = cx + rx * w / 2, bz = cz + rz * w / 2;
+  const S = FACADES.size;
+  const u0 = item.u / S, u1 = (item.u + item.w) / S, v1 = 1 - item.v / S, v0 = 1 - (item.v + item.h) / S;   // flipY: v runs up
+  bk.quadUV(ax, g, az, bx, g, bz, bx, g + h, bz, ax, g + h, az, fs.nx, 0, fs.nz, 1, 1, 1, u0, v0, u1, v0, u1, v1, u0, v1);
+}
+
 // where the town tree stands: on the Mall's grass, off the pond, away from the paths
 let treeSpot: { x: number; z: number } | null | undefined;
 function holidayTreeSpot(world: WorldData, index: WorldIndex): { x: number; z: number } | null {
@@ -10173,7 +10251,7 @@ function styledHouse(buckets: Bucket[], b: Building, g: number, index: WorldInde
 export interface ChunkDecor { mesh: THREE.Mesh | null; props: THREE.Group | null; chimneys: number[]; signals: number[]; spills: number[] }
 
 export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): ChunkDecor | null {
-  const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
+  const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
   winGlow = GFX.nightWindows ? buckets[WINDOW] : null;
   shopGlow = buckets[GLOW];
   signBk = buckets[SIGN];
@@ -10186,7 +10264,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   const [ckx, cky] = key.split(',').map(Number);
   const ox = ckx * CHUNK, oy = cky * CHUNK;
 
+  const photoFacades = facadeItemsFor(index);
   for (const { idx, b } of index.buildingsOwned(key)) {
+    // the photographed face, if this business has one: laid over whatever the builder makes
+    const shots = photoFacades.get(idx);
+    if (shots) for (const sh of shots) photoFacade(buckets[FACADE], b, sh.item, sh.x, sh.z, index);
     // ground: building sits at the highest footprint corner; walls bury into the slope
     let gHi = -Infinity, gLo = Infinity;
     for (let i = 0; i < b.p.length; i += 2) {
@@ -11734,7 +11816,9 @@ function decorMaterials(): THREE.Material[] {
     _mats = [mk(null, 0, false, GFX.wind), mk(clapboardTex(), 0.9), mk(brickTex(), 1.6), mk(shingleTex(), 0.9, true), mk(plankTex(), 1.4),
              new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }),
              windows,
-             mk(signTex())];
+             mk(signTex()),
+             // the photographed storefronts: the town's atlas, or nothing (an empty bucket costs nothing)
+             (() => { const m = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, map: FACADES.tex }); m.onBeforeCompile = (s) => { goldenInject(s); }; return m; })()];
   }
   return _mats;
 }
