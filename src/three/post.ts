@@ -60,7 +60,11 @@ export class Post {
 
   constructor(private renderer: THREE.WebGLRenderer, scene: THREE.Scene, private camera: THREE.PerspectiveCamera,
               w: number, h: number, ratio: number, opts: { ao: boolean; bloom: boolean }) {
-    const target = new THREE.WebGLRenderTarget(w * ratio, h * ratio, { type: THREE.HalfFloatType, samples: 4 });
+    // a 24-bit depth texture on the target: without one three.js gives a render target a
+    // 16-bit depth renderbuffer, and with the far plane out at 11000 for the far town that
+    // was not enough — roofs, trims and window frames z-fought a few hundred metres out
+    // (the "buildings flicker" report; the canvas itself is 24-bit, so only the post path saw it)
+    const target = new THREE.WebGLRenderTarget(w * ratio, h * ratio, { type: THREE.HalfFloatType, samples: 4, depthTexture: new THREE.DepthTexture(w * ratio, h * ratio, THREE.UnsignedIntType) });
     this.composer = new EffectComposer(renderer, target);
     this.composer.setPixelRatio(ratio);
     this.composer.setSize(w, h);
