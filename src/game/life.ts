@@ -2211,6 +2211,25 @@ export class Life {
     }
   }
 
+  /** the standing train's door, on the platform side of the first coach; null while it is away or moving */
+  trainDoor(): { x: number; z: number } | null {
+    const tr = this.train;
+    if (!tr || tr.state !== 'stand' || !TOWN.trainPlatform) return null;
+    const car = tr.cars[1];
+    const px = TOWN.trainPlatform.x - car.position.x, pz = TOWN.trainPlatform.z - car.position.z;
+    const l = Math.hypot(px, pz) || 1;
+    return { x: car.position.x + (px / l) * 16, z: car.position.z + (pz / l) * 16 };
+  }
+  /** where the first coach is, for a rider */
+  trainCar(i = 1): THREE.Vector3 | null { return this.train ? this.train.cars[Math.min(i, this.train.cars.length - 1)].position : null; }
+  /** how far the train has run from the platform, px (0 while standing) */
+  trainOut(): number { return this.train ? Math.abs(this.train.head - (this.stationT + this.railOut * 140)) : 0; }
+  trainState(): string { return this.train ? this.train.state : 'none'; }
+  /** all aboard: the standing train leaves now */
+  departTrain() { if (this.train && this.train.state === 'stand') this.train.timer = 0; }
+  /** you just stepped off it: it stands a little longer, then goes on its way */
+  trainArrived() { if (this.train) { this.train.state = 'stand'; this.train.head = this.stationT + this.railOut * 140; this.train.speed = 0; this.train.timer = 30; this.train.root.position.set(0, 0, 0); this.placeTrain(); } }
+
   private placeTrain() {
     const tr = this.train!;
     for (let i = 0; i < tr.cars.length; i++) {

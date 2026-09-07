@@ -12,6 +12,8 @@ import { buildChunkDecor, setWindowNight, setDecorWind } from '../three/decor';
 import { detailTex } from '../three/textures';
 import { buildWater, WATER_Y, tideAt } from '../three/water';
 import { FarTown } from '../three/farTown';
+import { TOWNS } from '../towns/registry';
+import { LINE, BRANCH_ROCKPORT, BRANCH_BOSTON, BOARDABLE, type LineStop } from './trainLine';
 import { Sky, type SkyState } from '../three/sky';
 import { Kid, Dog, Bike, Skateboard, buildKayak } from '../three/actors';
 import { Life } from './life';
@@ -295,6 +297,12 @@ export class Game {
   // desktop sees twice as far: with the far town standing in the haze there is nothing to hide
   private farFog = false;
   private foghornT = 5;
+  // 🚆 riding the train to the next town: the kid is aboard, the camera rides the
+  // first coach, and once the town is out of sight the next town's build takes over
+  private onTrain = false;
+  private trainRideT = 0;
+  private trainDest: string | null = null;
+  private trainBoard: HTMLElement | null = null;
   private flightEnabled = true;   // ✈️ scenic flight is now PUBLIC — open to everyone (was dev-gated behind ?fly)
   private keys = new Set<string>();
   private chunks = new Map<string, ChunkEntry>();
@@ -544,7 +552,13 @@ export class Game {
     if (water.ice) this.scene.add(water.ice);
     this.waterUpdate = water.update;
 
+    const arrivedByTrain = new URLSearchParams(location.search).get('arrive') === 'train' && !!TOWN.trainPlatform;
     this.life = new Life(this.scene, this.index, this.audio);
+    if (arrivedByTrain) {
+      this.life.trainArrived();
+      // tidy the address so a refresh does not put you back on the platform
+      try { history.replaceState(null, '', location.pathname); } catch { /* ignore */ }
+    }
     this.life.chimneySource = () => { const out: number[][] = []; for (const e of this.chunks.values()) if (e.chimneys.length) out.push(e.chimneys); return out; };
     this.life.signalSource = () => { const out: number[][] = []; for (const e of this.chunks.values()) if (e.signals.length) out.push(e.signals); return out; };
     if (!BARE) this.gillis = new GillisBridge(this.scene, this.index, world);
@@ -563,6 +577,8 @@ export class Game {
       const r = JSON.parse(localStorage.getItem('nbpt-resume-pos') || 'null');
       if (r && typeof r.x === 'number' && typeof r.z === 'number') { sx = r.x; sz = r.z; }   // keep it: the poll keeps it current, so any refresh resumes here; a story reset clears it
     } catch { /* ignore */ }
+    // came in on the train: step off onto this town's platform, whatever was saved
+    if (arrivedByTrain && TOWN.trainPlatform) { sx = TOWN.trainPlatform.x; sz = TOWN.trainPlatform.z; }
     const spawn = this.findFree(sx, sz);
     this.px = spawn.x;
     this.pz = spawn.y;
@@ -2595,6 +2611,19 @@ export class Game {
 
     if (this.waterUpdate && !this.inside) this.waterUpdate(t, this.sky.state, tideAt(this.sky.tod));
     if (this.life && !this.inside) this.life.update(dt, this.px, this.pz, t, Math.sin(this.camAz), Math.cos(this.camAz), sky.night, this.sky.tod, sky.wet);
+    if (this.onTrain && this.life) {
+      // aboard: ride the first coach, and once the town has slid away go to the next one
+      const car = this.life.trainCar(1);
+      if (car) { this.px = car.x; this.pz = car.z; this.kidY = car.y + 12; this.player.setPos(this.px, this.pz); }
+      this.trainRideT += dt;
+      const gone = this.life.trainOut() > 1500 || this.life.trainState() === 'away' || this.trainRideT > 14;
+      if (gone && this.trainDest) {
+        const dest = this.trainDest; this.trainDest = null;
+        const t = TOWNS.find((e) => e.path === '/' ? dest === 'nbpt' : e.path.replace(/\//g, '') === dest);
+        const path = t ? t.path : '/' + dest + '/';
+        this.hud.fadeThrough(() => { location.href = path + (path.includes('?') ? '&' : '?') + 'arrive=train'; });
+      }
+    }
     // the foghorn out on the water while the fog is down: every half minute or so,
     // louder by the river, a rumour from uptown
     if (sky.mist > 0.4 && !this.inside) {
@@ -2734,7 +2763,9 @@ export class Game {
       // The quest owns TALK/LOOK; on water it yields (hud.kayaking → QuestRunner), and
       // KAYAK defers to any quest button so you can still talk to shore NPCs at Joppa.
       let act: { label: string; cb: () => void } | null = null;
+      const door = !this.onTrain && !this.flying && !this.kayaking && !this.inside && !this.riding ? this.life?.trainDoor() ?? null : null;
       if (this.flying) act = { label: '🛬 LAND', cb: () => this.land() };
+      else if (door && Math.hypot(this.px - door.x, this.pz - door.z) < 70) act = { label: '🚆 BOARD', cb: () => this.openTrainBoard() };
       else if (this.kayaking) { if (this.landNear()) act = { label: '🛶 HOP OUT', cb: () => this.exitKayak() }; }
       else if (!this.inside && !this.boating && !this.sweeping) {
         if (this.flightEnabled && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
@@ -3114,6 +3145,58 @@ export class Game {
   }
 
   // ---------- travel & search ----------
+
+  /** 🚆 the timetable: pick a stop down the line */
+  private openTrainBoard() {
+    if (this.trainBoard) { this.trainBoard.remove(); this.trainBoard = null; return; }
+    const here = TOWN.id;
+    const el = document.createElement('div');
+    el.className = 'trainboard';
+    el.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;background:#1b1512;color:#f2e9d6;border:2px solid #d8b94a;border-radius:14px;padding:16px 18px;min-width:280px;max-width:92vw;font:600 15px system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.5)';
+    const title = document.createElement('div');
+    title.textContent = '🚆 Newburyport / Rockport Line';
+    title.style.cssText = 'font-size:17px;margin-bottom:10px;color:#d8b94a;letter-spacing:.02em';
+    el.appendChild(title);
+    const row = (stop: LineStop, indent: number) => {
+      const r = document.createElement('div');
+      r.style.cssText = 'display:flex;align-items:center;gap:10px;padding:5px 0 5px ' + (indent * 14) + 'px;opacity:' + (stop.town && BOARDABLE.has(stop.town) ? 1 : 0.55);
+      const dot = document.createElement('span');
+      dot.style.cssText = 'width:10px;height:10px;border-radius:50%;background:' + (stop.town === here ? '#d8b94a' : stop.town && BOARDABLE.has(stop.town) ? '#73277f' : '#5a524a') + ';flex:none';
+      const name = document.createElement('span'); name.textContent = stop.name; name.style.flex = '1';
+      r.appendChild(dot); r.appendChild(name);
+      if (stop.town === here) { const you = document.createElement('span'); you.textContent = 'you are here'; you.style.cssText = 'font-size:12px;color:#d8b94a'; r.appendChild(you); }
+      else if (stop.town && BOARDABLE.has(stop.town)) {
+        const b = document.createElement('button');
+        b.textContent = 'RIDE'; b.style.cssText = 'background:#73277f;color:#fff;border:0;border-radius:8px;padding:5px 12px;font:700 13px system-ui,sans-serif;cursor:pointer';
+        b.onclick = () => { el.remove(); this.trainBoard = null; this.boardTrain(stop.town!); };
+        r.appendChild(b);
+      } else if (!stop.town) { const p = document.createElement('span'); p.textContent = 'passes through'; p.style.cssText = 'font-size:12px;color:#8a8074'; r.appendChild(p); }
+      else { const p = document.createElement('span'); p.textContent = 'no platform yet'; p.style.cssText = 'font-size:12px;color:#8a8074'; r.appendChild(p); }
+      el.appendChild(r);
+    };
+    for (const s of LINE) row(s, 0);
+    const b1 = document.createElement('div'); b1.textContent = 'Rockport branch'; b1.style.cssText = 'margin-top:6px;font-size:12px;color:#8a8074'; el.appendChild(b1);
+    for (const s of BRANCH_ROCKPORT) row(s, 1);
+    const b2 = document.createElement('div'); b2.textContent = 'to Boston'; b2.style.cssText = 'margin-top:6px;font-size:12px;color:#8a8074'; el.appendChild(b2);
+    for (const s of BRANCH_BOSTON) row(s, 1);
+    const close = document.createElement('button');
+    close.textContent = 'STAY'; close.style.cssText = 'margin-top:12px;width:100%;background:#2e2622;color:#f2e9d6;border:1px solid #5a524a;border-radius:8px;padding:8px;font:700 13px system-ui,sans-serif;cursor:pointer';
+    close.onclick = () => { el.remove(); this.trainBoard = null; };
+    el.appendChild(close);
+    document.body.appendChild(el);
+    this.trainBoard = el;
+  }
+
+  /** all aboard for `dest`: the kid is on the train, the train leaves, the next town loads once it is out of sight */
+  boardTrain(dest: string) {
+    if (!this.life || this.onTrain) return;
+    this.onTrain = true;
+    this.trainDest = dest;
+    this.trainRideT = 0;
+    this.player.root.visible = false; if (this.dog) this.dog.root.visible = false;
+    this.audio.jingle();
+    this.life.departTrain();
+  }
 
   travelTo(id: string) {
     const lm = this.world.landmarks.find((l) => l.id === id);
