@@ -165,12 +165,22 @@ class Walker {
   t = 0;
   dir = 1;
   speed = 30 + Math.random() * 22;
+  // one gait per person: a stroller, a brisk one, the rest in between; the cadence and
+  // the stride follow the speed so nobody sprints in slow motion
+  cadence = 8;
+  stride = 1;
+  pause = 0;         // seconds left standing still (window-shopping, talking)
+  pauseFace = 0;
   sepX = 0;          // persistent side-step so walkers never overlap
   sepZ = 0;
   size = 1;          // the body scale — a leashed dog strings its leash to the hand
 
   constructor(seed: number, costume?: string) {
     const rng = mulberry32(seed);
+    const gait = rng();
+    if (gait < 0.25) { this.speed = 18 + rng() * 9; this.cadence = 6.2; this.stride = 0.82; }
+    else if (gait < 0.4) { this.speed = 52 + rng() * 12; this.cadence = 10; this.stride = 1.15; }
+    else { this.speed = 30 + rng() * 22; this.cadence = 8; this.stride = 1; }
     let shirt = SHIRTS[Math.floor(rng() * SHIRTS.length)];
     const pants = PANTS[Math.floor(rng() * PANTS.length)];
     let skin = SKINS[Math.floor(rng() * SKINS.length)];
@@ -245,6 +255,17 @@ class Walker {
 
   // returns true when the end of the current path is reached
   advance(dt: number, groundY: number): boolean {
+    if (this.pause > 0) {
+      // standing: outside a shop, or talking to whoever stopped beside them; a slow
+      // shift of weight so they are not statues
+      this.pause -= dt;
+      this.phase += dt * 1.4;
+      this.face = lerpAngle(this.face, this.pauseFace, Math.min(1, dt * 3));
+      if (this.rig) poseWalk(this.rig, Math.sin(this.phase) * 0.35, 0.12);
+      this.heading.rotation.y = this.face;
+      this.root.position.y += (groundY - this.root.position.y) * Math.min(1, dt * 10);
+      return false;
+    }
     this.t += this.speed * dt * this.dir;
     const ended = this.t <= 0 || this.t >= this.total;
     const clamped = Math.max(0.5, Math.min(this.total - 0.5, this.t));
@@ -253,9 +274,9 @@ class Walker {
       this.root.position.x = spot.x;
       this.root.position.z = spot.z;
       this.face = lerpAngle(this.face, Math.atan2(spot.dx * this.dir, spot.dz * this.dir), Math.min(1, dt * 6));
-      this.phase += dt * 8;
-      const s = Math.sin(this.phase) * 0.55;
-      if (this.rig) poseWalk(this.rig, this.phase, 1);
+      this.phase += dt * this.cadence;
+      const s = Math.sin(this.phase) * 0.55 * this.stride;
+      if (this.rig) poseWalk(this.rig, this.phase, this.stride);
       else {
         this.legL.rotation.x = s;
         this.legR.rotation.x = -s;
@@ -385,7 +406,7 @@ class Smoke {
 // amber, red for the other phase's turn. Lit day and night, as signals are.
 const SIGNAL_HEADS = 20, SIGNAL_CYCLE = 26;
 class Signals {
-  private heads: { s: THREE.Mesh[]; x: number; z: number; phase: number }[] = [];
+  private heads: { s: THREE.Mesh[]; x: number; z: number; dx: number; dy: number; phase: number }[] = [];
   private acc = 1;
   constructor(scene: THREE.Scene) {
     // the car-light texture: a hot core with a soft halo, so a lamp reads as a lamp at
@@ -396,7 +417,7 @@ class Signals {
     const geo = new THREE.PlaneGeometry(4.2, 4.2);
     for (let i = 0; i < SIGNAL_HEADS; i++) {
       const s = mats.map((m) => { const sp = new THREE.Mesh(geo, m); sp.visible = false; scene.add(sp); return sp; });
-      this.heads.push({ s, x: 0, z: 1e7, phase: 0 });
+      this.heads.push({ s, x: 0, z: 1e7, dx: 0, dy: 0, phase: 0 });
     }
   }
   update(dt: number, t: number, px: number, pz: number, source: () => Iterable<number[]>) {
@@ -415,7 +436,7 @@ class Signals {
         const h = this.heads[i], c = near[i];
         if (!c) { h.z = 1e7; for (const sp of h.s) sp.visible = false; continue; }
         if (h.x === c.x && h.z === c.z) continue;
-        h.x = c.x; h.z = c.z; h.phase = c.phase;
+        h.x = c.x; h.z = c.z; h.dx = c.dx; h.dy = c.dy; h.phase = c.phase;
         // the lamps sit on the head at the top of the post, on the face the arriving
         // traffic sees: red on top, amber, green
         for (let k = 0; k < 3; k++) {
@@ -432,6 +453,21 @@ class Signals {
       const lit = u < 10 ? 2 : u < 13 ? 1 : 0;
       for (let k = 0; k < 3; k++) h.s[k].visible = k === lit;
     }
+  }
+  /** a red head ahead of a car at (x, z) heading (vx, vz): the distance to its stop line, or -1 */
+  redAhead(x: number, z: number, vx: number, vz: number, t: number): number {
+    const cyc = t % SIGNAL_CYCLE;
+    for (const h of this.heads) {
+      if (h.z > 1e6) continue;
+      const dx = h.x - x, dz = h.z - z;
+      const ahead = dx * vx + dz * vz;
+      if (ahead < -4 || ahead > 90) continue;
+      if (Math.abs(dx * vz - dz * vx) > 48) continue;      // not this street
+      if (h.dx * vx + h.dy * vz > -0.75) continue;          // the head faces traffic coming the other way
+      const u = h.phase ? (cyc + 13) % SIGNAL_CYCLE : cyc;
+      if (u >= 13) return ahead;                            // red for this phase
+    }
+    return -1;
   }
 }
 
@@ -1621,6 +1657,24 @@ export class Life {
         }
         continue;
       }
+      // now and then a walker stops: outside a shop downtown, facing the window, or
+      // beside someone already standing there, facing them; about once a minute each
+      if (p.pause <= 0 && Math.random() < dt * 0.018 && this.index.downtownAt(p.root.position.x, p.root.position.z)) {
+        p.pause = 6 + Math.random() * 10;
+        let mate: Walker | null = null;
+        for (const o of this.peds) {
+          if (o === p || o.pause <= 0) continue;
+          if ((o.root.position.x - p.root.position.x) ** 2 + (o.root.position.z - p.root.position.z) ** 2 < 30 * 30) { mate = o; break; }
+        }
+        if (mate) {
+          p.pauseFace = Math.atan2(mate.root.position.x - p.root.position.x, mate.root.position.z - p.root.position.z);
+          mate.pauseFace = p.pauseFace + Math.PI;
+          mate.pause = Math.max(mate.pause, p.pause);
+        } else {
+          const here = alongPolyline(p.pts, Math.max(0.5, Math.min(p.total - 0.5, p.t)));
+          p.pauseFace = here ? Math.atan2(here.dx, here.dz) + (Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2) : p.pauseFace;
+        }
+      }
       const ended = p.advance(dt, this.groundAt(p.root.position.x, p.root.position.z, p.root.position.y));
       if (ended) {
         const hop = this.hopFrom(p.root.position.x, p.root.position.z, p.pts, rng);
@@ -1767,6 +1821,26 @@ export class Life {
           if (o === c || !o.pts.length) continue;
           if (o.pts === c.pts && o.dir !== c.dir) continue; // oncoming lane — they pass
           if ((sx - o.root.position.x) ** 2 + (sz - o.root.position.z) ** 2 < 26 * 26) { want = 0; break probe; }
+        }
+      }
+      // a red light: stop at the line, but only when no car is close behind, so the
+      // stop never grows into a queue (a queue on State Street was the one thing the
+      // town was asked not to have)
+      if (want > 0) {
+        const here = alongPolyline(c.pts, c.t);
+        if (here) {
+          const vx = here.dx * c.dir, vz = here.dz * c.dir;
+          const red = this.signals.redAhead(c.root.position.x, c.root.position.z, vx, vz, t);
+          if (red >= 0 && red < 34) {
+            let tail = false;
+            for (const o of this.cars) {
+              if (o === c || !o.pts.length) continue;
+              const bx = o.root.position.x - c.root.position.x, bz = o.root.position.z - c.root.position.z;
+              const behind = -(bx * vx + bz * vz);
+              if (behind > 0 && behind < 60 && Math.abs(bx * vz - bz * vx) < 20) { tail = true; break; }
+            }
+            if (!tail) want = 0;
+          }
         }
       }
       c.speed += (want - c.speed) * Math.min(1, dt * (want > c.speed ? 1.5 : 10));

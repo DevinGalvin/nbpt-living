@@ -3028,7 +3028,9 @@ export class Game {
       let tn: number, tf: number;
       if (seaView) { tn = 3200; tf = 9500; }
       else {
-        const reach = this.farFog ? 1.55 : 1;   // 5580 at zoom 1: still inside the 6000 far plane
+        // phones take a middle reach: the far bank shows from the boardwalk, and the
+        // impostor is one mesh either way. 4680 at zoom 1, still inside the 6000 far plane.
+        const reach = this.farFog ? 1.55 : 1.3;
         const nearL = 1300 * z * reach, farL = (2900 * z + 700) * reach;
         tn = nearL + lift * (3000 - nearL);
         tf = farL + lift * (9800 - farL);

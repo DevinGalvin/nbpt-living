@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import type { WorldData, Building, Poly } from '../world/types';
-import { WorldIndex, CHUNK, centroidOf, walkLine as walkLineD, obbOf, type OBB, distToPolylineSq, floatOutForWinter } from '../world/index';
+import { WorldIndex, CHUNK, centroidOf, walkLine as walkLineD, obbOf, type OBB, distToPolylineSq, floatOutForWinter, bboxOf } from '../world/index';
 import { STYLE, SEASON, TREES, pick, hash32, mulberry32 } from '../world/style';
 import { clapboardTex, shingleTex, brickTex, plankTex, normalFromTexture, signTex, SIGN_ROWS } from './textures';
-import { WATER_Y } from './water';
+import { WATER_Y, isFreezableWater } from './water';
 import { GFX } from '../gfx';
 import { cloudInject, cloudTex } from './clouds';
 import { PROPS } from './assets';
@@ -11260,6 +11260,62 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       rotBox(buckets[PLAIN], cx2 + a1.dx * 3.2, cz2 + a1.dy * 3.2, 4.2, 0.22, g + 19.2, g + 21, Math.atan2(a1.dy, a1.dx), '#2f6b3f');
       rotBox(buckets[PLAIN], cx2 + a2.dx * 3.2, cz2 + a2.dy * 3.2, 4.2, 0.22, g + 17.2, g + 19, Math.atan2(a2.dy, a2.dx), '#2f6b3f');
       if (SEASON === 'winter') rotBox(buckets[PLAIN], cx2 + a1.dx * 3.2, cz2 + a1.dy * 3.2, 4.2, 0.4, g + 21, g + 21.6, Math.atan2(a1.dy, a1.dx), '#eef1f3');
+    }
+  }
+
+  // Ponds dressed as ponds: the Frog Pond in the Bartlet Mall was a flat blue disc
+  // with a monument in it. A fringe of rushes along the shore, a bench every so often
+  // on the bank facing the water, and a few ducks out on it (none in winter, when the
+  // pond is ice and the skaters have it).
+  for (const pi of bucket.polys) {
+    const poly = world.polys[pi];
+    if (poly.k !== 'water' || !isFreezableWater(poly)) continue;   // the ponds, not the river
+    const [bx0, by0, bx1, by1] = bboxOf(poly.p);
+    if (bx1 - bx0 > 1100 || by1 - by0 > 1100 || bx1 - bx0 < 60) continue;
+    const ring = poly.p;
+    const rng = mulberry32(hash32(pi, 41, 9));
+    let acc = 0, benchAcc = 90;
+    for (let i = 0; i + 3 < ring.length; i += 2) {
+      const x0 = ring[i], z0 = ring[i + 1], x1 = ring[i + 2], z1 = ring[i + 3];
+      const len = Math.hypot(x1 - x0, z1 - z0);
+      if (len < 0.5) continue;
+      const tx = (x1 - x0) / len, tz = (z1 - z0) / len;
+      // inward normal: the ring's winding decides; test a point
+      let nx = -tz, nz = tx;
+      if (!pointInPolyD(x0 + nx * 6, z0 + nz * 6, poly)) { nx = -nx; nz = -nz; }
+      for (let t = 0; t < len; t += 9) {
+        const x = x0 + tx * t, z = z0 + tz * t;
+        acc += 9; benchAcc += 9;
+        if (x < ox || x >= ox + CHUNK || z < oy || z >= oy + CHUNK) continue;
+        // rushes just inside the edge, in clumps
+        if (rng() < 0.42) {
+          const rx = x + nx * (2 + rng() * 4), rz = z + nz * (2 + rng() * 4);
+          const g = index.heightAtPx(rx, rz);
+          const c = new THREE.Color(SEASON === 'winter' ? '#b9a66f' : '#8fa65a').multiplyScalar(0.85 + rng() * 0.3);
+          const blades = 3 + Math.floor(rng() * 3);
+          for (let b = 0; b < blades; b++) {
+            const a = rng() * 6.283, off = 0.6 + rng() * 1.6;
+            cone(buckets[PLAIN], rx + Math.cos(a) * off, g - 0.5, rz + Math.sin(a) * off, 0.55, 9 + rng() * 6, c);
+          }
+        }
+        // a bench on the bank every hundred-odd px, facing the water
+        if (benchAcc > 150 && rng() < 0.5) {
+          benchAcc = 0;
+          const bxp = x - nx * 13, bzp = z - nz * 13;
+          if (!index.isBlocked(bxp, bzp) && !index.isWaterAt(bxp, bzp)) bench(buckets[PLAIN], bxp, bzp, Math.atan2(tz, tx), index.heightAtPx(bxp, bzp));
+        }
+        // ducks: a few, well out from the bank
+        if (SEASON !== 'winter' && acc > 110 && rng() < 0.28) {
+          acc = 0;
+          const dx = x + nx * (20 + rng() * 40), dz = z + nz * (20 + rng() * 40);
+          if (index.isWaterAt(dx, dz)) {
+            const a = rng() * 6.283, ca = Math.cos(a), sa = Math.sin(a);
+            const brown = rng() < 0.5;
+            rotBox(buckets[PLAIN], dx, dz, 2.2, 1.1, WATER_Y - 0.4, WATER_Y + 0.9, a, brown ? '#7a6242' : '#e9e6dc');
+            buckets[PLAIN].box(dx + ca * 2.3, dz + sa * 2.3, 0.6, 0.6, WATER_Y + 0.6, WATER_Y + 2.2, brown ? '#2f5d3a' : '#e9e6dc');
+          }
+        }
+      }
     }
   }
 
