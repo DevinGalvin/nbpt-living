@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { WorldIndex } from '../world/index';
-import { Hud } from './hud';
+import { Hud, RACES_UI } from './hud';
 import { GameAudio } from './audio';
 import { TOWN } from '@town';
 
@@ -252,7 +252,12 @@ export class RaceRunner {
     private orient: (dx: number, dz: number) => void,   // Game turns the camera down-course at the start
     private restart: (id: string) => void, // Game fades back to the start line — the results card's RACE AGAIN
   ) {
-    for (const c of COURSES) this.buildFlag(c);
+    // 8/22 slim-down: with the 🏁 front door closed (RACES_UI) the START FLAGS must go
+    // too. They were still planted at every course start — a checkered flag on a glowing
+    // gold ring — and walking into one still offered "🚴 RACE", so racing was closed at
+    // the menu and wide open in the street. The engine below stays dormant behind the
+    // same flag, so turning RACES_UI back on restores the whole thing.
+    if (RACES_UI) for (const c of COURSES) this.buildFlag(c);
     // The "next gate" guide — OBVIOUS but diegetic (Devin: chevrons-only was too subtle,
     // the sky-pillar too much): a full RACE ARCH spans the road at the gate — two tall
     // posts + a gold/maroon banner you can spot from blocks away, yawed square to the
@@ -404,7 +409,7 @@ export class RaceRunner {
       }
       let best: Course | null = null;
       let bd = ARM_R;
-      for (const c of COURSES) {
+      if (RACES_UI) for (const c of COURSES) {
         const d = Math.hypot(px - c.start.x, pz - c.start.z);
         if (d < bd) { bd = d; best = c; }
       }
