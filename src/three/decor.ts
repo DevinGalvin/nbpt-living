@@ -10230,6 +10230,25 @@ function sidewalkChalk(buckets: Bucket[], poly: Poly, index: WorldIndex, bucket:
     const [sx, sz] = at(u + 14, -8 + 7); const g3 = y(sx, sz); rotBox(buckets[PLAIN], sx, sz, 0.35, 4.5, g3, g3 + 0.2, best.ang, '#d5f0c9'); }
 }
 
+
+// a barrier segment, minus the stretches that lie on a road at grade: fences and walls
+// mapped along a viaduct's embankment cross the streets that pass under it, and here
+// there is no under. Sampled every 10 px; each clear run comes back as its own segment
+function barrierRuns(index: WorldIndex, x0: number, z0: number, x1: number, z1: number): [number, number, number, number][] {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  const n = Math.max(1, Math.ceil(len / 10));
+  const out: [number, number, number, number][] = [];
+  let start = -1;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t;
+    const clear = i < n && !index.onGradeRoadAt(x0 + (x1 - x0) * ((i + 0.5) / n), z0 + (z1 - z0) * ((i + 0.5) / n));
+    if (clear && start < 0) start = t;
+    if (!clear && start >= 0) { out.push([x0 + (x1 - x0) * start, z0 + (z1 - z0) * start, x, z]); start = -1; }
+  }
+  return out;
+}
+
 // where the town tree stands: on the Mall's grass, off the pond, away from the paths
 let treeSpot: { x: number; z: number } | null | undefined;
 function holidayTreeSpot(world: WorldData, index: WorldIndex): { x: number; z: number } | null {
@@ -11353,9 +11372,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       tmp.set('#f4f1e6');
       const fr = tmp.r, fg = tmp.g, fb = tmp.b;
       for (let i = 0; i + 3 < bar.p.length; i += 2) {
-        const x0 = bar.p[i], z0 = bar.p[i + 1], x1 = bar.p[i + 2], z1 = bar.p[i + 3];
-        const mx2 = (x0 + x1) / 2, mz2 = (z0 + z1) / 2;
+        const sx0 = bar.p[i], sz0 = bar.p[i + 1], sx1 = bar.p[i + 2], sz1 = bar.p[i + 3];
+        const mx2 = (sx0 + sx1) / 2, mz2 = (sz0 + sz1) / 2;
         if (mx2 < ox || mx2 >= ox + CHUNK || mz2 < oy || mz2 >= oy + CHUNK) continue;
+        for (const [x0, z0, x1, z1] of barrierRuns(index, sx0, sz0, sx1, sz1)) {
         const dx = x1 - x0, dz = z1 - z0;
         const len = Math.hypot(dx, dz);
         if (len < 0.5) continue;
@@ -11380,6 +11400,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
             nx, 0, nz, fr * 0.94, fg * 0.94, fb * 0.94
           );
         }
+        }
       }
       continue;
     }
@@ -11391,9 +11412,10 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     tmp.set(style.hex);
     const br = tmp.r, bg = tmp.g, bb2 = tmp.b;
     for (let i = 0; i + 3 < bar.p.length; i += 2) {
-      const x0 = bar.p[i], z0 = bar.p[i + 1], x1 = bar.p[i + 2], z1 = bar.p[i + 3];
-      const mx2 = (x0 + x1) / 2, mz2 = (z0 + z1) / 2;
+      const sx0 = bar.p[i], sz0 = bar.p[i + 1], sx1 = bar.p[i + 2], sz1 = bar.p[i + 3];
+      const mx2 = (sx0 + sx1) / 2, mz2 = (sz0 + sz1) / 2;
       if (mx2 < ox || mx2 >= ox + CHUNK || mz2 < oy || mz2 >= oy + CHUNK) continue;
+      for (const [x0, z0, x1, z1] of barrierRuns(index, sx0, sz0, sx1, sz1)) {
       const dx = x1 - x0, dz = z1 - z0;
       const len = Math.hypot(dx, dz);
       if (len < 0.5) continue;
@@ -11411,6 +11433,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         x1 - nx * style.hw, g1 + style.h, z1 - nz * style.hw, x0 - nx * style.hw, g0 + style.h, z0 - nz * style.hw,
         0, 1, 0, br * 1.06, bg * 1.06, bb2 * 1.06
       );
+      }
     }
   }
 

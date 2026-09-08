@@ -2899,6 +2899,20 @@ export class WorldIndex {
   }
 
   // standing on pavement (roads, sidewalks, crossings)? — footstep sounds
+  // on a road that runs at grade: a fence or wall mapped along an embankment crosses
+  // the streets that pass UNDER it, and with no second level to draw it on, the fence
+  // must stop at the kerb. Bridge and layered roads are the ones passing over, so they
+  // do not count here
+  onGradeRoadAt(x: number, y: number): boolean {
+    const b = this.bucket(Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK));
+    for (const ri of b.roads) {
+      const r = this.world.roads[ri];
+      if (r.b || r.l) continue;
+      if (distToPolylineSq(x, y, r.p) < (r.w / 2 + 2) ** 2) return true;
+    }
+    return false;
+  }
+
   onPavedAt(x: number, y: number): boolean {
     const b = this.bucket(Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK));
     for (const ri of b.roads) {

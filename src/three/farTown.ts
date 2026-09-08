@@ -35,7 +35,9 @@ export class FarTown {
 
   constructor(private world: WorldData, private terrain: Terrain, private scene: THREE.Scene) {
     if (!mat) mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-    this.leaf = new THREE.Color(TREES.deciduous[0]).lerp(new THREE.Color(TREES.pine), 0.45).multiplyScalar(0.92);
+    // the canopy colour, a shade lighter than the near trees: at the horizon a wood is
+    // its sunlit top, and a dark slab there reads as a black bar
+    this.leaf = new THREE.Color(TREES.deciduous[0]).lerp(new THREE.Color(TREES.pine), 0.3).multiplyScalar(1.02);
     const cellAt = (x: number, z: number) => {
       const kx = Math.floor(x / CHUNK), kz = Math.floor(z / CHUNK);
       const key = kx + ',' + kz;
@@ -177,7 +179,7 @@ export class FarTown {
     const hit = this.polyCache.get(pi);
     if (hit !== undefined) return hit;
     const poly = this.world.polys[pi];
-    const H = poly.k === 'wood' ? 26 : 12;
+    const H = poly.k === 'wood' ? 20 : 9;
     const ring: THREE.Vector2[] = [];
     for (let i = 0; i < poly.p.length; i += 2) ring.push(new THREE.Vector2(poly.p[i], poly.p[i + 1]));
     if (ring.length < 3) { this.polyCache.set(pi, null); return null; }
@@ -221,7 +223,7 @@ export class FarTown {
         const ya = this.terrain.heightAt(a.x, a.y), yb = this.terrain.heightAt(b.x, b.y);
         const ta = t.tops[base + i], tb = t.tops[base + (i + 1) % r.length];
         s.pos.push(a.x, ya, a.y, b.x, yb, b.y, b.x, tb, b.y, a.x, ya, a.y, b.x, tb, b.y, a.x, ta, a.y);
-        const sh = 0.55 + 0.2 * Math.max(0, nx * 0.35 + nz * 0.85);
+        const sh = 0.72 + 0.18 * Math.max(0, nx * 0.35 + nz * 0.85);
         for (let k = 0; k < 6; k++) { s.nor.push(nx, 0, nz); s.col.push(leaf.r * sh, leaf.g * sh, leaf.b * sh); }
       }
     };
