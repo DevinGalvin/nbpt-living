@@ -87,8 +87,9 @@ export function lastCrash(): CrashRecord | null { return read(LAST); }
 // not at the next 5 s beat, because a stuck main thread never reaches that beat. A frozen
 // picture with the HUD still standing is a dead frame loop or a lost GL context, and
 // neither leaves a trace of its own on a phone.
-let lastErr = '', lastErrAt = 0;
+let lastErr = '', lastErrAt = 0, errCount = 0;
 export function noteCrashError(msg: string) {
+  errCount++;
   const m = msg.slice(0, 220);
   // a frame that throws every frame would write every frame: once a message, once a second
   if (m === lastErr && Date.now() - lastErrAt < 1000) return;
@@ -114,6 +115,7 @@ export function mountDiagOverlay(town: string, sample: () => DiagStats, crash: C
     const s = sample();
     const h = heapMB();
     const hang = previousHang();
+    const live = crashExtras();
     el.textContent = `${town}  ${Math.round((Date.now() - t0) / 1000)}s\n`
       + `chunks ${s.chunks}\n`
       + `tex    ${s.texMB} MB\n`
@@ -122,7 +124,8 @@ export function mountDiagOverlay(town: string, sample: () => DiagStats, crash: C
       + (crash
         ? `\nLAST RUN CRASHED\n${crash.town} died at ${crash.secs}s\nchunks ${crash.chunks} · tex ${crash.texMB} MB\nframes ${crash.frames ?? '?'}\nerr: ${crash.err ?? 'none recorded'}`
         : '\nlast run exited clean')
-      + (hang ? `\nLAST RUN HUNG at ${hang.secs}s\nphase: ${hang.phase}\nframe ${hang.frame} · at ${hang.px},${hang.pz}` : '');
+      + (hang ? `\nLAST RUN HUNG at ${hang.secs}s\nphase: ${hang.phase}\nframe ${hang.frame} · at ${hang.px},${hang.pz}` : '')
+      + `\n\nTHIS RUN frames ${live.frames}` + (live.err ? `\nerr (${errCount}×): ${live.err}` : '\nno errors');
   };
   tick();
   setInterval(tick, 500);
