@@ -784,6 +784,22 @@ class SmallBoat {
   }
 }
 
+// ⛵ the station's 47-foot motor lifeboat: white hull, the orange stripe, the wheelhouse
+// and the mast, a light at the top. It runs the channel out and back on patrol.
+function buildCGBoat(root: THREE.Group): THREE.Mesh[] {
+  const hullGeo = new THREE.CapsuleGeometry(14, 84, 5, 12); hullGeo.rotateX(Math.PI / 2);
+  const hull = new THREE.Mesh(hullGeo, mat('#f4f1e8')); hull.scale.set(1, 0.5, 1); hull.position.y = 2; hull.castShadow = true; root.add(hull);
+  const stripe = new THREE.Mesh(new THREE.CapsuleGeometry(14.3, 84, 5, 12).rotateX(Math.PI / 2), mat('#ff6a1a')); stripe.scale.set(1, 0.12, 1); stripe.position.y = 6.5; stripe.castShadow = false; root.add(stripe);
+  const deck = rbox(24, 3, 88, 1.5, '#8a8f95'); deck.position.y = 8; root.add(deck);
+  const house = rbox(18, 14, 30, 2, '#f4f1e8'); house.position.set(0, 16, 6); root.add(house);
+  const glass = box(18.4, 5, 12, '#1d2530'); glass.position.set(0, 19, 18); glass.castShadow = false; root.add(glass);
+  const mast = box(1.2, 26, 1.2, '#d8d2c0'); mast.position.set(0, 36, 4); root.add(mast);
+  const radar = box(10, 1.2, 2, '#c9ccd0'); radar.position.set(0, 41, 4); root.add(radar);
+  const lights: THREE.Mesh[] = [];
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(1.6, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffffff', fog: false })); lamp.position.set(0, 49, 4); root.add(lamp); lights.push(lamp);
+  return lights;
+}
+
 // 🚧 a grade crossing: where a street crosses the line, a gate on the right-hand
 // approach of each side — post, crossbuck, two red lamps that alternate, and the
 // striped arm that drops while the train is near. Cars stop at the arm.
@@ -1836,6 +1852,8 @@ export class Life {
   private coachTarget = { x: 0, z: 0 };
   private schoolOn = false;
   private forceRegatta = false;
+  // ⛵ the Coast Guard boat on patrol
+  private cg: { root: THREE.Group; route: { x: number; z: number }[]; leg: number; dir: 1 | -1; heading: number; speed: number; out: boolean; next: number } | null = null;
   // 🎅 the Santa parade: the engine down the parade street at a walk, elves behind
   private elves: Walker[] = [];
   private paradeRoad: { pts: number[]; total: number; dir: number; w: number } | null = null;
@@ -1952,6 +1970,46 @@ export class Life {
     }
     this.forceParade = q?.get('parade') === '1';
     this.forceRegatta = q?.get('regatta') === '1';
+    // the 47-footer's route: from the station's water, down the channel while it stays clear
+    {
+      // the boathouse is on the water; the station building sits well back from it
+      const st = index.world.buildings.find((b) => b.n === 'U.S. Coast Guard Station') ?? index.world.buildings.find((b) => b.n === 'Coast Guard Boathouse');
+      if (st) {
+        let sx = 0, sz = 0, n = 0;
+        for (let i = 0; i < st.p.length; i += 2) { sx += st.p[i]; sz += st.p[i + 1]; n++; }
+        sx /= n; sz /= n;
+        // the water off the station: the nearest clear water within 300 px
+        let wx = 0, wz = 0, found = false;
+        for (let d = 60; d <= 900 && !found; d += 30) for (let k = 0; k < 16 && !found; k++) { const a = (k / 16) * Math.PI * 2; const x = sx + Math.cos(a) * d, z = sz + Math.sin(a) * d; if (this.clearWater(x, z, 50)) { wx = x; wz = z; found = true; } }
+        if (found) {
+          const route = [{ x: wx, z: wz }];
+          // seaward is toward the river mouth: keep the heading that stays on wide water, prefer east
+          let heading = 0;
+          for (let leg = 0; leg < 14; leg++) {
+            const last = route[route.length - 1];
+            let best: { x: number; z: number; a: number } | null = null, bestScore = -1;
+            // first leg: any heading; after that, no more than ~70° of turn per leg
+            for (let k = leg === 0 ? -16 : -6; k <= (leg === 0 ? 15 : 6); k++) {
+              const a = heading + k * 0.2;
+              let reach = 0;
+              for (let d = 40; d <= 420; d += 40) { if (this.clearWater(last.x + Math.cos(a) * d, last.z + Math.sin(a) * d, 45)) reach = d; else break; }
+              const score = reach * (1 - (leg === 0 ? 0 : Math.abs(k) * 0.06)) + (Math.cos(a) > 0 ? 60 : 0);
+              if (reach >= 160 && score > bestScore) { bestScore = score; best = { x: last.x + Math.cos(a) * Math.min(reach, 360), z: last.z + Math.sin(a) * Math.min(reach, 360), a }; }
+            }
+            if (!best) break;
+            heading = best.a;
+            route.push({ x: best.x, z: best.z });
+          }
+          if (route.length >= 4) {
+            const root = new THREE.Group();
+            buildCGBoat(root);
+            root.position.set(0, 0, 1e7);
+            scene.add(root);
+            this.cg = { root, route, leg: 0, dir: 1, heading: 0, speed: 0, out: false, next: q?.get('cg') === '1' ? 0 : 200 + Math.random() * 400 };
+          }
+        }
+      }
+    }
     if (SEASON === 'summer' || this.forceRegatta) {
       // the kayak heat starts from the landing nearest the middle of town
       const slips = index.world.pois.filter((p) => p.k === 'slipway');
@@ -2584,6 +2642,42 @@ export class Life {
     for (let i = 0; i < c.players.length; i++) c.players[i].rotation.y = Math.sin(t * 1.3 + i * 2) * 0.12;
   }
 
+  /** ⛵ the Coast Guard boat: every ten minutes or so it runs the channel out and back */
+  private updateCG(dt: number, t: number, px: number, pz: number, fx: number, fz: number) {
+    const c = this.cg;
+    if (!c) return;
+    if (!c.out) {
+      c.next -= dt;
+      const start = c.route[0];
+      if (c.next <= 0 && this.okToSpawn(start.x, start.z, px, pz, fx, fz, 500, 2600)) {
+        c.out = true; c.leg = 1; c.dir = 1; c.speed = 0;
+        c.root.position.set(start.x, WATER_Y, start.z);
+        c.heading = Math.atan2(c.route[1].x - start.x, c.route[1].z - start.z);
+      }
+      return;
+    }
+    const tgt = c.route[c.leg];
+    const dx = tgt.x - c.root.position.x, dz = tgt.z - c.root.position.z;
+    const d = Math.hypot(dx, dz);
+    c.heading = lerpAngle(c.heading, Math.atan2(dx, dz), Math.min(1, dt * 1.2));
+    c.speed += (95 - c.speed) * Math.min(1, dt * 0.8);
+    c.root.position.x += Math.sin(c.heading) * c.speed * dt;
+    c.root.position.z += Math.cos(c.heading) * c.speed * dt;
+    c.root.position.y = WATER_Y + TIDE.value + Math.sin(t * 1.1) * 0.6;
+    c.root.rotation.y = c.heading;
+    c.root.rotation.z = Math.sin(t * 0.9) * 0.03;
+    c.root.rotation.x = Math.sin(t * 1.4) * 0.02;
+    if (d < 40) {
+      c.leg += c.dir;
+      if (c.leg >= c.route.length) { c.dir = -1; c.leg = c.route.length - 2; }
+      else if (c.leg < 0) {
+        // home: tie up out of sight, and go again in a while
+        if (this.okToSpawn(c.root.position.x, c.root.position.z, px, pz, fx, fz, 500, 2600)) { c.out = false; c.next = 400 + Math.random() * 500; c.root.position.set(0, 0, 1e7); }
+        else c.leg = 0;
+      }
+    }
+  }
+
   /** 🛶 the heat: six kayaks abreast off the landing, out round the buoy and back, summer late mornings */
   private updateRegatta(dt: number, t: number, px: number, pz: number, fx: number, fz: number, tod: number, rng: () => number) {
     const window = this.forceRegatta || (SEASON === 'summer' && tod > 0.38 && tod < 0.6);
@@ -2715,6 +2809,7 @@ export class Life {
     this.updateCrossings(dt, t / 1000, px, pz);
     this.updateParade(dt, px, pz, fx, fz, tod);
     this.updateRegatta(dt, t / 1000, px, pz, fx, fz, tod, rng);
+    this.updateCG(dt, t / 1000, px, pz, fx, fz);
     this.updateConcert(dt, t / 1000, px, pz, fx, fz, tod);
     this.smoke.update(dt, px, pz, night, this.chimneySource);
     this.fireflies.update(dt, t, px, pz, night, this.index, (x, z) => this.groundAt(x, z));

@@ -10135,6 +10135,49 @@ function photoFacade(bk: Bucket, b: Building, item: FacadeItem, atX: number, atZ
   bk.quadUV(ax, g, az, bx, g, bz, bx, g + h, bz, ax, g + h, az, fs.nx, 0, fs.nz, 1, 1, 1, u0, v0, u1, v0, u1, v1, u0, v1);
 }
 
+// the market: eight tents in two rows along the lot's long way, white and striped
+// canopies on poles, a trestle table under each with crates of what's in season
+function farmersMarket(buckets: Bucket[], x: number, z: number, index: WorldIndex) {
+  const rng = mulberry32(hash32(Math.round(x), Math.round(z), 77));
+  // the row runs along whichever way has the most room
+  let bestA = 0, bestScore = -1;
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI;
+    let score = 0;
+    for (const d of [-150, -100, -50, 50, 100, 150]) { const px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d; if (!index.isBlocked(px, pz) && !index.isWaterAt(px, pz)) score++; }
+    if (score > bestScore) { bestScore = score; bestA = a; }
+  }
+  const ca = Math.cos(bestA), sa = Math.sin(bestA);
+  const canopies = ['#f4f1e8', '#f4f1e8', '#d8543f', '#3f7fc4', '#f4f1e8', '#52a06b', '#f4f1e8', '#e0b53c'];
+  const goods = ['#d8543f', '#e8b53c', '#52a06b', '#7a52c4', '#ff8c42', '#c84a6b', '#9fbd72', '#f4f1e8'];
+  let n = 0;
+  for (let i = 0; i < 4; i++) for (const side of [-1, 1]) {
+    const cx = x + ca * (i - 1.5) * 44, cz = z + sa * (i - 1.5) * 44;
+    const tx = cx - sa * side * 26, tz = cz + ca * side * 26;
+    if (index.isBlocked(tx, tz) || index.isWaterAt(tx, tz)) { n++; continue; }
+    const g = index.heightAtPx(tx, tz);
+    const hex = canopies[n % canopies.length];
+    // four poles, a peaked canopy (two sloped quads over a flat), a valance
+    for (const [u, v] of [[-14, -14], [14, -14], [-14, 14], [14, 14]] as const) buckets[PLAIN].box(tx + ca * u - sa * v, tz + sa * u + ca * v, 0.5, 0.5, g, g + 18, '#d8d2c0');
+    rotBox(buckets[PLAIN], tx, tz, 34, 34, g + 17.5, g + 18.5, bestA, hex);
+    cone(buckets[PLAIN], tx, g + 18.5, tz, 22, 7, new THREE.Color(hex), 0.9, 0);
+    if (n % 3 === 2) { const c2 = new THREE.Color(hex).lerp(new THREE.Color('#ffffff'), 0.6); rotBox(buckets[PLAIN], tx, tz, 34.4, 34.4, g + 16.5, g + 17.5, bestA, '#' + c2.getHexString()); }
+    // the table and its crates, facing the aisle
+    const ax = tx + sa * side * 6, az = tz - ca * side * 6;
+    rotBox(buckets[PLANK], ax, az, 26, 8, g + 7, g + 8, bestA, '#a88a5c');
+    for (const [u2, v2] of [[-9, 0], [0, 0], [9, 0]] as const) {
+      const bx = ax + ca * u2 - sa * v2, bz = az + sa * u2 + ca * v2;
+      rotBox(buckets[PLANK], bx, bz, 7, 5, g + 8, g + 11, bestA, '#8a6a44');
+      const gh = goods[Math.floor(rng() * goods.length)];
+      for (let q = 0; q < 5; q++) buckets[PLAIN].box(bx + (rng() - 0.5) * 5, bz + (rng() - 0.5) * 3, 0.8, 0.8, g + 11, g + 12.2, gh);
+    }
+    n++;
+  }
+  // a sandwich board at the aisle's end
+  const sx = x + ca * -100, sz = z + sa * -100;
+  if (!index.isBlocked(sx, sz) && !index.isWaterAt(sx, sz)) { const g = index.heightAtPx(sx, sz); rotBox(buckets[PLAIN], sx, sz, 8, 1, g, g + 9, bestA + Math.PI / 2, '#2a2a2a'); rotBox(buckets[PLAIN], sx, sz, 7, 1.2, g + 2, g + 8, bestA + Math.PI / 2, '#f4f1e8'); }
+}
+
 // where the town tree stands: on the Mall's grass, off the pond, away from the paths
 let treeSpot: { x: number; z: number } | null | undefined;
 function holidayTreeSpot(world: WorldData, index: WorldIndex): { x: number; z: number } | null {
@@ -11074,6 +11117,15 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     }
     // the standing train is Life's now (it leaves and comes back); the platform stays
     void bestD; void bestAng; void bx; void bz; void mbtaTrain;
+  }
+
+  // 🥕 the farmers' market: summer and fall, at the map's marketplace point — a
+  // double row of tents on the lot with tables and crates under them
+  if (SEASON === 'summer' || SEASON === 'fall') {
+    for (const poi of world.pois) {
+      if (poi.k !== 'marketplace' || Math.floor(poi.x / CHUNK) !== ckx || Math.floor(poi.y / CHUNK) !== cky) continue;
+      farmersMarket(buckets, poi.x, poi.y, index);
+    }
   }
 
   // 🎄 the town tree: in winter the Mall's big spruce is lit — a spiral of bulbs

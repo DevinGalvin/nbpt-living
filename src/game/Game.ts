@@ -297,6 +297,8 @@ export class Game {
   // desktop sees twice as far: with the far town standing in the haze there is nothing to hide
   private farFog = false;
   private foghornT = 5;
+  // ⏩ hold T: the day races, a full turn in twenty seconds, shadows sweeping and the tide running
+  private timeLapse = false;
   // 💦 puddle stomping after rain: splashes off the paws and wet prints that fade
   private puddleT = 0;
   private prints: { m: THREE.Mesh; life: number }[] = [];
@@ -738,6 +740,8 @@ export class Game {
       this.hud.initBark(() => this.barkPress(), () => this.barkRelease());
       // B barks (Devin's pick); F stays as a quiet alias for anyone who learned it
       window.addEventListener('keydown', (e) => { if ((e.code === 'KeyB' || e.code === 'KeyF') && !e.repeat && !this.hud.dialogueOpen) this.barkPress(); });
+      window.addEventListener('keydown', (e) => { if (e.code === 'KeyT' && !this.hud.dialogueOpen) this.timeLapse = true; });
+      window.addEventListener('keyup', (e) => { if (e.code === 'KeyT') this.timeLapse = false; });
       window.addEventListener('keyup', (e) => { if (e.code === 'KeyB' || e.code === 'KeyF') this.barkRelease(); });
       this.hud.setDogControls();   // BARK = B, SKATE = K, skateboard icon, help line
     }
@@ -2648,6 +2652,7 @@ export class Game {
     }
     // the foghorn out on the water while the fog is down: every half minute or so,
     // louder by the river, a rumour from uptown
+    if (this.timeLapse) this.sky.setTod(this.sky.tod + dt * 0.05);
     this.updatePuddles(dt, sky.wet);
     this.updateSnowAngel(dt);
     if (SEASON === 'fall') this.updatePiles(dt);

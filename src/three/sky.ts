@@ -141,6 +141,22 @@ export class Sky {
     hgr.addColorStop(0.45, 'rgba(255,210,150,0.1)');
     hgr.addColorStop(1, 'rgba(255,200,140,0)');
     hg.fillStyle = hgr; hg.fillRect(0, 0, 128, 128);
+    {
+      const rc = document.createElement('canvas'); rc.width = 16; rc.height = 256;
+      const rg = rc.getContext('2d')!;
+      const grd = rg.createLinearGradient(0, 0, 0, 256);
+      // outside to inside: red, orange, yellow, green, blue, violet, then the faint inner glow
+      for (const [at, col] of [[0, 'rgba(255,60,60,0)'], [0.08, 'rgba(255,60,60,0.55)'], [0.22, 'rgba(255,150,40,0.55)'], [0.36, 'rgba(255,230,60,0.55)'], [0.5, 'rgba(70,200,90,0.5)'], [0.66, 'rgba(60,120,255,0.5)'], [0.82, 'rgba(140,70,220,0.45)'], [1, 'rgba(140,70,220,0)']] as const) grd.addColorStop(at, col);
+      rg.fillStyle = grd; rg.fillRect(0, 0, 16, 256);
+      const tex = new THREE.CanvasTexture(rc);
+      this.rainbowMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, opacity: 0, side: THREE.DoubleSide });
+      // a ring: the texture's v runs across the band, from the outer edge in
+      const geo = new THREE.RingGeometry(2200, 2520, 96, 1);
+      const uv = geo.getAttribute('uv') as THREE.BufferAttribute; const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+      for (let i = 0; i < uv.count; i++) { const r = Math.hypot(pos.getX(i), pos.getY(i)); uv.setXY(i, 0.5, 1 - (r - 2200) / 320); }
+      this.rainbow = new THREE.Mesh(geo, this.rainbowMat);
+      this.rainbow.renderOrder = -1; this.rainbow.frustumCulled = false; this.rainbow.visible = false;
+    }
     this.haloMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(hc), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, opacity: 0 });
     this.halo = new THREE.Sprite(this.haloMat);
     this.halo.renderOrder = -1;
@@ -196,7 +212,7 @@ export class Sky {
     this.cloudMat = new THREE.ShaderMaterial({
       uniforms: {
         uCloudMap: CLOUD.uCloudMap, uCloudOff: CLOUD.uCloudOff, uCloudScale: CLOUD.uCloudScale, uCloudVis: CLOUD.uCloudVis,
-        uLit: { value: new THREE.Color(1, 1, 1) }, uShade: { value: new THREE.Color(0.7, 0.72, 0.78) },
+        uLit: { value: new THREE.Color(1, 1, 1) }, uShade: { value: new THREE.Color(0.7, 0.72, 0.78) }, uDawn: { value: 1 },
         uCam: { value: new THREE.Vector3() }, uSunShift: { value: new THREE.Vector2() }, uHaze: { value: new THREE.Color(0.8, 0.85, 0.9) }
       },
       transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
@@ -211,7 +227,7 @@ export class Sky {
         uniform sampler2D uCloudMap;
         uniform vec2 uCloudOff, uSunShift;
         uniform vec3 uCam;
-        uniform float uCloudScale, uCloudVis;
+        uniform float uCloudScale, uCloudVis, uDawn;
         uniform vec3 uLit, uShade, uHaze;
         varying vec3 vWorld;
         void main() {
@@ -237,7 +253,7 @@ export class Sky {
             fcl = texture2D(uCloudMap, fuv).r;
             farA = smoothstep(0.47, 0.60, fcl) * (1.0 - smoothstep(0.09, 0.20, ang)) * smoothstep(0.012, 0.035, ang) * 0.85;
           }
-          float a = max(nearA, farA) * min(1.0, uCloudVis * 2.0);
+          float a = max(nearA, farA) * min(1.0, uCloudVis * 2.0) * uDawn;
           if (a < 0.01) discard;
           float useFar = step(nearA, farA);
           float v = mix(cl, fcl, useFar);
@@ -279,7 +295,7 @@ export class Sky {
     this.clouds.renderOrder = 0;
     this.clouds.frustumCulled = false;
 
-    scene.add(this.dome, this.sun, this.moon, this.stars, this.rain, this.clouds, this.halo);
+    scene.add(this.dome, this.sun, this.moon, this.stars, this.rain, this.clouds, this.halo, this.rainbow);
   }
 
   // jump straight to a time of day (0..1) — used by the debug hook
@@ -296,6 +312,12 @@ export class Sky {
   private cloudMat!: THREE.ShaderMaterial;
   private halo!: THREE.Sprite;
   private haloMat!: THREE.SpriteMaterial;
+  // 🌈 a rainbow as a shower clears: a ring of forty-two degrees round the point
+  // opposite the sun, standing on the far side of the town, only while the sun is
+  // low enough and the rain is thinning; its lower half is under the ground
+  private rainbow!: THREE.Mesh;
+  private rainbowMat!: THREE.MeshBasicMaterial;
+  private rainbowK = 0;
 
   update(dt: number, px: number, pz: number, t: number, camPos: THREE.Vector3): SkyState {
     if (this.cine) {
@@ -362,7 +384,10 @@ export class Sky {
     // little off the sky, so the brick on the sunny side of the street catches fire
     // the band starts well above the horizon: the sun drops fast here, and a golden
     // hour that only exists at dusk proper is a golden minute
-    const golden = elev > 0.01 ? clamp(1 - (elev - 0.02) / 0.5, 0, 1) : 0;
+    // …and it comes up with the disc, not in one frame: the warmth ramps in as the sun
+    // clears the horizon (elev 0 → 0.12), so sunrise is a slow rise and not a switch
+    const rise = clamp(elev / 0.12, 0, 1);
+    const golden = rise * rise * (3 - 2 * rise) * clamp(1 - (elev - 0.02) / 0.5, 0, 1);
     if (golden > 0) s.sunColor.lerp(new THREE.Color('#ffb257'), golden * 0.55);
     // a little more sun and a little less sky than before, so a lit wall and a shaded
     // one are two different things
@@ -433,7 +458,9 @@ export class Sky {
       (u.uHaze.value as THREE.Color).copy(hor);
       const sy = Math.max(0.25, s.sunDir.y);
       (u.uSunShift.value as THREE.Vector2).set(CLOUD_H * s.sunDir.x / sy, CLOUD_H * s.sunDir.z / sy);
-      this.clouds.visible = GFX.skyClouds && CLOUD.uCloudVis.value > 0.01 && !!CLOUD.uCloudMap.value && day > 0.05;
+      // the layer fades in with first light rather than popping on at a threshold
+      u.uDawn.value = clamp(day / 0.25, 0, 1);
+      this.clouds.visible = GFX.skyClouds && CLOUD.uCloudVis.value > 0.01 && !!CLOUD.uCloudMap.value && day > 0.005;
     }
     this.starMat.opacity = clamp(1 - day * 1.7, 0, 1) * 0.95;
     (this.starMat as THREE.PointsMaterial).visible = this.starMat.opacity > 0.02;
@@ -448,6 +475,25 @@ export class Sky {
     this.sun.visible = elev > -0.06 && !this.cine;
     // the halo rides with the disc; big and warm near the horizon, tight and pale at noon
     this.halo.position.copy(this.sun.position);
+    // the rainbow: sun up but low, rain thinning (the tail of a shower), no fog
+    {
+      const sunLow = rise * clamp(1 - (elev - 0.1) / 0.45, 0, 1);
+      const tail = clamp(wet / 0.05, 0, 1) * clamp((0.55 - wet) / 0.4, 0, 1);
+      const want = sunLow * tail * (1 - this.mist) * (this.wetTarget < wet ? 1 : 0.35);
+      this.rainbowK += (want - this.rainbowK) * Math.min(1, dt * 0.6);
+      this.rainbowMat.opacity = this.rainbowK * 0.5;
+      this.rainbow.visible = this.rainbowK > 0.02;
+      if (this.rainbow.visible) {
+        // the ring stands 2800 px off on the side away from the sun and faces the eye; its
+        // centre sits as far under the horizon as the sun is over it, so the bow's top is 42° up
+        const ax = -trueDir.x, ay = -trueDir.y, az = -trueDir.z;
+        const D = 2800;
+        this.rainbow.position.set(camPos.x + ax * D, camPos.y + ay * D, camPos.z + az * D);
+        this.rainbow.lookAt(camPos);
+        const sc = D * Math.tan(42 * Math.PI / 180) / 2360;
+        this.rainbow.scale.set(sc, sc, 1);
+      }
+    }
     const low = clamp(1 - elev / 0.5, 0, 1);
     const hs = 900 + 1500 * low;
     this.halo.scale.set(hs, hs, 1);
