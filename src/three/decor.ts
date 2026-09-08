@@ -793,16 +793,18 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
       tmp.set(awningHex).multiplyScalar(0.72);
       billboard(plain, mx, my, nx, nz, ux, uy, Math.min(len / 2 - 5, 30), 2.2, g + 22.5, 0.4, tmp.r, tmp.g, tmp.b);
       // the lettered board on the band: sixteen trades in the atlas, one per shop
-      if (signBk) signBoard(signBk, mx, my, nx, nz, ux, uy, Math.min(len / 2 - 6, 19), 2.4, g + 22.6, 0.6, hash32(seed, i, 23) % SIGN_ROWS);
+      if (signBk && !facadeSkipsAt(mx, -my)) signBoard(signBk, mx, my, nx, nz, ux, uy, Math.min(len / 2 - 6, 19), 2.4, g + 22.6, 0.6, hash32(seed, i, 23) % SIGN_ROWS);
     }
     for (let c = 1; c <= cols && windows < maxWin; c++) {
       const t = gap * c;
       const wx = a.x + ux * t, wy = a.y + uy * t;
       // doors for this wall were chosen up front (count scales with wall length)
       const isDoorSlot = doorCols.has(c);
+      const covered = facadeSkip.length > 0 && facadeSkipsAt(wx, -wy);   // a photo or a look owns this stretch of the ground floor
       for (let r = 0; r < rows; r++) {
         const yC = winY0 + r * pitch;
         if (yC + 6 > eaveH) break;
+        if (r === 0 && covered) continue;
         if (isDoorSlot && r === 0) continue;
         if (storefront && r === 0) {
           // A shop window with a shop behind it. The glass was a flat dark rectangle;
@@ -859,7 +861,7 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
         }
         windows++;
       }
-      if (isDoorSlot) {
+      if (isDoorSlot && !covered) {
         billboard(plain, wx, wy, nx, nz, ux, uy, 5.4, 7.5, g + 7.5, 0.5, tr, tg, tb);
         tmp.set(forceDoor || pick(STYLE.building.doors, seed));
         billboard(plain, wx, wy, nx, nz, ux, uy, 4.2, 6.5, g + 6.5, 0.9, tmp.r, tmp.g, tmp.b);
@@ -10054,6 +10056,13 @@ function railCar(bk: Bucket, cx: number, cz: number, ang: number, g: number, loc
 // contains it (or the nearest within 80 px). The POI's spot also says where along
 // the street face the shop is, for a shop that is one bay of a longer block.
 let facadeCache: { index: WorldIndex; map: Map<number, { item: FacadeItem; x: number; z: number }[]> } | null = null;
+// where a photo or an authored look covers a wall, the generic storefront (its windows,
+// door, awnings and sign board) stands down on that stretch — set per building
+let facadeSkip: { x: number; z: number; r: number }[] = [];
+function facadeSkipsAt(wx: number, wz: number): boolean {
+  for (const s of facadeSkip) if ((wx - s.x) ** 2 + (wz - s.z) ** 2 < s.r * s.r) return true;
+  return false;
+}
 function facadeItemsFor(index: WorldIndex): Map<number, { item: FacadeItem; x: number; z: number }[]> {
   if (facadeCache && facadeCache.index === index) return facadeCache.map;
   const map = new Map<number, { item: FacadeItem; x: number; z: number }[]>();
@@ -10118,8 +10127,9 @@ function photoFacade(bk: Bucket, b: Building, item: FacadeItem, atX: number, atZ
   const rx = fs.nz, rz = -fs.nx;
   let s = (atX - fs.x) * rx + (atZ - fs.z) * rz;
   s = Math.max(-fs.len / 2 + w / 2 + 1, Math.min(fs.len / 2 - w / 2 - 1, s));
-  const cx = fs.x + rx * s + fs.nx * 0.45, cz = fs.z + rz * s + fs.nz * 0.45;
+  const cx = fs.x + rx * s + fs.nx * 0.8, cz = fs.z + rz * s + fs.nz * 0.8;
   const ax = cx - rx * w / 2, az = cz - rz * w / 2, bx = cx + rx * w / 2, bz = cz + rz * w / 2;
+  facadeSkip.push({ x: fs.x + rx * s, z: fs.z + rz * s, r: w / 2 + 6 });
   const S = FACADES.size;
   const u0 = item.u / S, u1 = (item.u + item.w) / S, v1 = 1 - item.v / S, v0 = 1 - (item.v + item.h) / S;   // flipY: v runs up
   bk.quadUV(ax, g, az, bx, g, bz, bx, g + h, bz, ax, g + h, az, fs.nx, 0, fs.nz, 1, 1, 1, u0, v0, u1, v0, u1, v1, u0, v1);
@@ -10267,6 +10277,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   const photoFacades = facadeItemsFor(index);
   for (const { idx, b } of index.buildingsOwned(key)) {
     // the photographed face, if this business has one: laid over whatever the builder makes
+    facadeSkip = [];
     const shots = photoFacades.get(idx);
     if (shots) for (const sh of shots) photoFacade(buckets[FACADE], b, sh.item, sh.x, sh.z, index);
     // ground: building sits at the highest footprint corner; walls bury into the slope

@@ -1,6 +1,7 @@
 // Newburyport — the flagship town pack. Values here were extracted verbatim
 // from the engine when the towns reunified; NBPT behavior is unchanged.
 import type { TownPack, SpawnAnchor } from '../types';
+import { LOOKS } from './looks';
 import { COURSES } from './courses';
 import { HISTORY } from './history';
 import cfg from '../../../towns/nbpt/town.json';
@@ -42,6 +43,7 @@ export const TOWN: TownPack = {
   // bike shoulder, about twelve metres kerb to kerb; the tertiaries ten. The build's ten
   // and nine left no room for the cars to park without sitting in the lane.
   roadWidths: { secondary: 12, tertiary: 10 },
+  looks: LOOKS,
   // the brick-sidewalk core: State Street up to High, Pleasant, Inn, Water and
   // Merrimac Streets through Market Square, and the side streets between them
   downtown: { x: -100, z: -48, r: 2600, streets: ['State Street', 'Pleasant Street', 'Inn Street', 'Water Street', 'Merrimac Street',

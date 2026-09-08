@@ -98,6 +98,8 @@ export interface TownPack {
   /** road widths in metres by class, overriding the build's table: a town whose main
    *  streets carry two lanes and a parking lane each side is wider than the default */
   roadWidths?: Record<string, number>;
+  /** authored storefront looks, drawn by the game where no photo exists (see src/three/looks.ts) */
+  looks?: import('../three/looks').Look[];
 
   // ambient-life seasonal attractions (null = the town skips that behavior)
   attractions: {

@@ -1,6 +1,7 @@
 import { Game } from './game/Game';
 import { Terrain } from './world/terrain';
 import { loadFacades } from './three/facades';
+import { bakeLooks } from './three/looks';
 import type { WorldData } from './world/types';
 import { TOWN } from '@town';
 import { loadProps, setProps } from './three/assets';
@@ -98,6 +99,7 @@ async function boot() {
   ]);
   await propsLoad;
   await loadFacades();   // the town's photographed storefronts, if it has any
+  if (TOWN.looks) bakeLooks(TOWN.looks);   // and the authored looks for the rest
   if (sub) sub.textContent = subText; // restore the flavor line while the world meshes build
   new Game(world, terrain); // debug hooks live on window.nbpt (see Game ctor)
 }

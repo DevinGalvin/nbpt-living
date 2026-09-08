@@ -34,3 +34,12 @@ Each tile is laid on the building's street-facing wall, a hair proud of the bric
 centred where the business's map point projects onto that wall, as wide as you said
 in metres, ground floor (3.75 m) or the whole face. The name sign the game already
 makes for the shop stays.
+
+## Until the photos exist: authored looks
+`src/towns/nbpt/looks.ts` holds a look per mapped business: the sign as it reads on
+the street, its colours, awning and sign style. The game draws each look as a tile at
+load and lays it on the wall the same way it would a photo, so Fowle's is black glass
+with the ivory FOWLE'S panel and the neon, Richdale is red on white with the striped
+awning, and so on. A photo of the same name replaces the look automatically. Entries
+say where the description came from; the ones marked "memory" are the ones most worth
+checking against a photo first.
