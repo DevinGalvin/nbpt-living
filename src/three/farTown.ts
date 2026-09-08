@@ -112,7 +112,7 @@ export class FarTown {
     cx /= n; cz /= n;
     const { eave } = buildingDims(b, ringAreaM2(b.p));
     const g = this.terrain.heightAt(cx, cz) + (b.my ?? 0);
-    const top = g + eave + (b.k === 'house' ? 8 : 2);   // a house has a roof over its eave
+    const top = g + eave + 2;
     tmp.set(wallHexFor(b, idx));
     const wr = tmp.r, wg = tmp.g, wb = tmp.b;
     const isBrick = b.k === 'commercial' || b.k === 'civic';
@@ -136,6 +136,38 @@ export class FarTown {
     for (const [i0, i1, i2] of tris) {
       s.pos.push(v[i0].x, top, v[i0].y, v[i1].x, top, v[i1].y, v[i2].x, top, v[i2].y);
       for (let k = 0; k < 3; k++) { s.nor.push(0, 1, 0); s.col.push(rr, rg, rb); }
+    }
+    // a pitched roof on the houses and the small blocks, so the stand-in reads as a
+    // building and not a crate: a hip over the footprint's oriented box, ridge along
+    // the long axis. Big flat-roofed blocks keep their flat top.
+    const pitched = b.k === 'house' || b.k === 'shed' || b.k === 'church' || (n <= 6 && ringAreaM2(b.p) < 260);
+    if (pitched) {
+      // the long axis: the longest edge's direction
+      let bx = 1, bz = 0, bl = -1;
+      for (let i = 0; i < n; i++) { const a = v[i], c = v[(i + 1) % n]; const l = Math.hypot(c.x - a.x, c.y - a.y); if (l > bl) { bl = l; bx = (c.x - a.x) / l; bz = (c.y - a.y) / l; } }
+      let u0 = Infinity, u1 = -Infinity, w0 = Infinity, w1 = -Infinity;
+      for (const q of v) { const u = q.x * bx + q.y * bz, w = -q.x * bz + q.y * bx; u0 = Math.min(u0, u); u1 = Math.max(u1, u); w0 = Math.min(w0, w); w1 = Math.max(w1, w); }
+      const W = w1 - w0, L = u1 - u0;
+      if (W > 6 && L > 6) {
+        const rise = Math.min(W * 0.45, 22);
+        const hip = Math.min(W * 0.5, L * 0.45);
+        const wm = (w0 + w1) / 2, ridgeY = top + rise;
+        const P = (u: number, w: number): [number, number] => [u * bx - w * bz, u * bz + w * bx];
+        const c00 = P(u0, w0), c10 = P(u1, w0), c11 = P(u1, w1), c01 = P(u0, w1);
+        const r0 = P(u0 + hip, wm), r1 = P(u1 - hip, wm);
+        const face = (pts: [number, number][], ys: number[], nx: number, nz: number, shade: number) => {
+          // a fan from the first point
+          for (let i = 1; i + 1 < pts.length; i++) {
+            s.pos.push(pts[0][0], ys[0], pts[0][1], pts[i][0], ys[i], pts[i][1], pts[i + 1][0], ys[i + 1], pts[i + 1][1]);
+            for (let k = 0; k < 3; k++) { s.nor.push(nx, 0.7, nz); s.col.push(rr * shade, rg * shade, rb * shade); }
+          }
+        };
+        // the two long slopes (trapezoids) and the two hip ends (triangles)
+        face([c00, c10, r1, r0], [top, top, ridgeY, ridgeY], bz, -bx, 0.78 + 0.22 * Math.max(0, bz * 0.35 - bx * 0.85));
+        face([c11, c01, r0, r1], [top, top, ridgeY, ridgeY], -bz, bx, 0.78 + 0.22 * Math.max(0, -bz * 0.35 + bx * 0.85));
+        face([c01, c00, r0], [top, top, ridgeY], -bx, -bz, 0.8 + 0.2 * Math.max(0, -bx * 0.35 - bz * 0.85));
+        face([c10, c11, r1], [top, top, ridgeY], bx, bz, 0.8 + 0.2 * Math.max(0, bx * 0.35 + bz * 0.85));
+      }
     }
   }
 

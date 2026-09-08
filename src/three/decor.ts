@@ -10178,6 +10178,58 @@ function farmersMarket(buckets: Bucket[], x: number, z: number, index: WorldInde
   if (!index.isBlocked(sx, sz) && !index.isWaterAt(sx, sz)) { const g = index.heightAtPx(sx, sz); rotBox(buckets[PLAIN], sx, sz, 8, 1, g, g + 9, bestA + Math.PI / 2, '#2a2a2a'); rotBox(buckets[PLAIN], sx, sz, 7, 1.2, g + 2, g + 8, bestA + Math.PI / 2, '#f4f1e8'); }
 }
 
+
+// 🖍️ sidewalk chalk by the playground: a hopscotch court on the nearest stretch of
+// sidewalk, and a sun and a flower beside it — outlines only, the way chalk reads
+// from a few feet up
+function sidewalkChalk(buckets: Bucket[], poly: Poly, index: WorldIndex, bucket: { paths: number[] }, pi: number) {
+  const [mx, my] = centroidOf(poly.p);
+  const world = index.world;
+  let best: { x: number; z: number; ang: number } | null = null, bd = Infinity;
+  for (const pj of bucket.paths) {
+    const path = world.paths[pj];
+    if (path.c !== 'side' && path.c !== 'foot') continue;
+    const pts = path.p;
+    for (let i = 0; i + 3 < pts.length; i += 2) {
+      const x0 = pts[i], z0 = pts[i + 1], x1 = pts[i + 2], z1 = pts[i + 3];
+      const dx = x1 - x0, dz = z1 - z0, len = Math.hypot(dx, dz);
+      if (len < 70) continue;
+      const t = Math.max(0.35, Math.min(0.65, ((mx - x0) * dx + (my - z0) * dz) / (len * len)));
+      const x = x0 + dx * t, z = z0 + dz * t;
+      const d = (x - mx) ** 2 + (z - my) ** 2;
+      if (d < bd) { bd = d; best = { x, z, ang: Math.atan2(dz, dx) }; }
+    }
+  }
+  if (!best || bd > 260 * 260) return;
+  const rng = mulberry32(hash32(pi, 0x5a, 3));
+  const chalk = ['#f7c6d9', '#cfe3f7', '#f8eaa6', '#d5f0c9', '#f3d3b0'];
+  const ca = Math.cos(best.ang), sa = Math.sin(best.ang);
+  const at = (u: number, v: number): [number, number] => [best!.x + ca * u - sa * v, best!.z + sa * u + ca * v];
+  const y = (x: number, z: number) => index.heightAtPx(x, z) + 0.12;
+  // an outlined square: four thin bars
+  const square = (u: number, v: number, h: number, hex: string) => {
+    for (const [du, dv, hl, hw] of [[0, -h, h, 0.35], [0, h, h, 0.35], [-h, 0, 0.35, h], [h, 0, 0.35, h]] as const) {
+      const [x, z] = at(u + du, v + dv); const g = y(x, z);
+      rotBox(buckets[PLAIN], x, z, hl, hw, g, g + 0.2, best!.ang, hex);
+    }
+  };
+  // hopscotch: 1 2 3 | 4 5 | 6 | 7 8 | 9 | 10, squares of 9, along the walk
+  const S = 4.6, hex = chalk[Math.floor(rng() * chalk.length)];
+  const rows: number[][] = [[0], [0], [0], [-1, 1], [0], [-1, 1], [0], [-1, 1]];
+  let u = -rows.length * S;
+  for (const r of rows) { for (const v of r) square(u, v * S, S, hex); u += S * 2; }
+  // the half-moon at the top: a ring of short bars
+  { const [cx, cz] = at(u + 2, 0); for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI - Math.PI / 2; const x = cx + Math.cos(a + best.ang) * 5.5, z = cz + Math.sin(a + best.ang) * 5.5; const g = y(x, z); rotBox(buckets[PLAIN], x, z, 2.2, 0.35, g, g + 0.2, best.ang + a + Math.PI / 2, hex); } }
+  // a sun, off to the side: a ring and rays
+  { const [cx, cz] = at(-rows.length * S - 16, 9 * (rng() < 0.5 ? 1 : -1)); const hex2 = '#f8eaa6';
+    for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; const x = cx + Math.cos(a) * 4, z = cz + Math.sin(a) * 4; const g = y(x, z); rotBox(buckets[PLAIN], x, z, 1.6, 0.35, g, g + 0.2, a + Math.PI / 2, hex2); const rx = cx + Math.cos(a + 0.39) * 7.5, rz = cz + Math.sin(a + 0.39) * 7.5; const g2 = y(rx, rz); rotBox(buckets[PLAIN], rx, rz, 1.8, 0.35, g2, g2 + 0.2, a + 0.39, hex2); } }
+  // a flower: five petal bars round a dot, and a stem
+  { const [cx, cz] = at(u + 14, -8); const pink = '#f7c6d9';
+    for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2; const x = cx + Math.cos(a) * 3, z = cz + Math.sin(a) * 3; const g = y(x, z); rotBox(buckets[PLAIN], x, z, 1.4, 0.9, g, g + 0.2, a, pink); }
+    const g = y(cx, cz); buckets[PLAIN].box(cx, cz, 1, 1, g, g + 0.2, '#f8eaa6');
+    const [sx, sz] = at(u + 14, -8 + 7); const g3 = y(sx, sz); rotBox(buckets[PLAIN], sx, sz, 0.35, 4.5, g3, g3 + 0.2, best.ang, '#d5f0c9'); }
+}
+
 // where the town tree stands: on the Mall's grass, off the pond, away from the paths
 let treeSpot: { x: number; z: number } | null | undefined;
 function holidayTreeSpot(world: WorldData, index: WorldIndex): { x: number; z: number } | null {
@@ -10874,6 +10926,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     if (Math.floor(mx / CHUNK) !== ckx || Math.floor(my / CHUNK) !== cky) continue;
     if (poly.k === 'playground') {
       playgroundKit(buckets, poly, index, pi);
+      if (SEASON !== 'winter') sidewalkChalk(buckets, poly, index, bucket, pi);
       continue;
     }
     const L = index.pitchLayout(pi);

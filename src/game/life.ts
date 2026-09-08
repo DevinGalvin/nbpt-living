@@ -1338,6 +1338,143 @@ class Cat {
   }
 }
 
+
+// 🚴 a cyclist: a bike of two wheels and a few tubes, a rider bent over the bars with
+// legs going round. Rides the map's cycle paths (the Clipper City Rail Trail, mostly)
+// at about four times a walker's pace.
+const CYCLISTS = SEASON === 'winter' ? 0 : 4;
+const CYCLE_CLASSES = ['cycle'];
+class Cyclist {
+  root = new THREE.Group();
+  private heading = new THREE.Group();
+  private wheels: THREE.Mesh[] = [];
+  private legL: THREE.Object3D;
+  private legR: THREE.Object3D;
+  private phase = Math.random() * 6;
+  private face = 0;
+  pts: number[] = [];
+  total = 1;
+  t = 0;
+  dir = 1;
+  speed: number;
+
+  constructor(seed: number) {
+    const rng = mulberry32(seed);
+    this.speed = 120 + rng() * 40;
+    const frame = ['#c8302a', '#2b6cb0', '#1f1f22', '#3f9a5a', '#e0a020'][Math.floor(rng() * 5)];
+    const shirt = SHIRTS[Math.floor(rng() * SHIRTS.length)];
+    const pants = PANTS[Math.floor(rng() * PANTS.length)];
+    const skin = SKINS[Math.floor(rng() * SKINS.length)];
+    const helmet = ['#f2f2f2', '#d8332a', '#2a5fb0', '#e8c04a'][Math.floor(rng() * 4)];
+    const R = 5.4;
+    for (const z of [-11.5, 11.5]) {
+      const w = cylX(R, 1.4, '#1c1c1e'); w.position.set(0, R, z); this.wheels.push(w); this.heading.add(w);
+      const hub = cylX(1.2, 2.2, '#c9c9c9'); hub.position.set(0, R, z); this.heading.add(hub);
+    }
+    // the frame: down tube, seat tube, top tube, chainstay, fork, bars, seat
+    const tube = (x0: number, y0: number, z0: number, x1: number, y1: number, z1: number) => {
+      const len = Math.hypot(x1 - x0, y1 - y0, z1 - z0);
+      const m = box(1.1, len, 1.1, frame);
+      m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+      m.lookAt(x1, y1, z1); m.rotateX(Math.PI / 2);
+      this.heading.add(m);
+    };
+    tube(0, R, -11.5, 0, 15.5, -3);       // seat tube
+    tube(0, 15.5, -3, 0, 16, 9);          // top tube
+    tube(0, 16, 9, 0, R, 11.5);           // fork
+    tube(0, 9, 8, 0, 15.5, -3);           // down tube
+    tube(0, R, -11.5, 0, 9, 8);           // chainstay to the crank
+    const crank = cylX(2.4, 1.6, '#3a3a3a'); crank.position.set(0, 9, 8 - 4); this.heading.add(crank);
+    const bars = box(12, 0.9, 0.9, '#2a2a2c'); bars.position.set(0, 17.5, 9.5); this.heading.add(bars);
+    const seat = box(3.4, 1.2, 6, '#2a2a2c'); seat.position.set(0, 16.5, -3.5); this.heading.add(seat);
+    // the rider: legs from the seat, torso bent forward, arms to the bars
+    this.legL = cap(1.5, 8, pants, true); this.legL.position.set(-2.2, 16.5, -2.5); this.legL.rotation.x = -0.9;
+    this.legR = cap(1.5, 8, pants, true); this.legR.position.set(2.2, 16.5, -2.5); this.legR.rotation.x = -0.9;
+    const torso = cap(3.2, 6, shirt); torso.scale.set(1.25, 1, 0.85); torso.position.set(0, 22.5, 1); torso.rotation.x = 0.55;
+    const head = sph(3.4, skin, 1, 0.95, 0.95); head.position.set(0, 28, 5.5);
+    const hat = sph(3.7, helmet, 1.02, 0.7, 1.05); hat.position.set(0, 29.3, 5.2);
+    for (const sx of [-1, 1]) { const arm = cap(1.1, 9, shirt, true); arm.position.set(sx * 5, 25.5, 2.5); arm.rotation.x = -1.05; this.heading.add(arm); }
+    this.heading.add(this.legL, this.legR, torso, head, hat);
+    this.heading.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) m.castShadow = true; });
+    this.root.add(this.heading);
+  }
+
+  advance(dt: number, groundY: number): boolean {
+    this.t += this.speed * dt * this.dir;
+    const ended = this.t <= 0 || this.t >= this.total;
+    const clamped = Math.max(0.5, Math.min(this.total - 0.5, this.t));
+    const spot = alongPolyline(this.pts, clamped);
+    if (spot) {
+      this.root.position.x = spot.x;
+      this.root.position.z = spot.z;
+      const want = Math.atan2(spot.dx * this.dir, spot.dz * this.dir);
+      const prev = this.face;
+      this.face = lerpAngle(this.face, want, Math.min(1, dt * 4));
+      // lean into the turn
+      let turn = this.face - prev; while (turn > Math.PI) turn -= Math.PI * 2; while (turn < -Math.PI) turn += Math.PI * 2;
+      this.heading.rotation.z += (Math.max(-0.25, Math.min(0.25, -turn / Math.max(0.016, dt) * 0.12)) - this.heading.rotation.z) * Math.min(1, dt * 4);
+    }
+    this.phase += dt * this.speed / 14;
+    for (const w of this.wheels) w.rotation.x += dt * this.speed / 5.4;
+    this.legL.rotation.x = -0.9 + Math.sin(this.phase) * 0.45;
+    this.legR.rotation.x = -0.9 - Math.sin(this.phase) * 0.45;
+    this.heading.rotation.y = this.face;
+    this.root.position.y += (groundY - this.root.position.y) * Math.min(1, dt * 10);
+    return ended;
+  }
+}
+
+// 🪁 a kite: a diamond on a line from a flyer's hand, riding the sea breeze with a
+// bob and a sway and a tail that wags below it
+class Kite {
+  root = new THREE.Group();
+  line: THREE.Line;
+  private tail: THREE.Mesh[] = [];
+  private phase = Math.random() * 10;
+  private lineGeo: THREE.BufferGeometry;
+  constructor(seed: number) {
+    const rng = mulberry32(seed);
+    const cols = [['#e8402a', '#f4d03f'], ['#2a7fd0', '#f2f2f2'], ['#4fb05a', '#f4d03f'], ['#8a4ac8', '#f2a0c8']][Math.floor(rng() * 4)];
+    const geo = new THREE.BufferGeometry();
+    // a diamond, 14 wide and 20 tall, split into two colours down the spine
+    const v = new Float32Array([0, 10, 0, -7, 0, 0, 0, -10, 0, 0, 10, 0, 0, -10, 0, 7, 0, 0]);
+    geo.setAttribute('position', new THREE.BufferAttribute(v, 3));
+    const c0 = new THREE.Color(cols[0]), c1 = new THREE.Color(cols[1]);
+    const col = new Float32Array([c0.r, c0.g, c0.b, c0.r, c0.g, c0.b, c0.r, c0.g, c0.b, c1.r, c1.g, c1.b, c1.r, c1.g, c1.b, c1.r, c1.g, c1.b]);
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.computeVertexNormals();
+    const sail = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    const spine = box(0.5, 20, 0.5, '#5a4630'); const spar = box(14, 0.5, 0.5, '#5a4630');
+    this.root.add(sail, spine, spar);
+    for (let i = 0; i < 6; i++) { const b = box(2.2, 1.2, 0.2, i % 2 ? cols[0] : cols[1]); b.castShadow = false; this.tail.push(b); this.root.add(b); }
+    this.lineGeo = new THREE.BufferGeometry();
+    this.lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+    this.line = new THREE.Line(this.lineGeo, new THREE.LineBasicMaterial({ color: 0xdddddd, transparent: true, opacity: 0.6 }));
+    this.line.frustumCulled = false;
+  }
+  // hx,hy,hz: the hand; the kite rides downwind and up, on a line of `len`
+  update(dt: number, t: number, hx: number, hy: number, hz: number, len: number) {
+    this.phase += dt;
+    const el = 0.85 + Math.sin(t * 0.55 + this.phase) * 0.12 + Math.sin(t * 1.7 + this.phase * 2) * 0.03;
+    const sway = Math.sin(t * 0.8 + this.phase) * 0.18;
+    const dx = Math.sin(WIND_TO + sway), dz = Math.cos(WIND_TO + sway);
+    const kx = hx + dx * Math.cos(el) * len, ky = hy + Math.sin(el) * len, kz = hz + dz * Math.cos(el) * len;
+    this.root.position.set(kx, ky, kz);
+    // the face turns to the flyer, tilted back to the line
+    this.root.lookAt(hx, hy, hz);
+    this.root.rotateX(-0.35);
+    this.root.rotation.z += Math.sin(t * 2.3 + this.phase) * 0.08;
+    for (let i = 0; i < this.tail.length; i++) {
+      const b = this.tail[i]; const d = 3.5 + i * 3.2;
+      b.position.set(Math.sin(t * 3 + i * 0.9 + this.phase) * (1 + i * 0.5), -10 - d, -d * 0.35);
+      b.rotation.z = Math.sin(t * 4 + i) * 0.6;
+    }
+    const a = this.lineGeo.attributes.position.array as Float32Array;
+    a[0] = hx; a[1] = hy; a[2] = hz; a[3] = kx; a[4] = ky + 9; a[5] = kz;
+    this.lineGeo.attributes.position.needsUpdate = true;
+  }
+}
+
 const _up = new THREE.Vector3(0, 1, 0);
 const _dir = new THREE.Vector3();
 
@@ -1837,6 +1974,14 @@ export class Life {
   private forceIce = false;
   private iceT = 0;
   private kids: Walker[] = [];
+  private cyclists: Cyclist[] = [];
+  // 🥕 market people: vendors standing behind their tables, shoppers up and down the aisle
+  private vendors: Walker[] = [];
+  private shoppers: Walker[] = [];
+  private marketAt: { x: number; z: number; ang: number } | null = null;
+  // 🪁 kite flyers on the park lawn, wind permitting
+  private flyers: { w: Walker; k: Kite; x: number; z: number }[] = [];
+  private kiteDay = false;
   private train: Train | null = null;
   private crossings: Crossing[] = [];
   // 🛶 the kayak heat off the landing, and the sailing school's line behind the coach
@@ -1966,6 +2111,96 @@ export class Life {
         k.pts = [];
         this.kids.push(k);
         scene.add(k.root);
+      }
+    }
+    // 🚴 cyclists on the rail trail
+    for (let i = 0; i < CYCLISTS; i++) {
+      const c = new Cyclist(i * 419 + 7);
+      c.root.position.set(0, 0, 1e7);
+      this.cyclists.push(c);
+      scene.add(c.root);
+    }
+    // 🥕 the market's people: the layout mirrors the decor's tents (same seed, same row)
+    if (SEASON === 'summer' || SEASON === 'fall') {
+      const poi = index.world.pois.find((p) => p.k === 'marketplace');
+      if (poi) {
+        let bestA = 0, bestScore = -1;
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI;
+          let score = 0;
+          for (const d of [-150, -100, -50, 50, 100, 150]) { const qx = poi.x + Math.cos(a) * d, qz = poi.y + Math.sin(a) * d; if (!index.isBlocked(qx, qz) && !index.isWaterAt(qx, qz)) score++; }
+          if (score > bestScore) { bestScore = score; bestA = a; }
+        }
+        this.marketAt = { x: poi.x, z: poi.y, ang: bestA };
+        const ca = Math.cos(bestA), sa = Math.sin(bestA);
+        let n = 0;
+        for (let i = 0; i < 4; i++) for (const side of [-1, 1]) {
+          const cx = poi.x + ca * (i - 1.5) * 44, cz = poi.y + sa * (i - 1.5) * 44;
+          const tx = cx - sa * side * 26, tz = cz + ca * side * 26;
+          n++;
+          if (index.isBlocked(tx, tz) || index.isWaterAt(tx, tz)) continue;
+          // behind the table, facing the aisle
+          const w = new Walker(n * 613 + 3);
+          const vx = tx - sa * side * 2, vz = tz + ca * side * 2;
+          w.root.position.set(vx, index.heightAtPx(vx, vz), vz);
+          w.pause = 1e9;
+          w.pauseFace = Math.atan2(sa * side, -ca * side);
+          this.vendors.push(w);
+          scene.add(w.root);
+        }
+        for (let i = 0; i < 4; i++) {
+          const w = new Walker(i * 271 + 9);
+          w.pts = [poi.x - ca * 95, poi.y - sa * 95, poi.x + ca * 95, poi.y + sa * 95];
+          w.total = 190; w.t = 20 + i * 40; w.dir = i % 2 ? 1 : -1;
+          w.speed = 14 + i * 3;
+          w.lane = (i % 2 ? 4 : -4);
+          w.root.position.set(0, 0, 1e7);
+          this.shoppers.push(w);
+          scene.add(w.root);
+        }
+      }
+    }
+    // 🪁 kites: two flyers on the nearest big park lawn to the town's centre, on the days the
+    // breeze is up (every other day of the calendar; ?kites=1 forces)
+    if (SEASON !== 'winter') {
+      const d = new Date();
+      const doy = Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 864e5);
+      this.kiteDay = q?.get('kites') === '1' || doy % 2 === 0;
+      if (this.kiteDay) {
+        const spots: { x: number; z: number }[] = [];
+        const parks = index.world.polys.filter((p) => p.k === 'park' || p.k === 'grass');
+        // lawns: a point with 70 px of open grass round it, nearest the map's origin first
+        const cands: { x: number; z: number; d: number }[] = [];
+        for (const p of parks) {
+          let cx = 0, cz = 0, m = 0;
+          for (let i = 0; i < p.p.length; i += 2) { cx += p.p[i]; cz += p.p[i + 1]; m++; }
+          cx /= m; cz /= m;
+          if (cx * cx + cz * cz > 2600 * 2600) continue;
+          const rng2 = mulberry32(hash32(Math.round(cx), Math.round(cz), 5));
+          for (let tries = 0; tries < 24; tries++) {
+            const x = cx + (rng2() - 0.5) * 300, z = cz + (rng2() - 0.5) * 300;
+            if (!pointInPoly(x, z, p)) continue;
+            let clear = true;
+            for (let k = 0; k < 8 && clear; k++) { const a = (k / 8) * Math.PI * 2; const qx = x + Math.cos(a) * 70, qz = z + Math.sin(a) * 70; if (!pointInPoly(qx, qz, p) || index.isBlocked(qx, qz) || index.isWaterAt(qx, qz)) clear = false; }
+            if (clear && !index.isBlocked(x, z)) { cands.push({ x, z, d: Math.hypot(x, z) }); break; }
+          }
+        }
+        cands.sort((a, b) => a.d - b.d);
+        if (cands.length) {
+          const c = cands[0];
+          spots.push({ x: c.x - 40, z: c.z + 20 }, { x: c.x + 45, z: c.z - 30 });
+          if (cands.length > 1) spots.push({ x: cands[1].x, z: cands[1].z });
+        }
+        for (let i = 0; i < spots.length; i++) {
+          const w = new Walker(i * 733 + 17);
+          const k = new Kite(i * 91 + 3);
+          w.root.position.set(spots[i].x, index.heightAtPx(spots[i].x, spots[i].z), spots[i].z);
+          w.pause = 1e9;
+          w.pauseFace = WIND_TO;   // looking downwind, up at the kite
+          k.root.position.set(0, 0, 1e7);
+          this.flyers.push({ w, k, x: spots[i].x, z: spots[i].z });
+          scene.add(w.root, k.root, k.line);
+        }
       }
     }
     this.forceParade = q?.get('parade') === '1';
@@ -2241,14 +2476,14 @@ export class Life {
     return dot < 0.15; // beside or behind the camera
   }
 
-  private pathSpot(px: number, pz: number, radius: number, rng: () => number): { pts: number[]; total: number; t: number } | null {
+  private pathSpot(px: number, pz: number, radius: number, rng: () => number, classes: string[] = WALK_CLASSES): { pts: number[]; total: number; t: number } | null {
     for (let tries = 0; tries < 10; tries++) {
       const cx = Math.floor((px + (rng() - 0.5) * radius * 2) / CHUNK);
       const cz = Math.floor((pz + (rng() - 0.5) * radius * 2) / CHUNK);
       const bucket = this.index.buckets.get(cx + ',' + cz);
       if (!bucket || !bucket.paths.length) continue;
       const p = this.index.world.paths[bucket.paths[Math.floor(rng() * bucket.paths.length)]];
-      if (!WALK_CLASSES.includes(p.c)) continue;
+      if (!classes.includes(p.c)) continue;
       const total = polyLen(p.p);
       if (total < 40) continue;
       // downtown draws the crowd: with the player in the core, three spawns in four go to
@@ -2263,14 +2498,14 @@ export class Life {
   }
 
   // hop to a connecting path whose endpoint touches ours (crossings included)
-  private hopFrom(x: number, z: number, currentPts: number[], rng: () => number): { pts: number[]; total: number; t: number; dir: number } | null {
+  private hopFrom(x: number, z: number, currentPts: number[], rng: () => number, classes: string[] = HOP_CLASSES): { pts: number[]; total: number; t: number; dir: number } | null {
     const key = Math.floor(x / CHUNK) + ',' + Math.floor(z / CHUNK);
     const bucket = this.index.buckets.get(key);
     if (!bucket) return null;
     const candidates: { pts: number[]; total: number; t: number; dir: number }[] = [];
     for (const pi of bucket.paths) {
       const p = this.index.world.paths[pi];
-      if (!HOP_CLASSES.includes(p.c) || p.p === currentPts) continue;
+      if (!classes.includes(p.c) || p.p === currentPts) continue;
       const n = p.p.length;
       const dStart = Math.hypot(p.p[0] - x, p.p[1] - z);
       const dEnd = Math.hypot(p.p[n - 2] - x, p.p[n - 1] - z);
@@ -2848,6 +3083,56 @@ export class Life {
         const ended = k.advance(dt, this.groundAt(k.root.position.x, k.root.position.z, k.root.position.y));
         if (ended) { k.dir = -k.dir; k.t = Math.max(1, Math.min(k.total - 1, k.t)); }
       }
+    }
+    // 🚴 cyclists: on the cycle paths by day, hopping trail to trail at the junctions
+    for (const c of this.cyclists) {
+      const cx = c.root.position.x - px, cz = c.root.position.z - pz;
+      const far = cx * cx + cz * cz > 2400 * 2400;
+      if (night > 0.7) { if (c.pts.length && (far || this.okToSpawn(c.root.position.x, c.root.position.z, px, pz, fx, fz, 700, 2200))) { c.pts = []; c.root.position.set(0, 0, 1e7); } continue; }
+      if (far || !c.pts.length) {
+        for (let tries = 0; tries < 6; tries++) {
+          const spot = this.pathSpot(px, pz, 1600, rng, CYCLE_CLASSES);
+          if (!spot) continue;
+          const at = alongPolyline(spot.pts, spot.t);
+          if (!at || !this.okToSpawn(at.x, at.z, px, pz, fx, fz, 700, 2200)) continue;
+          c.pts = spot.pts; c.total = spot.total; c.t = spot.t; c.dir = rng() < 0.5 ? 1 : -1;
+          c.root.position.set(at.x, this.groundAt(at.x, at.z), at.z);
+          break;
+        }
+        continue;
+      }
+      const ended = c.advance(dt, this.groundAt(c.root.position.x, c.root.position.z, c.root.position.y));
+      if (ended) {
+        const hop = this.hopFrom(c.root.position.x, c.root.position.z, c.pts, rng, CYCLE_CLASSES);
+        if (hop) { c.pts = hop.pts; c.total = hop.total; c.t = hop.t; c.dir = hop.dir; }
+        else { c.dir = -c.dir; c.t = Math.max(1, Math.min(c.total - 1, c.t)); }
+      }
+    }
+    // 🥕 market hours: mid-morning to early afternoon; the vendors stand, the shoppers browse
+    if (this.marketAt) {
+      const open = tod > 0.3 && tod < 0.62;
+      for (const v of this.vendors) {
+        v.root.visible = open;
+        if (open) v.advance(dt, v.root.position.y);
+      }
+      for (const w of this.shoppers) {
+        if (!open) { if (w.pts.length && w.root.position.z < 1e6) w.root.position.set(0, 0, 1e7); continue; }
+        if (w.root.position.z > 1e6) { const at = alongPolyline(w.pts, w.t); if (at) w.root.position.set(at.x, this.groundAt(at.x, at.z), at.z); }
+        // stop at a stall now and then, facing it
+        if (w.pause <= 0 && Math.random() < dt * 0.08) { w.pause = 3 + Math.random() * 6; w.pauseFace = this.marketAt.ang + (w.lane > 0 ? Math.PI / 2 : -Math.PI / 2); }
+        const ended = w.advance(dt, this.groundAt(w.root.position.x, w.root.position.z, w.root.position.y));
+        if (ended) { w.dir = -w.dir; w.t = Math.max(1, Math.min(w.total - 1, w.t)); }
+      }
+    }
+    // 🪁 kites: up by day when it is dry; the flyer holds the line at shoulder height
+    for (const f of this.flyers) {
+      const up = night < 0.4 && wet < 0.2;
+      f.w.root.visible = up; f.k.root.visible = up; f.k.line.visible = up;
+      if (!up) continue;
+      f.w.advance(dt, f.w.root.position.y);
+      const hy = f.w.root.position.y + 22;
+      const hx = f.x + Math.sin(WIND_TO) * 4, hz = f.z + Math.cos(WIND_TO) * 4;
+      f.k.update(dt, t / 1000, hx, hy, hz, 150);
     }
     const iceTruck = this.cars.find((c) => c.role === 'icecream' && !c.dormant && c.stopT > 0) ?? null;
     for (const p of this.peds) {
