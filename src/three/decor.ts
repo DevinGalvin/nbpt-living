@@ -3816,25 +3816,52 @@ function buildDexterHouse(buckets: Bucket[], b: Building, g: number, index: Worl
 function buildMill(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   const brick = '#f6efe6';                    // brickTex MULTIPLIES red — pale in, red out
   const trim = '#efeade';
-  // four storeys at ~24px each — the OSM `lv` on these footprints is junk (Mill #1
-  // says 1), and a mill is not a bungalow.
-  const top = g + 96;
+  const obb = obbOf(b.p);
+  // Storeys from the FOOTPRINT, not a constant. This was `g + 96` for every mill, so all
+  // six — Mill #1 through #5 and the James Steam Mill — came out as identical four-storey
+  // slabs with identical mansard towers, and Mill #1 (843 × 701 px, about 105 × 88 m) became
+  // a brick plateau the size of a city block. A mill is narrow because it is daylit: the
+  // SHORT span tells you how tall it stands. A wide floorplate is a low shed.
+  const narrow = Math.min(obb.hl, obb.hw) * 2;
+  const storeys = narrow >= 560 ? 2 : narrow >= 330 ? 3 : 4;
+  const top = g + storeys * 24;
   walls(buckets[BRICK], b.p, g - 6, top, brick);
   walls(buckets[PLAIN], expandRing(b.p, 0.4), top - 3, top, trim, 0);            // corbelled cornice band
   flatRoof(buckets[PLAIN], b.p, top, '#4f4a44');
   // storefront=false: these are work floors, ranks of identical tall windows all the
   // way up. Passing true gave it shop glazing and left the long face blank.
-  facades(buckets[PLAIN], b.p, top, 4, 1878, true, false, false, g);
-  // the central mansard tower, over the middle of the long axis
-  const obb = obbOf(b.p);
-  const ts = Math.min(9, obb.hw * 0.8);
-  const ring = [obb.cx - ts, obb.cz - ts, obb.cx + ts, obb.cz - ts, obb.cx + ts, obb.cz + ts, obb.cx - ts, obb.cz + ts];
-  walls(buckets[BRICK], ring, top - 4, top + 20, brick);
-  walls(buckets[PLAIN], expandRing(ring, 0.4), top + 18, top + 20, trim, 0);
-  buckets[PLAIN].box(obb.cx, obb.cz, ts + 1.4, ts + 1.4, top + 20, top + 31, '#3b3a3c');   // dark mansard
-  buckets[PLAIN].box(obb.cx, obb.cz, ts - 1, ts - 1, top + 31, top + 33.5, '#46454a');
-  for (const [dx, dz] of [[0, -(ts + 1.2)], [0, ts + 1.2], [-(ts + 1.2), 0], [ts + 1.2, 0]]) {
-    buckets[PLAIN].box(obb.cx + dx, obb.cz + dz, 2.2, 2.2, top + 22, top + 28, trim);      // arched dormers
+  facades(buckets[PLAIN], b.p, top, storeys, 1878, true, false, false, g);
+  if (storeys <= 2) {
+    // A wide mill floor is daylit from ABOVE: a monitor — a long raised clerestory strip
+    // down the ridge, glazed on its flanks. It is what breaks a big mill roof up, and
+    // without it Mill #1 was an unbroken acre of flat brown.
+    const ml = obb.hl * 0.82, mw = Math.min(obb.hw * 0.26, 26);
+    rotBox(buckets[BRICK], obb.cx, obb.cz, ml, mw, top, top + 13, obb.ang, brick);
+    rotBox(buckets[PLAIN], obb.cx, obb.cz, ml + 1.6, mw + 1.6, top + 13, top + 15, obb.ang, '#4f4a44');
+    // the clerestory glazing, a row of panes along both flanks
+    const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
+    const panes = Math.max(4, Math.floor(ml / 16));
+    for (let i2 = 0; i2 < panes; i2++) {
+      const u = -ml + (i2 + 0.5) * (2 * ml / panes);
+      for (const sgn of [-1, 1]) {
+        const px2 = obb.cx + ca * u - sa * (mw + 0.5) * sgn;
+        const pz2 = obb.cz + sa * u + ca * (mw + 0.5) * sgn;
+        rotBox(buckets[PLAIN], px2, pz2, 5.2, 0.5, top + 3.5, top + 11, obb.ang, '#59728a');
+      }
+    }
+  } else if (narrow < 230) {
+    // the central stair tower with its mansard cap — ONE in the complex, on the narrowest
+    // block, not one on every building. (Modelled on the Towle mill's tower, which is the
+    // Newburyport mill idiom: brick shaft, dark mansard, arch-topped dormers.)
+    const ts = Math.min(9, obb.hw * 0.8);
+    const ring = [obb.cx - ts, obb.cz - ts, obb.cx + ts, obb.cz - ts, obb.cx + ts, obb.cz + ts, obb.cx - ts, obb.cz + ts];
+    walls(buckets[BRICK], ring, top - 4, top + 20, brick);
+    walls(buckets[PLAIN], expandRing(ring, 0.4), top + 18, top + 20, trim, 0);
+    buckets[PLAIN].box(obb.cx, obb.cz, ts + 1.4, ts + 1.4, top + 20, top + 31, '#3b3a3c');   // dark mansard
+    buckets[PLAIN].box(obb.cx, obb.cz, ts - 1, ts - 1, top + 31, top + 33.5, '#46454a');
+    for (const [dx, dz] of [[0, -(ts + 1.2)], [0, ts + 1.2], [-(ts + 1.2), 0], [ts + 1.2, 0]]) {
+      buckets[PLAIN].box(obb.cx + dx, obb.cz + dz, 2.2, 2.2, top + 22, top + 28, trim);      // arched dormers
+    }
   }
   void index;
 }
