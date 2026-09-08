@@ -20,7 +20,7 @@ export interface Look {
   at?: [number, number];
 }
 
-const T_W = 512, T_H = 256;
+const T_W = 384, T_H = 192;   // five across and ten down fit a 2048² atlas, a power of two for clean mipmaps
 function drawLook(g: CanvasRenderingContext2D, u: number, v: number, k: Look) {
   g.save(); g.translate(u, v);
   // the frame and the wall
@@ -89,7 +89,7 @@ export function bakeLooks(looks: Look[]) {
   const have = new Set(FACADES.items.map((i) => i.name.trim().toLowerCase()));
   const todo = looks.filter((k) => !have.has(k.name.trim().toLowerCase()));
   if (!todo.length) return;
-  const cols = 4, rows = Math.ceil(todo.length / cols);
+  const cols = 5, rows = Math.ceil(todo.length / cols);
   const c = document.createElement('canvas');
   // grow the existing atlas downward, or start one
   const base = FACADES.tex ? (FACADES.tex.image as HTMLImageElement | HTMLCanvasElement) : null;
@@ -105,19 +105,14 @@ export function bakeLooks(looks: Look[]) {
     drawLook(g, u, v, k);
     items.push({ name: k.name, u, v, w: T_W, h: T_H, widthM: k.widthM, floors: k.floors ?? 1, at: k.at });
   });
-  // the atlas is addressed as a square of `size`; a tall canvas means u and v scale differently,
-  // so pad to square for one scale
-  if (c.height !== c.width) {
-    const sq = Math.max(c.width, c.height);
+  // the atlas is addressed as a square of `size`, and a power of two keeps every GPU's
+  // mipmaps and wrapping honest: pad up to the next one
+  {
+    let sq = 512; while (sq < Math.max(c.width, c.height)) sq *= 2;
     const s = document.createElement('canvas'); s.width = s.height = sq;
     const sg = s.getContext('2d')!; sg.fillStyle = '#000'; sg.fillRect(0, 0, sq, sq); sg.drawImage(c, 0, 0);
     FACADES.size = sq;
     const tex = new THREE.CanvasTexture(s);
-    tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; tex.minFilter = THREE.LinearMipmapLinearFilter;
-    FACADES.tex = tex;
-  } else {
-    FACADES.size = c.width;
-    const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; tex.minFilter = THREE.LinearMipmapLinearFilter;
     FACADES.tex = tex;
   }

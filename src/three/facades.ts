@@ -21,7 +21,7 @@ export const FACADES: { tex: THREE.Texture | null; size: number; items: FacadeIt
 export async function loadFacades(): Promise<void> {
   try {
     const res = await fetch('facades.json', { cache: 'no-cache' });
-    if (!res.ok) return;
+    if (!res.ok || !/json/i.test(res.headers.get('content-type') || '')) return;   // a dev server answers a missing file with the app shell
     const man = (await res.json()) as FacadeManifest;
     if (!man || !Array.isArray(man.items) || !man.items.length) return;
     const tex = await new Promise<THREE.Texture>((ok, bad) => new THREE.TextureLoader().load(man.atlas || 'facades.png', ok, undefined, bad));

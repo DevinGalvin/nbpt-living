@@ -791,7 +791,7 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
       // sign band above the storefront
       const mx = a.x + ux * (len / 2), my = a.y + uy * (len / 2);
       tmp.set(awningHex).multiplyScalar(0.72);
-      billboard(plain, mx, my, nx, nz, ux, uy, Math.min(len / 2 - 5, 30), 2.2, g + 22.5, 0.4, tmp.r, tmp.g, tmp.b);
+      if (!facadeSkipsAt(mx, -my)) billboard(plain, mx, my, nx, nz, ux, uy, Math.min(len / 2 - 5, 30), 2.2, g + 22.5, 0.4, tmp.r, tmp.g, tmp.b);
       // the lettered board on the band: sixteen trades in the atlas, one per shop
       if (signBk && !facadeSkipsAt(mx, -my)) signBoard(signBk, mx, my, nx, nz, ux, uy, Math.min(len / 2 - 6, 19), 2.4, g + 22.6, 0.6, hash32(seed, i, 23) % SIGN_ROWS);
     }
@@ -10127,7 +10127,7 @@ function photoFacade(bk: Bucket, b: Building, item: FacadeItem, atX: number, atZ
   const rx = fs.nz, rz = -fs.nx;
   let s = (atX - fs.x) * rx + (atZ - fs.z) * rz;
   s = Math.max(-fs.len / 2 + w / 2 + 1, Math.min(fs.len / 2 - w / 2 - 1, s));
-  const cx = fs.x + rx * s + fs.nx * 0.8, cz = fs.z + rz * s + fs.nz * 0.8;
+  const cx = fs.x + rx * s + fs.nx * 1.2, cz = fs.z + rz * s + fs.nz * 1.2;
   const ax = cx - rx * w / 2, az = cz - rz * w / 2, bx = cx + rx * w / 2, bz = cz + rz * w / 2;
   facadeSkip.push({ x: fs.x + rx * s, z: fs.z + rz * s, r: w / 2 + 6 });
   const S = FACADES.size;
@@ -11829,7 +11829,13 @@ function decorMaterials(): THREE.Material[] {
              windows,
              mk(signTex()),
              // the photographed storefronts: the town's atlas, or nothing (an empty bucket costs nothing)
-             (() => { const m = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, map: FACADES.tex }); m.onBeforeCompile = (s) => { goldenInject(s); }; return m; })()];
+             (() => {
+               // polygon offset: the tile is drawn a hair proud of its wall, and the bias makes it
+               // win the depth test against that wall on every GPU and at every distance
+               const m = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, map: FACADES.tex, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+               m.onBeforeCompile = (s) => { goldenInject(s); };
+               return m;
+             })()];
   }
   return _mats;
 }
