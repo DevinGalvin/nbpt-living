@@ -33,7 +33,10 @@ export class FarTown {
   private polyCache = new Map<number, PolyTris | null>();
   private leaf: THREE.Color;
 
-  constructor(private world: WorldData, private terrain: Terrain, private scene: THREE.Scene) {
+  // the trees of a far cell, when the tier can afford them (a desktop): the town is
+  // full of trees, and a horizon of bare green with boxes on it read as unrendered
+  constructor(private world: WorldData, private terrain: Terrain, private scene: THREE.Scene,
+              private treesOf?: (key: string) => { x: number; y: number; r: number; bush?: boolean; reed?: boolean }[]) {
     if (!mat) mat = new THREE.MeshLambertMaterial({ vertexColors: true });
     // the canopy colour, a shade lighter than the near trees: at the horizon a wood is
     // its sunlit top, and a dark slab there reads as a black bar
@@ -101,6 +104,7 @@ export class FarTown {
     for (const idx of c.bIdx) this.box(idx, sink);
     const [kx, kz] = key.split(',').map(Number);
     for (const pi of c.pIdx) this.wood(pi, kx, kz, sink);
+    if (this.treesOf) this.trees(key, sink);
     if (!sink.pos.length) return;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(sink.pos, 3));
@@ -112,6 +116,33 @@ export class FarTown {
     mesh.visible = !c.loaded;
     c.mesh = mesh;
     this.scene.add(mesh);
+  }
+
+  // a far tree: a four-sided crown on a stub of trunk, six triangles. Real and street
+  // trees only, capped, so a cell costs about what one detailed house does
+  private trees(key: string, s: Sink) {
+    const list = this.treesOf!(key);
+    let n = 0;
+    const leaf = this.leaf;
+    for (const t of list) {
+      if (t.bush || t.reed || t.r < 7) continue;
+      if (++n > 220) break;
+      const g = this.terrain.heightAt(t.x, t.y);
+      const r = t.r * 1.1, base = g + t.r * 0.9, top = base + r * 1.5;
+      const j = 0.88 + (hash32(Math.round(t.x), Math.round(t.y), 3) % 100) / 400;
+      const P: [number, number][] = [[t.x - r, t.y], [t.x, t.y + r], [t.x + r, t.y], [t.x, t.y - r]];
+      for (let i = 0; i < 4; i++) {
+        const a = P[i], b = P[(i + 1) % 4];
+        const nx = (a[0] + b[0]) / 2 - t.x, nz = (a[1] + b[1]) / 2 - t.y, nl = Math.hypot(nx, nz) || 1;
+        const sh = j * (0.72 + 0.28 * Math.max(0, (nx / nl) * 0.35 + (nz / nl) * 0.85));
+        s.pos.push(a[0], base, a[1], b[0], base, b[1], t.x, top, t.y);
+        for (let k = 0; k < 3; k++) { s.nor.push(nx / nl * 0.8, 0.6, nz / nl * 0.8); s.col.push(leaf.r * sh, leaf.g * sh, leaf.b * sh); }
+      }
+      // the trunk: two crossed slivers
+      const tw = Math.max(1, t.r * 0.12), tr = 0.35, tg = 0.26, tb = 0.18;
+      s.pos.push(t.x - tw, g, t.y, t.x + tw, g, t.y, t.x, base + 1, t.y, t.x, g, t.y - tw, t.x, g, t.y + tw, t.x, base + 1, t.y);
+      for (let k = 0; k < 6; k++) { s.nor.push(0, 0.3, 1); s.col.push(tr, tg, tb); }
+    }
   }
 
   private box(idx: number, s: Sink) {

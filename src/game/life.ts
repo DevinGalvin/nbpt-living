@@ -2483,11 +2483,17 @@ export class Life {
 
   // a spawn point is OK if the player can't watch it happen:
   // far enough to be fog-hazed, or outside the camera's forward cone
+  // how far the town's life reaches, relative to a phone: a desktop's fog is twice as far
+  // out, and a car re-seated at 2600 px was re-seated in plain view — it raced back and
+  // forth across the distance until you walked up to it
+  private rangeK = 1;
+  setRange(k: number) { this.rangeK = k; }
+
   private okToSpawn(x: number, z: number, px: number, pz: number, fx: number, fz: number, minD: number, fogD: number): boolean {
     const dx = x - px, dz = z - pz;
     const d = Math.hypot(dx, dz);
     if (d < minD) return false;
-    if (d > fogD) return true;
+    if (d > fogD * this.rangeK) return true;
     const dot = (dx / d) * fx + (dz / d) * fz;
     return dot < 0.15; // beside or behind the camera
   }
@@ -3076,7 +3082,7 @@ export class Life {
       const schoolHours = this.forceBus || (tod > 0.27 && tod < 0.36) || (tod > 0.58 && tod < 0.68);
       for (const k of this.kids) {
         const kx = k.root.position.x - px, kz = k.root.position.z - pz;
-        const far = kx * kx + kz * kz > 1900 * 1900;
+        const far = kx * kx + kz * kz > (1900 * this.rangeK) ** 2;
         if (!schoolHours) {
           if (k.pts.length && (far || this.okToSpawn(k.root.position.x, k.root.position.z, px, pz, fx, fz, 700, 1800))) { k.pts = []; k.root.position.set(0, 0, 1e7); }
           continue;
@@ -3105,7 +3111,7 @@ export class Life {
     // 🚴 cyclists: on the cycle paths by day, hopping trail to trail at the junctions
     for (const c of this.cyclists) {
       const cx = c.root.position.x - px, cz = c.root.position.z - pz;
-      const far = cx * cx + cz * cz > 2400 * 2400;
+      const far = cx * cx + cz * cz > (2400 * this.rangeK) ** 2;
       if (night > 0.7) { if (c.pts.length && (far || this.okToSpawn(c.root.position.x, c.root.position.z, px, pz, fx, fz, 700, 2200))) { c.pts = []; c.root.position.set(0, 0, 1e7); } continue; }
       if (far || !c.pts.length) {
         for (let tries = 0; tries < 6; tries++) {
@@ -3158,7 +3164,7 @@ export class Life {
     const iceTruck = this.cars.find((c) => c.role === 'icecream' && !c.dormant && c.stopT > 0) ?? null;
     for (const p of this.peds) {
       const dx = p.root.position.x - px, dz = p.root.position.z - pz;
-      if (dx * dx + dz * dz > 1900 * 1900 || !p.pts.length) {
+      if (dx * dx + dz * dz > (1900 * this.rangeK) ** 2 || !p.pts.length) {
         for (let tries = 0; tries < 6; tries++) {
           const spot = this.pathSpot(px, pz, 1100, rng);
           if (!spot) continue;

@@ -54,6 +54,8 @@ const LEGACY_KID = new URLSearchParams(location.search).has('kid');
 // at 0.55 Clipper was a speck on a phone; the chase cam scales are all zoom-linear
 const SPILL_Y = new THREE.Vector3(0, 1, 0);
 const SPILL_TILT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+// the shadow sun's step (radians); ?shadowstep=0 for the old per-frame crawl, to compare
+const SHADOW_STEP = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('shadowstep') === '0') ? 0 : 0.5 * Math.PI / 180;
 const MIN_ZOOM = LEGACY_KID ? 0.55 : 0.42;
 
 // The authored Gram spine (chapters, missions, the compass) ships again as of
@@ -298,6 +300,7 @@ export class Game {
   private farTown: FarTown | null = null;   // every building as a box, shown where no chunk is loaded
   // desktop sees twice as far: with the far town standing in the haze there is nothing to hide
   private farFog = false;
+  private shadowDir = new THREE.Vector3(0, -1, 0);   // the stepped sun the shadow camera follows
   private foghornT = 5;
   // ⏩ hold T: the day races, a full turn in twenty seconds, shadows sweeping and the tide running
   private timeLapse = false;
@@ -575,6 +578,7 @@ export class Game {
 
     const arrivedByTrain = new URLSearchParams(location.search).get('arrive') === 'train' && !!TOWN.trainPlatform;
     this.life = new Life(this.scene, this.index, this.audio);
+    this.life.setRange(this.mobile ? 1 : 1.6);   // a desktop sees further: spawn and retire further out
     if (arrivedByTrain) {
       this.life.trainArrived();
       // tidy the address so a refresh does not put you back on the platform
@@ -608,7 +612,7 @@ export class Game {
     this.ensureRect(true);
     this.impostor = this.buildImpostor();   // low-res whole-map LOD under the chunks (kills the yellow pop-in)
     // the far town: boxes for every building, visible wherever the detailed chunk is not
-    this.farTown = new FarTown(world, terrain, this.scene);
+    this.farTown = new FarTown(world, terrain, this.scene, this.mobile ? undefined : (k) => this.index.treesFor(k).concat(this.index.extraPlantingsFor(k)));
     for (const key of this.chunks.keys()) this.farTown.setLoaded(key, true);
     // every cell within reach of the spawn is built now, behind the loading screen: built
     // two a frame after the fade, the horizon assembled itself in front of the player
@@ -3047,7 +3051,14 @@ export class Game {
     const tx = this.px + fx * ahead, tz = this.pz + fz * ahead;
     const sky = this.sky.state;
     const sunD = 950;
-    this.sun.position.set(tx + sky.sunDir.x * sunD, sky.sunDir.y * sunD + 80, tz + sky.sunDir.z * sunD);
+    // The shadow camera takes the sun in half-degree STEPS. A seven-minute day moves
+    // the sun 0.9° a second, and a shadow map re-projected every frame for that made
+    // every shadow edge crawl sub-texel amounts continuously — "the shadows flicker".
+    // Held between steps the map is stable; at a step a 40 px tree's shadow tip moves
+    // a third of a pixel, which nobody sees.
+    if (this.shadowDir.dot(sky.sunDir) < Math.cos(SHADOW_STEP)) this.shadowDir.copy(sky.sunDir);
+    const sd = this.shadowDir;
+    this.sun.position.set(tx + sd.x * sunD, sd.y * sunD + 80, tz + sd.z * sunD);
     this.sun.target.position.set(tx, 0, tz);
   }
 
