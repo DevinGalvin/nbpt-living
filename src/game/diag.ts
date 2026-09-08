@@ -20,6 +20,8 @@
 //
 // Retire the whole file once the world format goes binary and Boston fits.
 
+import { previousHang } from './watchdog';
+
 const ALIVE = 'nbpt-alive';       // written while playing, cleared on a clean exit
 const LAST = 'nbpt-last-crash';   // the post-mortem, kept for the next session to read
 
@@ -111,6 +113,7 @@ export function mountDiagOverlay(town: string, sample: () => DiagStats, crash: C
   const tick = () => {
     const s = sample();
     const h = heapMB();
+    const hang = previousHang();
     el.textContent = `${town}  ${Math.round((Date.now() - t0) / 1000)}s\n`
       + `chunks ${s.chunks}\n`
       + `tex    ${s.texMB} MB\n`
@@ -118,7 +121,8 @@ export function mountDiagOverlay(town: string, sample: () => DiagStats, crash: C
       + (h ? `heap   ${h} MB\n` : 'heap   n/a (Safari)\n')
       + (crash
         ? `\nLAST RUN CRASHED\n${crash.town} died at ${crash.secs}s\nchunks ${crash.chunks} · tex ${crash.texMB} MB\nframes ${crash.frames ?? '?'}\nerr: ${crash.err ?? 'none recorded'}`
-        : '\nlast run exited clean');
+        : '\nlast run exited clean')
+      + (hang ? `\nLAST RUN HUNG at ${hang.secs}s\nphase: ${hang.phase}\nframe ${hang.frame} · at ${hang.px},${hang.pz}` : '');
   };
   tick();
   setInterval(tick, 500);

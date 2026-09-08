@@ -9,6 +9,7 @@ import { captureHumanoid, poseWalk, type Humanoid } from '../three/humanoid';
 import { TOWN } from '@town';
 import type { GameAudio } from './audio';
 import { goldenInject } from '../three/golden';
+import { phase } from './watchdog';
 
 // Ambient life: pedestrians who follow the sidewalk network exactly, cars
 // that drive road polylines, and boats cruising the real water. Nothing spawns
@@ -3044,6 +3045,7 @@ export class Life {
     this.updateCrossings(dt, t / 1000, px, pz);
     this.updateParade(dt, px, pz, fx, fz, tod);
     this.updateRegatta(dt, t / 1000, px, pz, fx, fz, tod, rng);
+    phase('life.cg');
     this.updateCG(dt, t / 1000, px, pz, fx, fz);
     this.updateConcert(dt, t / 1000, px, pz, fx, fz, tod);
     this.smoke.update(dt, px, pz, night, this.chimneySource);
@@ -3084,6 +3086,7 @@ export class Life {
         if (ended) { k.dir = -k.dir; k.t = Math.max(1, Math.min(k.total - 1, k.t)); }
       }
     }
+    phase('life.cyclists');
     // 🚴 cyclists: on the cycle paths by day, hopping trail to trail at the junctions
     for (const c of this.cyclists) {
       const cx = c.root.position.x - px, cz = c.root.position.z - pz;
@@ -3108,6 +3111,7 @@ export class Life {
         else { c.dir = -c.dir; c.t = Math.max(1, Math.min(c.total - 1, c.t)); }
       }
     }
+    phase('life.market');
     // 🥕 market hours: mid-morning to early afternoon; the vendors stand, the shoppers browse
     if (this.marketAt) {
       const open = tod > 0.3 && tod < 0.62;
@@ -3124,6 +3128,7 @@ export class Life {
         if (ended) { w.dir = -w.dir; w.t = Math.max(1, Math.min(w.total - 1, w.t)); }
       }
     }
+    phase('life.kites');
     // 🪁 kites: up by day when it is dry; the flyer holds the line at shoulder height
     for (const f of this.flyers) {
       const up = night < 0.4 && wet < 0.2;
@@ -3134,6 +3139,7 @@ export class Life {
       const hx = f.x + Math.sin(WIND_TO) * 4, hz = f.z + Math.cos(WIND_TO) * 4;
       f.k.update(dt, t / 1000, hx, hy, hz, 150);
     }
+    phase('life.peds');
     const iceTruck = this.cars.find((c) => c.role === 'icecream' && !c.dormant && c.stopT > 0) ?? null;
     for (const p of this.peds) {
       const dx = p.root.position.x - px, dz = p.root.position.z - pz;
@@ -3190,6 +3196,7 @@ export class Life {
       }
     }
 
+    phase('life.separation');
     // nobody overlaps: walkers side-step each other, the player, and cars
     for (let i = 0; i < this.peds.length; i++) {
       const a = this.peds[i];

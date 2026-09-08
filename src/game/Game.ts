@@ -20,6 +20,7 @@ import { Life } from './life';
 import { GillisBridge } from '../three/gillis';
 import { Hud, RACES_UI } from './hud';
 import { Diag } from './flickerDiag';
+import { startWatchdog, phase, heartbeat } from './watchdog';
 import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
 import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
@@ -970,6 +971,7 @@ export class Game {
   private startDiagnostics() {
     const sample = () => this.memStats();
     this.lastCrash = startCrashWatch(TOWN.id, sample);
+    startWatchdog();
     // what the sentinel cannot see on its own: the last uncaught error, and a GL context
     // the phone took away (the picture freezes, the page lives)
     window.addEventListener('error', (e) => noteCrashError('error: ' + String(e.message)));
@@ -2211,6 +2213,7 @@ export class Game {
     const t = (paused ? this.pausedAt : tRaw) - this.timeShift;
     const dt = paused ? 0 : Math.min(0.05, (t - this.lastTime) / 1000 || 0.016);
     this.lastTime = t;
+    phase('input');
     this.updateDynamicResolution(dt);
     this.hud.setIndoors(this.inside);   // walk-only spaces hide the run + bike buttons
 
@@ -2495,6 +2498,7 @@ export class Game {
       (r.m.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - k);
     }
     this.player.setPos(this.px, this.pz);
+    phase('player');
     this.player.update(dt, realVx, realVz, this.sprinting, this.riding, this.onWater);
     this.player.setBackpack(this.hud.hasBackpack());   // worn pack appears once the 🎒 is earned
 
@@ -2609,6 +2613,7 @@ export class Game {
     if (this.quest?.l2Night) this.holdNight(); else this.releaseNight();
     // day–night cycle drives the sun, sky dome, and weather; the shadow
     // window rides with the player
+    phase('sky');
     const sky = this.sky.update(dt, this.px, this.pz, t, this.camera.position);
     this.updateShadowWindow(Math.sin(this.camAz), Math.cos(this.camAz));
     this.sun.color.copy(sky.sunColor);
@@ -2664,6 +2669,7 @@ export class Game {
     }
 
     if (this.waterUpdate && !this.inside) this.waterUpdate(t, this.sky.state, tideAt(this.sky.tod));
+    phase('life');
     if (this.life && !this.inside) this.life.update(dt, this.px, this.pz, t, Math.sin(this.camAz), Math.cos(this.camAz), sky.night, this.sky.tod, sky.wet);
     if (this.onTrain && this.life) {
       // aboard: ride the first coach, and once the town has slid away go to the next one
@@ -2700,13 +2706,17 @@ export class Game {
       const raceBusy = this.race ? (this.race.active || this.race.nearActive) : false;
       if (this.history) this.history.update(dt, this.px, this.pz, (this.quest?.nearActive ?? false) || this.flying || raceBusy);
       // eggs speak last: quest beats, then race flags, then history markers, then secrets
+      phase('eggs');
       if (this.eggs) this.eggs.update(dt, this.px, this.pz, this.flying || (this.quest?.nearActive ?? false) || raceBusy || (this.history ? this.history.nearActive : false), sky.night, this.sky.tod);
     }
+    phase('audio');
     this.audio.update(dt, movingNow && !this.riding && !this.swimming, this.sprinting, () =>
       this.inside ? 'hard'
         : surfY > terrainY + 0.5 ? 'wood'
         : this.index.onPavedAt(this.px, this.pz) ? 'hard' : 'soft');
+    phase('chunks');
     if (!this.inside) this.ensureRect();
+    phase('camera');
     this.updateCamera(dt);
     this.updateWaypoint();
 
@@ -2872,9 +2882,11 @@ export class Game {
       }
     }
 
+    phase('render');
     const activeScene = this.inTunnel ? this.tunnel!.scene : this.interior ? this.interior.scene : this.scene;
     if (this.post) { this.post.setScene(activeScene); this.post.render(); }
     else this.renderer.render(activeScene, this.camera);
+    heartbeat(this.px, this.pz);
     this.diag?.after(t, { zoom: +this.camZoom.toFixed(2), tod: +this.sky.tod.toFixed(3), fps: Math.round(dt > 0 ? 1 / dt : 0), chunks: this.chunks.size, res: +this.renderer.getPixelRatio().toFixed(2) });
 
     // 📸 A discovery photo has to be read in the SAME tick as the render that made
