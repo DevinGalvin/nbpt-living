@@ -75,6 +75,12 @@ class Bucket {
   norm: number[] = [];
   col: number[] = [];
   uv: number[] = [];
+  // An untextured bucket has no use for texture coordinates, and its material reads
+  // uv.y as the WIND weight (windLast) and uv.x as the window's turn-on hour (tagLast).
+  // Emitters shared with the textured buckets (flatRoof and friends) hand every vertex
+  // real coordinates; on a plain bucket those became wind weights of forty or more —
+  // roof caps that swayed metres, sank out of sight and flickered on every desktop.
+  textured = false;
 
   // One triangle, wound to agree with its declared normal. Every emitter in this file
   // hands us the normal it MEANS (box tops say +Y, walls say outward), but roughly half
@@ -87,6 +93,7 @@ class Bucket {
               cx: number, cy: number, cz: number, nx: number, ny: number, nz: number,
               rA: number, gA: number, bA: number, rB: number, gB: number, bB: number, rC: number, gC: number, bC: number,
               uA: number, vA: number, uB: number, vB: number, uC: number, vC: number) {
+    if (!this.textured) { uA = vA = uB = vB = uC = vC = 0; }
     const e1x = bx - ax, e1y = by - ay, e1z = bz - az, e2x = cx - ax, e2y = cy - ay, e2z = cz - az;
     const gx = e1y * e2z - e1z * e2y, gy = e1z * e2x - e1x * e2z, gz = e1x * e2y - e1y * e2x;
     if (gx * nx + gy * ny + gz * nz < 0) {
@@ -10376,6 +10383,7 @@ export interface ChunkDecor { mesh: THREE.Mesh | null; props: THREE.Group | null
 
 export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): ChunkDecor | null {
   const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
+  for (const i of [CLAP, BRICK, SHINGLE, PLANK, SIGN, FACADE]) buckets[i].textured = true;
   winGlow = GFX.nightWindows ? buckets[WINDOW] : null;
   shopGlow = buckets[GLOW];
   signBk = buckets[SIGN];
