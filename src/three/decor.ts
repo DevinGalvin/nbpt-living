@@ -2115,7 +2115,11 @@ function ribbonDeck(buckets: Bucket[], pts0: number[], w: number, topYAt: number
                     w0 = w, w1 = w,     // end widths — a fused deck TAPERS to the real road width where it dies into dry pavement
                     // pulls the deck edge in where a building rises through the deck
                     // plane, so a wide fused slab stops slicing the houses beside it
-                    hwLimit?: (x: number, z: number, lX: number, lZ: number, hw: number, y: number) => number) {
+                    hwLimit?: (x: number, z: number, lX: number, lZ: number, hw: number, y: number) => number,
+                    // true where this edge runs alongside ANOTHER deck at the same height: a
+                    // ramp beside a carriageway shares a kerb with it, and two parapets there
+                    // is a wall down the middle of the road
+                    edgeAbuts?: (x: number, z: number, nx: number, nz: number, y: number) => boolean) {
   const isRoad = rails;
   const surf = isRoad ? buckets[PLAIN] : buckets[PLANK];
   const asphalt = new THREE.Color('#3a3d42');
@@ -2291,6 +2295,8 @@ function ribbonDeck(buckets: Bucket[], pts0: number[], w: number, topYAt: number
           nsx, 0, nsz, skirt.r, skirt.g, skirt.b
         );
         if (nearMerge0 || nearMerge1) continue;
+        // …and no barrier where the next deck starts: the two carry on as one carriageway
+        if (edgeAbuts && edgeAbuts((eX[i] + eX[j]) / 2, (eZ[i] + eZ[j]) / 2, nsx, nsz, (y0 + y1) / 2)) continue;
         // a concrete parapet along the edge — a light band 2.4 wide and 4 tall that reads
         // from above, which is how a kid sees a bridge: the deck top is asphalt like the
         // street beneath it, and without the light edges the span was a hump of road
@@ -10684,9 +10690,22 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     // footing test (WorldIndex.DECK_CLEAR_MIN_W) so the walking contract matches
     // exactly what is drawn.
     const wideDeck = ch.w >= WorldIndex.DECK_CLEAR_MIN_W;
+    // the decks running beside this one, for the shared-edge test (bbox-filtered once)
+    const neighbours = index.roadChains().bridge.filter((o) => o !== ch
+      && o.bb[2] >= ch.bb[0] - 120 && o.bb[0] <= ch.bb[2] + 120 && o.bb[3] >= ch.bb[1] - 120 && o.bb[1] <= ch.bb[3] + 120);
+    const edgeAbuts = neighbours.length ? (x: number, z: number, nx: number, nz: number, y: number) => {
+      // a point a lane's width past our kerb: on another deck's surface, at our height?
+      const px2 = x + nx * 16, pz2 = z + nz * 16;
+      for (const o of neighbours) {
+        if (distToPolylineSq(px2, pz2, o.pts) > (o.w / 2 + 3) ** 2) continue;
+        if (Math.abs(index.bridgeDeckYAt(o.pts, px2, pz2) - y) < 12) return true;
+      }
+      return false;
+    } : undefined;
     ribbonDeck(buckets, ch.pts, ch.w + 4, (x, z) => index.bridgeDeckYAt(ch.pts, x, z), true, ox, oy, true, ch.trim0, ch.trim1,
       (ch.c === 'motorway' || ch.c === 'motorway_link') ? 'white' : 'yellow', ch.w0 + 4, ch.w1 + 4,
-      wideDeck ? (x, z, lX, lZ, hw, y) => index.deckHalfWidthLimit(x, z, lX, lZ, hw, y) : undefined);
+      wideDeck ? (x, z, lX, lZ, hw, y) => index.deckHalfWidthLimit(x, z, lX, lZ, hw, y) : undefined,
+      edgeAbuts);
     // a structure above the deck where the town pack says so (the Chain Bridge)
     for (const br of TOWN.bridges ?? []) {
       let close = false;
@@ -11587,9 +11606,22 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (clump > 45 && rng() > 0.06) return;
       const g = index.heightAtPx(x, z);
       if (g < 24 || index.isBlocked(x, z) || index.isWaterAt(x, z)) return;
-      for (const [dx, dz] of [[260, 0], [-260, 0], [0, 260], [0, -260], [184, 184], [-184, 184], [184, -184], [-184, -184]]) {
-        if (index.isWaterAt(x + dx, z + dz)) return;
+      // How far is the sea? A strand is 400–700 px wide here, so a single 260 px ring
+      // called the middle of the beach "back dune" and grew grass over the whole of it.
+      // Walk outward in rings instead: bare sand until the water is 480 px away, thin
+      // tufts to 620, thick clumps beyond — grass at the back, beach on the beach.
+      let clearTo = 0;
+      for (const r of [200, 340, 480, 620]) {
+        const d = r * 0.7071;
+        let wet = false;
+        for (const [dx, dz] of [[r, 0], [-r, 0], [0, r], [0, -r], [d, d], [-d, d], [d, -d], [-d, -d]]) {
+          if (index.isWaterAt(x + dx, z + dz)) { wet = true; break; }
+        }
+        if (wet) break;
+        clearTo = r;
       }
+      if (clearTo < 480) return;                          // open strand: sand, as it is
+      if (clearTo < 620 && rng() > 0.35) return;          // the back of the beach: tufts
       const straw = new THREE.Color(SEASON === 'winter' ? '#b8ad8c' : SEASON === 'fall' ? '#c2a86a' : '#a8a765').multiplyScalar(0.85 + rng() * 0.3);
       const blades = 6 + Math.floor(rng() * 4);
       for (let k = 0; k < blades; k++) {
