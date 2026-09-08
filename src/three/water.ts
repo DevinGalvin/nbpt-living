@@ -13,11 +13,55 @@ const WATER_Y = 1.6;
 // Ponds, reservoirs, pools and small unnamed bodies freeze solid in winter — you
 // can walk across them. Rivers, the Merrimack, tidal channels and the ocean stay
 // open water.
+// Tidal by neighbourhood: a boat basin, a marina cut, an embayment off the river is a
+// small water polygon with no telling name, and by size alone it reads as a pond — no
+// tide, a pond's colour, ice in winter — a blue blob in the middle of the marina. Any
+// small water polygon whose outline runs within 60 px of a tidal one is tidal too.
+// classifyWater() marks them once per world; both the water mesh and the ground painter
+// ask isFreezableWater() and get the same answer.
+const TIDAL_BY_TOUCH = new WeakSet<object>();
+let classified: object | null = null;
+export function classifyWater(world: { polys: { k: string; n?: string; p: number[] }[] }) {
+  if (classified === world) return;
+  classified = world;
+  const CELL = 64, R = 60;
+  const grid = new Map<string, true>();
+  const key = (x: number, y: number) => Math.floor(x / CELL) + ',' + Math.floor(y / CELL);
+  const water = world.polys.filter((p) => p.k === 'water' || p.k === 'ocean');
+  // the tidal outlines' vertices into a grid
+  const tidal = water.filter((p) => !isFreezableWater(p));
+  for (const p of tidal) for (let i = 0; i < p.p.length; i += 2) grid.set(key(p.p[i], p.p[i + 1]), true);
+  const near = (x: number, y: number) => {
+    for (let dx = -R; dx <= R; dx += CELL) for (let dy = -R; dy <= R; dy += CELL) if (grid.has(key(x + dx, y + dy))) return true;
+    return false;
+  };
+  for (const p of water) {
+    if (!isFreezableWater(p)) continue;
+    const n = p.n || '';
+    if (/\b(reservoir|pond|pool|lake)\b/i.test(n)) continue;   // a named pond by the river is still a pond
+    for (let i = 0; i < p.p.length; i += 2) if (near(p.p[i], p.p[i + 1])) { TIDAL_BY_TOUCH.add(p); break; }
+  }
+}
+
+// A small tidal body — a boat basin, a marina cut, an embayment off the river — is
+// dredged: it holds water at every tide. The DEM cannot know that (it reads the quay's
+// height across the whole basin), so the sea bed takes it from here.
+export function isDredgedWater(poly: { k?: string; n?: string; p: number[] }): boolean {
+  if (poly.k !== 'water' || isFreezableWater(poly)) return false;
+  let xn = 1e9, xx = -1e9, yn = 1e9, yx = -1e9;
+  for (let i = 0; i < poly.p.length; i += 2) {
+    const x = poly.p[i], y = poly.p[i + 1];
+    if (x < xn) xn = x; if (x > xx) xx = x; if (y < yn) yn = y; if (y > yx) yx = y;
+  }
+  return Math.max(xx - xn, yx - yn) < 1500;
+}
+
 export function isFreezableWater(poly: { k?: string; n?: string; p: number[] }): boolean {
   if (poly.k === 'ocean' || poly.k === 'fountain') return false;
+  if (TIDAL_BY_TOUCH.has(poly)) return false;
   const n = poly.n || '';
   if (/\b(reservoir|pond|pool|lake)\b/i.test(n)) return true;
-  if (/\b(river|creek|brook|gut|ocean|harbor|merrimack|channel|sound|bay|cove)\b/i.test(n)) return false;
+  if (/\b(river|creek|brook|gut|ocean|harbor|harbour|merrimack|channel|sound|bay|embayment|basin|marina|inlet|estuary|cove)\b/i.test(n)) return false;
   let xn = 1e9, xx = -1e9, yn = 1e9, yx = -1e9;
   for (let i = 0; i < poly.p.length; i += 2) {
     const x = poly.p[i], y = poly.p[i + 1];
@@ -47,6 +91,7 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
 
   const icePos: number[] = [];
   const frozen = SEASON === 'winter';
+  classifyWater(world);
   for (const poly of world.polys) {
     if (poly.k !== 'water' && poly.k !== 'ocean' && poly.k !== 'fountain') continue;
     const ice = frozen && isFreezableWater(poly);

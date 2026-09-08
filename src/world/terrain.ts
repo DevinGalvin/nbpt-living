@@ -78,7 +78,9 @@ export class Terrain {
     const w = this.w, h = this.h, d = this.data;
     const out = new Int16Array(d);
     const ring = new Uint8Array(w * h);
-    const isLand = (i: number) => !(mask[i] & 1) || d[i] > 2;
+    // a dredged basin (bit 4) is water whatever the DEM says of it: the grid is coarser
+    // than the quay, and reads the wall's height across the whole basin
+    const isLand = (i: number) => !(mask[i] & 1) || (d[i] > 2 && !(mask[i] & 4));
     const nb = (i: number, f: (j: number) => void) => {
       const x = i % w, y = (i - x) / w;
       if (x > 0) f(i - 1); if (x < w - 1) f(i + 1); if (y > 0) f(i - w); if (y < h - 1) f(i + w);
@@ -108,6 +110,8 @@ export class Terrain {
     // beyond the shelf the DEM's plateau (0 here, −1 m there) would read as a bed a
     // hand's breadth down; open water is deep, so say so
     for (let i = 0; i < w * h; i++) if (!ring[i] && !isLand(i)) out[i] = -80;
+    // …and a dredged basin holds five metres at the lowest tide
+    for (let i = 0; i < w * h; i++) if ((mask[i] & 4) && !isLand(i)) out[i] = Math.min(out[i], -40);
     d.set(out);
   }
 

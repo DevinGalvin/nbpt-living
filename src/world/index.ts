@@ -16,7 +16,7 @@ export function floatOutForWinter(ring: number[]): boolean {
   return Math.abs(a / 2) < 26000;
 }
 import { Terrain } from './terrain';
-import { isFreezableWater, WATER_Y } from '../three/water';
+import { isFreezableWater, classifyWater, WATER_Y } from '../three/water';
 
 // a bridge's structural plan, computed once per span and cached (see bridgeProfile):
 // the deck-TOP height profile plus the discrete supports that hold the slab up
@@ -359,6 +359,7 @@ export class WorldIndex {
   constructor(world: WorldData, terrain: Terrain) {
     this.world = world;
     this.terrain = terrain;
+    classifyWater(world);   // which small water is tidal by touch: the ground painter asks too
     world.pois.forEach((p, i) => {
       const key = Math.floor(p.x / CHUNK) + ',' + Math.floor(p.y / CHUNK);
       let list = this.poiBuckets.get(key);

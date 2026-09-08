@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { classifyWater, isDredgedWater } from './water';
 import type { Terrain } from '../world/terrain';
 import type { WorldData } from '../world/types';
 
@@ -39,7 +40,8 @@ function dilate(src: Uint8Array, w: number, h: number, r: number): Uint8Array {
 }
 
 /**
- * Which grid nodes lie under mapped water: bit 1 = any water, bit 2 = the sea. The
+ * Which grid nodes lie under mapped water: bit 1 = any water, bit 2 = the sea, bit 4 = a
+ * dredged basin (deep at every tide). The
  * polygons are rasterised once onto a canvas the size of the height grid.
  */
 export function waterMask(world: WorldData, terrain: Terrain): Uint8Array | null {
@@ -53,21 +55,26 @@ export function waterMask(world: WorldData, terrain: Terrain): Uint8Array | null
   ctx.scale(1 / g.spacing, 1 / g.spacing);
   ctx.translate(-g.x0, -g.y0);
   const trace = (ring: number[]) => { ctx.moveTo(ring[0], ring[1]); for (let i = 2; i < ring.length; i += 2) ctx.lineTo(ring[i], ring[i + 1]); ctx.closePath(); };
-  for (const pass of ['water', 'ocean'] as const) {
-    ctx.fillStyle = pass === 'ocean' ? '#ff0000' : '#00ff00';
-    ctx.beginPath();
+  classifyWater(world);
+  ctx.globalCompositeOperation = 'lighter';   // the passes add: a basin is water AND dredged
+  for (const pass of ['water', 'ocean', 'dredged'] as const) {
+    ctx.fillStyle = pass === 'ocean' ? '#ff0000' : pass === 'water' ? '#00ff00' : '#0000ff';
+    // one fill PER polygon: even-odd is for a polygon's own holes. Filling them all in one
+    // path made every overlap a hole — the boat basin lies inside the river's outline too,
+    // so it cancelled out and the DEM's quay height stood across it as a mud bank
     for (const poly of world.polys) {
-      if (poly.k !== pass) continue;
+      if (pass === 'dredged' ? !isDredgedWater(poly) : poly.k !== pass) continue;
+      ctx.beginPath();
       trace(poly.p);
       for (const h of poly.h ?? []) trace(h);
+      ctx.fill('evenodd');
     }
-    ctx.fill('evenodd');
   }
   const px = ctx.getImageData(0, 0, g.w, g.h).data;
   const mask = new Uint8Array(g.w * g.h);
   for (let i = 0; i < mask.length; i++) {
-    const r = px[i * 4], gg = px[i * 4 + 1];
-    mask[i] = (r > 127 || gg > 127 ? 1 : 0) | (r > 127 ? 2 : 0);
+    const r = px[i * 4], gg = px[i * 4 + 1], b = px[i * 4 + 2];
+    mask[i] = (r > 127 || gg > 127 ? 1 : 0) | (r > 127 ? 2 : 0) | (b > 127 ? 4 : 0);
   }
   return mask;
 }
@@ -140,6 +147,7 @@ export function fitShoreline(world: WorldData, terrain: Terrain, mask: Uint8Arra
       if (!nearShore[i]) continue;
       const inWater = (mask[i] & 1) !== 0;
       if (inWater && !seaLevelWater(i)) continue;
+      if (inWater && (mask[i] & 4)) continue;   // a dredged basin keeps the bed the bathymetry gave it
       const px = g.x0 + x * spacing, py = g.y0 + y * spacing;
       const d = Math.sqrt(distSq(px, py));
       if (d > REACH) continue;
