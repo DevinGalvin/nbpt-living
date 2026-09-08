@@ -2122,8 +2122,9 @@ function ribbonDeck(buckets: Bucket[], pts0: number[], w: number, topYAt: number
   const wood = new THREE.Color('#ffffff');
   const line = new THREE.Color('#c9a23e');                       // road center line
   const white = new THREE.Color('#e8e8e2');                      // lane / edge paint
-  const skirt = new THREE.Color(isRoad ? '#62656b' : '#8a8d92'); // bridge structure side
+  const skirt = new THREE.Color(isRoad ? '#8e9095' : '#8a8d92'); // bridge structure side: concrete, not shadow
   const rail = new THREE.Color(isRoad ? '#b8b3a6' : '#e3e0d6');  // guardrail
+  const parapet = new THREE.Color('#cfccc3');                     // the concrete barrier along a road deck's edge
   const topC = isRoad ? asphalt : wood;
 
   // ---- defenses first: dedupe (<1px repeats poison direction math), then trim ----
@@ -2290,10 +2291,20 @@ function ribbonDeck(buckets: Bucket[], pts0: number[], w: number, topYAt: number
           nsx, 0, nsz, skirt.r, skirt.g, skirt.b
         );
         if (nearMerge0 || nearMerge1) continue;
-        // top rail band + posts — reads as a real guardrail
+        // a concrete parapet along the edge — a light band 2.4 wide and 4 tall that reads
+        // from above, which is how a kid sees a bridge: the deck top is asphalt like the
+        // street beneath it, and without the light edges the span was a hump of road
+        {
+          const PW = 2.4, PH = 4.0;
+          const ix0 = eX[i] - nsx * PW, iz0 = eZ[i] - nsz * PW, ix1 = eX[j] - nsx * PW, iz1 = eZ[j] - nsz * PW;
+          surf.quad(eX[i], y0, eZ[i], eX[j], y1, eZ[j], eX[j], y1 + PH, eZ[j], eX[i], y0 + PH, eZ[i], nsx, 0, nsz, parapet.r * 0.92, parapet.g * 0.92, parapet.b * 0.92);   // outer face
+          surf.quad(ix1, y1, iz1, ix0, y0, iz0, ix0, y0 + PH, iz0, ix1, y1 + PH, iz1, -nsx, 0, -nsz, parapet.r * 0.86, parapet.g * 0.86, parapet.b * 0.86);           // inner face
+          surf.quad(ix0, y0 + PH, iz0, ix1, y1 + PH, iz1, eX[j], y1 + PH, eZ[j], eX[i], y0 + PH, eZ[i], 0, 1, 0, parapet.r, parapet.g, parapet.b);                          // top
+        }
+        // top rail band + posts over the parapet — reads as a real guardrail
         surf.quad(
-          eX[i], y0 + 3.4, eZ[i], eX[j], y1 + 3.4, eZ[j],
-          eX[j], y1 + 4.8, eZ[j], eX[i], y0 + 4.8, eZ[i],
+          eX[i], y0 + 5.4, eZ[i], eX[j], y1 + 5.4, eZ[j],
+          eX[j], y1 + 6.6, eZ[j], eX[i], y0 + 6.6, eZ[i],
           nsx, 0, nsz, rail.r, rail.g, rail.b
         );
         const posts = Math.max(1, Math.floor(len / 26));
@@ -2302,8 +2313,8 @@ function ribbonDeck(buckets: Bucket[], pts0: number[], w: number, topYAt: number
           const py = y0 + (y1 - y0) * t;
           const px2 = eX[i] + (eX[j] - eX[i]) * t, pz2 = eZ[i] + (eZ[j] - eZ[i]) * t;
           surf.quad(
-            px2 - ux * 0.6, py, pz2 - uz * 0.6, px2 + ux * 0.6, py, pz2 + uz * 0.6,
-            px2 + ux * 0.6, py + 3.4, pz2 + uz * 0.6, px2 - ux * 0.6, py + 3.4, pz2 - uz * 0.6,
+            px2 - ux * 0.6, py + 4, pz2 - uz * 0.6, px2 + ux * 0.6, py + 4, pz2 + uz * 0.6,
+            px2 + ux * 0.6, py + 5.4, pz2 + uz * 0.6, px2 - ux * 0.6, py + 5.4, pz2 - uz * 0.6,
             nsx, 0, nsz, rail.r * 0.88, rail.g * 0.88, rail.b * 0.88
           );
         }
@@ -10699,12 +10710,12 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     for (const p of sup.piers) {
       if (p.x < ox || p.x >= ox + CHUNK || p.z < oy || p.z >= oy + CHUNK) continue;
       if (inGillisRect(p.x, p.z)) continue; // the bascule fills the channel itself
-      orientedPost(buckets[PLAIN], p.x, p.z, p.ux, p.uz, 5, hw * 0.62, p.footY, p.topY, '#70737a');       // pier wall
-      orientedPost(buckets[PLAIN], p.x, p.z, p.ux, p.uz, 8, hw * 0.66, p.topY - 4, p.topY + 1, '#7c7f85'); // cap beam
+      orientedPost(buckets[PLAIN], p.x, p.z, p.ux, p.uz, 5, hw * 0.62, p.footY, p.topY, '#a3a5a9');       // pier wall: concrete, lit
+      orientedPost(buckets[PLAIN], p.x, p.z, p.ux, p.uz, 8, hw * 0.66, p.topY - 4, p.topY + 1, '#b1b3b6'); // cap beam
     }
     for (const a of sup.abut) {
       if (a.x < ox || a.x >= ox + CHUNK || a.z < oy || a.z >= oy + CHUNK) continue;
-      orientedPost(buckets[PLAIN], a.x, a.z, a.ux, a.uz, 15, hw * 0.95, a.footY, a.topY, '#666970');
+      orientedPost(buckets[PLAIN], a.x, a.z, a.ux, a.uz, 15, hw * 0.95, a.footY, a.topY, '#95979b');
     }
   }
   for (const pi of bucket.paths) {

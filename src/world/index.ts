@@ -666,7 +666,7 @@ export class WorldIndex {
       if (seen.has(ri)) continue;
       seen.add(ri);
       const r = w.roads[ri];
-      if (!['secondary', 'tertiary', 'residential', 'unclassified', 'living_street'].includes(r.c) || r.b || r.w < 24) continue;   // High Street has its poles too
+      if (!['secondary', 'tertiary', 'residential', 'unclassified', 'living_street'].includes(r.c) || r.b || (r.l ?? 0) > 0 || r.w < 24) continue;   // High Street has its poles too
       if (this.downtownRoad(ri)) continue;
       const side = hash32(ri) % 2 === 0 ? -1 : 1;   // the lamps' odd stops take the other side
       let k = 0;
@@ -1287,7 +1287,7 @@ export class WorldIndex {
     // pavement (its approaches); where the span flies, the street beneath keeps its own
     // paint — Route 1's lanes were drawn across Merrimac Street under the overpass,
     // and with the traffic riding the deck above, the cars read as parked in the street
-    const roads = bucket.roads.map((i) => w.roads[i]).flatMap((r) => (r.b ? this.flushRuns(r) : [r]))
+    const roads = bucket.roads.map((i) => w.roads[i]).flatMap((r) => (r.b || (r.l ?? 0) > 0 ? this.flushRuns(r) : [r]))
       .sort((a, b) => (ROAD_RANK[a.c] || 0) - (ROAD_RANK[b.c] || 0));
     // Sidewalks wherever there are houses to walk from. OSM maps a sidewalk on a
     // handful of streets; the town has one on nearly every built-up street, a granite
@@ -1314,7 +1314,7 @@ export class WorldIndex {
       const segs: number[] = [];
       for (const ri of bucket.roads) {
         const r = w.roads[ri];
-        if (!SIDE.has(r.c) || r.b || r.w < 24 || this.downtownRoad(ri)) continue;
+        if (!SIDE.has(r.c) || r.b || (r.l ?? 0) > 0 || r.w < 24 || this.downtownRoad(ri)) continue;
         const reach = (r.w / 2 + 130) ** 2;
         for (let i = 0; i + 3 < r.p.length; i += 2) {
           const ax = r.p[i], ay = r.p[i + 1], bx = r.p[i + 2], by = r.p[i + 3];
@@ -1404,7 +1404,7 @@ export class WorldIndex {
     // tar), and a grimy strip along each kerb where the sweeper never quite reaches
     if (SEASON !== 'winter') {
       for (const r of roads) {
-        if (r.w < 18 || r.b || r.c === 'service') continue;   // a parking aisle wears no visible tracks; on a lot they read as skid marks
+        if (r.w < 18 || r.b || (r.l ?? 0) > 0 || r.c === 'service') continue;   // a parking aisle wears no visible tracks; on a lot they read as skid marks
         const lanes = r.w >= 40 ? 4 : 2;
         const laneW = r.w / lanes;
         ctx.strokeStyle = 'rgba(0,0,0,0.085)';
@@ -2157,15 +2157,20 @@ export class WorldIndex {
       // a continuation seam (two compatible ways of the SAME street) is not a junction
       if (touching.length === 2 && ends.length === 2) {
         const [a, b] = ends.map((i) => roads[i]);
-        if (a.c === b.c && !!a.b === !!b.b && (a.l ?? 0) === (b.l ?? 0) && a.w === b.w) continue;
+        if (a.c === b.c && (!!a.b || (a.l ?? 0) > 0) === (!!b.b || (b.l ?? 0) > 0) && (a.l ?? 0) === (b.l ?? 0) && a.w === b.w) continue;
       }
       junctions.push({ x: +xs, y: +ys, r: Math.hypot(r1, r2) + 3, c: roads[widest].c });
     }
     // chains: walk maximal runs of compatible ways joined end-to-end at
     // degree-2 nodes (no third road passing through)
     const layerOf = (i: number) => roads[i].l != null ? roads[i].l! : (roads[i].b ? 1 : 0);
+    // an ELEVATED way is a bridge or a way on a positive layer: OSM tags the viaduct
+    // approach as layer=2 without bridge=yes (the Route 1 embankment over Merrimac
+    // Street), and a span whose approaches sit at grade drops its traffic to the
+    // street between decks. Both get a deck, and both chain together
+    const elevated = (i: number) => !!roads[i].b || (roads[i].l ?? 0) > 0;
     const compat = (a: number, b: number) =>
-      roads[a].c === roads[b].c && !!roads[a].b === !!roads[b].b && layerOf(a) === layerOf(b) && roads[a].w === roads[b].w;
+      roads[a].c === roads[b].c && elevated(a) === elevated(b) && layerOf(a) === layerOf(b) && roads[a].w === roads[b].w;
     const mergeableAt = (k: string, i: number): number => {
       const ends = endsAt.get(k) ?? [];
       const through = vertexRoads.get(k) ?? [];
@@ -2179,7 +2184,7 @@ export class WorldIndex {
     const bridge: { pts: number[]; w: number; w0: number; w1: number; c: string; l: number; bb: [number, number, number, number]; trim0: number; trim1: number; other0: number; other1: number }[] = [];
     const chainWays = new Map<number[], number[]>();   // chain pts -> exact member way indices (survives fusing)
     for (let i = 0; i < roads.length; i++) {
-      if (used.has(i) || !roads[i].b) continue;
+      if (used.has(i) || !elevated(i)) continue;
       // walk to the chain's start
       let cur = i, prevKey = kOf(roads[i].p[0], roads[i].p[1]);
       const seen = new Set([i]);
@@ -2218,7 +2223,7 @@ export class WorldIndex {
       const trimAt = (k: string): { t: number; other: number } => {
         let t = 0, other = -1;
         for (const ri of vertexRoads.get(k) ?? []) {
-          if (chainSeen.has(ri) || !roads[ri].b) continue;
+          if (chainSeen.has(ri) || !elevated(ri)) continue;
           if (roads[ri].w / 2 + 4 > t) { t = roads[ri].w / 2 + 4; other = ri; }
         }
         return { t, other };
@@ -2407,7 +2412,9 @@ export class WorldIndex {
   // tuning, so it holds for any town we load, not just Newburyport.
   static readonly UNDERPASS_CLEAR = 46;  // kid (33) + bike (7.5) + margin
   static readonly WATER_CLEAR = 38;      // lift over open water so boats pass beneath
-  private static readonly BRIDGE_RAMP = 150;
+  // 320: a clearance of 46 climbs at ~0.14, a highway grade; 150 was a 0.31 hump that
+  // read as a speed bump the size of a house (Route 1 over Merrimac Street)
+  private static readonly BRIDGE_RAMP = 320;
   // Steepest grade a deck may climb away from its approach height. UNDERPASS_CLEAR
   // over BRIDGE_RAMP is 46/150 ≈ 0.31, so this preserves an ordinary single
   // underpass tent exactly and only bites on lifts that were never rideable.
@@ -2505,7 +2512,7 @@ export class WorldIndex {
       }
     };
     for (const r of this.world.roads) {
-      consider(r.p, !!r.b, r.l != null ? r.l : (r.b ? 1 : 0));
+      consider(r.p, !!r.b || (r.l ?? 0) > 0, r.l != null ? r.l : (r.b ? 1 : 0));
     }
     for (const p of this.world.paths) {
       if (p.c !== 'pierline' && p.c !== 'stoneline') consider(p.p, !!p.b, p.l != null ? p.l : (p.b ? 1 : 0));
