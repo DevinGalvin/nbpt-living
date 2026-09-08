@@ -465,7 +465,7 @@ export class EggRunner {
       found: (id) => this.found(id),
       hearts: (x, y, z) => this.hearts(x, y, z),
       dogPos: () => this.dogPos(),
-      burst: (x, y, z, hex, n, pop, size, life) => this.burst(x, y, z, hex, n, pop, size, life)
+      burst: (x, y, z, hex, n, pop, size, life, spray) => this.burst(x, y, z, hex, n, pop, size, life, spray)
     });
 
     // statues: the unfound wait in the wild; the found already stand at home
@@ -795,7 +795,9 @@ export class EggRunner {
   /** a bark reaches the second drawer too: the cat, the seal, the plovers */
   bark(px: number, pz: number) { this.more.bark(px, pz); }
 
-  burst(x: number, y: number, z: number, hex: string, n = 50, withPop = true, size = 3.4, lifeMax = 1.7) {
+  // `spray` scales how hard the particles are thrown: 1 is the confetti burst this was
+  // written for, a fraction is a kick of water off the paws that stays near the ground
+  burst(x: number, y: number, z: number, hex: string, n = 50, withPop = true, size = 3.4, lifeMax = 1.7, spray = 1) {
     const pos = new Float32Array(n * 3);
     const vel: number[] = [];
     for (let i = 0; i < n; i++) {
@@ -804,8 +806,8 @@ export class EggRunner {
       pos[i * 3 + 2] = z;
       const a = Math.random() * Math.PI * 2;
       const b = Math.random() * Math.PI - Math.PI / 2;
-      const sp = 60 + Math.random() * 110;
-      vel.push(Math.cos(a) * Math.cos(b) * sp, Math.sin(b) * sp + 30, Math.sin(a) * Math.cos(b) * sp);
+      const sp = (60 + Math.random() * 110) * spray;
+      vel.push(Math.cos(a) * Math.cos(b) * sp, Math.sin(b) * sp + 30 * spray, Math.sin(a) * Math.cos(b) * sp);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));

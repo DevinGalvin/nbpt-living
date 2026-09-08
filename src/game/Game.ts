@@ -3310,8 +3310,13 @@ export class Game {
     if (!this.index.onPavedAt(this.px, this.pz)) return;
     this.puddleT -= dt;
     if (this.puddleT > 0) return;
-    this.puddleT = 0.2;
-    this.eggs?.burst(this.px, this.kidY + 3, this.pz, '#dfeaf2', 12, false, 2.2, 0.55);
+    this.puddleT = 0.3;
+    // A kick of water off the paws, not a firework. This was 12 droplets every 0.2 s at
+    // the confetti burst's own speed — 60–170 px/s over 0.55 s, so water flew ninety
+    // pixels (eleven metres) off the dog, and about thirty-three droplets hung in the air
+    // at once. Four droplets, a third as often gone, a third the throw: they hop off the
+    // paw, fall inside a stride, and are gone.
+    this.eggs?.burst(this.px, this.kidY + 2, this.pz, '#dfeaf2', 4, false, 1.8, 0.3, 0.3);
     // the print: a wet paw, alternating sides, laid just behind the kid on his heading
     if (!this.pawTex) {
       const c = document.createElement('canvas'); c.width = c.height = 32;

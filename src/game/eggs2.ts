@@ -92,7 +92,7 @@ type Host = {
   found(id: string): boolean;
   hearts(x: number, y: number, z: number): void;
   dogPos(): { x: number; z: number };
-  burst(x: number, y: number, z: number, hex: string, n: number, pop: boolean, size: number, life: number): void;
+  burst(x: number, y: number, z: number, hex: string, n: number, pop: boolean, size: number, life: number, spray?: number): void;
 };
 
 const lam = (hex: string) => new THREE.MeshLambertMaterial({ color: hex });
