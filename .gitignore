@@ -11,3 +11,6 @@ dist-*/
 # world.json, which DOES have to ship). Regenerate it with `npm run map:boston`;
 # the built world.json is committed, so nothing about the game depends on it.
 data/boston/raw/overpass.json
+
+# storefront photo cache (tools/fetch_facades.mjs)
+towns/*/facades/cache/

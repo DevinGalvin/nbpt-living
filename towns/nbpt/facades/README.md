@@ -43,3 +43,18 @@ with the ivory FOWLE'S panel and the neon, Richdale is red on white with the str
 awning, and so on. A photo of the same name replaces the look automatically. Entries
 say where the description came from; the ones marked "memory" are the ones most worth
 checking against a photo first.
+
+## The automatic route: Mapillary
+With the network open to `graph.mapillary.com` (and its image CDN) and a free token in
+`MAPILLARY_TOKEN`, one command does the whole job for every mapped business:
+
+    MAPILLARY_TOKEN=... npm run facades:fetch
+
+It finds each business's building and the wall its door is on, asks Mapillary for
+street-level photos within 45 m, keeps the one that looks at that wall most squarely
+from the street side, projects the wall's corners into the photo from the camera's
+position, heading and lens, pulls the wall flat, packs the atlas and writes the
+manifest and `ATTRIBUTION.md` (CC BY-SA 4.0, one credit per photographer). Re-run
+whenever coverage improves. `--dry` lists the walls; `--only="Name"` does one;
+`npm run facades:test` checks the geometry offline. Businesses the map does not name
+go in `targets.json` here as `{ "name", "at": [x, z] }`.

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Clipper Town — an all-ages adventure on the exact maps of real towns (Newburyport, Salem, …)",
+  "description": "Clipper Town \u2014 an all-ages adventure on the exact maps of real towns (Newburyport, Salem, \u2026)",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -38,7 +38,9 @@
     "build:charlestown": "tsc --noEmit && TOWN=charlestown vite build",
     "map:boston": "OSM_TILES=6x6 OSM_DELAY=5000 TOWN=boston npm run fetch-osm && TOWN=boston node --max-old-space-size=12288 tools/build_world.mjs && TOWN=boston npm run fetch-terrain",
     "dev:boston": "TOWN=boston vite",
-    "build:boston": "tsc --noEmit && TOWN=boston vite build"
+    "build:boston": "tsc --noEmit && TOWN=boston vite build",
+    "facades:fetch": "node tools/fetch_facades.mjs",
+    "facades:test": "node tools/test_facade_geom.mjs"
   },
   "dependencies": {
     "three": "^0.166.1"
@@ -47,6 +49,7 @@
     "@gltf-transform/cli": "^4.5.0",
     "@types/pngjs": "^6.0.5",
     "@types/three": "^0.166.0",
+    "jpeg-js": "^0.4.4",
     "pngjs": "^7.0.0",
     "typescript": "^5.5.0",
     "vite": "^5.4.0"
