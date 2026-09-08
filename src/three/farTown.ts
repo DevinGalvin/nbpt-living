@@ -104,7 +104,9 @@ export class FarTown {
     for (const idx of c.bIdx) this.box(idx, sink);
     const [kx, kz] = key.split(',').map(Number);
     for (const pi of c.pIdx) this.wood(pi, kx, kz, sink);
-    if (this.treesOf) this.trees(key, sink);
+    // a cell's trees are a garnish: if the planter throws for a cell at the map's edge, the
+    // cell still gets its boxes and woods
+    if (this.treesOf) { try { this.trees(key, sink); } catch { /* boxes and woods only */ } }
     if (!sink.pos.length) return;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(sink.pos, 3));

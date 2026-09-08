@@ -616,7 +616,7 @@ export class Game {
     for (const key of this.chunks.keys()) this.farTown.setLoaded(key, true);
     // every cell within reach of the spawn is built now, behind the loading screen: built
     // two a frame after the fade, the horizon assembled itself in front of the player
-    this.farTown.buildAround(this.px, this.pz);
+    try { this.farTown.buildAround(this.px, this.pz); } catch (e) { console.warn('far town prebuild failed, building lazily instead:', e); }
     this.farFog = !this.mobile && (!this.lowGPU || GFX.postForced);
     this.updateCamera(0, true);
 
