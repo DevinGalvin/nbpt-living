@@ -168,6 +168,18 @@ export class FarTown {
         // top
         s.pos.push(x0 - nx, y0, z0 - nz, x1 - nx, y1, z1 - nz, x1 + nx, y1, z1 + nz, x0 - nx, y0, z0 - nz, x1 + nx, y1, z1 + nz, x0 + nx, y0, z0 + nz);
         for (let k = 0; k < 6; k++) { s.nor.push(0, 1, 0); s.col.push(top[0], top[1], top[2]); }
+        // the paint: a centre line and the two edge lines, a hair above the top, so the
+        // lanes run on where the detailed deck hands over to this one
+        const stripe = (off: number, half: number, r: number, g: number, b: number) => {
+          const ux = nx / hw, uz = nz / hw;   // unit across
+          const ax = x0 + ux * off, az = z0 + uz * off, bx = x1 + ux * off, bz = z1 + uz * off;
+          const wx = ux * half, wz = uz * half;
+          s.pos.push(ax - wx, y0 + 0.3, az - wz, bx - wx, y1 + 0.3, bz - wz, bx + wx, y1 + 0.3, bz + wz, ax - wx, y0 + 0.3, az - wz, bx + wx, y1 + 0.3, bz + wz, ax + wx, y0 + 0.3, az + wz);
+          for (let k = 0; k < 6; k++) { s.nor.push(0, 1, 0); s.col.push(r, g, b); }
+        };
+        stripe(0, 0.8, 0.79, 0.64, 0.24);
+        stripe(hw - 4, 0.6, 0.9, 0.9, 0.88);
+        stripe(-(hw - 4), 0.6, 0.9, 0.9, 0.88);
         // fascias
         for (const sg of [1, -1]) {
           const ax = x0 + nx * sg, az = z0 + nz * sg, bx = x1 + nx * sg, bz = z1 + nz * sg;

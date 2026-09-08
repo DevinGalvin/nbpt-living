@@ -53,6 +53,10 @@ export class GillisBridge {
     // through the channel, recentre on their median, and size the span to the full width.
     const perpx = -uz, perpz = ux;
     let acMin = -52, acMax = 52;
+    // every carriageway through the channel: its across-offset and half-width. The whole
+    // bridge opens — each carriageway gets its own pair of leaves under the shared towers,
+    // so a divided crossing lifts both decks, with the median gap left open between them
+    const lanes: { c: number; hw: number }[] = [];
     for (const r of world.roads) {
       if (!r.b) continue;
       for (let i = 0; i + 1 < r.p.length; i += 2) {
@@ -61,11 +65,15 @@ export class GillisBridge {
         const across = dX * perpx + dZ * perpz, hw = (r.w + 4) / 2;
         acMin = Math.min(acMin, across - hw);
         acMax = Math.max(acMax, across + hw);
+        const near = lanes.find((l) => Math.abs(l.c - across) < hw);
+        if (near) { near.c = (near.c + across) / 2; near.hw = Math.max(near.hw, hw); } else lanes.push({ c: across, hw });
       }
     }
+    if (!lanes.length) lanes.push({ c: 0, hw: 52 });
     const acCenter = (acMin + acMax) / 2;
     cx += perpx * acCenter; cz += perpz * acCenter;            // recentre on the median
-    const HW = Math.max(52, Math.min(110, (acMax - acMin) / 2 + 4)); // half the FULL deck width
+    for (const l of lanes) l.c -= acCenter;
+    const HW = Math.max(52, Math.min(170, (acMax - acMin) / 2 + 4)); // half the FULL deck width
     const deckY = index.bridgeDeckYAt(pts, cx, cz);
 
     gillisCenter.x = cx; gillisCenter.z = cz;      // so decor.ts carves the gap here
@@ -80,10 +88,10 @@ export class GillisBridge {
     // ---- stone piers + green gantry towers at ±GAP ----
     for (const sgn of [-1, 1]) {
       const along = sgn * GAP;
-      const pier = box(36, deckY + 6, 122, STONE);
+      const pier = box(36, deckY + 6, HW * 2 + 14, STONE);
       pier.position.set(along, (deckY + 6) / 2, 0);
       this.root.add(pier);
-      const cap = box(44, 6, 130, STONE_D);
+      const cap = box(44, 6, HW * 2 + 22, STONE_D);
       cap.position.set(along, deckY + 1, 0);
       this.root.add(cap);
       // a green gantry portal: two posts at the deck edges + a top beam
@@ -109,38 +117,45 @@ export class GillisBridge {
 
     // ---- the two bascule leaves (asphalt deck + green trusses) ----
     // leafA: hinge at +GAP, body reaches in -X toward centre; leafB mirrors it.
-    const buildLeaf = (group: THREE.Group, hingeAlong: number, dirToCentre: number) => {
+    const buildLeaf = (group: THREE.Group, hingeAlong: number, dirToCentre: number, acr: number, hwL: number) => {
       group.position.set(hingeAlong, deckY, 0);
       this.root.add(group);
       const mid = dirToCentre * GAP / 2;     // body centre, group-local
       // road deck + green steel underside (the green shows when the leaf is up)
-      const deck = box(GAP, 3, HW * 2, ASPH);
-      deck.position.set(mid, -1.5, 0);
+      const deck = box(GAP, 3, hwL * 2, ASPH);
+      deck.position.set(mid, -1.5, acr);
       group.add(deck);
-      const under = box(GAP - 4, 6, HW * 2 - 8, GREEN);
-      under.position.set(mid, -5, 0);
+      const under = box(GAP - 4, 6, hwL * 2 - 8, GREEN);
+      under.position.set(mid, -5, acr);
       group.add(under);
-      // dashed-ish centre line
+      // the paint carries across the leaf: a centre line and the two edge lines
       const cl = box(GAP * 0.86, 0.6, 3, LINE);
-      cl.position.set(mid, 0.2, 0);
+      cl.position.set(mid, 0.2, acr);
       group.add(cl);
+      for (const side of [-1, 1]) {
+        const edge = box(GAP * 0.92, 0.5, 1.6, RAIL);
+        edge.position.set(mid, 0.2, acr + side * (hwL - 3));
+        group.add(edge);
+      }
       // green side trusses + a top chord + diagonals
       for (const side of [-1, 1]) {
         const girder = box(GAP, 7, 4, GREEN);
-        girder.position.set(mid, 3, side * HW);
+        girder.position.set(mid, 3, acr + side * hwL);
         group.add(girder);
         const chord = box(GAP, 4, 4, GREEN_D);
-        chord.position.set(mid, 11, side * HW);
+        chord.position.set(mid, 11, acr + side * hwL);
         group.add(chord);
         for (let k = 0; k <= 4; k++) {
           const post = box(2.5, 9, 2.5, GREEN);    // truss verticals along the leaf
-          post.position.set(dirToCentre * (k / 4) * GAP, 7, side * HW);
+          post.position.set(dirToCentre * (k / 4) * GAP, 7, acr + side * hwL);
           group.add(post);
         }
       }
     };
-    buildLeaf(this.leafA, GAP, -1);   // right leaf, body toward centre (-X)
-    buildLeaf(this.leafB, -GAP, 1);   // left leaf, body toward centre (+X)
+    for (const l of lanes) {
+      buildLeaf(this.leafA, GAP, -1, l.c, l.hw);   // right leaves, bodies toward centre (-X)
+      buildLeaf(this.leafB, -GAP, 1, l.c, l.hw);   // left leaves, bodies toward centre (+X)
+    }
 
     scene.add(this.root);
   }

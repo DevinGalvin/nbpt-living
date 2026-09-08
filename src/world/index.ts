@@ -2549,7 +2549,12 @@ export class WorldIndex {
           const u = ((cx - ax) * r1y - (cy - ay) * r1x) / den;
           if (s < 0 || s > 1 || u < 0 || u > 1) continue;
           const t = cum[i / 2] + s * Math.hypot(r1x, r1y);
-          if (t < 26 || t > total - 26) continue;          // bridge's own approaches
+          if (t < 26 || t > total - 26) continue;
+          // a crossing within 160 px of a GROUND end is the junction the deck is coming down
+          // to meet, not a road to pass over: a ramp's first node sits on the rotary's own ways,
+          // and clearing them lifted the deck 25 px within 80 px of its start — an end standing
+          // in the air over the road it joins. There is no room to clear anything there anyway
+          if ((!merge?.o0 && t < 220) || (!merge?.o1 && t > total - 220)) continue;          // bridge's own approaches
           const tu = (j / 2 === 0 && u < 0.04) || (j + 4 >= q.length && u > 0.96);
           if (tu) continue;                                 // ramp meeting the span
           const hx = ax + r1x * s, hy = ay + r1y * s;
@@ -2578,7 +2583,9 @@ export class WorldIndex {
       const wy = pts[seg * 2 + 1] + (pts[seg * 2 + 3] - pts[seg * 2 + 1]) * f;
       if (this.isWaterAt(wx, wy)) { if (d < ws) ws = d; if (d > we) we = d; }
     }
-    const water = we >= ws ? { s: ws, e: we } : undefined;
+    // a span shorter than 200 px is a culvert or a creek bridge: no lift for boats, or the
+    // whole deck is one hump between two flush ends
+    const water = we >= ws && total >= 200 ? { s: ws, e: we } : undefined;
     // Crossings get the SAME treatment the water span above already gets: one flat
     // run, not a wobbly point-tent each. A tent per crossing scalloped the deck —
     // Charlestown's interchange chains carry up to 22 crossings with gaps as small
