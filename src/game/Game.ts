@@ -19,6 +19,7 @@ import { Kid, Dog, Bike, Skateboard, buildKayak } from '../three/actors';
 import { Life } from './life';
 import { GillisBridge } from '../three/gillis';
 import { Hud, RACES_UI } from './hud';
+import { Diag } from './flickerDiag';
 import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
 import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
@@ -327,6 +328,7 @@ export class Game {
   // perf: weak/software GPU detected at startup; dynamic-resolution sampler state
   private lowGPU = false;
   private post: Post | null = null;   // desktop post stack (GTAO, bloom, grade); null on phones
+  private diag: Diag | null = null;   // 🩺 ?flicker=1 overlay: GPU facts, shader errors, a frame-diff map
   private hdrPath = false;            // true when the post stack will render (linear HDR accumulation)
   // touch/phone-class device: iOS Safari (and mobile browsers generally) impose a hard
   // per-tab memory cap and will silently reload — then crash — the page if it's exceeded.
@@ -811,6 +813,14 @@ export class Game {
         console.warn('post stack unavailable, rendering direct:', e);
         this.post = null;
       }
+    }
+    if (new URLSearchParams(location.search).get('flicker') === '1') {
+      this.diag = new Diag(this.renderer, {
+        build: (window as unknown as { __build?: string }).__build ?? '?',
+        post: !!this.post, lowGPU: this.lowGPU, mobile: this.mobile, antialias: !this.lowGPU,
+        shadowRes: GFX.shadowSize > 0 ? GFX.shadowSize : (this.lowGPU || this.mobile ? 1024 : 2048),
+        wind: GFX.wind, normalMaps: GFX.normalMaps, clouds: GFX.clouds, skyClouds: GFX.skyClouds
+      });
     }
     const onResize = () => {
       const c = this.renderer.domElement;
@@ -2847,6 +2857,7 @@ export class Game {
     const activeScene = this.inTunnel ? this.tunnel!.scene : this.interior ? this.interior.scene : this.scene;
     if (this.post) { this.post.setScene(activeScene); this.post.render(); }
     else this.renderer.render(activeScene, this.camera);
+    this.diag?.after(t, { zoom: +this.camZoom.toFixed(2), tod: +this.sky.tod.toFixed(3), fps: Math.round(dt > 0 ? 1 / dt : 0), chunks: this.chunks.size, res: +this.renderer.getPixelRatio().toFixed(2) });
 
     // 📸 A discovery photo has to be read in the SAME tick as the render that made
     // it — the drawing buffer is cleared before the next frame and we deliberately
@@ -3113,7 +3124,9 @@ export class Game {
       // reaches over a couple of seconds instead of the far bank blinking in
       // river fog pulls the reach right in: the far bank goes first, then the next block
       const mist = this.sky.state.mist;
-      if (mist > 0.001) { tn = tn * (1 - mist) + 60 * mist; tf = tf * (1 - mist) + 640 * mist; }
+      // thick enough to lose the far bank, thin enough to keep the next two blocks: a
+      // 60/640 reach was a wall you walked into
+      if (mist > 0.001) { tn = tn * (1 - mist) + 170 * mist; tf = tf * (1 - mist) + 1400 * mist; }
       const k = snap ? 1 : Math.min(1, dt * 1.2);
       fog.near += (tn - fog.near) * k;
       fog.far += (tf - fog.far) * k;

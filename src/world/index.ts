@@ -458,6 +458,10 @@ export class WorldIndex {
     const out: Tree[] = [];
     const cell = 96;
     const bucket = this.bucket(key);
+    // a beach neighbourhood (Plum Island, Salisbury): cottages on sand, and what grows
+    // between them is beach plum and bayberry, not a maple canopy — the scrub thins to
+    // low shrubs and the yard fill below is a few shrubs, never a wood
+    const beachy = this.nearBigBeach(ox, oy);
     // real surveyed trees first — they own their spots (but even surveyed points
     // drift: never render one in the water or on a ballfield)
     for (const ti of bucket.rtrees) {
@@ -476,8 +480,9 @@ export class WorldIndex {
     };
     for (const pi of bucket.polys) {
       const poly = this.world.polys[pi];
-      const d = density[poly.k];
+      let d = density[poly.k];
       if (!d) continue;
+      if (beachy && (poly.k === 'scrub' || poly.k === 'wood')) d *= poly.k === 'scrub' ? 0.4 : 0.6;
       const [bx0, by0, bx1, by1] = bboxOf(poly.p);
       const x0 = Math.max(ox, bx0), x1 = Math.min(ox + CHUNK, bx1);
       const y0 = Math.max(oy, by0), y1 = Math.min(oy + CHUNK, by1);
@@ -501,7 +506,8 @@ export class WorldIndex {
             // parks carry the town's oldest trees (Atkinson Common's beeches and oaks);
             // a wood has a few emergents over an even canopy
             const old = poly.k === 'park' ? 0.22 : 0.1;
-            const r = isReed ? 2.5 + rng() * 2 : isBush ? 5 + rng() * 4 : rng() < old ? 22 + rng() * 10 : 9 + rng() * 7;
+            // the wood on a barrier beach is pitch pine and scrub oak: short
+            const r = isReed ? 2.5 + rng() * 2 : isBush ? 5 + rng() * 4 : rng() < old && !beachy ? 22 + rng() * 10 : beachy ? 6 + rng() * 5 : 9 + rng() * 7;
             out.push({ x, y, r, bush: isBush, reed: isReed });
           }
         }
@@ -521,7 +527,7 @@ export class WorldIndex {
         for (let gy = Math.floor(oy / fillCell); gy * fillCell < oy + CHUNK && out.length < 1100; gy++) {
           for (let gx = Math.floor(ox / fillCell); gx * fillCell < ox + CHUNK && out.length < 1100; gx++) {
             const rng = mulberry32(hash32(gx, gy, 4242));
-            if (rng() > 0.9) continue;
+            if (rng() > (beachy ? 0.97 : 0.9)) continue;
             const x = gx * fillCell + rng() * fillCell;
             const y = gy * fillCell + rng() * fillCell;
             if (x < ox || x >= ox + CHUNK || y < oy || y >= oy + CHUNK) continue;
@@ -534,7 +540,7 @@ export class WorldIndex {
             if (this.onClearedGround(x, y, bucket)) continue;
             if (this.isWaterAt(x, y)) continue;
             if (nearReal(x, y)) continue;
-            const bush = rng() < 0.42;
+            const bush = beachy || rng() < 0.42;
             out.push({ x, y, r: bush ? 3.5 + rng() * 3.5 : 8 + rng() * 8, bush });
           }
         }
@@ -852,6 +858,22 @@ export class WorldIndex {
   // beside it: OSM often names the beach as a point while the strand itself is an
   // anonymous natural=sand (Good Harbor, Wingaersheek's west half, Pavilion Beach).
   // Named non-beach sand (Sand Knolls, Ipswich Bar, river flats) stays wild.
+  // the big strands' boxes, grown by 700 px: a chunk that meets one is beach country
+  private bigBeachBoxes: [number, number, number, number][] | null = null;
+  nearBigBeach(ox: number, oy: number): boolean {
+    if (!this.bigBeachBoxes) {
+      this.bigBeachBoxes = [];
+      for (const poly of this.world.polys) {
+        if (poly.k !== 'sand') continue;
+        const [x0, y0, x1, y1] = bboxOf(poly.p);
+        if ((x1 - x0) * (y1 - y0) < 3e5) continue;
+        this.bigBeachBoxes.push([x0 - 700, y0 - 700, x1 + 700, y1 + 700]);
+      }
+    }
+    for (const [x0, y0, x1, y1] of this.bigBeachBoxes) if (ox + CHUNK > x0 && ox < x1 && oy + CHUNK > y0 && oy < y1) return true;
+    return false;
+  }
+
   private beachSet: Set<number> | null = null;
   isBeachPoly(pi: number): boolean {
     if (!this.beachSet) {
