@@ -26,6 +26,10 @@ const LAST = 'nbpt-last-crash';   // the post-mortem, kept for the next session 
 export type DiagStats = { chunks: number; texMB: number; geoMB: number };
 export type CrashRecord = {
   town: string; secs: number; chunks: number; texMB: number; geoMB: number; ua: string; at: number;
+  /** the last thing that went wrong before the end: an uncaught error, a lost GL context */
+  err?: string;
+  /** how many frames the loop had drawn — a frozen picture with the tab alive stops this */
+  frames?: number;
 };
 
 const read = (k: string): CrashRecord | null => {
@@ -63,6 +67,7 @@ export function startCrashWatch(town: string, sample: () => DiagStats): CrashRec
       town, secs: Math.round((Date.now() - t0) / 1000),
       chunks: s.chunks, texMB: s.texMB, geoMB: s.geoMB,
       ua: navigator.userAgent.slice(0, 120), at: Date.now(),
+      ...crashExtras(),
     } satisfies CrashRecord);
   };
   beat();
@@ -75,6 +80,23 @@ export function startCrashWatch(town: string, sample: () => DiagStats): CrashRec
 }
 
 export function lastCrash(): CrashRecord | null { return read(LAST); }
+
+// Something went wrong that may be the end of the session: write it into the sentinel NOW,
+// not at the next 5 s beat, because a stuck main thread never reaches that beat. A frozen
+// picture with the HUD still standing is a dead frame loop or a lost GL context, and
+// neither leaves a trace of its own on a phone.
+let lastErr = '', lastErrAt = 0;
+export function noteCrashError(msg: string) {
+  const m = msg.slice(0, 220);
+  // a frame that throws every frame would write every frame: once a message, once a second
+  if (m === lastErr && Date.now() - lastErrAt < 1000) return;
+  lastErr = m; lastErrAt = Date.now();
+  const s = read(ALIVE);
+  if (s) { s.err = lastErr; write(ALIVE, s); }
+}
+let frameCount = 0;
+export function noteFrame() { frameCount++; }
+export function crashExtras(): { err?: string; frames: number } { return { err: lastErr || undefined, frames: frameCount }; }
 
 // `?diag` — an on-screen readout, so a phone can be measured without a cable and a Mac.
 // Safari's Web Inspector needs both; this needs a URL.
@@ -95,7 +117,7 @@ export function mountDiagOverlay(town: string, sample: () => DiagStats, crash: C
       + `geo    ${s.geoMB} MB\n`
       + (h ? `heap   ${h} MB\n` : 'heap   n/a (Safari)\n')
       + (crash
-        ? `\nLAST RUN CRASHED\n${crash.town} died at ${crash.secs}s\nchunks ${crash.chunks} · tex ${crash.texMB} MB`
+        ? `\nLAST RUN CRASHED\n${crash.town} died at ${crash.secs}s\nchunks ${crash.chunks} · tex ${crash.texMB} MB\nframes ${crash.frames ?? '?'}\nerr: ${crash.err ?? 'none recorded'}`
         : '\nlast run exited clean');
   };
   tick();

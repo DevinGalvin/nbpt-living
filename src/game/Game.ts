@@ -30,7 +30,7 @@ import { EggRunner } from './eggs';
 import { GameAudio } from './audio';
 import { townKey } from './saves';
 import { STYLE, SEASON } from '../world/style';
-import { startCrashWatch, mountDiagOverlay, heapMB, type DiagStats, type CrashRecord } from './diag';
+import { startCrashWatch, mountDiagOverlay, heapMB, noteCrashError, noteFrame, type DiagStats, type CrashRecord } from './diag';
 import { TOWN } from '@town';
 
 // World-only sandbox: towns without an authored curated layer run bare — no
@@ -328,7 +328,8 @@ export class Game {
   // perf: weak/software GPU detected at startup; dynamic-resolution sampler state
   private lowGPU = false;
   private post: Post | null = null;   // desktop post stack (GTAO, bloom, grade); null on phones
-  private diag: Diag | null = null;   // 🩺 ?flicker=1 overlay: GPU facts, shader errors, a frame-diff map
+  private diag: Diag | null = null;
+  private frameErrors = 0;   // 🩺 ?flicker=1 overlay: GPU facts, shader errors, a frame-diff map
   private hdrPath = false;            // true when the post stack will render (linear HDR accumulation)
   // touch/phone-class device: iOS Safari (and mobile browsers generally) impose a hard
   // per-tab memory cap and will silently reload — then crash — the page if it's exceeded.
@@ -871,7 +872,19 @@ export class Game {
       _THREE: THREE
     };
 
-    this.renderer.setAnimationLoop((t) => this.frame(t));
+    // One uncaught error in a frame used to end the game: three.js re-requests the next
+    // frame AFTER the callback, so a throw left the last picture standing with the HUD
+    // alive — a freeze, not a crash, and on a phone no way to see why. The frame is
+    // fenced: the error is written to the crash sentinel (readable on the next load with
+    // ?diag), reported once, and the loop goes on.
+    this.renderer.setAnimationLoop((t) => {
+      try { this.frame(t); noteFrame(); }
+      catch (e) {
+        this.frameErrors++;
+        noteCrashError('frame: ' + String((e as Error)?.stack ?? e));
+        if (this.frameErrors <= 3) console.error('[nbpt] frame error', e);
+      }
+    });
     document.getElementById('loading')?.style.setProperty('opacity', '0');
     setTimeout(() => document.getElementById('loading')?.remove(), 700);
 
@@ -957,6 +970,11 @@ export class Game {
   private startDiagnostics() {
     const sample = () => this.memStats();
     this.lastCrash = startCrashWatch(TOWN.id, sample);
+    // what the sentinel cannot see on its own: the last uncaught error, and a GL context
+    // the phone took away (the picture freezes, the page lives)
+    window.addEventListener('error', (e) => noteCrashError('error: ' + String(e.message)));
+    window.addEventListener('unhandledrejection', (e) => noteCrashError('rejection: ' + String((e as PromiseRejectionEvent).reason)));
+    this.renderer.domElement.addEventListener('webglcontextlost', () => noteCrashError('WEBGL CONTEXT LOST'));
     if (this.lastCrash) {
       console.warn('[nbpt] previous session was KILLED, not closed:', this.lastCrash);
     }
