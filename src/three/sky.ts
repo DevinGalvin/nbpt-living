@@ -238,9 +238,14 @@ export class Sky {
           // overhead: the clouds whose shadows cross the ground, mapped by world position
           float nearA = 0.0, cl = 0.0;
           vec2 uv = (vWorld.xz - uSunShift + uCloudOff) * uCloudScale;
+          // the edge comes from the SAME field that shades the puffs: with the edge on the
+          // broad read alone, each cloud sat inside a soft grey halo the shape of the
+          // broad blob, and the halos drifted like frames with the clouds inside them
+          float fineN = 0.0;
           if (ang > 0.06) {
             cl = texture2D(uCloudMap, uv).r;
-            nearA = smoothstep(0.47, 0.58, cl) * smoothstep(0.06, 0.16, ang);
+            fineN = texture2D(uCloudMap, uv * 3.1 + 0.37).r;
+            nearA = smoothstep(0.50, 0.60, cl * 0.62 + fineN * 0.38) * smoothstep(0.06, 0.16, ang);
           }
           // toward the horizon: banks of distant cloud, mapped by direction so they sit
           // at infinity and stack up the way a sky does
@@ -257,7 +262,7 @@ export class Sky {
           if (a < 0.01) discard;
           float useFar = step(nearA, farA);
           float v = mix(cl, fcl, useFar);
-          float fine = texture2D(uCloudMap, uv * 3.1 + 0.37).r;
+          float fine = fineN;
           // sunlit tops, flat shaded bellies: the fine read decides which part of a cloud this is
           float top = smoothstep(0.50, 0.85, v * 0.55 + fine * 0.45);
           vec3 c = mix(uShade, uLit, top);
@@ -453,7 +458,7 @@ export class Sky {
       const u = this.cloudMat.uniforms;
       const lit = u.uLit.value as THREE.Color, shade = u.uShade.value as THREE.Color;
       lit.setRGB(1, 1, 1).lerp(s.sunColor, 0.25 * tw).multiplyScalar(0.35 + 0.65 * day).lerp(zen, wet * 0.5);
-      shade.copy(zen).lerp(lit, 0.35).multiplyScalar(0.9);
+      shade.copy(zen).lerp(lit, 0.55).multiplyScalar(0.94);   // bellies a shade off the tops, not a grey
       (u.uCam.value as THREE.Vector3).copy(camPos);
       (u.uHaze.value as THREE.Color).copy(hor);
       const sy = Math.max(0.25, s.sunDir.y);

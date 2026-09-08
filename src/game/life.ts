@@ -495,12 +495,16 @@ class Signals {
 // Fireflies on summer and spring nights: forty points of yellow-green light over the
 // lawns and parks near the player, each blinking on its own clock and wandering a
 // little. Additive sprites on one material; by day, and on pavement, nothing.
-const FLIES = 40;
+const FLIES = 30;   // three clusters of ten
 class Fireflies {
   private flies: { s: THREE.Sprite; m: THREE.SpriteMaterial; x: number; z: number; y: number; ph: number; spd: number; alive: boolean }[] = [];
   private on = 0;
   private acc = 0;
+  private clusters: { x: number; z: number; y: number; alive: boolean }[] = [];
+  // a firefly night is a rare one: one summer evening in three
+  private readonly night = (() => { const d = new Date(); const doy = Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / 864e5); return doy % 3 === 1; })();
   constructor(scene: THREE.Scene) {
+    for (let i = 0; i < 3; i++) this.clusters.push({ x: 0, z: 1e7, y: 0, alive: false });
     for (let i = 0; i < FLIES; i++) {
       const m = new THREE.SpriteMaterial({ map: puffTexture(), color: '#d8ff6a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0, fog: false });
       const s = new THREE.Sprite(m);
@@ -511,27 +515,38 @@ class Fireflies {
     }
   }
   update(dt: number, t: number, px: number, pz: number, night: number, index: WorldIndex, grounded: (x: number, z: number) => number) {
-    const season = SEASON === 'summer' || SEASON === 'spring';
+    const season = (SEASON === 'summer' || SEASON === 'spring') && (this.night || (typeof location !== 'undefined' && location.search.includes('fireflies=1')));
     const want = season ? Math.max(0, Math.min(1, (night - 0.3) * 2.5)) : 0;
     this.on += (want - this.on) * Math.min(1, dt * 1.2);
     if (this.on < 0.02) { for (const f of this.flies) f.s.visible = false; return; }
-    // re-seat any fly that drifted out of range, a few a frame, on grass only
+    // fireflies keep to a few spots: two or three clusters on a patch of grass, not a
+    // scatter across the whole town. A cluster is seated once, on grass, away from the
+    // paving, and its flies wander round it; a cluster too far behind you moves on
     this.acc += dt;
-    let budget = 3;
-    for (const f of this.flies) {
-      const far = (f.x - px) ** 2 + (f.z - pz) ** 2 > 520 * 520;
-      if ((far || !f.alive) && budget > 0) {
-        budget--;
-        const a = Math.random() * Math.PI * 2, d = 80 + Math.random() * 400;
+    for (let ci = 0; ci < this.clusters.length; ci++) {
+      const c = this.clusters[ci];
+      const far = (c.x - px) ** 2 + (c.z - pz) ** 2 > 700 * 700;
+      if (c.alive && !far) continue;
+      c.alive = false;
+      for (let tries = 0; tries < 6 && !c.alive; tries++) {
+        const a = Math.random() * Math.PI * 2, d = 160 + Math.random() * 380;
         const x = px + Math.sin(a) * d, z = pz + Math.cos(a) * d;
-        if (index.isBlocked(x, z) || index.isWaterAt(x, z) || index.onPavedAt(x, z)) { f.alive = false; f.s.visible = false; continue; }
-        f.x = x; f.z = z; f.y = grounded(x, z); f.alive = true;
+        if (index.isBlocked(x, z) || index.isWaterAt(x, z) || index.onPavedAt(x, z)) continue;
+        // room round it, so the swarm is over a lawn and not a hedge
+        if (index.isBlocked(x + 24, z) || index.isBlocked(x - 24, z) || index.isBlocked(x, z + 24) || index.isBlocked(x, z - 24)) continue;
+        c.x = x; c.z = z; c.y = grounded(x, z); c.alive = true;
       }
-      if (!f.alive) continue;
+    }
+    const per = Math.floor(this.flies.length / this.clusters.length);
+    for (let i = 0; i < this.flies.length; i++) {
+      const f = this.flies[i];
+      const c = this.clusters[Math.min(this.clusters.length - 1, Math.floor(i / per))];
+      if (!c.alive) { f.s.visible = false; continue; }
       const tt = t * 0.001 * f.spd + f.ph;
-      // a slow wander and a blink: bright for a moment, dark for longer
+      // a slow wander round the cluster and a blink: bright for a moment, dark for longer
       const blink = Math.max(0, Math.sin(tt * 2.2) - 0.55) / 0.45;
-      f.s.position.set(f.x + Math.sin(tt * 0.7) * 6, f.y + 5 + Math.sin(tt * 1.1) * 3, f.z + Math.cos(tt * 0.9) * 6);
+      const rr = 14 + (i % 5) * 5;
+      f.s.position.set(c.x + Math.sin(tt * 0.5 + f.ph) * rr, c.y + 4 + Math.sin(tt * 1.1) * 3 + (i % 3), c.z + Math.cos(tt * 0.45 + f.ph) * rr);
       f.s.visible = blink > 0.01;
       f.m.opacity = this.on * blink * 0.9;
     }

@@ -11522,7 +11522,9 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (SEASON === 'winter') {
         bareTree(buckets[PLAIN], t.x, canopyY - t.r * 0.3, t.y, t.r * 1.15, h1 | 1);
       } else {
-        const wind = GFX.wind ? (t.r > 18 ? 0.55 : 0.8) : 0;
+        // a breeze, not a gale: at 0.55/0.8 a standing kid watched every crown shimmer
+        // against its own shadow all day; the crowns still move, the edges hold
+        const wind = GFX.wind ? (t.r > 18 ? 0.28 : 0.4) : 0;
         blobCanopy(buckets[PLAIN], t.x, canopyY, t.y, t.r * 1.12, c, h1 | 1, wind);
         const j = ((h1 >> 12) % 100) / 100 - 0.5;
         blobCanopy(buckets[PLAIN], t.x + j * t.r * 0.9, canopyY + t.r * 0.5, t.y - Math.abs(j) * t.r * 0.5, t.r * 0.7, c.clone().multiplyScalar(1.1), (h1 >> 2) | 1, wind);

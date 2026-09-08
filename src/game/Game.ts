@@ -488,7 +488,7 @@ export class Game {
     this.sun.shadow.camera.near = 100;
     this.sun.shadow.camera.far = 4000;
     this.sun.shadow.bias = -0.0004;
-    this.sun.shadow.normalBias = 3;
+    this.sun.shadow.normalBias = 4;   // 3 let swaying crowns shadow themselves in a flicker
     this.sun.shadow.camera.updateProjectionMatrix();
     this.scene.add(this.hemi, this.sun, this.sun.target, this.player.root);
     if (this.dog) this.scene.add(this.dog.root);
@@ -610,6 +610,9 @@ export class Game {
     // the far town: boxes for every building, visible wherever the detailed chunk is not
     this.farTown = new FarTown(world, terrain, this.scene);
     for (const key of this.chunks.keys()) this.farTown.setLoaded(key, true);
+    // every cell within reach of the spawn is built now, behind the loading screen: built
+    // two a frame after the fade, the horizon assembled itself in front of the player
+    this.farTown.buildAround(this.px, this.pz);
     this.farFog = !this.mobile && (!this.lowGPU || GFX.postForced);
     this.updateCamera(0, true);
 
@@ -1035,7 +1038,10 @@ export class Game {
     // impostor patch sitting right beside you. One forward-biased square is gap-free by construction;
     // reach/ahead are clamped so a max zoom-out can't balloon the live chunk set (and OOM phones).
     const decorOnly = this.mobile && this.flying;
-    const reach = Math.max(1000, Math.min(2400, 1280 * z));   // half-extent of the loaded square
+    // a desktop streams its square out to 3200 so the swap from stand-in to detail
+    // happens in the haze rather than in plain view (its far fog is twice a phone's)
+    const reachCap = this.mobile ? 2400 : 3200;
+    const reach = Math.max(1000, Math.min(reachCap, 1280 * z));   // half-extent of the loaded square
     const ahead = Math.max(500, Math.min(1200, 1000 * z));    // bias it toward where you're looking
     const centers: [number, number, number][] = this.flying
       ? (this.mobile
@@ -1073,7 +1079,7 @@ export class Game {
       });
       // build the flight corridor briskly; decor-only chunks (phone flight) are cheap, so the
       // ground texture churn that forced a gentle budget is gone
-      let budget = this.flying ? 4 : 2;
+      let budget = this.flying ? 4 : this.mobile ? 2 : 3;
       while (budget-- > 0 && this.pending.length) this.buildChunk(this.pending.shift()!, decorOnly);
     }
     // Evict farthest. Desktop flight keeps a big working set (no streaming-in "render" show);
@@ -1091,7 +1097,7 @@ export class Game {
     // any instant — the only cost is a rebuild when you double back over your own tracks.
     // ⚠️ Do not push this below 66: under the 64 the square can hold, every frame evicts a chunk
     // it is about to rebuild.
-    const cap = this.flying ? (this.mobile ? 90 : 200) : this.mobile ? 70 : 110;
+    const cap = this.flying ? (this.mobile ? 90 : 200) : this.mobile ? 70 : 160;   // 160: the 3200 desktop square holds up to 81
     while (this.chunks.size > cap) {
       let worstKey = '', worstD = -1;
       for (const key of this.chunks.keys()) {

@@ -70,6 +70,14 @@ export class FarTown {
     if (c.mesh) c.mesh.visible = !loaded;
   }
 
+  /** build every unbuilt cell within reach of (px, pz) right now — for the load, before the first frame */
+  buildAround(px: number, pz: number) {
+    for (const [key, c] of this.cells) {
+      if (c.built) continue;
+      if (Math.hypot(c.cx - px, c.cz - pz) < REACH) this.build(c, key);
+    }
+  }
+
   /** build a couple of the nearest unbuilt cells within reach; call once a frame */
   tick(px: number, pz: number) {
     let n = 0;
