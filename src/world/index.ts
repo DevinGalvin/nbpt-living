@@ -2157,7 +2157,8 @@ export class WorldIndex {
       // a continuation seam (two compatible ways of the SAME street) is not a junction
       if (touching.length === 2 && ends.length === 2) {
         const [a, b] = ends.map((i) => roads[i]);
-        if (a.c === b.c && (!!a.b || (a.l ?? 0) > 0) === (!!b.b || (b.l ?? 0) > 0) && (a.l ?? 0) === (b.l ?? 0) && a.w === b.w) continue;
+        const ea = !!a.b || (a.l ?? 0) > 0, eb = !!b.b || (b.l ?? 0) > 0;
+        if (a.c === b.c && ea === eb && (ea || (a.l ?? 0) === (b.l ?? 0)) && a.w === b.w) continue;
       }
       junctions.push({ x: +xs, y: +ys, r: Math.hypot(r1, r2) + 3, c: roads[widest].c });
     }
@@ -2169,14 +2170,43 @@ export class WorldIndex {
     // Street), and a span whose approaches sit at grade drops its traffic to the
     // street between decks. Both get a deck, and both chain together
     const elevated = (i: number) => !!roads[i].b || (roads[i].l ?? 0) > 0;
+    // the layer NUMBER is not part of compatibility between two elevated ways: OSM changes it
+    // where a ramp splits off the same physical road (the Gillis span is layer 2, its
+    // approach layer 1, the viaduct beyond layer 2 again), and a chain broken there is
+    // three decks meeting end to end with trims and gaps between them
     const compat = (a: number, b: number) =>
-      roads[a].c === roads[b].c && elevated(a) === elevated(b) && layerOf(a) === layerOf(b) && roads[a].w === roads[b].w;
+      roads[a].c === roads[b].c && elevated(a) === elevated(b) && (elevated(a) || layerOf(a) === layerOf(b)) && roads[a].w === roads[b].w;
+    // the direction a way runs INTO its body from node k
+    const dirFrom = (j: number, k: string): [number, number] => {
+      const q = roads[j].p;
+      const atStart = kOf(q[0], q[1]) === k;
+      const dx = atStart ? q[2] - q[0] : q[q.length - 4] - q[q.length - 2];
+      const dz = atStart ? q[3] - q[1] : q[q.length - 3] - q[q.length - 1];
+      const l = Math.hypot(dx, dz) || 1;
+      return [dx / l, dz / l];
+    };
     const mergeableAt = (k: string, i: number): number => {
       const ends = endsAt.get(k) ?? [];
       const through = vertexRoads.get(k) ?? [];
-      if (ends.length !== 2 || through.length !== 2) return -1;
-      const other = ends[0] === i ? ends[1] : ends[0];
-      return other !== i && compat(i, other) ? other : -1;
+      if (through.length !== ends.length) return -1;   // a way passes through k: a crossing
+      if (ends.length === 2) {
+        const other = ends[0] === i ? ends[1] : ends[0];
+        return other !== i && compat(i, other) ? other : -1;
+      }
+      // a FORK on an elevated road (a ramp peeling off the Gillis span): the road itself
+      // continues through the node into the one compatible way that runs on straight,
+      // and only the ramp starts a chain of its own. Cut here, the span and its approach
+      // were two decks trimmed back from the fork with open air between them
+      if (!elevated(i) || ends.length < 3) return -1;
+      const [ix, iz] = dirFrom(i, k);
+      let best = -1, bestCos = -0.85;
+      for (const j of ends) {
+        if (j === i || !compat(i, j)) continue;
+        const [jx, jz] = dirFrom(j, k);
+        const c = ix * jx + iz * jz;      // −1: the way runs straight on from i
+        if (c < bestCos) { bestCos = c; best = j; }
+      }
+      return best;
     };
     const used = new Set<number>();
     // w0/w1: deck width AT each end — fused decks taper back to the real road width
@@ -2220,11 +2250,24 @@ export class WorldIndex {
       // merge-end trim: if a chain END touches another BRIDGE way (ramp joins a
       // span), pull this deck back to that deck's edge so caps/rails don't
       // slice across its surface
-      const trimAt = (k: string): { t: number; other: number } => {
+      // the pull-back runs ALONG this deck to where it leaves the other deck's edge: a ramp
+      // that tees in square needs the other's half-width, one that merges at fifteen
+      // degrees needs nearly four times that — trimmed square, it stopped short of the
+      // deck it was joining and left a gap of open air between them
+      const trimAt = (k: string, dx: number, dz: number): { t: number; other: number } => {
         let t = 0, other = -1;
+        const dl = Math.hypot(dx, dz) || 1;
         for (const ri of vertexRoads.get(k) ?? []) {
           if (chainSeen.has(ri) || !elevated(ri)) continue;
-          if (roads[ri].w / 2 + 4 > t) { t = roads[ri].w / 2 + 4; other = ri; }
+          const q = roads[ri].p;
+          const atStart = kOf(q[0], q[1]) === k;
+          const ox2 = atStart ? q[2] - q[0] : q[q.length - 2] - q[q.length - 4];
+          const oz2 = atStart ? q[3] - q[1] : q[q.length - 1] - q[q.length - 3];
+          const ol = Math.hypot(ox2, oz2) || 1;
+          const sinT = Math.abs((dx * oz2 - dz * ox2) / (dl * ol));
+          const base = roads[ri].w / 2 + 4;
+          const tt = Math.min(base * 3.6, base / Math.max(sinT, 0.28));
+          if (tt > t) { t = tt; other = ri; }
         }
         return { t, other };
       };
@@ -2233,10 +2276,12 @@ export class WorldIndex {
         if (pts[j] < bx0) bx0 = pts[j]; if (pts[j] > bx1) bx1 = pts[j];
         if (pts[j + 1] < by0) by0 = pts[j + 1]; if (pts[j + 1] > by1) by1 = pts[j + 1];
       }
-      const m0 = trimAt(kOf(pts[0], pts[1]));
-      const m1 = trimAt(kOf(pts[pts.length - 2], pts[pts.length - 1]));
+      const m0 = trimAt(kOf(pts[0], pts[1]), pts[2] - pts[0], pts[3] - pts[1]);
+      const m1 = trimAt(kOf(pts[pts.length - 2], pts[pts.length - 1]), pts[pts.length - 2] - pts[pts.length - 4], pts[pts.length - 1] - pts[pts.length - 3]);
+      let lMax = layerOf(i);
+      for (const ri of chainSeen) lMax = Math.max(lMax, layerOf(ri));
       bridge.push({
-        pts, w: roads[i].w, w0: roads[i].w, w1: roads[i].w, c: roads[i].c, l: layerOf(i), bb: [bx0, by0, bx1, by1],
+        pts, w: roads[i].w, w0: roads[i].w, w1: roads[i].w, c: roads[i].c, l: lMax, bb: [bx0, by0, bx1, by1],
         trim0: m0.t, trim1: m1.t, other0: m0.other, other1: m1.other,
       });
       chainWays.set(pts, [...chainSeen]);
@@ -2263,9 +2308,12 @@ export class WorldIndex {
       const find = (i: number): number => { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
       for (let a = 0; a < bridge.length; a++) for (let b = a + 1; b < bridge.length; b++) {
         const A = bridge[a], B = bridge[b];
-        if (A.c !== B.c || A.l !== B.l || !bboxHit(A, B, (A.w + B.w) / 2)) continue;
+        // a dual carriageway is two ways of the SAME width riding together; a narrower ramp
+        // that peels off is not, and fusing one made a 199 px slab with a wing on it at the
+        // Gillis approach
+        if (A.c !== B.c || A.l !== B.l || A.w !== B.w || !bboxHit(A, B, (A.w + B.w) / 2)) continue;
         const short = A.pts.length <= B.pts.length ? A : B, long = short === A ? B : A;
-        if (overlapFrac(short, long) >= 0.5) parent[find(a)] = find(b);   // parallel & overlapping ⇒ same deck
+        if (overlapFrac(short, long) >= 0.75) parent[find(a)] = find(b);   // parallel & overlapping ⇒ same deck
       }
       const groups = new Map<number, number[]>();
       for (let i = 0; i < bridge.length; i++) { const r = find(i); let g = groups.get(r); if (!g) groups.set(r, g = []); g.push(i); }
@@ -2579,6 +2627,9 @@ export class WorldIndex {
     }
     // abutments seat the deck ends into the banks (close any gap at the lower bank)
     for (const tEnd of [Math.min(20, total / 2), Math.max(total - 20, total / 2)]) {
+      // an end that lands on another deck has no bank to seat into — an abutment there
+      // stood up through the other deck as a grey wall
+      if (tEnd < total / 2 ? !prof.ground0 : !prof.ground1) continue;
       const [x, z, ux, uz] = xzAtT(tEnd);
       const topY = this.deckHeightAtT(prof, tEnd) - T;
       const footY = this.terrain.heightAt(x, z) - 6;

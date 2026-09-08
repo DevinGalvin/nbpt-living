@@ -612,7 +612,8 @@ export class Game {
     this.ensureRect(true);
     this.impostor = this.buildImpostor();   // low-res whole-map LOD under the chunks (kills the yellow pop-in)
     // the far town: boxes for every building, visible wherever the detailed chunk is not
-    this.farTown = new FarTown(world, terrain, this.scene, this.mobile ? undefined : (k) => this.index.treesFor(k).concat(this.index.extraPlantingsFor(k)));
+    this.farTown = new FarTown(world, terrain, this.scene, this.mobile ? undefined : (k) => this.index.treesFor(k).concat(this.index.extraPlantingsFor(k)),
+      () => this.index.roadChains().bridge.map((ch) => ({ pts: ch.pts, w: ch.w, yAt: (x: number, z: number) => this.index.bridgeDeckYAt(ch.pts, x, z) })));
     for (const key of this.chunks.keys()) this.farTown.setLoaded(key, true);
     // every cell within reach of the spawn is built now, behind the loading screen: built
     // two a frame after the fade, the horizon assembled itself in front of the player

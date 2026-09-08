@@ -36,7 +36,11 @@ export class FarTown {
   // the trees of a far cell, when the tier can afford them (a desktop): the town is
   // full of trees, and a horizon of bare green with boxes on it read as unrendered
   constructor(private world: WorldData, private terrain: Terrain, private scene: THREE.Scene,
-              private treesOf?: (key: string) => { x: number; y: number; r: number; bush?: boolean; reed?: boolean }[]) {
+              private treesOf?: (key: string) => { x: number; y: number; r: number; bush?: boolean; reed?: boolean }[],
+              // the road bridges: a deck's polyline, width and height function, so the far
+              // town carries a span at any distance — the Gillis Bridge used to stop dead at
+              // the edge of the detailed chunks and hang in the air
+              private decksOf?: () => { pts: number[]; w: number; yAt: (x: number, z: number) => number }[]) {
     if (!mat) mat = new THREE.MeshLambertMaterial({ vertexColors: true });
     // the canopy colour, a shade lighter than the near trees: at the horizon a wood is
     // its sunlit top, and a dark slab there reads as a black bar
@@ -107,6 +111,7 @@ export class FarTown {
     // a cell's trees are a garnish: if the planter throws for a cell at the map's edge, the
     // cell still gets its boxes and woods
     if (this.treesOf) { try { this.trees(key, sink); } catch { /* boxes and woods only */ } }
+    if (this.decksOf) { try { this.decks(kx, kz, sink); } catch { /* no far deck */ } }
     if (!sink.pos.length) return;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(sink.pos, 3));
@@ -144,6 +149,32 @@ export class FarTown {
       const tw = Math.max(1, t.r * 0.12), tr = 0.35, tg = 0.26, tb = 0.18;
       s.pos.push(t.x - tw, g, t.y, t.x + tw, g, t.y, t.x, base + 1, t.y, t.x, g, t.y - tw, t.x, g, t.y + tw, t.x, base + 1, t.y);
       for (let k = 0; k < 6; k++) { s.nor.push(0, 0.3, 1); s.col.push(tr, tg, tb); }
+    }
+  }
+
+  // a far deck: per segment whose midpoint lies in this cell, a top at deck height, a
+  // fascia each side, in the deck's own colours. No mitre; at this distance a hinge is a pixel
+  private decks(kx: number, kz: number, s: Sink) {
+    const inCell = (x: number, z: number) => Math.floor(x / CHUNK) === kx && Math.floor(z / CHUNK) === kz;
+    const top = [0.23, 0.24, 0.26], side = [0.56, 0.56, 0.58], T = 7;
+    for (const d of this.decksOf!()) {
+      const p = d.pts, hw = d.w / 2 + 2;
+      for (let i = 0; i + 3 < p.length; i += 2) {
+        const x0 = p[i], z0 = p[i + 1], x1 = p[i + 2], z1 = p[i + 3];
+        if (!inCell((x0 + x1) / 2, (z0 + z1) / 2)) continue;
+        const ex = x1 - x0, ez = z1 - z0, el = Math.hypot(ex, ez) || 1;
+        const nx = -ez / el * hw, nz = ex / el * hw;
+        const y0 = d.yAt(x0, z0), y1 = d.yAt(x1, z1);
+        // top
+        s.pos.push(x0 - nx, y0, z0 - nz, x1 - nx, y1, z1 - nz, x1 + nx, y1, z1 + nz, x0 - nx, y0, z0 - nz, x1 + nx, y1, z1 + nz, x0 + nx, y0, z0 + nz);
+        for (let k = 0; k < 6; k++) { s.nor.push(0, 1, 0); s.col.push(top[0], top[1], top[2]); }
+        // fascias
+        for (const sg of [1, -1]) {
+          const ax = x0 + nx * sg, az = z0 + nz * sg, bx = x1 + nx * sg, bz = z1 + nz * sg;
+          s.pos.push(ax, y0 - T, az, bx, y1 - T, bz, bx, y1, bz, ax, y0 - T, az, bx, y1, bz, ax, y0, az);
+          for (let k = 0; k < 6; k++) { s.nor.push(nx / hw * sg, 0, nz / hw * sg); s.col.push(side[0], side[1], side[2]); }
+        }
+      }
     }
   }
 
