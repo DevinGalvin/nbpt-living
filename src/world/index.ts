@@ -1283,7 +1283,12 @@ export class WorldIndex {
 
     for (const ri of bucket.rails) this.drawRail(ctx, w.rails[ri].p);
 
-    const roads = bucket.roads.map((i) => w.roads[i]).sort((a, b) => (ROAD_RANK[a.c] || 0) - (ROAD_RANK[b.c] || 0));
+    // a bridge road is painted on the ground only where its deck lies flush with the
+    // pavement (its approaches); where the span flies, the street beneath keeps its own
+    // paint — Route 1's lanes were drawn across Merrimac Street under the overpass,
+    // and with the traffic riding the deck above, the cars read as parked in the street
+    const roads = bucket.roads.map((i) => w.roads[i]).flatMap((r) => (r.b ? this.flushRuns(r) : [r]))
+      .sort((a, b) => (ROAD_RANK[a.c] || 0) - (ROAD_RANK[b.c] || 0));
     // Sidewalks wherever there are houses to walk from. OSM maps a sidewalk on a
     // handful of streets; the town has one on nearly every built-up street, a granite
     // kerb and a concrete slab, and their absence is what made a side street read as a
@@ -2903,6 +2908,29 @@ export class WorldIndex {
   // the streets that pass UNDER it, and with no second level to draw it on, the fence
   // must stop at the kerb. Bridge and layered roads are the ones passing over, so they
   // do not count here
+  // the stretches of a bridge road whose deck hugs the ground (within 8 px), as roads
+  // of their own; the flying stretches are left out — they are the deck's to draw
+  private flushRuns(r: Road): Road[] {
+    const out: Road[] = [];
+    let run: number[] = [];
+    const flush = (x: number, y: number) => { const d = this.deckHeightAt(x, y); return d <= 0 || d - this.terrain.heightAt(x, y) < 8; };
+    const close = () => { if (run.length >= 4) out.push({ ...r, p: run }); run = []; };
+    for (let i = 0; i + 3 < r.p.length; i += 2) {
+      const x0 = r.p[i], y0 = r.p[i + 1], x1 = r.p[i + 2], y1 = r.p[i + 3];
+      const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.ceil(len / 24));
+      for (let k = 0; k < n; k++) {
+        const t0 = k / n, t1 = (k + 1) / n;
+        const mx = x0 + (x1 - x0) * (t0 + t1) / 2, my = y0 + (y1 - y0) * (t0 + t1) / 2;
+        if (flush(mx, my)) {
+          if (!run.length) run.push(x0 + (x1 - x0) * t0, y0 + (y1 - y0) * t0);
+          run.push(x0 + (x1 - x0) * t1, y0 + (y1 - y0) * t1);
+        } else close();
+      }
+    }
+    close();
+    return out;
+  }
+
   onGradeRoadAt(x: number, y: number): boolean {
     const b = this.bucket(Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK));
     for (const ri of b.roads) {
