@@ -10273,6 +10273,24 @@ function barrierRuns(index: WorldIndex, x0: number, z0: number, x1: number, z1: 
   return out;
 }
 
+
+// 🏖️ Where dune grass belongs. A beach is a beach: bare sand from the waterline back,
+// and grass on the DUNE — the ridge between the strand and whatever is behind it. The
+// ridge is the sand's own high ground: measured across Plum Island and Salisbury the
+// strand runs 6–40 px above sea level and every dune crest 42–68, so height alone tells
+// them apart, and it costs one sample. Returns 0 on the open beach, 1 on the ridge.
+function duneGrass(index: WorldIndex, x: number, z: number, g: number, beach: boolean): number {
+  if (index.isWaterAt(x, z)) return 0;
+  // the ridge, and its landward shoulder
+  if (g >= 40) return 1;
+  if (g >= 32) return beach ? 0 : 0.5;      // wild sand keeps a thin fringe below the crest
+  if (beach) return 0;                       // a groomed beach: open sand, and that is all
+  // wild flats: bare near the tide, a few tufts where the sand is dry
+  if (g < 24) return 0;
+  for (const [dx, dz] of [[240, 0], [-240, 0], [0, 240], [0, -240]]) if (index.isWaterAt(x + dx, z + dz)) return 0;
+  return 0.35;
+}
+
 // where the town tree stands: on the Mall's grass, off the pond, away from the paths
 let treeSpot: { x: number; z: number } | null | undefined;
 function holidayTreeSpot(world: WorldData, index: WorldIndex): { x: number; z: number } | null {
@@ -11605,23 +11623,9 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const clump = hash32(Math.floor(x / 150), Math.floor(z / 150), 23) % 100;
       if (clump > 45 && rng() > 0.06) return;
       const g = index.heightAtPx(x, z);
-      if (g < 24 || index.isBlocked(x, z) || index.isWaterAt(x, z)) return;
-      // How far is the sea? A strand is 400–700 px wide here, so a single 260 px ring
-      // called the middle of the beach "back dune" and grew grass over the whole of it.
-      // Walk outward in rings instead: bare sand until the water is 480 px away, thin
-      // tufts to 620, thick clumps beyond — grass at the back, beach on the beach.
-      let clearTo = 0;
-      for (const r of [200, 340, 480, 620]) {
-        const d = r * 0.7071;
-        let wet = false;
-        for (const [dx, dz] of [[r, 0], [-r, 0], [0, r], [0, -r], [d, d], [-d, d], [d, -d], [-d, -d]]) {
-          if (index.isWaterAt(x + dx, z + dz)) { wet = true; break; }
-        }
-        if (wet) break;
-        clearTo = r;
-      }
-      if (clearTo < 480) return;                          // open strand: sand, as it is
-      if (clearTo < 620 && rng() > 0.35) return;          // the back of the beach: tufts
+      if (index.isBlocked(x, z)) return;
+      const dune = duneGrass(index, x, z, g, index.isBeachPoly(pi));
+      if (dune <= 0 || rng() > dune) return;
       const straw = new THREE.Color(SEASON === 'winter' ? '#b8ad8c' : SEASON === 'fall' ? '#c2a86a' : '#a8a765').multiplyScalar(0.85 + rng() * 0.3);
       const blades = 6 + Math.floor(rng() * 4);
       for (let k = 0; k < blades; k++) {
@@ -11649,8 +11653,13 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     const beach = poly.k === 'sand' && index.isBeachPoly(pi);
     // dune grass: thick on wild dunes and back-shore sand, sparse tufts on the
     // groomed swimming beaches — towels want open sand
-    scatterInPoly(poly, pi + 313, 80, beach ? 0.14 : 0.5, ox, oy, (x, z, rng) => {
+    // NOTE: this used to scatter blades over the WHOLE polygon with no height or water
+    // test — hundreds of tufts evenly across the open strand, which read as marsh, not
+    // beach. It asks duneGrass() now, like the clump scatter above.
+    scatterInPoly(poly, pi + 313, 80, beach ? 0.5 : 0.55, ox, oy, (x, z, rng) => {
       const gg = index.heightAtPx(x, z);
+      const dune = duneGrass(index, x, z, gg, beach);
+      if (dune <= 0 || rng() > dune) return;
       const g = new THREE.Color('#b4ae72').multiplyScalar(0.85 + rng() * 0.3);
       const h = 7 + rng() * 5;
       buckets[PLAIN].quad(x - 4, gg, z, x + 4, gg, z, x + 2.5, gg + h, z, x - 2.5, gg + h, z, 0, 0, 1, g.r, g.g, g.b);
