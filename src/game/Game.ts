@@ -2632,6 +2632,12 @@ export class Game {
     this.hemi.color.copy(sky.hemiSky);
     this.hemi.groundColor.copy(sky.hemiGround);
     this.hemi.intensity = sky.hemiIntensity;
+    // The car kit is the only PBR in the scene, and it takes its ambient from
+    // scene.environment — the DAYLIGHT sky gradient baked once at startup (bright blue
+    // over near-white). Left at full strength it went on lighting every car, and the dog,
+    // with a noon sky all night, while the Lambert town around them went dark: the fleet
+    // read as self-lit. Fade the environment with the day and they sit in the night again.
+    this.scene.environmentIntensity = 1 - 0.88 * sky.night;
     (this.scene.fog as THREE.Fog).color.copy(sky.fog);
     this.renderer.setClearColor(sky.fog);
 
