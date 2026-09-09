@@ -3866,6 +3866,106 @@ function buildMill(buckets: Bucket[], b: Building, g: number, index: WorldIndex)
   void index;
 }
 
+// The Tannery, Merrimac Street — Mill #1–#5. PHOTO-VERIFIED (five photographs supplied by
+// Devin: the Beach Plum arcade, the Andaman Thai corner, Mill No. 2 & 3's East Gate, Mill
+// No. 4 at dusk, and Mill No. 3's long elevation).
+//
+// It is NOT the Towle-style mill buildMill() draws, which is why these were wrong: no
+// mansard tower, no four storeys of punched sash. What is actually there is an 1980s
+// adaptive reuse of the old leather-tannery shells, and the signature is TIMBER —
+//   · a dark red brick base, one tall storey, segmental-arched openings, shopfronts;
+//   · above it a HEAVY POST-AND-BEAM TIMBER FRAME with big glass panes between the
+//     members — a grid of stained wood and teal glass where a mill would have had brick;
+//   · massive round timber columns standing proud as an arcade along the street;
+//   · a continuous dark metal awning band over the shopfronts, string lights under it;
+//   · flat roofs, low parapets, and on the tallest a SET-BACK GLAZED PENTHOUSE (Mill No. 4);
+//   · a painted board high on the face: MILL No. 2, No. 3, Nº 4.
+// Two to three storeys, never four.
+function buildTannery(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const BRICKH = '#efe2d6';        // brickTex MULTIPLIES red — pale in, dark red out
+  const TIMBER = '#6b4430', TIMBER_D = '#553524';
+  const GLASS = '#5f8f95';         // the teal-green reflective glazing
+  const AWNING = '#31353a', PARAPET = '#7a6154';
+  const obb = obbOf(b.p);
+  const narrow = Math.min(obb.hl, obb.hw) * 2;
+  const storeys = narrow >= 560 ? 2 : 3;
+  const H0 = 27, HU = 21;                       // tall ground floor, then the glazed floors
+  const top = g + H0 + (storeys - 1) * HU;
+
+  walls(buckets[BRICK], b.p, g - 6, top, BRICKH);
+  walls(buckets[PLAIN], expandRing(b.p, 0.5), top, top + 3.5, PARAPET, 0);   // low parapet
+  flatRoof(buckets[PLAIN], b.p, top + 3.5, '#4f4a44');
+
+  const cG = new THREE.Color(GLASS), cT = new THREE.Color(TIMBER), cTD = new THREE.Color(TIMBER_D);
+  const cA = new THREE.Color(AWNING);
+  const v = ringToVec2(b.p);
+  // the longest edge is the street front: the arcade and the sign go there
+  let frontI = 0, frontLen = 0;
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i], c = v[(i + 1) % v.length];
+    const l = Math.hypot(c.x - a.x, c.y - a.y);
+    if (l > frontLen) { frontLen = l; frontI = i; }
+  }
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i], c = v[(i + 1) % v.length];
+    const len = Math.hypot(c.x - a.x, c.y - a.y);
+    if (len < 40) continue;
+    const ux = (c.x - a.x) / len, uy = (c.y - a.y) / len;
+    const nx = uy, nz = ux;                     // world outward normal
+    const mx = (a.x + c.x) / 2, my = (a.y + c.y) / 2;
+    const bays = Math.max(2, Math.round(len / 27));
+    const bayW = len / bays;
+    const P = buckets[PLAIN];
+
+    // ---- the glazed timber floors above the brick base ----
+    for (let f = 0; f < storeys - 1; f++) {
+      const yb = g + H0 + f * HU;
+      const yc = yb + HU / 2;
+      for (let k = 0; k < bays; k++) {
+        const t = -len / 2 + (k + 0.5) * bayW;
+        billboard(P, mx + ux * t, my + uy * t, nx, nz, ux, uy, bayW / 2 - 1.9, HU / 2 - 2.6, yc, 1.0, cG.r, cG.g, cG.b);
+      }
+      billboard(P, mx, my, nx, nz, ux, uy, len / 2, 1.9, yb + 1.4, 1.5, cT.r, cT.g, cT.b);      // the floor beam
+    }
+    billboard(P, mx, my, nx, nz, ux, uy, len / 2, 1.9, top - 1.8, 1.5, cT.r, cT.g, cT.b);       // the head beam
+    // the posts, running the full height of the glazed band
+    const yTop = top - 1.8, yBot = g + H0;
+    for (let k = 0; k <= bays; k++) {
+      const t = -len / 2 + k * bayW;
+      billboard(P, mx + ux * t, my + uy * t, nx, nz, ux, uy, 1.7, (yTop - yBot) / 2, (yTop + yBot) / 2, 1.6, cT.r, cT.g, cT.b);
+    }
+    // ---- the awning band over the shopfronts ----
+    billboard(P, mx, my, nx, nz, ux, uy, len / 2, 1.5, g + H0 - 4.5, 3.0, cA.r, cA.g, cA.b);
+
+    // ---- the arcade: heavy round timber columns proud of the street face ----
+    if (i === frontI) {
+      for (let k = 0; k <= bays; k++) {
+        const t = -len / 2 + k * bayW;
+        const wx = mx + ux * t + nx * 4.2, wz = -(my + uy * t) + nz * 4.2;
+        const oct: number[] = [];
+        for (let q = 0; q < 8; q++) { const ang = (q / 8) * Math.PI * 2; oct.push(wx + Math.cos(ang) * 3.1, wz + Math.sin(ang) * 3.1); }
+        walls(P, oct, g - 2, top - 3, q8(k) ? TIMBER : TIMBER_D, 0);
+      }
+      // the painted MILL No. board, high on the front
+      billboard(P, mx, my, nx, nz, ux, uy, 15, 4.2, top - 9, 4.6, 0.10, 0.13, 0.11);
+      billboard(P, mx, my, nx, nz, ux, uy, 12.5, 2.6, top - 9, 4.9, 0.86, 0.84, 0.76);
+    }
+  }
+  // shopfronts in the brick base
+  facades(buckets[PLAIN], b.p, g + H0, 1, 1878, true, false, true, g);
+  // string lights under the awning, the way the arcade is lit
+  stringLights(buckets[GLOW], expandRing(b.p, 3.4), g + H0 - 6.5);
+  // Mill No. 4's set-back glazed penthouse
+  if (storeys === 3) {
+    const ph = Math.min(obb.hl * 0.42, 46), pw = Math.min(obb.hw * 0.42, 34);
+    rotBox(buckets[PLAIN], obb.cx, obb.cz, ph, pw, top + 3.5, top + 20, obb.ang, GLASS);
+    rotBox(buckets[PLAIN], obb.cx, obb.cz, ph + 2.2, pw + 2.2, top + 20, top + 22.5, obb.ang, TIMBER_D);
+  }
+  void index;
+}
+// alternating column stain, so the colonnade is not one flat tone
+function q8(k: number): boolean { return (k & 1) === 0; }
+
 // Old South Presbyterian Church, 29 Federal St (1756) — the meetinghouse over a
 // hundred men raised in THREE DAYS, and the one George Whitefield is buried under:
 // his crypt is beneath the pulpit, which is what the 🏛 discovery card is about, so
@@ -9490,11 +9590,11 @@ const HEROES: Record<string, HeroBuilder> = {
   'First Presbyterian Church': buildOldSouth,   // Old South — Whitefield's crypt is under the pulpit
   'Timothy Dexter House': buildDexterHouse,     // named via nbpt nameFixes — OSM leaves 201 High St blank
   'USRC Massachusetts': revenueCutter,          // hull added in nbpt manualFeatures — see the uscg card
-  'Mill #1': buildMill,
-  'Mill #2': buildMill,
-  'Mill #3': buildMill,
-  'Mill #4': buildMill,
-  'Mill #5': buildMill,
+  'Mill #1': buildTannery,
+  'Mill #2': buildTannery,
+  'Mill #3': buildTannery,
+  'Mill #4': buildTannery,
+  'Mill #5': buildTannery,
   'James Steam Mill': buildMill,
   'Custom House Maritime Museum': buildCustomHouse,
   'Firehouse Center For The Arts': buildFirehouse,
