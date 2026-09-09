@@ -613,7 +613,13 @@ export class Game {
     this.impostor = this.buildImpostor();   // low-res whole-map LOD under the chunks (kills the yellow pop-in)
     // the far town: boxes for every building, visible wherever the detailed chunk is not
     this.farTown = new FarTown(world, terrain, this.scene, this.mobile ? undefined : (k) => this.index.treesFor(k).concat(this.index.extraPlantingsFor(k)),
-      () => this.index.roadChains().bridge.map((ch) => ({ pts: ch.pts, w: ch.w, yAt: (x: number, z: number) => this.index.bridgeDeckYAt(ch.pts, x, z) })));
+      () => this.index.roadChains().bridge.map((ch) => ({
+        pts: ch.pts, w: ch.w,
+        yAt: (x: number, z: number) => this.index.bridgeDeckYAt(ch.pts, x, z),
+        // the piers too: from across the river a deck with nothing under it is a dark
+        // line lying ON the water, not a span standing over it
+        piers: this.index.bridgeProfile(ch.pts).supports.piers.map((q) => ({ x: q.x, z: q.z, footY: q.footY, topY: q.topY })),
+      })));
     for (const key of this.chunks.keys()) this.farTown.setLoaded(key, true);
     // every cell within reach of the spawn is built now, behind the loading screen: built
     // two a frame after the fade, the horizon assembled itself in front of the player
@@ -3367,12 +3373,17 @@ export class Game {
       const k = Math.min(1, (2.6 - this.snowAngelT) / 0.35);
       root.rotation.z = Math.PI * k;
       root.position.y = this.kidY + 9 * k;
-      root.rotation.y += Math.sin(this.snowAngelT * 14) * 0.08;
+      // ASSIGN, never accumulate: `+=` here added a fresh wriggle on top of the last one
+      // every frame for 2.6 s, and the tidy-up below only cleared rotation.z — so the dog
+      // stood up with a few tenths of a radian of yaw baked into its root and ran sideways
+      // ever after. root.rotation.y is otherwise always 0 (the Player yaws its `heading`).
+      root.rotation.y = Math.sin(this.snowAngelT * 14) * 0.08;
       if (Math.random() < dt * 6) this.eggs?.burst(this.px, this.kidY + 6, this.pz, '#ffffff', 6, false, 2.4, 0.8);
       return;
     }
     // up again, and the shape left behind
     root.rotation.z = 0;
+    root.rotation.y = 0;
     root.position.y = this.kidY;
     if (!this.angelTex) {
       const c = document.createElement('canvas'); c.width = 96; c.height = 96;

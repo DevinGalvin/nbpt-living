@@ -40,7 +40,7 @@ export class FarTown {
               // the road bridges: a deck's polyline, width and height function, so the far
               // town carries a span at any distance — the Gillis Bridge used to stop dead at
               // the edge of the detailed chunks and hang in the air
-              private decksOf?: () => { pts: number[]; w: number; yAt: (x: number, z: number) => number }[]) {
+              private decksOf?: () => { pts: number[]; w: number; yAt: (x: number, z: number) => number; piers?: { x: number; z: number; footY: number; topY: number }[] }[]) {
     if (!mat) mat = new THREE.MeshLambertMaterial({ vertexColors: true });
     // the canopy colour, a shade lighter than the near trees: at the horizon a wood is
     // its sunlit top, and a dark slab there reads as a black bar
@@ -156,9 +156,24 @@ export class FarTown {
   // fascia each side, in the deck's own colours. No mitre; at this distance a hinge is a pixel
   private decks(kx: number, kz: number, s: Sink) {
     const inCell = (x: number, z: number) => Math.floor(x / CHUNK) === kx && Math.floor(z / CHUNK) === kz;
-    const top = [0.23, 0.24, 0.26], side = [0.56, 0.56, 0.58], T = 7;
+    const top = [0.23, 0.24, 0.26], side = [0.62, 0.62, 0.64], T = 7;
+    const pierC = [0.66, 0.66, 0.67];
     for (const d of this.decksOf!()) {
       const p = d.pts, hw = d.w / 2 + 2;
+      // the piers, as four-sided columns from their footing to the soffit
+      for (const q of d.piers ?? []) {
+        if (!inCell(q.x, q.z)) continue;
+        const r = Math.max(5, hw * 0.16);
+        const C: [number, number][] = [[q.x - r, q.z - r], [q.x + r, q.z - r], [q.x + r, q.z + r], [q.x - r, q.z + r]];
+        for (let i = 0; i < 4; i++) {
+          const a = C[i], b2 = C[(i + 1) % 4];
+          const ex = b2[0] - a[0], ez = b2[1] - a[1], el = Math.hypot(ex, ez) || 1;
+          const nx = ez / el, nz = -ex / el;
+          const sh = 0.8 + 0.2 * Math.max(0, nx * 0.35 + nz * 0.85);
+          s.pos.push(a[0], q.footY, a[1], b2[0], q.footY, b2[1], b2[0], q.topY, b2[1], a[0], q.footY, a[1], b2[0], q.topY, b2[1], a[0], q.topY, a[1]);
+          for (let k = 0; k < 6; k++) { s.nor.push(nx, 0, nz); s.col.push(pierC[0] * sh, pierC[1] * sh, pierC[2] * sh); }
+        }
+      }
       for (let i = 0; i + 3 < p.length; i += 2) {
         const x0 = p[i], z0 = p[i + 1], x1 = p[i + 2], z1 = p[i + 3];
         if (!inCell((x0 + x1) / 2, (z0 + z1) / 2)) continue;

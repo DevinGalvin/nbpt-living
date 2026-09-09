@@ -16,7 +16,14 @@ const NIGHT_ZEN = C('#243354'), NIGHT_HOR = C('#4d5f86');
 const DAY_ZEN = C('#5aa6e6'), DAY_HOR = C('#d2e7f3');
 const DUSK_ZEN = C('#3b3a66'), DUSK_HOR = C('#f0935a');
 const DAY_SUN = C('#fff3da'), DUSK_SUN = C('#ff9a4e');
-const NIGHT_HEMI_SKY = C('#4e5e8e'), NIGHT_HEMI_GND = C('#3a4150');
+// Night ambient. These are what actually fill the shadows after dark, and at #4e5e8e /
+// #3a4150 they were so deep that raising the light INTENSITIES barely moved the ground:
+// a big number times a nearly-black colour is still nearly black.
+const NIGHT_HEMI_SKY = C('#7181b4'), NIGHT_HEMI_GND = C('#4e5672');
+// …and the moon is not the dusk sun. sunColor sat on DUSK_SUN (#ff9a4e) all night, so the
+// one directional light in a night scene was saturated orange; a pale moonlight both reads
+// right and carries more luminance.
+const MOON = C('#c3d2f0');
 const DAY_HEMI_SKY = C('#dceeff'), DAY_HEMI_GND = C('#8a9a6c');
 const OVERCAST = C('#aab0b6');
 
@@ -25,8 +32,12 @@ const clamp = (v: number, lo: number, hi: number) => v < lo ? lo : v > hi ? hi :
 // Sun altitude over the day (tod 0..1 → elevation -1..1), hand-shaped so most of
 // the cycle is daytime + lingering golden sunrise/sunset, with only a brief,
 // shallow night (the dark is the least-loved part). Replaces a plain sine.
-const SUN_T = [0,    0.06, 0.14, 0.24, 0.30, 0.70, 0.76, 0.86, 0.94, 1.0];
-const SUN_E = [-0.3, 0.0,  0.2,  0.9,  1.0,  1.0,  0.9,  0.2,  0.0,  -0.3];
+// Measured across a full cycle: the ground sat at ~30 luminance at its darkest against
+// ~90 at noon, and 18% of the day was below the point where you can pick out a kerb. The
+// sun is below the horizon for less of the cycle now (0.96 -> 0.04, was 0.94 -> 0.06) and
+// does not dip as deep (-0.16, was -0.3), so the dark is shorter AND shallower.
+const SUN_T = [0,     0.04, 0.12, 0.24, 0.30, 0.70, 0.76, 0.88, 0.96, 1.0];
+const SUN_E = [-0.16, 0.0,  0.2,  0.9,  1.0,  1.0,  0.9,  0.2,  0.0,  -0.16];
 // The sun never stands overhead at 42.8° north: it tops out near 70° in June, 47° at
 // the equinoxes, 24° in December. The table above peaks at the zenith, which left
 // every wall lit by the sky alone for the middle of the day and reading flat; the
@@ -378,13 +389,20 @@ export class Sky {
     const raw = sunAltitude(this.tod);
     const elev = raw > 0 ? raw * MAX_ELEV : raw;                     // -1..MAX_ELEV, mostly daytime
     const day = clamp((elev + 0.08) / 0.32, 0, 1);                   // 0 night .. 1 day
-    const tw = clamp(1 - Math.abs(elev) / 0.26, 0, 1);               // wide dawn/dusk glow band
+    // Dawn/dusk glow. ASYMMETRIC: as wide as ever above the horizon, so sunrise and sunset
+    // keep their long warm band, but closing fast below it. Symmetric at 0.26 the shallower
+    // night curve never got far enough under to leave the band at all, and midnight kept a
+    // pink dusk sky.
+    const tw = clamp(1 - (elev >= 0 ? elev / 0.26 : -elev / 0.11), 0, 1);
     const wet = this.wet;
     const s = this.state;
 
     const zen = NIGHT_ZEN.clone().lerp(DAY_ZEN, day).lerp(DUSK_ZEN, tw * 0.5);
     const hor = NIGHT_HOR.clone().lerp(DAY_HOR, day).lerp(DUSK_HOR, tw * 0.85);
     s.sunColor.copy(DUSK_SUN).lerp(DAY_SUN, day);
+    // past dusk the light is the moon's, not the sun's
+    const moon = clamp(1 - day * 2.2, 0, 1);
+    if (moon > 0) s.sunColor.lerp(MOON, moon * 0.85);
     // golden hour: with the sun low but up, warm it and turn it up a notch and take a
     // little off the sky, so the brick on the sunny side of the street catches fire
     // the band starts well above the horizon: the sun drops fast here, and a golden
@@ -396,8 +414,10 @@ export class Sky {
     if (golden > 0) s.sunColor.lerp(new THREE.Color('#ffb257'), golden * 0.55);
     // a little more sun and a little less sky than before, so a lit wall and a shaded
     // one are two different things
-    let sunI = (0.82 + day * 0.98) * (1 + golden * 0.42);   // moonlight floor at night (brief night, so a bit brighter)
-    let hemiI = (0.8 - day * 0.02) * (1 - golden * 0.14);   // moonlit ambient — visible, the dark spell is short now
+    // The moonlight floor carries the night, and it was too low to navigate by: these two
+    // are unchanged at full day (1.80 / 0.78) and lifted where day is 0.
+    let sunI = (1.13 + day * 0.67) * (1 + golden * 0.42);   // moonlight floor at night
+    let hemiI = (1.00 - day * 0.22) * (1 - golden * 0.14);  // moonlit ambient — enough to read the street by
     s.hemiSky.copy(NIGHT_HEMI_SKY).lerp(DAY_HEMI_SKY, day);
     s.hemiGround.copy(NIGHT_HEMI_GND).lerp(DAY_HEMI_GND, day);
     if (wet > 0.01) {
