@@ -2969,30 +2969,76 @@ function entryCanopy(buckets: Bucket[], f: ModernFront, g: number, hw: number, o
   facePanel(buckets[PLAIN], f, -0.3, 0.3, g, y - 1, 0.9, '#d9d6cc');
 }
 
-// The intermodal garage by the station: three open decks — a light precast spandrel
-// at each floor with the dark void of the deck behind it — a brick stair tower at one
-// corner, and cars on the roof deck.
+// The Newburyport Intermodal Parking Facility, Titcomb Street (opened 2019) — the town's
+// only garage, and NOT the open-deck concrete box this used to draw.
+//
+// From the city's own design record: the façade is a "highly detailed thin-brick embedded
+// precast" wall with "faux window grilles", built that way deliberately to satisfy the
+// historic commission and sit down beside a downtown of Federal brick. So from the street
+// it reads as a brick building with punched windows, not as decks and shadow. It is 2 1/2
+// storeys, 207 spaces; a 4 ft parapet runs round the UPPER PARKING LEVEL (you can park on
+// the top — that half-storey IS the roof deck); a stairwell 11 ft and a lift shaft 14 ft
+// stand at the Merrimac/Titcomb corner; the ground floor carries retail and the bus lobby.
 function buildGarage(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
-  const LV = 3, H = 18;
+  const BRICKH = '#f2e6da';          // brickTex MULTIPLIES red — pale in, warm red out
+  const PRECAST = '#d8d4cb', PRECAST_D = '#bdb9b0';
+  const VOID = '#26292d', GRILLE = '#8a8f95';
+  const LV = 3, H = 21;              // two parking floors and the open roof deck: the "half"
   const top = g + LV * H;
-  walls(buckets[PLAIN], insetRing(b.p, 1.6), g - 6, top, '#23262a', 0);           // the decks' shadow
-  for (let l = 0; l < LV; l++) {
-    const y = g + l * H;
-    walls(buckets[PLAIN], b.p, y - (l ? 0 : 6), y + 6, '#d6d4cd', 0);              // spandrel
-    walls(buckets[PLAIN], expandRing(b.p, 0.4), y + 5.2, y + 6, '#b9b7b0', 0);    // its edge
-  }
-  walls(buckets[PLAIN], b.p, top, top + 3.5, '#d6d4cd', 0);                          // roof parapet
+
+  walls(buckets[BRICK], b.p, g - 6, top, BRICKH);
+  walls(buckets[PLAIN], expandRing(b.p, 0.35), g - 6, g + 5, PRECAST_D, 0);        // granite-ish base course
+  walls(buckets[PLAIN], expandRing(b.p, 0.45), top - 3.5, top, PRECAST, 0);        // precast cornice
+  // the 4 ft parapet round the top deck
+  walls(buckets[PLAIN], b.p, top, top + 9, PRECAST, 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.4), top + 8, top + 9, PRECAST_D, 0);
   flatRoof(buckets[PLAIN], b.p, top, '#6f716f');
-  // the stair and lift tower, brick, at the corner nearest the street
+
+  // the faux windows: a rank per parking floor, dark behind a pale precast surround, with
+  // grille bars. This is the whole point of the building's design — it is a garage dressed
+  // as a brick block, so the elevation is windows, not open deck.
+  const v = ringToVec2(b.p);
+  const cV = new THREE.Color(VOID), cP = new THREE.Color(PRECAST), cG2 = new THREE.Color(GRILLE);
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i], c = v[(i + 1) % v.length];
+    const len = Math.hypot(c.x - a.x, c.y - a.y);
+    if (len < 34) continue;
+    const ux = (c.x - a.x) / len, uy = (c.y - a.y) / len;
+    const nx = uy, nz = ux;
+    const mx = (a.x + c.x) / 2, my = (a.y + c.y) / 2;
+    const bays = Math.max(2, Math.round(len / 30));
+    const bayW = len / bays;
+    const P = buckets[PLAIN];
+    for (let l = 0; l < LV; l++) {
+      const yc = g + l * H + H * 0.56;
+      for (let k = 0; k < bays; k++) {
+        const t = -len / 2 + (k + 0.5) * bayW;
+        const px = mx + ux * t, py = my + uy * t;
+        const hw = Math.min(bayW / 2 - 4.5, 9), hh = 6.2;
+        billboard(P, px, py, nx, nz, ux, uy, hw + 1.5, hh + 1.5, yc, 0.5, cP.r, cP.g, cP.b);      // precast surround
+        billboard(P, px, py, nx, nz, ux, uy, hw, hh, yc, 0.9, cV.r, cV.g, cV.b);                  // the dark opening
+        for (const q of [-0.5, 0, 0.5]) {                                                          // grille bars
+          billboard(P, px + ux * hw * q * 1.2, py + uy * hw * q * 1.2, nx, nz, ux, uy, 0.5, hh - 0.6, yc, 1.2, cG2.r, cG2.g, cG2.b);
+        }
+      }
+    }
+  }
+
+  // the stair and lift towers, brick, at the street corner — the lift stands taller
   const f = heroFront(b, index);
   const obb = obbOf(b.p);
   const ca = Math.cos(obb.ang), sa = Math.sin(obb.ang);
   const side = f.nx * -sa + f.nz * ca > 0 ? 1 : -1;
   const tx = obb.cx + ca * (obb.hl - 12) - sa * (obb.hw - 12) * side;
   const tz = obb.cz + sa * (obb.hl - 12) + ca * (obb.hw - 12) * side;
-  rotBox(buckets[BRICK], tx, tz, 11, 11, g - 6, top + 14, obb.ang, '#f6ece2');
-  rotBox(buckets[PLAIN], tx, tz, 11.5, 11.5, top + 14, top + 15.5, obb.ang, '#4a4c4e');
-  // cars on the roof deck, on the same grid the lots use
+  rotBox(buckets[BRICK], tx, tz, 11, 11, g - 6, top + 11, obb.ang, BRICKH);            // stairwell, 11 ft over the deck
+  rotBox(buckets[PLAIN], tx, tz, 11.5, 11.5, top + 11, top + 12.5, obb.ang, PRECAST);
+  const lx = tx - sa * 15 * side, lz = tz + ca * 15 * side;
+  rotBox(buckets[BRICK], lx, lz, 7.5, 7.5, g - 6, top + 14, obb.ang, BRICKH);          // lift shaft, 14 ft
+  rotBox(buckets[PLAIN], lx, lz, 8, 8, top + 14, top + 15.5, obb.ang, '#4a4c4e');
+
+  // cars on the top deck — the upper parking level is real, and this is what the parapet
+  // is there for
   const rows: number[] = [];
   for (let w0 = -obb.hw + 20; w0 <= obb.hw - 20; w0 += 40) rows.push(w0);
   let n = 0;
@@ -3000,14 +3046,16 @@ function buildGarage(buckets: Bucket[], b: Building, g: number, index: WorldInde
     for (let l0 = -obb.hl + 18; l0 <= obb.hl - 18 && n < 40; l0 += 22) {
       const x = obb.cx + l0 * ca - w0 * sa, z = obb.cz + l0 * sa + w0 * ca;
       const h2 = hash32(Math.round(x), Math.round(z), 97);
-      if (h2 % 100 > 60 || Math.hypot(x - tx, z - tz) < 20) continue;
+      if (h2 % 100 > 60 || Math.hypot(x - tx, z - tz) < 22 || Math.hypot(x - lx, z - lz) < 18) continue;
       if (!pointInRingD(x + sa * 11, z - ca * 11, b.p) || !pointInRingD(x - sa * 11, z + ca * 11, b.p)) continue;
       car(buckets[PLAIN], x, z, obb.ang + Math.PI / 2, pick(STYLE.building.cars, h2), top);
       n++;
     }
   }
-  // the entry ramp mouth on the street face
-  facePanel(buckets[PLAIN], f, -14, 14, g - 6, g + 5, 0.7, '#1c1e21');
+  // the ramp mouth, and the retail / bus lobby glazing beside it on the street face
+  facePanel(buckets[PLAIN], f, -14, 14, g - 6, g + 7, 0.7, '#1c1e21');
+  facePanel(buckets[PLAIN], f, 18, 46, g - 2, g + 12, 0.75, '#4a6b74');
+  facePanel(buckets[PLAIN], f, -46, -18, g - 2, g + 12, 0.75, '#4a6b74');
 }
 
 // The supermarket: a long low box in split-face block with a tall front parapet, a
