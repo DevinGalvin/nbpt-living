@@ -762,7 +762,13 @@ export class WorldIndex {
       const len = Math.hypot(dx, dy) || 1;
       const ux = dx / len, uy = dy / len;
       const pxn = -uy, pyn = ux; // parallel to the street
-      const bx = dr.x1 - ux * 9, by = dr.y1 - uy * 9; // pulled back into the yard
+      // Pulled back into the yard until the anchor is off the pavement. A driveway
+      // END sits 4 px INSIDE the road edge (that is the apron), so a fixed 9 px
+      // pullback left the posts standing in the gutter — and on a corner lot, where
+      // the apron meets a second street, it put the whole wing in the cross street.
+      let back = 9;
+      while (back < Math.min(48, len - 6) && this.onRoadway(dr.x1 - ux * back, dr.y1 - uy * back, bucket)) back += 4;
+      const bx = dr.x1 - ux * back, by = dr.y1 - uy * back;
       const reach = 26 + rng() * 18;
       out.push(
         { x0: bx + pxn * 13, y0: by + pyn * 13, x1: bx + pxn * (13 + reach), y1: by + pyn * (13 + reach) },

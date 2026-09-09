@@ -974,6 +974,89 @@ function billboard(bk: Bucket, x: number, y2: number, nx: number, nz: number,
   bk.quad(ax, yC - hh, -ay, bx, yC - hh, -by, bx, yC + hh, -by, ax, yC + hh, -ay, nx, 0, nz, r, g, b);
 }
 
+// 🌿 Boston ivy climbing a brick wall. Ivy is not wallpaper: it takes hold in
+// patches, its crown is ragged, and it thins toward the edges of each patch. Each
+// patch here is a run of 5 px columns whose heights random-walk, tapered at both
+// ends, with a lumpy fringe of leaf clusters over the crown. Drawn a hair proud of
+// the wall in the PLAIN bucket so no brick reads through the leaves. Winter leaves
+// the bare vine: short, brown and thin, because that is what it looks like in
+// February on High Street.
+function ivy(bk: Bucket, ring: number[], g: number, seed: number,
+             opts: { cover?: number; low?: number; high?: number; off?: number } = {}) {
+  const winter = SEASON === 'winter';
+  const PAL = SEASON === 'fall'
+    ? ['#a8402c', '#c0562f', '#8d3324', '#b84a2a']
+    : winter
+      ? ['#6d5c46', '#5e4e3b', '#77664f', '#665640']
+      : SEASON === 'spring'
+        ? ['#4e8038', '#5c8f42', '#43712f', '#568539']
+        : ['#4a7d38', '#568a42', '#3e6c2e', '#51823c'];
+  const cover = (opts.cover ?? 0.55) * (winter ? 0.7 : 1);
+  const low = (opts.low ?? 18) * (winter ? 0.6 : 1);
+  const high = (opts.high ?? 46) * (winter ? 0.6 : 1);
+  const off = opts.off ?? 1.5;
+  const v = ringToVec2(ring);
+  for (let i = 0; i < v.length; i++) {
+    const a = v[i], c = v[(i + 1) % v.length];
+    const ex = c.x - a.x, ey = c.y - a.y;
+    const len = Math.hypot(ex, ey);
+    if (len < 22) continue;
+    const ux = ex / len, uy = ey / len;
+    const nx = uy, nz = ux;                       // world outward normal
+    const rng = mulberry32(hash32(seed, Math.round(a.x), Math.round(a.y)));
+    const patches = Math.max(2, Math.round(len / 75));
+    let cursor = 2 + rng() * 20;
+    for (let p = 0; p < patches; p++) {
+      const pw = 34 + rng() * 60;
+      const s0 = cursor;
+      cursor += pw + 6 + rng() * 26;               // patches march along the wall, never stacked
+      if (s0 + pw > len - 2) break;
+      if (rng() > cover) continue;
+      const cols = Math.max(4, Math.round(pw / 4));
+      const cw = pw / cols;
+      // the crown wanders over a long wavelength, not a sawtooth: two slow sines
+      const base = low + rng() * (high - low) * 0.7;
+      const w1 = 0.9 + rng() * 1.6, w2 = 2.7 + rng() * 2.4, ph = rng() * 6.283;
+      for (let k = 0; k < cols; k++) {
+        const t = (k + 0.5) / cols;
+        const wave = Math.sin(t * w1 * 6.283 + ph) * 0.24 + Math.sin(t * w2 * 6.283 + ph * 1.7) * 0.11;
+        // taper: the mat thins toward each end of the patch instead of ending square
+        const hgt = Math.max(0, base * (1 + wave)) * Math.min(1, Math.sin(Math.PI * t) * 2.1);
+        if (hgt < 5) continue;
+        const cx = a.x + ux * (s0 + (k + 0.5) * cw);
+        const cy = a.y + uy * (s0 + (k + 0.5) * cw);
+        const shade = 0.86 + ((k * 7 + p * 3) % 5) * 0.062;   // dappled, column to column
+        tmp.set(PAL[(k * 3 + p) % PAL.length]);
+        // darker at the base where the mat is thickest, lighter at the crown
+        billboard(bk, cx, cy, nx, nz, ux, uy, cw * 0.66, hgt / 2, g + hgt / 2, off,
+          tmp.r * 0.78 * shade, tmp.g * 0.78 * shade, tmp.b * 0.78 * shade);
+        billboard(bk, cx, cy, nx, nz, ux, uy, cw * 0.66, hgt * 0.3, g + hgt * 0.74, off + 0.5,
+          tmp.r * shade, tmp.g * shade, tmp.b * shade);
+        // a top cap on the column: the mat has thickness, so its crown catches light
+        // instead of reading as paint on the brick
+        {
+          const hw2 = cw * 0.66, y2 = g + hgt;
+          const ix = cx + nx * off, iy = cy - nz * off;
+          const oxp = cx + nx * (off + 1.6), oyp = cy - nz * (off + 1.6);
+          bk.quad(
+            ix - ux * hw2, y2, -(iy - uy * hw2), ix + ux * hw2, y2, -(iy + uy * hw2),
+            oxp + ux * hw2, y2, -(oyp + uy * hw2), oxp - ux * hw2, y2, -(oyp - uy * hw2),
+            0, 1, 0, tmp.r * 1.18 * shade, tmp.g * 1.18 * shade, tmp.b * 1.18 * shade
+          );
+        }
+        // leaf clusters over the crown, breaking the line and hanging a few runners
+        if (!winter && ((k * 5 + p) % 3) !== 2) {
+          const lr = 2.2 + ((k * 11 + p * 5) % 4) * 0.9;
+          billboard(bk, cx + ux * cw * 0.3, cy + uy * cw * 0.3,
+            nx, nz, ux, uy, lr, lr * 0.85, g + hgt + lr * 0.35, off + 0.9,
+            tmp.r * 1.12 * shade, tmp.g * 1.12 * shade, tmp.b * 1.12 * shade);
+        }
+      }
+    }
+  }
+}
+
+
 // A lettered sign board from the atlas: the same placement as billboard(), with the
 // atlas row's strip of texture across it, mirrored on the back face so the word
 // reads from either side of the street.
@@ -3472,6 +3555,9 @@ function buildNHS(buckets: Bucket[], b: Building, g: number, index: WorldIndex) 
   walls(buckets[BRICK], b.p, wingTop, wingTop + 2.5, '#fdfcf8');
   // dense white-trimmed windows on every face
   facades(buckets[PLAIN], b.p, wingTop, 2, 4451, false, false, false, g, 400);
+  // 🌿 ivy on the brick: patchy up the wings, stopping well below the cornice,
+  // scarlet in the fall and a bare brown vine in February
+  ivy(buckets[PLAIN], b.p, g - 6, 4451, { cover: 0.95, low: 22, high: 47 });
 
   // FRONT bearing: toward the memorial-garden hedges on the High St lawn —
   // they're real mapped barriers, so the front orients itself from data
@@ -11056,32 +11142,38 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     buckets[PLAIN].triUV(lamp.x - s, topY2, lamp.y + s, lamp.x - s, topY2, lamp.y - s, lamp.x, topY2 + 3, lamp.y, -0.7, 0.7, 0, tmp.r, tmp.g, tmp.b, 0, 0, 0, 0, 0, 0);
   }
 
+  // Front-yard pickets. These go through barrierRuns() exactly like the mapped
+  // barriers do: a wing that reaches across a cross street is cut at the kerb
+  // rather than marching down the middle of it.
   for (const f of index.fencesFor(key)) {
-    const dx = f.x1 - f.x0, dz = f.y1 - f.y0;
-    const len = Math.hypot(dx, dz);
-    if (len < 4) continue;
-    const ux = dx / len, uz = dz / len;
-    const nx = -uz, nz = ux;
+    if (Math.hypot(f.x1 - f.x0, f.y1 - f.y0) < 4) continue;
     tmp.set('#f4f1e6');
     const fr = tmp.r, fg = tmp.g, fb = tmp.b;
-    const posts = Math.max(1, Math.floor(len / 9.5));
-    for (let i2 = 0; i2 <= posts; i2++) {
-      const t = i2 / posts;
-      const px2 = f.x0 + dx * t, pz2 = f.y0 + dz * t;
-      const g = index.heightAtPx(px2, pz2);
-      buckets[PLAIN].quad(
-        px2 - ux * 0.5, g, pz2 - uz * 0.5, px2 + ux * 0.5, g, pz2 + uz * 0.5,
-        px2 + ux * 0.5, g + 7.5, pz2 + uz * 0.5, px2 - ux * 0.5, g + 7.5, pz2 - uz * 0.5,
-        nx, 0, nz, fr, fg, fb
-      );
-    }
-    const g0 = index.heightAtPx(f.x0, f.y0), g1 = index.heightAtPx(f.x1, f.y1);
-    for (const railY of [3, 5.8]) {
-      buckets[PLAIN].quad(
-        f.x0, g0 + railY, f.y0, f.x1, g1 + railY, f.y1,
-        f.x1, g1 + railY + 1.1, f.y1, f.x0, g0 + railY + 1.1, f.y0,
-        nx, 0, nz, fr * 0.94, fg * 0.94, fb * 0.94
-      );
+    for (const [x0, z0, x1, z1] of barrierRuns(index, f.x0, f.y0, f.x1, f.y1)) {
+      const dx = x1 - x0, dz = z1 - z0;
+      const len = Math.hypot(dx, dz);
+      if (len < 8) continue;   // a stub left by the clip is not a fence
+      const ux = dx / len, uz = dz / len;
+      const nx = -uz, nz = ux;
+      const posts = Math.max(1, Math.floor(len / 9.5));
+      for (let i2 = 0; i2 <= posts; i2++) {
+        const t = i2 / posts;
+        const px2 = x0 + dx * t, pz2 = z0 + dz * t;
+        const g = index.heightAtPx(px2, pz2);
+        buckets[PLAIN].quad(
+          px2 - ux * 0.5, g, pz2 - uz * 0.5, px2 + ux * 0.5, g, pz2 + uz * 0.5,
+          px2 + ux * 0.5, g + 7.5, pz2 + uz * 0.5, px2 - ux * 0.5, g + 7.5, pz2 - uz * 0.5,
+          nx, 0, nz, fr, fg, fb
+        );
+      }
+      const g0 = index.heightAtPx(x0, z0), g1 = index.heightAtPx(x1, z1);
+      for (const railY of [3, 5.8]) {
+        buckets[PLAIN].quad(
+          x0, g0 + railY, z0, x1, g1 + railY, z1,
+          x1, g1 + railY + 1.1, z1, x0, g0 + railY + 1.1, z0,
+          nx, 0, nz, fr * 0.94, fg * 0.94, fb * 0.94
+        );
+      }
     }
   }
 
@@ -11814,10 +11906,20 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   // parked cars on driveways
   for (const dr of index.drivewaysFor(key)) {
     if (!dr.car) continue;
-    const x = dr.x0 + (dr.x1 - dr.x0) * dr.carT;
-    const z = dr.y0 + (dr.y1 - dr.y0) * dr.carT;
+    const ddx = dr.x1 - dr.x0, ddz = dr.y1 - dr.y0;
+    const dlen = Math.hypot(ddx, ddz) || 1;
+    const ux = ddx / dlen, uz = ddz / dlen;
+    const ang = Math.atan2(ddz, ddx);
+    // Back the car off the kerb until its NOSE is clear of the travel lane. The
+    // driveway ends 4 px inside the road edge, so on a short driveway carT put the
+    // front half of the car in the street.
+    const NOSE = 17;
+    let x = dr.x0 + ddx * dr.carT, z = dr.y0 + ddz * dr.carT;
+    let guard = 0;
+    while (guard++ < 12 && index.onGradeRoadAt(x + ux * NOSE, z + uz * NOSE)) { x -= ux * 5; z -= uz * 5; }
+    // no room on this driveway to park off the street — leave it empty
+    if ((x - dr.x0) * ux + (z - dr.y0) * uz < 6) continue;
     const gc = index.heightAtPx(x, z);
-    const ang = Math.atan2(dr.y1 - dr.y0, dr.x1 - dr.x0);
     car(buckets[PLAIN], x, z, ang, pick(STYLE.building.cars, dr.seed), gc);
   }
 
