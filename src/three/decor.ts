@@ -863,8 +863,14 @@ function facades(plain: Bucket, ring: number[], eaveH: number, rows: number,
           billboard(plain, wx, wy, nx, nz, ux, uy, winW + 1.5, 0.7, yC - winH - 1.0, 0.7, tmp.r * 0.92, tmp.g * 0.92, tmp.b * 0.92);
         }
         if (withShutters) {
-          billboard(plain, wx - ux * 7.2, wy - uy * 7.2, nx, nz, ux, uy, 1.9, 5.6, yC, 0.7, sh.r, sh.g, sh.b);
-          billboard(plain, wx + ux * 7.2, wy + uy * 7.2, nx, nz, ux, uy, 1.9, 5.6, yC, 0.7, sh.r, sh.g, sh.b);
+          // A shutter is HALF the sash wide (the pair closes over the window) and the
+          // same height as it, hung against the casing. These were 3.8 x 11.2 px — as
+          // wide as the whole opening and nearly twice its height — standing 3 px clear
+          // of the casing, so every house wore two dark green planks either side of a
+          // little window instead of shutters.
+          const shW = winW * 0.52, shH = winH + 0.2, shOff = winW + shW + 0.15;
+          billboard(plain, wx - ux * shOff, wy - uy * shOff, nx, nz, ux, uy, shW, shH, yC, 0.7, sh.r, sh.g, sh.b);
+          billboard(plain, wx + ux * shOff, wy + uy * shOff, nx, nz, ux, uy, shW, shH, yC, 0.7, sh.r, sh.g, sh.b);
         }
         windows++;
       }
@@ -3765,6 +3771,79 @@ function frontSegment(b: Building, index: WorldIndex): { x: number; z: number; t
 // picket, hedge, gap, picket, and that line along the sidewalk is what makes a lot a
 // lot. Runs parallel to the street face, just inside the sidewalk, with a gate gap at
 // the walk and a break wherever a driveway crosses. About half the houses get one.
+// 🧺 The washing on the line. Half the back yards in this town still hang it out,
+// and it is the one thing in a yard that MOVES — so it rides the same wind weight the
+// flags and canopies use, pinned at the top and loose at the hem. Two posts and a wire
+// out the BACK of the house (the opposite side to the street), and only where the yard
+// is actually clear: nothing over a driveway, a pool, a neighbour's roof or the water.
+const WASH = ['#f6f4ee', '#f6f4ee', '#f2efe6', '#cfe0ea', '#e8d7c4', '#d9e6d2', '#efd9dc', '#c8d6e6', '#e6e2cf'];
+function clothesline(buckets: Bucket[], b: Building, g: number, index: WorldIndex, key: string, seed: number) {
+  if (SEASON === 'winter') return;                       // the line comes in for the winter
+  const rng = mulberry32(hash32(seed, 131, 7));
+  if (rng() > (SEASON === 'summer' ? 0.34 : 0.2)) return;
+  const f = frontSegment(b, index);
+  if (f.len < 20) return;
+  // straight out the back: the front segment's normal, reversed
+  const bx = -f.nx, bz = -f.nz;
+  const [cx, cz] = centroidOf(b.p);
+  // start clear of the footprint, then run further into the yard
+  let d0 = 14;
+  for (let i = 0; i < 26 && pointInRingD(cx + bx * d0, cz + bz * d0, b.p); i++) d0 += 4;
+  d0 += 10;
+  const len = 46 + rng() * 34;
+  const ax = cx + bx * d0, az = cz + bz * d0;
+  const ex = ax + bx * len, ez = az + bz * len;
+  const drives = index.drivewaysFor(key);
+  for (let t = 0; t <= 1.0001; t += 0.2) {
+    const x = ax + (ex - ax) * t, z = az + (ez - az) * t;
+    if (index.isBlocked(x, z) || index.isWaterAt(x, z)) return;
+    for (const dr of drives) if (distToPolylineSq(x, z, [dr.x0, dr.y0, dr.x1, dr.y1]) < 15 * 15) return;
+  }
+  const plain = buckets[PLAIN];
+  const gA = index.heightAtPx(ax, az), gE = index.heightAtPx(ex, ez);
+  const H = 19;                                          // the wire, about 2.4 m — reachable
+  const POST = '#8a7358';
+  plain.box(ax, az, 1.4, 1.4, gA, gA + H + 2, POST);
+  plain.box(ex, ez, 1.4, 1.4, gE, gE + H + 2, POST);
+  // the crossarm on each post, square to the line
+  const px = -bz, pz = bx;
+  for (const [qx, qz, qg] of [[ax, az, gA], [ex, ez, gE]] as const) {
+    plain.box(qx, qz, Math.abs(px) * 4 + 0.8, Math.abs(pz) * 4 + 0.8, qg + H, qg + H + 1.4, POST);
+  }
+  // two wires, and the wash between them
+  tmp.set('#cfc9bc');
+  for (const side of [-1, 1] as const) {
+    const wx = px * side * 3, wz = pz * side * 3;
+    const y0 = gA + H, y1 = gE + H;
+    plain.quad(ax + wx, y0, az + wz, ex + wx, y1, ez + wz, ex + wx, y1 + 0.7, ez + wz, ax + wx, y0 + 0.7, az + wz,
+      0, 1, 0, tmp.r, tmp.g, tmp.b);
+  }
+  const n = 4 + Math.floor(rng() * 5);
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.6 + rng() * 0.3) / (n + 0.5);
+    const side = rng() < 0.5 ? -1 : 1;
+    const wx = px * side * 3, wz = pz * side * 3;
+    const x = ax + (ex - ax) * t + wx, z = az + (ez - az) * t + wz;
+    const top = gA + (gE - gA) * t + H - 0.4;
+    const sheet = rng() < 0.3;                           // a sheet is wide and long
+    const hw = (sheet ? 6 : 2.8 + rng() * 1.6);
+    const hh = sheet ? 11 + rng() * 3 : 6.5 + rng() * 3.5;
+    tmp.set(WASH[Math.floor(rng() * WASH.length)]).multiplyScalar(0.94 + rng() * 0.12);
+    const r = tmp.r, gg = tmp.g, bb = tmp.b;
+    // hung across the line: the face is square to it, and both faces are drawn
+    const fx = bx, fz = bz;                              // along the line
+    for (const s2 of [1, -1] as const) {
+      plain.quad(
+        x - fx * hw, top, z - fz * hw, x + fx * hw, top, z + fz * hw,
+        x + fx * hw, top - hh, z + fz * hw, x - fx * hw, top - hh, z - fz * hw,
+        px * s2, 0, pz * s2, r * (s2 > 0 ? 1 : 0.9), gg * (s2 > 0 ? 1 : 0.9), bb * (s2 > 0 ? 1 : 0.9)
+      );
+      // pinned at the top, loose at the hem
+      plain.windLast(6, (_x, y) => Math.max(0, Math.min(1, (top - y) / hh)) * 0.85);
+    }
+  }
+}
+
 function yardFence(buckets: Bucket[], b: Building, g: number, index: WorldIndex, key: string, seed: number) {
   const roll = hash32(seed, 77, 5) % 100;
   if (roll >= 55) return;
@@ -10542,7 +10621,8 @@ function sidewalkChalk(buckets: Bucket[], poly: Poly, index: WorldIndex, bucket:
 }
 
 
-// a barrier segment, minus the stretches that lie on a road at grade: fences and walls
+// a barrier segment, minus the stretches that lie on a made surface at grade — a
+// carriageway OR a sidewalk: fences and walls
 // mapped along a viaduct's embankment cross the streets that pass under it, and here
 // there is no under. Sampled every 10 px; each clear run comes back as its own segment
 function barrierRuns(index: WorldIndex, x0: number, z0: number, x1: number, z1: number): [number, number, number, number][] {
@@ -10553,7 +10633,7 @@ function barrierRuns(index: WorldIndex, x0: number, z0: number, x1: number, z1: 
   for (let i = 0; i <= n; i++) {
     const t = i / n;
     const x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t;
-    const clear = i < n && !index.onGradeRoadAt(x0 + (x1 - x0) * ((i + 0.5) / n), z0 + (z1 - z0) * ((i + 0.5) / n));
+    const clear = i < n && !index.onGradePavedAt(x0 + (x1 - x0) * ((i + 0.5) / n), z0 + (z1 - z0) * ((i + 0.5) / n));
     if (clear && start < 0) start = t;
     if (!clear && start >= 0) { out.push([x0 + (x1 - x0) * start, z0 + (z1 - z0) * start, x, z]); start = -1; }
   }
@@ -10931,6 +11011,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       }
       if (b.k === 'house' && !storefront && areaM2 < 1000 && lvEff <= 3.6) yardFence(buckets, b, gEff, index, key, seed);
       if (b.k === 'house' && !storefront && areaM2 < 1400) foundationPlanting(buckets, b, gEff, index, key, seed);
+      if (b.k === 'house' && !storefront && areaM2 < 900) clothesline(buckets, b, gEff, index, key, seed);
     }
 
     // seasonal dressing: Christmas lights on the eaves, pumpkins by the door
@@ -11927,6 +12008,58 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         cone(buckets[PLAIN], x + Math.cos(a) * off, g, z + Math.sin(a) * off, 0.5, bh, straw);
       }
     }, 320);
+  }
+
+  // 🏀 A hoop over the driveway. One New England drive in six has one, it stands
+  // at the house end pointing down the tarmac, and half of them have a ball sitting
+  // where it was last left.
+  for (const dr of index.drivewaysFor(key)) {
+    const rngH = mulberry32(hash32(dr.seed, 211, 3));
+    if (rngH() > 0.17) continue;
+    const hdx = dr.x1 - dr.x0, hdz = dr.y1 - dr.y0;
+    const hl = Math.hypot(hdx, hdz) || 1;
+    if (hl < 46) continue;                     // no room to shoot
+    const ux = hdx / hl, uz = hdz / hl;
+    const sx = -uz, sz = ux;                   // across the drive
+    const side = rngH() < 0.5 ? 1 : -1;
+    // just off the tarmac at the house end, backboard square to the drive
+    const bx = dr.x0 + ux * 8 + sx * side * 13, bz = dr.y0 + uz * 8 + sz * side * 13;
+    if (bx < ox || bx >= ox + CHUNK || bz < oy || bz >= oy + CHUNK) continue;
+    if (index.isBlocked(bx, bz) || index.onGradeRoadAt(bx, bz)) continue;
+    const gh = index.heightAtPx(bx, bz);
+    const RIM = gh + 26;                       // 3.05 m, as it is everywhere
+    const plainH = buckets[PLAIN];
+    plainH.box(bx, bz, 1.7, 1.7, gh, RIM + 5, '#4d5257');                 // the post
+    // the gooseneck out over the drive, and the board on it
+    const fx = bx + ux * 5, fz = bz + uz * 5;
+    plainH.box((bx + fx) / 2, (bz + fz) / 2, Math.abs(ux) * 5 + 1.4, Math.abs(uz) * 5 + 1.4, RIM + 3.5, RIM + 5, '#4d5257');
+    tmp.set(rngH() < 0.5 ? '#eceae2' : '#d7d2c4');   // the board faces back down the drive
+    plainH.quad(fx - sx * 7, RIM + 1.5, fz - sz * 7, fx + sx * 7, RIM + 1.5, fz + sz * 7,
+      fx + sx * 7, RIM + 10.5, fz + sz * 7, fx - sx * 7, RIM + 10.5, fz - sz * 7,
+      -ux, 0, -uz, tmp.r, tmp.g, tmp.b);
+    plainH.quad(fx + sx * 7, RIM + 1.5, fz + sz * 7, fx - sx * 7, RIM + 1.5, fz - sz * 7,
+      fx - sx * 7, RIM + 10.5, fz - sz * 7, fx + sx * 7, RIM + 10.5, fz + sz * 7,
+      ux, 0, uz, tmp.r * 0.88, tmp.g * 0.88, tmp.b * 0.88);
+    // the rim: a short orange ring of eight posts, and a pale net under it
+    tmp.set('#d2622c');
+    const rx = fx - ux * 5.5, rz = fz - uz * 5.5;
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      plainH.box(rx + Math.cos(a) * 4.2, rz + Math.sin(a) * 4.2, 1, 1, RIM, RIM + 1, '#d2622c');
+    }
+    tmp.set('#e8e6de');
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      plainH.box(rx + Math.cos(a) * 3.4, rz + Math.sin(a) * 3.4, 0.6, 0.6, RIM - 4.5, RIM, '#e8e6de');
+    }
+    // the ball, left where it stopped
+    if (rngH() < 0.5) {
+      const t = 0.25 + rngH() * 0.3;
+      const px2 = dr.x0 + hdx * t + sx * side * (rngH() * 8 - 4);
+      const pz2 = dr.y0 + hdz * t + sz * side * (rngH() * 8 - 4);
+      const gb = index.heightAtPx(px2, pz2);
+      octoCanopy(plainH, px2, gb + 2.4, pz2, 2.4, new THREE.Color('#c9682f'));
+    }
   }
 
   // parked cars on driveways

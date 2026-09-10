@@ -773,8 +773,12 @@ export class WorldIndex {
       // END sits 4 px INSIDE the road edge (that is the apron), so a fixed 9 px
       // pullback left the posts standing in the gutter — and on a corner lot, where
       // the apron meets a second street, it put the whole wing in the cross street.
+      // …and past the SIDEWALK too. Stepping clear of the carriageway alone left runs
+      // of pickets standing on the brick pavement at the kerb, flanking a lamp post.
       let back = 9;
-      while (back < Math.min(48, len - 6) && this.onRoadway(dr.x1 - ux * back, dr.y1 - uy * back, bucket)) back += 4;
+      while (back < Math.min(48, len - 6)
+        && (this.onRoadway(dr.x1 - ux * back, dr.y1 - uy * back, bucket)
+          || this.onPathSurface(dr.x1 - ux * back, dr.y1 - uy * back, bucket, 3))) back += 4;
       const bx = dr.x1 - ux * back, by = dr.y1 - uy * back;
       const reach = 26 + rng() * 18;
       out.push(
@@ -930,10 +934,10 @@ export class WorldIndex {
 
   // squarely on a made path surface (inside the casing) — 24 surveyed trees stand in
   // the middle of one, six of them on the rail trail
-  private onPathSurface(x: number, y: number, bucket: Bucket): boolean {
+  private onPathSurface(x: number, y: number, bucket: Bucket, margin = -1): boolean {
     for (const pi of bucket.paths) {
       const p = this.world.paths[pi];
-      if (distToPolylineSq(x, y, p.p) < (p.w / 2 - 1) ** 2) return true;
+      if (distToPolylineSq(x, y, p.p) < (p.w / 2 + margin) ** 2) return true;
     }
     return false;
   }
@@ -3033,6 +3037,20 @@ export class WorldIndex {
     }
     close();
     return out;
+  }
+
+  /** on a made surface AT GRADE: a carriageway or a sidewalk, but never a deck
+   *  carried overhead — a fence mapped along a viaduct's embankment crosses the
+   *  streets that pass under it, and there is no under here */
+  onGradePavedAt(x: number, y: number): boolean {
+    if (this.onGradeRoadAt(x, y)) return true;
+    const b = this.bucket(Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK));
+    for (const pi of b.paths) {
+      const p = this.world.paths[pi];
+      if (p.c !== 'side' && p.c !== 'crossing' && p.c !== 'ped' && p.c !== 'steps' && p.c !== 'cycle') continue;
+      if (distToPolylineSq(x, y, p.p) < (p.w / 2 + 1) ** 2) return true;
+    }
+    return false;
   }
 
   onGradeRoadAt(x: number, y: number): boolean {
