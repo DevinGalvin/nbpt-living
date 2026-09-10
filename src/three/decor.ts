@@ -10136,6 +10136,148 @@ function witch(buckets: Bucket[], f: Front, g: number, seed: number) {
 }
 
 // front-yard snowman, dressed for the season
+// 🔥 A beach fire, back from the water on the dry sand: a ring of cobbles, driftwood
+// stacked in a cone, and the flame. The flame goes in the WINDOW bucket, which is the
+// one that knows what time it is — so by day this is a cold fire ring somebody built
+// last night, and it lights itself at dusk.
+function beachFire(buckets: Bucket[], x: number, z: number, g: number, seed: number) {
+  const rng = mulberry32(hash32(seed, 503, 23));
+  const p = buckets[PLAIN];
+  // the ring of cobbles
+  for (let i = 0; i < 11; i++) {
+    const a = (i / 11) * Math.PI * 2 + rng() * 0.2;
+    const r = 8 + rng() * 1.4;
+    octoCanopy(p, x + Math.cos(a) * r, g + 1.1, z + Math.sin(a) * r, 1.9 + rng() * 0.7,
+      new THREE.Color(['#9a958c', '#8b867d', '#a8a29a', '#7d7871'][i % 4]));
+  }
+  // driftwood leaned into a cone, bleached grey and split
+  const WOOD = ['#9d9384', '#8a8073', '#ada496', '#7c7367'];
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2 + rng() * 0.4;
+    const r = 4.5;
+    p.box(x + Math.cos(a) * r * 0.55, z + Math.sin(a) * r * 0.55,
+      Math.abs(Math.cos(a)) * 3 + 0.8, Math.abs(Math.sin(a)) * 3 + 0.8, g, g + 8 + rng() * 3, WOOD[i % 4]);
+  }
+  // the flame: four billboards crossed, hottest at the base. Threshold 0.30 — it is lit
+  // by the time the streetlights are, and out again by first light.
+  const win = buckets[WINDOW];
+  const FLAME: [string, number, number][] = [['#ffb43c', 10, 6.5], ['#ff8a2a', 15, 4.6], ['#ffd98a', 6.5, 3.2]];
+  for (const [hex, h, w] of FLAME) {
+    tmp.set(hex);
+    for (let k = 0; k < 2; k++) {
+      const a = k * Math.PI / 2 + rng() * 0.5;
+      const cx = Math.cos(a), cz = Math.sin(a);
+      win.quad(x - cx * w, g + 2, z - cz * w, x + cx * w, g + 2, z + cz * w,
+        x + cx * w * 0.25, g + 2 + h, z + cz * w * 0.25, x - cx * w * 0.25, g + 2 + h, z - cz * w * 0.25,
+        -cz, 0, cx, tmp.r, tmp.g, tmp.b);
+      win.tagLast(0.30);
+    }
+  }
+  // the coals, glowing in the ring. A big flat patch of light on the sand read as an
+  // orange rug — an additive quad has no falloff, so it has to be small enough to BE
+  // the embers rather than pretend to be the light they throw.
+  tmp.set('#e07a22');
+  win.quad(x - 5, g + 2.2, z - 5, x + 5, g + 2.2, z - 5, x + 5, g + 2.2, z + 5, x - 5, g + 2.2, z + 5,
+    0, 1, 0, tmp.r * 0.8, tmp.g * 0.8, tmp.b * 0.8);
+  win.tagLast(0.30);
+}
+
+// 🦅 An osprey nest on a marsh platform. Every big salt marsh on this river has
+// one: a pole with a platform on it, a metre of piled sticks that gets added to every
+// spring, and — from April to September — a bird standing on the rim of it looking at
+// the water. The bird faces the nearest open water, because that is what it is doing.
+function ospreyNest(buckets: Bucket[], x: number, z: number, g: number, seed: number, faceX: number, faceZ: number) {
+  const p = buckets[PLAIN];
+  const rng = mulberry32(hash32(seed, 401, 17));
+  const H = 44 + rng() * 10;                            // 5.5-6.7 m to the platform
+  const POLE = '#6f6151';
+  p.box(x, z, 1.6, 1.6, g, g + H, POLE);
+  // two braces up to the platform
+  for (const s2 of [1, -1] as const) {
+    p.box(x + s2 * 3.2, z, 0.8, 0.8, g + H * 0.45, g + H, POLE);
+    p.box(x, z + s2 * 3.2, 0.8, 0.8, g + H * 0.45, g + H, POLE);
+  }
+  p.box(x, z, 7, 7, g + H, g + H + 1.4, '#7d6d5c');      // the platform
+  // the nest: sticks piled and crossed, wider than the platform and untidy
+  const NEST = ['#8a7350', '#7a6244', '#9a8460', '#6f5b3f'];
+  for (let i = 0; i < 26; i++) {
+    const a = rng() * Math.PI, r = rng() * 6.5;
+    const l = 5 + rng() * 5.5;
+    const cx = x + Math.cos(a + 1.6) * r, cz = z + Math.sin(a + 1.6) * r;
+    const y0 = g + H + 1.4 + rng() * 6;
+    p.box(cx, cz, Math.abs(Math.cos(a)) * l + 0.5, Math.abs(Math.sin(a)) * l + 0.5, y0, y0 + 0.9, NEST[i % 4]);
+  }
+  // the bird, on the rim, facing the water
+  const fl = Math.hypot(faceX, faceZ) || 1;
+  const fx = faceX / fl, fz = faceZ / fl;
+  const bx = x - fx * 4, bz = z - fz * 4, by = g + H + 7;
+  p.box(bx, bz, 2.6, 2.6, by, by + 5.5, '#efeae0');                       // the white breast
+  p.box(bx - fx * 1.6, bz - fz * 1.6, 2.9, 2.9, by + 3.4, by + 7.6, '#6b5b47');   // the dark back
+  p.box(bx + fx * 1.2, bz + fz * 1.2, 1.7, 1.7, by + 7.2, by + 10.2, '#f2eee6'); // the head
+  p.box(bx + fx * 1.2, bz + fz * 1.2, 1.85, 1.85, by + 8.6, by + 9.4, '#4a3f33'); // the eye stripe
+  p.box(bx + fx * 2.6, bz + fz * 2.6, 0.7, 0.7, by + 7.9, by + 8.7, '#2b2723');   // the hooked bill
+}
+
+// 🍋 The lemonade stand. A card table at the end of the front walk, a jug, a stack
+// of cups, a sign nobody can read from a car, and the management. July only, and rare
+// enough to be a find — about one street in three has one somewhere on it.
+function lemonadeStand(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: number; nx: number; nz: number }, g: number, seed: number) {
+  const rng = mulberry32(hash32(seed, 313, 11));
+  const tOff = (8 + rng() * 14) * (rng() < 0.5 ? 1 : -1);
+  const nOff = 16 + rng() * 10;                       // out by the sidewalk, not at the door
+  const sx = f.x + f.tx * tOff + f.nx * nOff;
+  const sz = f.z + f.tz * tOff + f.nz * nOff;
+  const p = buckets[PLAIN];
+  const TOP = g + 13, tx = f.tx, tz = f.tz, nx = f.nx, nz = f.nz;
+  // the table: a cloth-covered top on four legs, the long side to the street
+  for (const [lt, ln] of [[-6.5, -3.4], [6.5, -3.4], [-6.5, 3.4], [6.5, 3.4]] as const) {
+    p.box(sx + tx * lt + nx * ln, sz + tz * lt + nz * ln, 0.7, 0.7, g, TOP, '#8a7358');
+  }
+  tmp.set('#f2ede2');
+  p.box(sx, sz, Math.abs(tx) * 8.2 + Math.abs(nx) * 4.6, Math.abs(tz) * 8.2 + Math.abs(nz) * 4.6, TOP, TOP + 1.2, '#f2ede2');
+  // the cloth hanging over the street side
+  p.quad(sx + tx * 10 + nx * 5.2, TOP + 1.2, sz + tz * 10 + nz * 5.2,
+         sx - tx * 10 + nx * 5.2, TOP + 1.2, sz - tz * 10 + nz * 5.2,
+         sx - tx * 10 + nx * 5.2, TOP - 5.5, sz - tz * 10 + nz * 5.2,
+         sx + tx * 10 + nx * 5.2, TOP - 5.5, sz + tz * 10 + nz * 5.2,
+         nx, 0, nz, 0.86, 0.81, 0.72);
+  // the jug, and the cups beside it
+  p.box(sx - tx * 4, sz - tz * 4, 2.2, 2.2, TOP + 1.2, TOP + 8, '#f0d24e');
+  p.box(sx - tx * 4, sz - tz * 4, 2.5, 2.5, TOP + 8, TOP + 9, '#e8e4d8');
+  p.box(sx + tx * 3.5, sz + tz * 3.5, 1.6, 1.6, TOP + 1.2, TOP + 6.5, '#fbfaf6');   // the stack of cups
+  // the sign, propped against the street side of the table
+  tmp.set('#f6f1e2');
+  p.quad(sx - tx * 9 + nx * 5.6, TOP - 5.2, sz - tz * 9 + nz * 5.6,
+         sx + tx * 9 + nx * 5.6, TOP - 5.2, sz + tz * 9 + nz * 5.6,
+         sx + tx * 9 + nx * 5.6, TOP + 0.5, sz + tz * 9 + nz * 5.6,
+         sx - tx * 9 + nx * 5.6, TOP + 0.5, sz - tz * 9 + nz * 5.6,
+         nx, 0, nz, tmp.r, tmp.g, tmp.b);
+  // three lines of lettering nobody can read from a car, which is the point
+  for (let r = 0; r < 3; r++) {
+    const w = [7.2, 5.0, 3.2][r];
+    p.quad(sx - tx * w + nx * 5.9, TOP - 4.2 + r * 1.7, sz - tz * w + nz * 5.9,
+           sx + tx * w + nx * 5.9, TOP - 4.2 + r * 1.7, sz + tz * w + nz * 5.9,
+           sx + tx * w + nx * 5.9, TOP - 3.5 + r * 1.7, sz + tz * w + nz * 5.9,
+           sx - tx * w + nx * 5.9, TOP - 3.5 + r * 1.7, sz - tz * w + nz * 5.9,
+           nx, 0, nz, 0.16, 0.18, 0.15);
+  }
+  // the management: one or two of them, behind the table, facing the street
+  const kids = 1 + (hash32(seed, 7, 3) % 2);
+  const SHIRT = ['#d8607a', '#4a7fb5', '#e0a23c', '#5d9c68', '#9c6bbf'];
+  for (let k = 0; k < kids; k++) {
+    const kt = (k === 0 ? -4.5 : 5.5) + rng() * 2;
+    const kx = sx + tx * kt - nx * 7, kz = sz + tz * kt - nz * 7;
+    const gk = g;
+    const sc = 0.82 + rng() * 0.2;
+    p.box(kx - tx * 1.5, kz - tz * 1.5, 1.1, 1.1, gk, gk + 11 * sc, '#3b4048');   // legs
+    p.box(kx + tx * 1.5, kz + tz * 1.5, 1.1, 1.1, gk, gk + 11 * sc, '#3b4048');
+    p.box(kx, kz, 3.2, 3.2, gk + 11 * sc, gk + 22 * sc, SHIRT[hash32(seed, k, 5) % SHIRT.length]);
+    p.box(kx, kz, 2.4, 2.4, gk + 22 * sc, gk + 28 * sc, '#e8c9a0');              // head
+    tmp.set(['#4a3524', '#7a5a34', '#2c2622', '#b08a4a'][hash32(seed, k, 9) % 4]);
+    p.box(kx, kz, 2.6, 2.6, gk + 26.6 * sc, gk + 29 * sc, '#' + tmp.getHexString());
+  }
+}
+
 function snowman(buckets: Bucket[], f: { x: number; z: number; tx: number; tz: number; nx: number; nz: number }, g: number, seed: number) {
   const rng = mulberry32(hash32(seed, 55, 13));
   const tOff = (10 + rng() * 9) * (rng() < 0.5 ? 1 : -1);
@@ -11012,6 +11154,17 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (b.k === 'house' && !storefront && areaM2 < 1000 && lvEff <= 3.6) yardFence(buckets, b, gEff, index, key, seed);
       if (b.k === 'house' && !storefront && areaM2 < 1400) foundationPlanting(buckets, b, gEff, index, key, seed);
       if (b.k === 'house' && !storefront && areaM2 < 900) clothesline(buckets, b, gEff, index, key, seed);
+    }
+
+    // 🍋 summer: a lemonade stand at the end of somebody's front walk. Rare enough
+    // to be a find, and only where there is a street for it to face.
+    if (SEASON === 'summer' && b.k === 'house' && !b.sf && areaM2 < 900
+        && hash32(seed, 313, 29) % 1000 < 9) {
+      const fs2 = frontSegment(b, index);
+      if (fs2.len >= 26 && !index.isBlocked(fs2.x + fs2.nx * 20, fs2.z + fs2.nz * 20)
+          && !index.onGradePavedAt(fs2.x + fs2.nx * 20, fs2.z + fs2.nz * 20)) {
+        lemonadeStand(buckets, fs2, g, seed);
+      }
     }
 
     // seasonal dressing: Christmas lights on the eaves, pumpkins by the door
@@ -12082,6 +12235,43 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     car(buckets[PLAIN], x, z, ang, pick(STYLE.building.cars, dr.seed), gc);
   }
 
+  // 🦅 one osprey platform per big salt marsh, spring through fall
+  if (SEASON !== 'winter') {
+    for (const pi of bucket.polys) {
+      const poly = world.polys[pi];
+      if (poly.k !== 'wetland' || ringAreaM2(poly.p) < 150000) continue;
+      const [mcx, mcz] = centroidOf(poly.p);
+      const rng = mulberry32(hash32(pi, 401, 3));
+      // a spot in the marsh, found by trying a few offsets from the centre: standing
+      // in the reeds, not in a channel, and with open water in sight to fish
+      let placed = false;
+      for (let a = 0; a < 22 && !placed; a++) {
+        const ang = rng() * Math.PI * 2, r = rng() * 520;
+        const x = mcx + Math.cos(ang) * r, z = mcz + Math.sin(ang) * r;
+        if (x < ox || x >= ox + CHUNK || z < oy || z >= oy + CHUNK) continue;
+        if (!pointInPolyD(x, z, poly) || index.isWaterAt(x, z) || index.isBlocked(x, z)) continue;
+        // the nearest open water within 400 px — the bird stands facing it
+        // the nearest open water it can see. A tidal creek in the Great Marsh can be
+        // narrower than the sample step, so the ring reaches a long way out before it
+        // gives up and just faces the bird away from the middle of the marsh.
+        let fx = 0, fz = 0;
+        for (const d of [140, 300, 560, 900, 1500]) {
+          for (let k = 0; k < 24; k++) {
+            const wa = (k / 24) * Math.PI * 2;
+            if (index.isWaterAt(x + Math.cos(wa) * d, z + Math.sin(wa) * d)) { fx = Math.cos(wa); fz = Math.sin(wa); break; }
+          }
+          if (fx || fz) break;
+        }
+        if (!fx && !fz) {
+          const dl = Math.hypot(x - mcx, z - mcz) || 1;
+          fx = (x - mcx) / dl; fz = (z - mcz) / dl;
+        }
+        ospreyNest(buckets, x, z, index.heightAtPx(x, z), pi, fx, fz);
+        placed = true;
+      }
+    }
+  }
+
   // dune grass on sand + the living beach kit on the destination beaches
   for (const pi of bucket.polys) {
     const poly = world.polys[pi];
@@ -12109,6 +12299,17 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       if (index.isWaterAt(x, z)) return;   // strand polys dip under the tide line
       beachCamp(buckets[PLAIN], x, z, index.heightAtPx(x, z), rng, (wx, wz) => index.isWaterAt(wx, wz));
     }, beach ? 24 : 12);
+    // 🔥 a fire ring on the dry sand, on the same strands the camps use. Back from
+    // the tide line, but only just: a barrier beach is a narrow strand with the ocean
+    // on one side and the marsh on the other.
+    scatterInPoly(poly, pi + 1231, 260, 0.22, ox, oy, (x, z) => {
+      if (!beach && x < BEACH_X) return;
+      if (index.isWaterAt(x, z)) return;
+      for (const [dx, dz] of [[30, 0], [-30, 0], [0, 30], [0, -30]] as const) {
+        if (index.isWaterAt(x + dx, z + dz)) return;
+      }
+      beachFire(buckets, x, z, index.heightAtPx(x, z), Math.round(x) ^ Math.round(z));
+    }, 1);
     if (beach) {
       // strollers between the camps — a beach people travel to is people walking it
       scatterInPoly(poly, pi + 919, 230, 0.4, ox, oy, (x, z, rng) => {
