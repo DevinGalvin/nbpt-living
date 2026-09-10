@@ -78,10 +78,12 @@ export function groundInject(shader: { uniforms: Record<string, unknown>; vertex
     // cat's paws: the wind crosses a pond in patches, so the ripple is not everywhere.
     // Scales are deliberately coarse (~30 m and ~9 m): finer than that and the mip
     // chain averages the ripple straight back to a flat fill at any real distance.
-    float gust = texture2D(uLawnMap, vGroundW.xz * (1.0 / 900.0) + uGTime * 0.0014).r;
+    float gust = texture2D(uLawnMap, vGroundW.xz * (1.0 / 900.0) + uGTime * 0.0040).r;
     float rip = 0.35 + 1.3 * smoothstep(0.34, 0.76, gust);
-    float w1 = texture2D(uLawnMap, vGroundW.xz * (1.0 / 240.0) + vec2(uGTime * 0.0035, uGTime * 0.0025)).r;
-    float w2 = texture2D(uLawnMap, vGroundW.xz * (1.0 / 70.0) + vec2(-uGTime * 0.007, uGTime * 0.005)).r;
+    // in SECONDS: at these rates the ripple drifts about 2 px (25 cm) a second, which
+    // is what a pond does on a light breeze
+    float w1 = texture2D(uLawnMap, vGroundW.xz * (1.0 / 240.0) + vec2(uGTime * 0.010, uGTime * 0.007)).r;
+    float w2 = texture2D(uLawnMap, vGroundW.xz * (1.0 / 70.0) + vec2(-uGTime * 0.020, uGTime * 0.014)).r;
     float wv = w1 * 0.60 + w2 * 0.40;
     vec3 pc = c * (0.88 + 0.40 * rip * (wv - 0.5) + 0.06 * rip);
     // and the crests catching the sky, sparse and only where the gust is

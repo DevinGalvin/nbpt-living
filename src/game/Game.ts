@@ -2673,7 +2673,10 @@ export class Game {
     setDecorGolden(sky.golden, sky.sunDir);
     // the nor'easter's wind, and the plow's weather: a bed of noise that rises with the storm
     this.audio.setWind(sky.storm * (this.inside ? 0.2 : 1));
-    setGroundWet(sky.wet, sky.fog.r * 1.08, sky.fog.g * 1.08, sky.fog.b * 1.1, t);
+    // SECONDS — t is the rAF clock in milliseconds, and handing that straight to the
+    // pond shader drove the ripple a thousand times too fast (Devin: "cloud reflections
+    // are absolutely flying")
+    setGroundWet(sky.wet, sky.fog.r * 1.08, sky.fog.g * 1.08, sky.fog.b * 1.1, t / 1000);
     updateClouds(dt, sky.night, sky.wet, GFX.clouds);
     this.farTown?.tick(this.px, this.pz);
     for (let i = 0; i < this.lampGlows.length; i++) {

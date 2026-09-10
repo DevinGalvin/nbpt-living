@@ -469,6 +469,13 @@ export class WorldIndex {
       const rt = this.world.trees[ti];
       if (Math.floor(rt.x / CHUNK) !== cx || Math.floor(rt.y / CHUNK) !== cy) continue;
       if (this.isWaterAt(rt.x, rt.y) || this.onClearedGround(rt.x, rt.y, bucket)) continue;
+      // …and never in the middle of a street or inside a house. A surveyed point is
+      // usually right, but 21 of the town's 2,685 land on a carriageway and 6 inside a
+      // footprint — OSM drift against a synthetic road width. The test is deliberately
+      // TIGHTER than the scatter's (which keeps 12 px clear of every kerb): a real
+      // street tree stands at the kerb and belongs there.
+      if (this.onCarriageway(rt.x, rt.y, bucket) || this.inAnyBuilding(rt.x, rt.y, bucket)) continue;
+      if (this.onPathSurface(rt.x, rt.y, bucket)) continue;   // and never mid-trail
       out.push({ x: rt.x, y: rt.y, r: 9 + (hash32(rt.x, rt.y) % 7), bush: false });
     }
     const realCount = out.length;
@@ -907,6 +914,32 @@ export class WorldIndex {
       const r = this.world.roads[ri];
       if (distToPolylineSq(x, y, r.p) < (r.w / 2 + 3) ** 2) return true;
     }
+    return false;
+  }
+
+  // strictly on the paved carriageway (no kerb margin) — for things that are allowed
+  // to stand at the kerb but never in the street
+  private onCarriageway(x: number, y: number, bucket: Bucket): boolean {
+    for (const ri of bucket.roads) {
+      const r = this.world.roads[ri];
+      if (r.b || r.l) continue;
+      if (distToPolylineSq(x, y, r.p) < (r.w / 2 - 2) ** 2) return true;
+    }
+    return false;
+  }
+
+  // squarely on a made path surface (inside the casing) — 24 surveyed trees stand in
+  // the middle of one, six of them on the rail trail
+  private onPathSurface(x: number, y: number, bucket: Bucket): boolean {
+    for (const pi of bucket.paths) {
+      const p = this.world.paths[pi];
+      if (distToPolylineSq(x, y, p.p) < (p.w / 2 - 1) ** 2) return true;
+    }
+    return false;
+  }
+
+  private inAnyBuilding(x: number, y: number, bucket: Bucket): boolean {
+    for (const bi of bucket.buildings) if (pointInRing(x, y, this.world.buildings[bi].p)) return true;
     return false;
   }
 

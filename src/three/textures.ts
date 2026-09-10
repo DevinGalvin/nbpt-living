@@ -17,6 +17,32 @@ function canvasTex(draw: (g: CanvasRenderingContext2D, s: number) => void, size 
   return t;
 }
 
+// The mean colour of a generated texture, in LINEAR space — what multiplying by the
+// whole texture does to a wall on average. The far-town stand-ins are untextured, so
+// without this a brick block's pale base hex (the brick grain supplies the red) went to
+// the horizon as a blank grey crate while its detailed self was dark red. Read once
+// off the canvas the texture was drawn on, and cached.
+const meanCache = new WeakMap<object, THREE.Color>();
+export function texMean(t: THREE.CanvasTexture): THREE.Color {
+  const img = t.image as HTMLCanvasElement;
+  const hit = meanCache.get(img);
+  if (hit) return hit;
+  const out = new THREE.Color(1, 1, 1);
+  try {
+    const g = img.getContext('2d')!;
+    const d = g.getImageData(0, 0, img.width, img.height).data;
+    let r = 0, gg = 0, b = 0;
+    const lin = (v: number) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+    for (let i = 0; i < d.length; i += 4) {
+      r += lin(d[i] / 255); gg += lin(d[i + 1] / 255); b += lin(d[i + 2] / 255);
+    }
+    const n = d.length / 4;
+    out.setRGB(r / n, gg / n, b / n, THREE.LinearSRGBColorSpace);
+  } catch { /* a texture whose canvas cannot be read stays neutral */ }
+  meanCache.set(img, out);
+  return out;
+}
+
 // horizontal clapboard courses (~25 cm each), neutral
 export function clapboardTex(): THREE.CanvasTexture {
   return canvasTex((g, s) => {
