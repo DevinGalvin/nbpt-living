@@ -22,6 +22,7 @@ export interface Building {
   lv: number;       // levels
   n?: string;
   sf?: number;      // 1 = storefront ground floor (real retail-zone/POI evidence)
+  skip?: number;    // 1 = a unit mapped inside a bigger building; the host is built instead
   style?: string;   // mapped building:architecture — 'federal' | 'georgian' | 'queen_anne'
   // Height its walls START at, world px above the ground — a skybridge, an
   // air-rights span, an elevated station headhouse. Set from OSM `min_height` /

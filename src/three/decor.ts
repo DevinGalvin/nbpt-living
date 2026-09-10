@@ -5653,7 +5653,99 @@ function buildPrescott(buckets: Bucket[], x: number, z: number, g: number) {
   p.box(x - 5.4, z + 0.2, 1.1, 1.3, g + 28.2, g + 29.1, BRONZE);
 }
 
+// ⛲ THE INN STREET FOUNTAIN. The middle of the brick mall: a square basin set flush
+// in the paving inside a granite frame, three bronze columns of different heights
+// standing in it, a grid of jets round them, and — the thing everyone actually
+// remembers — the rough split granite blocks strewn round two sides that the whole
+// town sits on. Hand-placed (OSM carries no fountain in Newburyport at all), so the
+// angle is hand-set too: the mall runs (-0.495, 0.869) through this point, and the
+// basin is square to it.
+const INN_FOUNTAIN_ANG = Math.atan2(0.869, -0.495);
+function buildInnFountain(buckets: Bucket[], x: number, z: number, g: number) {
+  const p = buckets[PLAIN];
+  const w = buckets[GLOW];                        // water: unlit, so it reads as water
+  const rng = mulberry32(90210);
+  const A = INN_FOUNTAIN_ANG;
+  const ca = Math.cos(A), sa = Math.sin(A);
+  // local -> world: u runs along the mall, v across it
+  const P = (u: number, v: number): [number, number] => [x + u * ca - v * sa, z + u * sa + v * ca];
+
+  const R = 30;                                   // half the basin, 3.75 m
+  // the granite frame: four kerb bars round the basin, set a touch proud of the brick
+  for (const [du, dv, hu, hv] of [[0, -R - 3, R + 6, 3], [0, R + 3, R + 6, 3],
+                                  [-R - 3, 0, 3, R + 6], [R + 3, 0, 3, R + 6]] as const) {
+    const [px, pz] = P(du, dv);
+    rotBox(p, px, pz, hu, hv, g, g + 2.4, A, '#b9b4aa');
+  }
+  // The basin floor, wet and dark — and PROUD of the brick, not sunk into it. Set a
+  // hair below grade it z-fought the paving and everything else painted at ground
+  // level, and the plaza's chalk came up through the water in pink curves. The granite
+  // frame stands taller than it either way, so it still reads as a recessed basin.
+  const [bx, bz] = P(0, 0);
+  rotBox(p, bx, bz, R, R, g + 0.5, g + 1.1, A, '#3c4247');
+  for (const s2 of [-1, 1] as const) {
+    const [gx, gz] = P(0, s2 * (R - 2.5));
+    rotBox(p, gx, gz, R, 2.5, g + 1.1, g + 1.4, A, '#8f949a');
+  }
+
+  // THE COLUMNS: three bronze pillars, different heights, off-centre the way they are
+  const COLS: [number, number, number][] = [[-6, -3, 16], [2, 4, 23], [9, -5, 13]];
+  for (const [cu, cv, h] of COLS) {
+    const [cx2, cz2] = P(cu, cv);
+    p.box(cx2, cz2, 1.6, 1.6, g + 1.1, g + h, '#c98d55');          // bronze, wet and bright
+    p.box(cx2, cz2, 2.1, 2.1, g + h - 1.1, g + h, '#cf9459');      // the lipped head
+    // the plume off the top. (A "sheet of water down the column" was a pale box a
+    // shade wider than the column itself — it read as a bandage, and z-fought the
+    // bronze the whole way up.)
+    // The water goes in the GLOW bucket — unlit, so it stays white instead of being
+    // shaded down to the same grey as the granite, which is what a jet looks like when
+    // a Lambert material gets hold of it.
+    w.box(cx2, cz2, 1.2, 1.2, g + h, g + h + 4.5, '#eef8fc');
+    w.windLast(30, (_x, y) => Math.max(0, (y - g - h) / 4.5) * 0.35);
+  }
+  // THE JETS: a grid of them across the basin, tallest in the middle, and every one
+  // waving a little — the wind weight the flags use, at a tenth of the amplitude
+  for (let iu = -2; iu <= 2; iu++) {
+    for (let iv = -2; iv <= 2; iv++) {
+      const u = iu * 11 + (rng() - 0.5) * 2, v = iv * 11 + (rng() - 0.5) * 2;
+      if (COLS.some(([cu, cv]) => Math.hypot(u - cu, v - cv) < 7)) continue;
+      const [jx, jz] = P(u, v);
+      const h = 6 + (1 - Math.hypot(u, v) / 46) * 9 + rng() * 2.5;
+      w.box(jx, jz, 0.55, 0.55, g + 1.1, g + h, '#eaf6fb');
+      w.windLast(30, (_x, y) => Math.max(0, (y - g) / h) ** 2 * 0.3);
+      w.box(jx, jz, 1.3, 1.3, g + 1.1, g + 1.8, '#dff0f7');        // the splash at its foot
+    }
+  }
+
+  // THE BLOCKS. Rough split granite, some grey and some warm, in loose rows round two
+  // sides — never a neat ring, and no two the same size or quite square to each other.
+  const GRANITE = ['#cfc9be', '#dbcfba', '#c2bcb2', '#e0d3ba', '#c8c3ba', '#d6cab4', '#bab5ad'];
+  const rows: [number, number, number][] = [];    // u, v, along-row direction
+  for (let i = 0; i < 9; i++) rows.push([-R - 10 - (i % 2) * 7, -R + 4 + i * 8, 1]);    // the long side
+  for (let i = 0; i < 8; i++) rows.push([-R + 4 + i * 9, R + 10 + (i % 2) * 6, 0]);     // the end
+  for (let i = 0; i < 5; i++) rows.push([R + 9 + (i % 2) * 7, -R + 10 + i * 11, 1]);    // a short run opposite
+  for (const [u0, v0, dirU] of rows) {
+    const u = u0 + (rng() - 0.5) * 3.5, v = v0 + (rng() - 0.5) * 3.5;
+    const [gx, gz] = P(u, v);
+    const L = 3.6 + rng() * 2.6, Wd = 2.6 + rng() * 1.5, H = 4 + rng() * 3;
+    const ang = A + (dirU ? 0 : Math.PI / 2) + (rng() - 0.5) * 0.5;
+    tmp.set(GRANITE[Math.floor(rng() * GRANITE.length)]);
+    const hex = '#' + tmp.getHexString();
+    rotBox(p, gx, gz, L, Wd, g, g + H, ang, hex);
+    // a split top: a second, slightly smaller slab a shade lighter, offset a little
+    rotBox(p, gx + (rng() - 0.5) * 2, gz + (rng() - 0.5) * 2, L * 0.92, Wd * 0.9, g + H, g + H + 0.8 + rng() * 0.9,
+      ang + (rng() - 0.5) * 0.12, '#' + tmp.multiplyScalar(1.08).getHexString());
+  }
+  // the low bollards along the far edge, as in the photograph
+  for (let i = 0; i < 5; i++) {
+    const [px2, pz2] = P(-R + 5 + i * 14, -R - 22);
+    p.box(px2, pz2, 1.1, 1.1, g, g + 7, '#2f3336');
+    p.box(px2, pz2, 1.5, 1.5, g + 7, g + 7.8, '#3a3f42');
+  }
+}
+
 const POI_HEROES: Record<string, (buckets: Bucket[], x: number, z: number, g: number) => void> = {
+  'Inn Street Fountain': buildInnFountain,          // added via nbpt manualFeatures — OSM has no fountain here
   "Fishermens' Monument": buildManAtWheel,          // OSM's odd apostrophe — keep it
   "Fishermen's Wives Memorial": buildWivesMemorial,
   'Tablet Rock': buildTabletRock,
@@ -10785,6 +10877,13 @@ function sidewalkChalk(buckets: Bucket[], poly: Poly, index: WorldIndex, bucket:
     }
   }
   if (!best || bd > 260 * 260) return;
+  // …but not in the fountain. The chalk is drawn where the WALK is, which can be a
+  // long way from the polygon's centre, and the Inn Street basin sits a hair below the
+  // brick — so a hopscotch came up through the water as pink curves. The drawing runs
+  // about 60 px from its anchor, hence the clearance.
+  for (const q of world.pois) {
+    if (q.k === 'fountain' && (q.x - best.x) ** 2 + (q.y - best.z) ** 2 < 200 * 200) return;
+  }
   const rng = mulberry32(hash32(pi, 0x5a, 3));
   const chalk = ['#f7c6d9', '#cfe3f7', '#f8eaa6', '#d5f0c9', '#f3d3b0'];
   const ca = Math.cos(best.ang), sa = Math.sin(best.ang);

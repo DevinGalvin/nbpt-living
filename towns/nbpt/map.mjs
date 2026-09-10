@@ -159,6 +159,34 @@ export function manualFeatures({ world }) {
   // person. Added as a POI so decor.ts can hand-build it (see POI_HEROES).
   world.pois.push({ x: -2774, y: -392, k: 'memorial', n: 'William Lloyd Garrison Statue', s: 'nbpt-manual' });
 
+  // ☕ FOWLE'S, 17 STATE STREET — moved to the correct side of the street.
+  // OSM's node sits at (-109, 519): 55 px from the State Street centreline, which is
+  // 15 px outside a 40 px half-width kerb, i.e. standing on the WEST pavement. The
+  // shop-sign pass mounts a sign on the nearest wall, so Fowle's was lit up on the
+  // wrong side of the street.
+  //
+  // Which side is right is settled by the assessor addresses the build already
+  // carries (world.addrs). On State Street, every even number is west of the
+  // centreline (50, 54, 84, 94, 100, 102, 104) and every odd number is east
+  // (51, 63, 79, 81, 93, 95, 97, 101, 105). 17 is ODD, so Fowle's is EAST — and
+  // it has been at 17 State Street since 1903, sign and facade preserved.
+  //
+  // The distance ALONG the street was already right: the node sits 475 px up from
+  // Market Square, and interpolating #1 at 0 against #51 at 1347 puts #17 at 457.
+  // So this only mirrors it across the road and sets it back into the block that
+  // fronts the east side there — building 1317, a 3-storey commercial block already
+  // flagged as a storefront.
+  world.pois = world.pois.filter((p) => !/^Fowle/.test(p.n || ''));
+  world.pois.push({ x: 10, y: 560, k: 'cafe', n: "Fowle's", s: 'nbpt-manual' });
+
+  // ⛲ THE INN STREET FOUNTAIN. OSM carries no fountain anywhere in Newburyport,
+  // so the middle of the Inn Street Mall — the one place downtown that is all brick
+  // and no traffic — was bare paving. Placed at the mall's widest point: walking the
+  // path and measuring clearance to the nearest building every 40 px, the walk runs
+  // 22–39 px clear for most of its length and opens to 123 px only here, which is
+  // exactly the plaza the fountain sits in. Built by POI_HEROES in decor.ts.
+  world.pois.push({ x: -487, y: 561, k: 'fountain', n: 'Inn Street Fountain', s: 'nbpt-manual' });
+
   // The USRC Massachusetts, moored off the waterfront where she was built.
   // The 🏛 "Birthplace of the Coast Guard" card is about the SHIP — the first
   // revenue cutter, built by William Searle and launched here on 23 July 1791 — and

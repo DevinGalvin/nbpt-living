@@ -431,6 +431,45 @@ export class WorldIndex {
       if (host < 0) host = near;
       if (host >= 0) world.buildings[host].sf = 1;
     }
+
+    // Nested shells. Thirteen downtown footprints are a SHOP mapped as its own
+    // building inside the block that contains it — The Angry Donut inside the Joy
+    // Block, LaRosa's inside its block, Abraham's inside East Row. Rendered as
+    // buildings in their own right they put a second shell inside the first, and the
+    // two sets of walls and roofs z-fight: the flicker you see standing in front of
+    // them. Only the host is built now; the unit hands over its NAME and its
+    // storefront flag first, so the shop keeps its sign on the wall it belongs to.
+    for (const [key, cell] of this.buckets) {
+      void key;
+      for (const bi of cell.buildings) {
+        const b = world.buildings[bi];
+        if (b.skip) continue;
+        const a = ringArea2(b.p);
+        if (a > 1500 * 64) continue;                       // a block is never somebody's unit
+        for (const hj of cell.buildings) {
+          if (hj === bi) continue;
+          const h = world.buildings[hj];
+          if (h.skip || ringArea2(h.p) < a * 1.2) continue;
+          // "inside" by area, not by vertices: a unit's wall usually lies ON the
+          // host's, so corner tests are a coin toss
+          let inside = 0, total = 0;
+          const [x0, y0, x1, y1] = bboxOf(b.p);
+          for (let u = 0; u < 12; u++) {
+            for (let v = 0; v < 12; v++) {
+              const px = x0 + (x1 - x0) * ((u + 0.5) / 12), py = y0 + (y1 - y0) * ((v + 0.5) / 12);
+              if (!pointInRing(px, py, b.p)) continue;
+              total++;
+              if (pointInRing(px, py, h.p)) inside++;
+            }
+          }
+          if (total < 6 || inside / total < 0.85) continue;
+          if (b.n && !h.n) h.n = b.n;
+          if (b.sf) h.sf = 1;
+          b.skip = 1;
+          break;
+        }
+      }
+    }
   }
 
   bucket(key: string): Bucket {
@@ -443,6 +482,7 @@ export class WorldIndex {
     const out: { idx: number; b: Building }[] = [];
     for (const bi of this.bucket(key).buildings) {
       const b = this.world.buildings[bi];
+      if (b.skip) continue;               // a unit inside a block — the block is built instead
       const [mx, my] = centroidOf(b.p);
       if (Math.floor(mx / CHUNK) === cx && Math.floor(my / CHUNK) === cy) out.push({ idx: bi, b });
     }
@@ -3421,6 +3461,16 @@ export function walkLine(pts: number[], step: number, cb: (x: number, y: number,
     }
     acc = (acc + len) % step;
   }
+}
+
+/** |signed area| of a ring, in world px² */
+export function ringArea2(pts: number[]): number {
+  let a = 0;
+  for (let i = 0; i < pts.length; i += 2) {
+    const j = (i + 2) % pts.length;
+    a += pts[i] * pts[j + 1] - pts[j] * pts[i + 1];
+  }
+  return Math.abs(a / 2);
 }
 
 export function bboxOf(pts: number[]): [number, number, number, number] {
