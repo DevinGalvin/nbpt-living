@@ -1320,19 +1320,45 @@ function car(bk: Bucket, x: number, z: number, ang: number, hex: string, g = 0, 
 // be going through eachother"): bow, stern and center on open water, off every pier
 // deck — the ring walk turns corners, where a naive perpendicular offset lays the
 // hull diagonally across the dock — and at least a hull apart from its neighbours.
-function mooringClear(index: WorldIndex, moored: [number, number][], bx: number, bz: number, ang: number, seed: number): boolean {
+// Every moored boat placed in this chunk, as an oriented rectangle: x, z, ang, hl, hw.
+// The old test was a 44 px circle between centres — but hull() takes HALF-extents, so
+// the fleet runs 43 to 95 px stem to stern, and two big boats 44 px apart lie straight
+// through each other. Along a pier ring the walk steps every 74 px, which put a 95 px
+// hull half inside its neighbour every time.
+function mooringClear(index: WorldIndex, moored: number[], bx: number, bz: number, ang: number, seed: number): boolean {
   const sc = 0.68 + (hash32(seed, 9, 2) % 100) / 100 * 0.8;   // same size boat() will build
-  const r = 16 * sc + 4;
+  const hl = 32 * sc, hw = 9.5 * sc;
   const ca = Math.cos(ang), sa = Math.sin(ang);
-  for (const [px, pz] of [[bx, bz], [bx + ca * r, bz + sa * r], [bx - ca * r, bz - sa * r]] as [number, number][]) {
+  // the REAL bow and stern, not the mid-quarter the old probe reached
+  for (const t of [0, 1, -1, 0.55, -0.55]) {
+    const px = bx + ca * hl * t, pz = bz + sa * hl * t;
     if (!index.isWaterAt(px, pz)) return false;
     if (index.heightAtPx(px, pz) > WATER_Y - 0.5) return false;   // exposed flat — would beach
     if (index.pierAt(px, pz)) return false;                       // lying across a dock
   }
-  for (const [mx, mz] of moored) {
-    if ((bx - mx) * (bx - mx) + (bz - mz) * (bz - mz) < 44 * 44) return false;
+  // separating-axis test against the boats already tied up, the same one the parked
+  // cars use — a beam apart alongside, a full length apart in line
+  for (let i = 0; i + 4 < moored.length; i += 5) {
+    const ox = moored[i] - bx, oz = moored[i + 1] - bz;
+    if (ox * ox + oz * oz > 200 * 200) continue;
+    const oa = moored[i + 2], ohl = moored[i + 3], ohw = moored[i + 4];
+    const oc = Math.cos(oa), os = Math.sin(oa);
+    const axes: [number, number][] = [[ca, sa], [-sa, ca], [oc, os], [-os, oc]];
+    let separated = false;
+    for (const [ax, az] of axes) {
+      const d = Math.abs(ox * ax + oz * az);
+      const rA = hl * Math.abs(ca * ax + sa * az) + hw * Math.abs(-sa * ax + ca * az);
+      const rB = ohl * Math.abs(oc * ax + os * az) + ohw * Math.abs(-os * ax + oc * az);
+      if (d > rA + rB + 5) { separated = true; break; }   // 5 px of open water between hulls
+    }
+    if (!separated) return false;
   }
   return true;
+}
+/** the oriented rectangle a boat() of this seed will occupy, for the moored list */
+function boatBox(x: number, z: number, ang: number, seed: number): [number, number, number, number, number] {
+  const sc = 0.68 + (hash32(seed, 9, 2) % 100) / 100 * 0.8;
+  return [x, z, ang, 32 * sc, 9.5 * sc];
 }
 function boat(bk: Bucket, x: number, z: number, ang: number, seed: number) {
   const ca = Math.cos(ang), sa = Math.sin(ang);
@@ -11431,7 +11457,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   // boats tied up along the docks — EVERY pierline moors now, not just OSM
   // mooring-tagged ones (Beverly's whole marina is untagged pierline floats
   // and sat empty in summer; same fix the pier POLYS got below)
-  const moored: [number, number][] = [];
+  const moored: number[] = [];   // x, z, ang, hl, hw per boat
   for (const pi of bucket.paths) {
     const p = world.paths[pi];
     if ((p.c !== 'pierline' && !p.m) || !MOOR_FILL) continue;
@@ -11446,7 +11472,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const ang = Math.atan2(tz, tx);
       if (!mooringClear(index, moored, bx, bz, ang, h2)) return;
       boat(buckets[PLAIN], bx, bz, ang, h2);
-      moored.push([bx, bz]);
+      moored.push(...boatBox(bx, bz, ang, h2));
     });
   }
   for (const pi of bucket.polys) {
@@ -11467,7 +11493,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         const ang = Math.atan2(tz, tx);
         if (!mooringClear(index, moored, bx, bz, ang, h2)) continue;
         boat(buckets[PLAIN], bx, bz, ang, h2);
-        moored.push([bx, bz]);
+        moored.push(...boatBox(bx, bz, ang, h2));
         placed++;
         break;
       }
