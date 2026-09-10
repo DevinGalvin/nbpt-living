@@ -863,7 +863,21 @@ export class WorldIndex {
         if (d2 < hostD2) { hostD2 = d2; host = bi; }
       }
       if (host < 0) continue;
-      // mount on the building edge closest to the street
+      // The shop's OWN street. Scoring every edge against whatever road happens to be
+      // nearest put Fowle's sign on the Essex Street back wall of its block, 500 px up
+      // from its own door — the block is an L, and Essex runs hard against the far
+      // side of it. A business is on ONE street; find which, and only that street gets
+      // to attract the sign.
+      let poiRoad: number[] | null = null;
+      let poiRoadD2 = 300 * 300;
+      for (const ri of bucket.roads) {
+        const r = this.world.roads[ri];
+        if (r.c === 'service') continue;
+        const d2 = distToPolylineSq(poi.x, poi.y, r.p);
+        if (d2 < poiRoadD2) { poiRoadD2 = d2; poiRoad = r.p; }
+      }
+      const faceDist2 = (x: number, y: number) => (poiRoad ? distToPolylineSq(x, y, poiRoad) : roadDist2(x, y));
+      // mount on the building edge closest to that street
       const pts = this.world.buildings[host].p;
       const [hcx, hcy] = centroidOf(pts);
       const n = pts.length / 2;
@@ -881,7 +895,7 @@ export class WorldIndex {
         const mx = ax + ex * t, my = ay + ey * t;
         let nx = ey / len, ny = -ex / len;
         if ((mx - hcx) * nx + (my - hcy) * ny < 0) { nx = -nx; ny = -ny; } // outward
-        const score = roadDist2(mx + nx * 30, my + ny * 30);
+        const score = faceDist2(mx + nx * 30, my + ny * 30);
         if (!bestEdge || score < bestEdge.score) bestEdge = { x: mx, y: my, nx, ny, score };
       }
       if (!bestEdge || bestEdge.score > 360 * 360) continue;

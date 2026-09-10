@@ -171,13 +171,17 @@ export function manualFeatures({ world }) {
   // (51, 63, 79, 81, 93, 95, 97, 101, 105). 17 is ODD, so Fowle's is EAST — and
   // it has been at 17 State Street since 1903, sign and facade preserved.
   //
-  // The distance ALONG the street was already right: the node sits 475 px up from
-  // Market Square, and interpolating #1 at 0 against #51 at 1347 puts #17 at 457.
-  // So this only mirrors it across the road and sets it back into the block that
-  // fronts the east side there — building 1317, a 3-storey commercial block already
-  // flagged as a storefront.
+  // ALONG the street it is an interpolation, and a rough one: the only assessor
+  // anchors on State Street are 50, 51 and 54, all of them up past Essex. The first
+  // pass put it 474 px up from Market Square, which Devin says sits too near the
+  // square; it is 654 px up now, mid-way along the State Street frontage of building
+  // 1317 — the long east-side block between Middle and Essex. Say the word if it
+  // wants moving again; there is no address data down here to argue with.
+  //
+  // (The other half of "wrong side" was not the POI at all — the sign pass was
+  // mounting it on that block's ESSEX STREET wall. Fixed in shopSignsFor.)
   world.pois = world.pois.filter((p) => !/^Fowle/.test(p.n || ''));
-  world.pois.push({ x: 10, y: 560, k: 'cafe', n: "Fowle's", s: 'nbpt-manual' });
+  world.pois.push({ x: -33, y: 738, k: 'cafe', n: "Fowle's", s: 'nbpt-manual' });
 
   // 🧱 INN STREET IS ALL BRICK. OSM tags the mall as a green area (it is a park, in
   // the tagging sense), so the build painted the whole of it as lawn — and the ground
