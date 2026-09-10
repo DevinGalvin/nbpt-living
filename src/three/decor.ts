@@ -10136,6 +10136,58 @@ function witch(buckets: Bucket[], f: Front, g: number, seed: number) {
 }
 
 // front-yard snowman, dressed for the season
+// 🎸 A busker on the brick. Inn Street and the Market Square end of State have had
+// somebody playing on them every warm Saturday for forty years: a guitar, an open case
+// with a few coins in it, a chalked sign, and two or three people who stopped on their
+// way somewhere. The listeners stand back the way strangers do — near enough to hear,
+// far enough not to be committed.
+const BUSK_SHIRT = ['#3d5a80', '#8d5524', '#4a6b4a', '#7d3c4a', '#2f3e46', '#a15c38'];
+const BUSK_HAIR = ['#2a2320', '#4a3520', '#7a5a30', '#c8a86a', '#8a8a8a'];
+function personStanding(bk: Bucket, x: number, z: number, g: number, ang: number, seed: number, shirtHex?: string) {
+  const skin = pick(SKIN_TONES, seed);
+  const shirt = shirtHex ?? pick(BUSK_SHIRT, seed >> 3);
+  const hair = pick(BUSK_HAIR, seed >> 6);
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  for (const sd of [-1, 1]) bk.box(x - sa * sd * 1.3, z + ca * sd * 1.3, 0.95, 0.95, g, g + 10.5, '#39404a');   // legs
+  rotBox(bk, x, z, 2.7, 1.9, g + 10, g + 20.5, ang, shirt);                                                      // torso
+  for (const sd of [-1, 1]) bk.box(x - sa * sd * 3.3, z + ca * sd * 3.3, 0.8, 0.8, g + 12.5, g + 20, skin);      // arms
+  bk.box(x, z, 1.8, 1.8, g + 20.5, g + 25.6, skin);                                                              // head
+  bk.box(x, z, 1.95, 1.95, g + 24.6, g + 26.4, hair);
+}
+function busker(buckets: Bucket[], x: number, z: number, g: number, ang: number, seed: number) {
+  const rng = mulberry32(hash32(seed, 607, 13));
+  const p = buckets[PLAIN];
+  const ca = Math.cos(ang), sa = Math.sin(ang);       // ang points AT the audience
+  personStanding(p, x, z, g, ang, seed);
+  // the guitar, held across the chest and canted up toward the neck hand
+  const gAng = ang + Math.PI / 2;
+  const bodyX = x + ca * 2.2 - sa * 1.4, bodyZ = z + sa * 2.2 + ca * 1.4;
+  rotBox(p, bodyX, bodyZ, 4.2, 1.1, g + 13, g + 17.4, gAng, '#8a5a2e');          // the lower bout
+  rotBox(p, bodyX, bodyZ, 3.2, 1.15, g + 16.8, g + 19.6, gAng, '#8a5a2e');       // the upper bout
+  p.box(bodyX + ca * 0.3, bodyZ + sa * 0.3, 0.9, 0.9, g + 15.2, g + 16.2, '#2b2723');   // the sound hole
+  const nx2 = -sa, nz2 = ca;                                                      // along the neck
+  rotBox(p, bodyX + nx2 * 7.5, bodyZ + nz2 * 7.5, 5.5, 0.5, g + 18.6, g + 19.9, gAng, '#5e4126');  // neck
+  rotBox(p, bodyX + nx2 * 13.4, bodyZ + nz2 * 13.4, 1.4, 0.7, g + 19.6, g + 21.2, gAng, '#3f2c1c'); // headstock
+  // the open case at his feet, lid up toward the street, with a few coins in it
+  const cx2 = x + ca * 9, cz2 = z + sa * 9;
+  rotBox(p, cx2, cz2, 8, 4.5, g, g + 1.6, gAng, '#3a2d22');
+  rotBox(p, cx2, cz2, 7.2, 3.8, g + 1.6, g + 2.1, gAng, '#7d1f2a');               // the plush lining
+  rotBox(p, cx2 - ca * 4.6, cz2 - sa * 4.6, 8, 0.7, g + 1.6, g + 8.5, gAng, '#3a2d22');   // the lid, propped
+  for (let i = 0; i < 5; i++) {
+    const lx = (rng() - 0.5) * 11, lz = (rng() - 0.5) * 5;
+    p.box(cx2 + lx * -sa + lz * ca, cz2 + lx * ca + lz * sa, 0.7, 0.7, g + 2.1, g + 2.5,
+      rng() < 0.3 ? '#cfae4a' : '#c8c4bc');
+  }
+  // two or three who stopped on their way somewhere, stood back a bit
+  const listeners = 2 + Math.floor(rng() * 2);
+  for (let i = 0; i < listeners; i++) {
+    const spread = (i - (listeners - 1) / 2) * (11 + rng() * 6);
+    const back = 26 + rng() * 14;
+    const lx = x + ca * back - sa * spread, lz = z + sa * back + ca * spread;
+    personStanding(p, lx, lz, g, ang + Math.PI + (rng() - 0.5) * 0.4, seed + i * 37 + 5);
+  }
+}
+
 // 🔥 A beach fire, back from the water on the dry sand: a ring of cobbles, driftwood
 // stacked in a cone, and the flame. The flame goes in the WINDOW bucket, which is the
 // one that knows what time it is — so by day this is a cold fire ring somebody built
@@ -12233,6 +12285,36 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     if ((x - dr.x0) * ux + (z - dr.y0) * uz < 6) continue;
     const gc = index.heightAtPx(x, z);
     car(buckets[PLAIN], x, z, ang, pick(STYLE.building.cars, dr.seed), gc);
+  }
+
+  // 🎸 a busker on the downtown brick, in the warm half of the year
+  if (SEASON !== 'winter') {
+    for (const pi of bucket.paths) {
+      const pth = world.paths[pi];
+      if (pth.c !== 'ped' || !index.downtownPath(pth)) continue;
+      // Inn Street and Threadneedle Alley are the only two ped walks in the core, and
+      // on a warm day there is somebody playing on one of them — so both get a busker
+      // rather than a dice roll that usually came up empty.
+      // Stand on the walk's LONGEST straight, off to one side so the way stays clear.
+      // Picking a fixed vertex index and demanding 40 px of it skipped Inn Street
+      // outright — a mapped mall is a chain of short segments.
+      let ax = 0, az = 0, ex = 0, ez = 0, len = 0;
+      for (let k = 0; k + 3 < pth.p.length; k += 2) {
+        const dx2 = pth.p[k + 2] - pth.p[k], dz2 = pth.p[k + 3] - pth.p[k + 1];
+        const l = Math.hypot(dx2, dz2);
+        if (l > len) { len = l; ax = pth.p[k]; az = pth.p[k + 1]; ex = dx2; ez = dz2; }
+      }
+      if (len < 34) continue;
+      const ux2 = ex / len, uz2 = ez / len;
+      const side = hash32(pi, 11, 7) % 2 ? 1 : -1;
+      const off = pth.w / 2 + 7;
+      const sx2 = ax + ux2 * len * 0.5 + uz2 * side * off;
+      const sz2 = az + uz2 * len * 0.5 - ux2 * side * off;
+      if (sx2 < ox || sx2 >= ox + CHUNK || sz2 < oy || sz2 >= oy + CHUNK) continue;
+      if (index.isBlocked(sx2, sz2) || index.onGradeRoadAt(sx2, sz2)) continue;
+      // facing across the walk, so the case and the listeners are on the brick
+      busker(buckets, sx2, sz2, index.heightAtPx(sx2, sz2), Math.atan2(-ux2 * side, uz2 * side), pi);
+    }
   }
 
   // 🦅 one osprey platform per big salt marsh, spring through fall

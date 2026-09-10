@@ -38,7 +38,12 @@ const TARGET: Record<string, { size: number; by: 'length' | 'height'; axis?: 'x'
   'skater-male': { size: 30, by: 'height' }, 'skater-female': { size: 29, by: 'height' },
   'boat-small': { size: 40, by: 'length' }, 'boat-large': { size: 64, by: 'length' },
   streetlight: { size: 40, by: 'height' }, firehydrant: { size: 7, by: 'height' }, bench: { size: 14, by: 'length', axis: 'x' },
-  trash_A: { size: 8, by: 'height' }, trash_B: { size: 8, by: 'height' }, dumpster: { size: 12, by: 'height', axis: 'x' },
+  // The bins are SQUAT models — trash_A is 2.4x wider than it is tall — so scaling
+  // them to 8 px of height blew them out to 19 and 14 px across: 2.4 m and 1.7 m
+  // dustbins, which read on a downtown sidewalk as brown boulders parked beside every
+  // bench. Scale them by their footprint instead.
+  trash_A: { size: 6, by: 'length', axis: 'z' }, trash_B: { size: 6, by: 'length', axis: 'z' },
+  dumpster: { size: 12, by: 'height', axis: 'x' },
   trafficlight_A: { size: 36, by: 'height', axis: 'x' }, bush: { size: 10, by: 'height' }
 };
 export const CAR_NAMES = ['sedan', 'hatchback', 'sports-sedan', 'suv', 'suv-luxury', 'van', 'truck', 'delivery-truck', 'police-car', 'taxi'];
