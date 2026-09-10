@@ -1497,12 +1497,50 @@ const _dir = new THREE.Vector3();
 // a pet dog at heel beside its walker, on the end of a real leash. The dog
 // chases a point at its person's side; every so often a sniff-stop pins its
 // nose to the ground until the slack runs out, then it trots to catch up.
+// One pup, built once and shared by the leashed dogs at heel and the loose ones in
+// the parks — same breeds, same body, same legs to animate.
+function pupBody(rng: () => number): {
+  heading: THREE.Group; headGrp: THREE.Group; legs: THREE.Mesh[]; tail: THREE.Mesh; collarY: number; scale: number;
+} {
+  const heading = new THREE.Group();
+  const headGrp = new THREE.Group();
+  const legs: THREE.Mesh[] = [];
+  const B = PUP_BREEDS[Math.floor(rng() * PUP_BREEDS.length)];
+  const bodyLen = 4.4 * B.stretch, legLen = 3.4 * B.leg;
+  const bodyY = 2.6 + legLen;
+  const body = cap(2.1, bodyLen, B.fur); body.rotation.x = Math.PI / 2; body.position.set(0, bodyY, 0);
+  const belly = cap(1.6, bodyLen * 0.8, B.belly); belly.rotation.x = Math.PI / 2; belly.position.set(0, bodyY - 1, 0.2);
+  headGrp.position.set(0, bodyY + 1.6, bodyLen / 2 + 1.2);
+  const head = sph(2, B.fur, 1, 0.95, 0.95); head.position.set(0, 0.6, 0.4);
+  const snout = cap(1, 1.2, B.belly); snout.rotation.x = Math.PI / 2; snout.position.set(0, 0.1, 2.2);
+  const nose = sph(0.5, '#26211c'); nose.position.set(0, 0.35, 3.2);
+  for (const sx of [-1, 1]) {
+    const ear = sph(1.05, B.ear, 0.4, 1.15, 0.8); ear.position.set(sx * 1.7, 1.4, 0.2);
+    headGrp.add(ear);
+  }
+  headGrp.add(head, snout, nose);
+  const tail = cap(0.55, 2.2, B.fur, true);
+  tail.position.set(0, bodyY + 1.2, -(bodyLen / 2 + 1.2));
+  tail.rotation.x = 2.4;              // up and back, mid-wag most of the day
+  for (const [lx, lz] of [[-1.4, bodyLen / 2 - 0.4], [1.4, bodyLen / 2 - 0.4], [-1.4, -(bodyLen / 2 - 0.4)], [1.4, -(bodyLen / 2 - 0.4)]]) {
+    const leg = cap(0.62, legLen, B.fur, true); leg.position.set(lx, bodyY + 0.6, lz);
+    legs.push(leg); heading.add(leg);
+  }
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.3, 6, 12), mat(['#8a3a2e', '#3e5c84', '#54652c'][Math.floor(rng() * 3)]));
+  collar.rotation.x = Math.PI / 2 - 0.35; collar.position.set(0, bodyY + 1, bodyLen / 2 - 0.3);
+  collar.castShadow = true;
+  heading.add(body, belly, headGrp, tail, collar);
+  const scale = B.size * (0.92 + rng() * 0.16);
+  heading.scale.setScalar(scale);
+  return { heading, headGrp, legs, tail, collarY: (bodyY + 1.3) * scale, scale };
+}
+
 class LeashDog {
   root = new THREE.Group();
   leash: THREE.Mesh;                    // scene-level: re-strung hand → collar every frame
-  private heading = new THREE.Group();
-  private headGrp = new THREE.Group();  // pitches down for the sniff
-  private legs: THREE.Mesh[] = [];
+  private heading: THREE.Group;
+  private headGrp: THREE.Group;         // pitches down for the sniff
+  private legs: THREE.Mesh[];
   private tailM: THREE.Mesh;
   private phase = Math.random() * 6;
   private face = Math.random() * Math.PI * 2;
@@ -1513,37 +1551,12 @@ class LeashDog {
 
   constructor(seed: number) {
     const rng = mulberry32(seed);
-    const B = PUP_BREEDS[Math.floor(rng() * PUP_BREEDS.length)];
-    const bodyLen = 4.4 * B.stretch, legLen = 3.4 * B.leg;
-    const bodyY = 2.6 + legLen;
-    const body = cap(2.1, bodyLen, B.fur); body.rotation.x = Math.PI / 2; body.position.set(0, bodyY, 0);
-    const belly = cap(1.6, bodyLen * 0.8, B.belly); belly.rotation.x = Math.PI / 2; belly.position.set(0, bodyY - 1, 0.2);
-    this.headGrp.position.set(0, bodyY + 1.6, bodyLen / 2 + 1.2);
-    const head = sph(2, B.fur, 1, 0.95, 0.95); head.position.set(0, 0.6, 0.4);
-    const snout = cap(1, 1.2, B.belly); snout.rotation.x = Math.PI / 2; snout.position.set(0, 0.1, 2.2);
-    const nose = sph(0.5, '#26211c'); nose.position.set(0, 0.35, 3.2);
-    for (const sx of [-1, 1]) {
-      const ear = sph(1.05, B.ear, 0.4, 1.15, 0.8); ear.position.set(sx * 1.7, 1.4, 0.2);
-      this.headGrp.add(ear);
-    }
-    this.headGrp.add(head, snout, nose);
-    this.tailM = cap(0.55, 2.2, B.fur, true);
-    this.tailM.position.set(0, bodyY + 1.2, -(bodyLen / 2 + 1.2));
-    this.tailM.rotation.x = 2.4;        // up and back, mid-wag most of the day
-    for (const [lx, lz] of [[-1.4, bodyLen / 2 - 0.4], [1.4, bodyLen / 2 - 0.4], [-1.4, -(bodyLen / 2 - 0.4)], [1.4, -(bodyLen / 2 - 0.4)]]) {
-      const leg = cap(0.62, legLen, B.fur, true); leg.position.set(lx, bodyY + 0.6, lz);
-      this.legs.push(leg); this.heading.add(leg);
-    }
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.3, 6, 12), mat(['#8a3a2e', '#3e5c84', '#54652c'][Math.floor(rng() * 3)]));
-    collar.rotation.x = Math.PI / 2 - 0.35; collar.position.set(0, bodyY + 1, bodyLen / 2 - 0.3);
-    collar.castShadow = true;
-    this.heading.add(body, belly, this.headGrp, this.tailM, collar);
-    const sc = B.size * (0.92 + rng() * 0.16);
-    this.heading.scale.setScalar(sc);
+    const b = pupBody(rng);
+    this.heading = b.heading; this.headGrp = b.headGrp; this.legs = b.legs; this.tailM = b.tail;
     this.root.add(this.heading);
     this.side = rng() < 0.5 ? -1 : 1;
     this.nextSniff = 2 + rng() * 6;
-    this.collarY = (bodyY + 1.3) * sc;
+    this.collarY = b.collarY;
     const lg = new THREE.CylinderGeometry(0.22, 0.22, 1, 5);
     lg.translate(0, 0.5, 0);            // pivot at one end so position+scale strings it
     this.leash = new THREE.Mesh(lg, mat('#4a3a2c'));
@@ -1601,6 +1614,106 @@ class LeashDog {
     this.leash.position.set(hx, hy, hz);
     this.leash.scale.set(1, Math.max(0.001, ll), 1);
     if (ll > 0.001) this.leash.quaternion.setFromUnitVectors(_up, _dir.multiplyScalar(1 / ll));
+  }
+}
+
+// 🐕 An off-leash dog on a park lawn. The whole point of a dog game is meeting other
+// dogs, and this is what that actually looks like in a New England park: a loose dog
+// mooching around its person's patch of grass until it clocks you, then a trot over, a
+// nose-to-nose, and a play-bow — front end down, back end up, tail going. Bark at one
+// and it bows back and tears off in a circle, because of course it does.
+const PARK_DOGS = 5;
+class ParkDog {
+  root = new THREE.Group();
+  active = false;
+  home = { x: 0, z: 1e7 };
+  private heading: THREE.Group;
+  private headGrp: THREE.Group;
+  private legs: THREE.Mesh[];
+  private tailM: THREE.Mesh;
+  private phase = Math.random() * 6;
+  private face = Math.random() * Math.PI * 2;
+  private tx = 0; private tz = 0;       // where it is mooching to
+  private restT = 0;
+  private bow = 0;                      // seconds of play-bow left
+  private zoom = 0;                     // seconds of zoomies left
+  private zoomA = 0;
+  private rng: () => number;
+
+  constructor(seed: number) {
+    this.rng = mulberry32(seed);
+    const b = pupBody(this.rng);
+    this.heading = b.heading; this.headGrp = b.headGrp; this.legs = b.legs; this.tailM = b.tail;
+    this.root.add(this.heading);
+  }
+
+  /** put it down on a fresh patch of grass */
+  place(x: number, z: number, y: number) {
+    this.home.x = x; this.home.z = z;
+    this.root.position.set(x, y, z);
+    this.tx = x; this.tz = z;
+    this.restT = this.rng() * 2;
+    this.bow = 0; this.zoom = 0;
+    this.active = true;
+  }
+
+  /** a bark in earshot: bow, then zoomies */
+  startle() { this.bow = 0.7; this.zoom = 2.6; this.zoomA = this.rng() * 6.28; }
+
+  step(dt: number, gy: number, px: number, pz: number) {
+    const dxP = px - this.root.position.x, dzP = pz - this.root.position.z;
+    const dP = Math.hypot(dxP, dzP);
+    let speed = 0;
+    if (this.zoom > 0) {
+      // zoomies: a fast lap around wherever it happens to be
+      this.zoom -= dt;
+      this.zoomA += dt * 3.4;
+      this.tx = this.home.x + Math.cos(this.zoomA) * 46;
+      this.tz = this.home.z + Math.sin(this.zoomA) * 46;
+      speed = 150;
+    } else if (dP < 240 && dP > 26) {
+      // it has clocked you — straight over, from right across the lawn
+      this.tx = px; this.tz = pz;
+      speed = dP > 70 ? 82 : 46;
+    } else if (dP <= 26) {
+      // nose to nose. Bow now and then, and keep facing you
+      speed = 0;
+      this.bow -= dt;
+      if (this.bow < -1.6 && this.rng() < dt * 1.6) this.bow = 0.9;
+      this.face = lerpAngle(this.face, Math.atan2(dxP, dzP), Math.min(1, dt * 8));
+    } else {
+      // mooching: pick a new spot on the lawn, amble to it, stop and sniff
+      const dt2 = Math.hypot(this.tx - this.root.position.x, this.tz - this.root.position.z);
+      if (dt2 < 8) {
+        this.restT -= dt;
+        if (this.restT <= 0) {
+          const a = this.rng() * Math.PI * 2, r = 12 + this.rng() * 58;
+          this.tx = this.home.x + Math.cos(a) * r;
+          this.tz = this.home.z + Math.sin(a) * r;
+          this.restT = 1.2 + this.rng() * 3.5;
+        }
+      } else speed = 34;
+    }
+    if (speed > 0) {
+      const dx = this.tx - this.root.position.x, dz = this.tz - this.root.position.z;
+      const d = Math.hypot(dx, dz) || 1;
+      this.root.position.x += (dx / d) * speed * dt;
+      this.root.position.z += (dz / d) * speed * dt;
+      this.face = lerpAngle(this.face, Math.atan2(dx, dz), Math.min(1, dt * 7));
+    }
+    this.phase += dt * (2.6 + speed * 0.12);
+    const s = Math.sin(this.phase) * Math.min(1, speed / 34) * 0.65;
+    this.legs[0].rotation.x = s; this.legs[3].rotation.x = s;
+    this.legs[1].rotation.x = -s; this.legs[2].rotation.x = -s;
+    // the play-bow: chest to the ground, tail high. Everything else is a wag whose
+    // speed says how pleased it is to see you — and at 26 px it is very pleased.
+    const bowing = Math.max(0, Math.min(1, this.bow * 2.2));
+    this.heading.rotation.x += (bowing * 0.55 - this.heading.rotation.x) * Math.min(1, dt * 9);
+    this.headGrp.rotation.x += ((bowing ? -0.3 : (speed ? 0 : 0.5)) - this.headGrp.rotation.x) * Math.min(1, dt * 6);
+    const glad = dP < 90 ? 1 : 0.45;
+    this.tailM.rotation.z = Math.sin(this.phase * (2.2 + glad * 4)) * (0.35 + glad * 0.45);
+    this.heading.rotation.y = this.face;
+    this.root.position.y += (gy - this.root.position.y) * Math.min(1, dt * 10);
   }
 }
 
@@ -2042,6 +2155,7 @@ export class Life {
   private mist: GraveMist | null = null;   // fall: graveyard mist at Old Hill
   private pups: { d: LeashDog; w: Walker }[] = [];   // pet dogs at heel on their leashes
   private deerG: { members: Deer[]; cx: number; cz: number; mood: 'calm' | 'wary' | 'flee'; active: boolean }[] = [];
+  private parkDogs: ParkDog[] = [];
 
   constructor(scene: THREE.Scene, index: WorldIndex, audio?: GameAudio) {
     this.audio = audio ?? null;
@@ -2079,6 +2193,13 @@ export class Life {
         scene.add(m.root);
       }
       this.deerG.push({ members, cx: 0, cz: 1e7, mood: 'calm', active: false });
+    }
+    // 🐕 loose dogs on the park lawns, parked offscreen until update() finds grass
+    for (let i = 0; i < PARK_DOGS; i++) {
+      const d = new ParkDog(i * 811 + 37);
+      d.root.position.set(0, 0, 1e7);
+      scene.add(d.root);
+      this.parkDogs.push(d);
     }
     for (let i = 0; i < CARS; i++) {
       const car = new TrafficCar(i * 569 + 7);
@@ -2423,6 +2544,12 @@ export class Life {
         const dx = m.root.position.x - x, dz = m.root.position.z - z;
         if (dx * dx + dz * dz < 450 * 450) { g.mood = 'flee'; break; }
       }
+    }
+    // a loose dog in earshot bows and does a lap — a bark is an invitation
+    for (const d of this.parkDogs) {
+      if (!d.active) continue;
+      const dx = d.root.position.x - x, dz = d.root.position.z - z;
+      if (dx * dx + dz * dz < 260 * 260) d.startle();
     }
     // gulls in earshot go up and round; walkers stop and look at who's barking
     for (const gl of this.gulls) {
@@ -3308,6 +3435,19 @@ export class Life {
       }
     }
 
+    // 🐕 the loose dogs. Each keeps to one patch of park lawn; when the player walks
+    // out of range the dog is re-homed on a fresh patch well ahead, never in view.
+    for (const d of this.parkDogs) {
+      const ddx = d.home.x - px, ddz = d.home.z - pz;
+      if (!d.active || ddx * ddx + ddz * ddz > 1500 * 1500) {
+        const spot = this.parkSpot(px, pz, fx, fz, rng);
+        if (spot) d.place(spot.x, spot.z, this.index.heightAtPx(spot.x, spot.z));
+        else d.active = false;
+        continue;
+      }
+      d.step(dt, this.index.heightAtPx(d.root.position.x, d.root.position.z), px, pz);
+    }
+
     for (const c of this.cars) {
       const dx = c.root.position.x - px, dz = c.root.position.z - pz;
       // the service fleet keeps hours: the bus runs the school bell, the engine runs
@@ -3597,6 +3737,32 @@ export class Life {
       if (distToPolylineSq(x, z, this.index.world.roads[ri].p) < 120 * 120) return false;
     }
     return true;
+  }
+
+  // 🐕 a patch of park lawn for a loose dog: inside a mapped park or green, on open
+  // ground, and back from the kerb — nobody lets a dog off the lead beside a road
+  private parkSpot(px: number, pz: number, fx: number, fz: number, rng: () => number): { x: number; z: number } | null {
+    for (let tries = 0; tries < 14; tries++) {
+      const a = rng() * Math.PI * 2, d = 320 + rng() * 620;
+      const x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d;
+      if (!this.okToSpawn(x, z, px, pz, fx, fz, 280, 1100)) continue;
+      if (this.index.isWaterAt(x, z) || this.index.isBlocked(x, z)) continue;
+      const bucket = this.index.buckets.get(Math.floor(x / CHUNK) + ',' + Math.floor(z / CHUNK));
+      if (!bucket) continue;
+      let on = false;
+      for (const pi of bucket.polys) {
+        const poly = this.index.world.polys[pi];
+        if ((poly.k === 'park' || poly.k === 'grass' || poly.k === 'reserve') && pointInPoly(x, z, poly)) { on = true; break; }
+      }
+      if (!on) continue;
+      let clear = true;
+      for (const ri of bucket.roads) {
+        if (distToPolylineSq(x, z, this.index.world.roads[ri].p) < 70 * 70) { clear = false; break; }
+      }
+      if (!clear) continue;
+      return { x, z };
+    }
+    return null;
   }
 
   private deerSpot(px: number, pz: number, fx: number, fz: number, rng: () => number): { x: number; z: number } | null {
