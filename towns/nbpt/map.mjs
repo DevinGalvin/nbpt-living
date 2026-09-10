@@ -179,13 +179,52 @@ export function manualFeatures({ world }) {
   world.pois = world.pois.filter((p) => !/^Fowle/.test(p.n || ''));
   world.pois.push({ x: 10, y: 560, k: 'cafe', n: "Fowle's", s: 'nbpt-manual' });
 
-  // ⛲ THE INN STREET FOUNTAIN. OSM carries no fountain anywhere in Newburyport,
-  // so the middle of the Inn Street Mall — the one place downtown that is all brick
-  // and no traffic — was bare paving. Placed at the mall's widest point: walking the
-  // path and measuring clearance to the nearest building every 40 px, the walk runs
-  // 22–39 px clear for most of its length and opens to 123 px only here, which is
-  // exactly the plaza the fountain sits in. Built by POI_HEROES in decor.ts.
-  world.pois.push({ x: -487, y: 561, k: 'fountain', n: 'Inn Street Fountain', s: 'nbpt-manual' });
+  // 🧱 INN STREET IS ALL BRICK. OSM tags the mall as a green area (it is a park, in
+  // the tagging sense), so the build painted the whole of it as lawn — and the ground
+  // canvas paints STYLE.land, a pale green, anywhere no polygon claims. Between them
+  // the mall came out as a lawn with a 5 m brick ribbon down the middle. There is no
+  // grass on Inn Street at all; it is brick from State Street to Federal.
+  //
+  // Paved as one quad per segment of the mall path rather than a single buffered
+  // outline: a fixed offset round a chain that bends 40° at some vertices folds back
+  // on itself, and a self-intersecting ring paints garbage. Overlapping quads do not.
+  // 208 px wide (26 m) — wider than the corridor anywhere, so the brick
+  // runs under the building walls (where it is hidden) rather than leaving a green
+  // fringe against them. Measured: 8.5% of the open mall was still bare at 156 px,
+  // all of it in a band at 80-95 px off the centreline.
+  world.polys = world.polys.filter((q) => q.s !== 'nbpt-innbrick');
+  for (const ring of [
+    [-295, -34, -335, 48, -149, 139, -109, 57],
+    [-318, 15, -339, 51, -157, 152, -136, 116],
+    [-326, 27, -494, 363, -308, 456, -140, 120],
+    [-477, 331, -538, 441, -356, 541, -295, 431],
+    [-521, 412, -614, 574, -434, 677, -341, 515],
+    [-599, 547, -649, 637, -468, 739, -418, 649],
+    [-634, 610, -665, 664, -483, 765, -452, 711],
+    [-650, 638, -743, 812, -560, 910, -467, 736],
+    [-729, 785, -780, 882, -595, 978, -544, 881],
+    [-764, 853, -847, 1009, -664, 1107, -581, 951],
+    [-831, 980, -872, 1052, -690, 1153, -649, 1081],
+  ]) world.polys.push({ k: 'plaza', s: 'nbpt-innbrick', p: ring });
+
+  // …and the four green polygons ON the mall become brick with them: the OSM "Inn
+  // Street Mall" grass (335 m²) and the three little garden beds. Matched by kind and
+  // position so a second run is a no-op — they are already plaza by then.
+  for (const q of world.polys) {
+    if (q.k !== 'grass' && q.k !== 'garden') continue;
+    let mx = 0, my = 0;
+    for (let i = 0; i < q.p.length; i += 2) { mx += q.p[i]; my += q.p[i + 1]; }
+    mx /= q.p.length / 2; my /= q.p.length / 2;
+    if (mx > -700 && mx < -250 && my > 350 && my < 700) q.k = 'plaza';
+  }
+
+  // ⛲ THE INN STREET FOUNTAIN. OSM carries no fountain anywhere in Newburyport, so
+  // the middle of the mall was bare paving. It stands in the open square the OSM
+  // "Inn Street Mall" polygon covers — the bit that used to render as a lawn — not on
+  // the walk beside it: sweeping that square on a 6 px grid, this is the point
+  // furthest from any wall, 137 px clear, with the walk 57 px off. Built by
+  // POI_HEROES in decor.ts.
+  world.pois.push({ x: -418, y: 556, k: 'fountain', n: 'Inn Street Fountain', s: 'nbpt-manual' });
 
   // The USRC Massachusetts, moored off the waterfront where she was built.
   // The 🏛 "Birthplace of the Coast Guard" card is about the SHIP — the first
