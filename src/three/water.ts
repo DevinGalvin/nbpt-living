@@ -186,13 +186,18 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
         float n = noise(p + vec2(uTime * 0.045, uTime * 0.034));
         n += 0.5 * noise(p * 2.2 - vec2(uTime * 0.04, uTime * 0.055));
         n /= 1.5;
-        vec3 base = vColor * (0.88 + 0.2 * n);
+        // Cat's paws: wind crosses water in PATCHES, and the ripple is only where the
+        // gust is. Without this the whole basin ripples evenly and a pond measured out
+        // at 2.8% brightness spread — a flat blue fill with a sheen on it.
+        float gust = noise(vWorld.xz * 0.0016 + vec2(uTime * 0.012, uTime * 0.008));
+        float rip = 0.45 + 1.15 * smoothstep(0.32, 0.78, gust);
+        vec3 base = vColor * (0.90 + 0.06 * rip + 0.22 * rip * (n - 0.5));
         // soft wave crests
-        float crest = smoothstep(0.72, 0.88, n);
-        base += crest * vec3(0.05, 0.07, 0.08);
+        float crest = smoothstep(0.66, 0.86, n) * rip;
+        base += crest * vec3(0.06, 0.08, 0.09);
         // fine drifting sun glints
         float g = noise(p * 11.0 + vec2(uTime * 0.14, -uTime * 0.1));
-        float glint = smoothstep(0.91, 0.985, g);
+        float glint = smoothstep(0.90, 0.985, g) * rip;
         base += glint * vec3(0.38, 0.38, 0.34);
         // The sky in the water. A wave normal from the noise gradient, then Fresnel:
         // looking along the surface the water is the horizon's colour, looking down
@@ -214,15 +219,21 @@ export function buildWater(world: WorldData): { mesh: THREE.Mesh; ice: THREE.Mes
         // everywhere offshore), but the ground rises to the waterline across the last grid
         // cell, so "how close the bed is to the surface" is exactly the last 5–8 m of shore.
         float ground = shoreGround(vWorld.xz);
+        float sea = shoreSea(vWorld.xz);
         // depth of the bed below the surface, in px. The bed is synthetic (see
         // Terrain.addBathymetry): a shelf for a few nodes out, then 8 m of open water
         float depth = uWaterY + uTide * vTidal - ground;
         float shallow = 1.0 - smoothstep(0.0, 22.0, depth);
         base = mix(base, base * vec3(0.92, 1.12, 1.06) + vec3(0.05, 0.08, 0.06), shallow * 0.8);
+        // The bank, reflected. Just past the shallows a pond or a river holds a dark
+        // band of whatever stands on its shore — trees, a wall, a hull — and that band
+        // is the single strongest cue that the surface is water and not paint. The sea
+        // gets a fraction of it: open water has nothing close enough to reflect.
+        float bank = smoothstep(5.0, 24.0, depth) * (1.0 - smoothstep(28.0, 90.0, depth)) * (1.0 - sea * 0.6);
+        base = mix(base, base * vec3(0.62, 0.74, 0.66), bank * 0.55);
         float lap = noise(vWorld.xz * 0.05 + vec2(uTime * 0.25, uTime * 0.18));
         // the waterline foam: a broken line in the last hand's breadth of depth, and
         // half as much on a river, where the water only laps
-        float sea = shoreSea(vWorld.xz);
         float foamBand = smoothstep(-0.6, 0.3, depth) * (1.0 - smoothstep(1.0, 2.2, depth));
         float foam = foamBand * smoothstep(0.45, 0.7, lap) * (0.45 + 0.55 * sea);
         base = mix(base, vec3(0.93, 0.95, 0.94), foam * 0.85);

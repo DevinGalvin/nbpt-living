@@ -2673,7 +2673,7 @@ export class Game {
     setDecorGolden(sky.golden, sky.sunDir);
     // the nor'easter's wind, and the plow's weather: a bed of noise that rises with the storm
     this.audio.setWind(sky.storm * (this.inside ? 0.2 : 1));
-    setGroundWet(sky.wet, sky.fog.r * 1.08, sky.fog.g * 1.08, sky.fog.b * 1.1);
+    setGroundWet(sky.wet, sky.fog.r * 1.08, sky.fog.g * 1.08, sky.fog.b * 1.1, t);
     updateClouds(dt, sky.night, sky.wet, GFX.clouds);
     this.farTown?.tick(this.px, this.pz);
     for (let i = 0; i < this.lampGlows.length; i++) {
