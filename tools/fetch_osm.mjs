@@ -58,6 +58,11 @@ const buildQuery = (search) => `
   node["historic"](${search});
   node["leisure"](${search});
   node["man_made"="lighthouse"](${search});
+  // ⚠️ TRAFFIC CONTROL. Without this line the build has NO idea where the signals
+  // and stop signs are, and decor.ts has to guess from the road graph — which lit
+  // 89 Newburyport junctions in a town with under a dozen real signals. OSM carries
+  // these as plain highway nodes; we simply never asked for them.
+  node["highway"~"^(traffic_signals|stop|give_way|crossing|mini_roundabout)$"](${search});
 );
 out geom(${FULL});
 (

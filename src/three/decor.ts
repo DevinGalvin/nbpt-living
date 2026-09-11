@@ -4190,6 +4190,32 @@ function buildMissionOak(buckets: Bucket[], b: Building, g: number, index: World
   rotBox(buckets[GLOW], tx + ca * 16.1, tz + sa * 16.1, 0.3, 4.4, g + 20.4, g + 24, ang, '#c9a24a');
 }
 
+// 🛑 A STOP SIGN: post, octagonal red plate with its white rim, facing the traffic
+// arriving along its arm. octRing is an 8-gon, which is exactly the plate's shape —
+// stood on edge by building it as a thin band between two rings rather than a disc.
+// Scaled against the 36 px kid like everything else here, so it reads from a car's
+// eye height rather than vanishing into the kerb.
+function stopSign(plain: Bucket, x: number, z: number, g: number, facing: number) {
+  const ca = Math.cos(facing), sa = Math.sin(facing);
+  plain.box(x, z, 0.5, 0.5, g, g + 19, '#8d9095');                     // the post
+  // ⚠️ THE OCTAGON IS THE WHOLE POINT. The first cut was a single rotBox — a red
+  // RECTANGLE with a white rim, which at the kerb reads as a generic red panel and
+  // not as a stop sign at all; the shape is the one thing that says STOP at a
+  // distance no lettering could survive. Built as three stacked bands instead —
+  // narrow, full, narrow — whose silhouette is an octagon. Three bands rather than
+  // eight because this stands at a few hundred junctions per town and the corners
+  // that matter are the ones you can see.
+  const cy = g + 19.4;
+  const band = (hw: number, y0: number, y1: number, out: number, hex: string) => {
+    rotBox(plain, x + ca * out, z + sa * out, 0.3, hw, y0, y1, facing, hex);
+  };
+  for (const [out, grow, hex] of [[0.6, 0.55, '#f2efe8'], [1.0, 0, '#a8231d']] as const) {
+    band(3.4 + grow, cy + 2.2 - grow, cy + 5.0 + grow, out, hex);      // the cut top
+    band(5.4 + grow, cy - 2.2 - grow, cy + 2.2 + grow, out, hex);      // the full middle
+    band(3.4 + grow, cy - 5.0 - grow, cy - 2.2 + grow, out, hex);      // the cut bottom
+  }
+}
+
 // ---------- the landmark heroes ----------
 
 // First Religious Society (1801) — white meetinghouse with THE Newburyport steeple
@@ -12844,14 +12870,30 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     }
   }
 
-  // traffic lights where a primary or secondary road meets two or more others — one
-  // per approach, on the corner, head hung out over the lane it faces
-  if (propSink && PROPS?.has('trafficlight_A')) {
+  // ⚠️ TRAFFIC CONTROL IS INVENTED HERE, BECAUSE THE PIPELINE NEVER FETCHED IT.
+  // tools/fetch_osm.mjs asks Overpass for node["amenity"], ["shop"], ["tourism"],
+  // ["historic"], ["leisure"]… and never node["highway"], so traffic_signals, stop,
+  // give_way and crossing nodes — all of which OSM actually has — never reach the
+  // build. With no real data, an earlier pass lit any junction whose widest road was
+  // primary OR secondary with 3+ arms and 2+ major ones. In Newburyport that is 89
+  // junctions, up to four heads each: something like 250 sets of traffic lights in a
+  // town that has under a dozen. Devin, plainly: "theres way too many street lights
+  // when a lot should just be stop signs."
+  //
+  // Until a refetch brings the real nodes in (the query line is added in
+  // fetch_osm.mjs — it needs a CI rebake to take effect), the heuristic is pulled
+  // back to what is defensible without data:
+  //   • a SIGNAL only at a genuine major crossroads — widest road primary, four or
+  //     more arms, at least three of them major. A signal is a rare, expensive thing
+  //     and a town has a handful, so the rule should be embarrassed to place one.
+  //   • a STOP SIGN on the minor approaches everywhere else a side street meets a
+  //     main road, which is what is actually standing there.
+  if (propSink) {
     const MAJOR = new Set(['primary', 'secondary']);
-    const light = PROPS.get('trafficlight_A');
+    const light = PROPS?.get('trafficlight_A');
     for (const jn of index.roadChains().junctions) {
       if (jn.x < ox || jn.x >= ox + CHUNK || jn.y < oy || jn.y >= oy + CHUNK || !MAJOR.has(jn.c)) continue;
-      const arms: { dx: number; dy: number; w: number; major: boolean }[] = [];
+      const arms: { dx: number; dy: number; w: number; major: boolean; c: string }[] = [];
       for (const ri of bucket.roads) {
         const r = world.roads[ri], p = r.p;
         for (let i = 0; i < p.length; i += 2) {
@@ -12859,11 +12901,34 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
           for (const j of [i - 2, i + 2]) {
             if (j < 0 || j >= p.length) continue;
             const dx = p[j] - p[i], dy = p[j + 1] - p[i + 1], l = Math.hypot(dx, dy) || 1;
-            arms.push({ dx: dx / l, dy: dy / l, w: r.w, major: MAJOR.has(r.c) });
+            arms.push({ dx: dx / l, dy: dy / l, w: r.w, major: MAJOR.has(r.c), c: r.c });
           }
         }
       }
-      if (arms.length < 3 || arms.filter((a) => a.major).length < 2) continue;
+      if (arms.length < 3) continue;
+      const majors = arms.filter((a) => a.major).length;
+      const signalised = !!light && jn.c === 'primary' && arms.length >= 4 && majors >= 3;
+      // WHICH ARMS STOP. The lesser roads do — but "lesser" has to mean lesser THAN
+      // THIS JUNCTION, not merely non-major, or a crossing of two secondaries (State
+      // and Water, say) ends up with no signal AND no stop sign: the first cut left
+      // exactly those downtown corners bare, which is worse than the over-lighting it
+      // set out to fix. So: rank the arms, and the ones below the junction's top rank
+      // stop. When every arm is the SAME rank, the through road is the opposed pair
+      // (most negative dot) and everything else is the stem — which is a T-junction's
+      // side street stopping, and a four-way stop where there is no through pair.
+      const RANK: Record<string, number> = { primary: 4, secondary: 3, tertiary: 2, unclassified: 1.5, residential: 1, service: 0 };
+      const rk = (c: string) => RANK[c] ?? 1;
+      const top = Math.max(...arms.map((a) => rk(a.c)));
+      const stops = new Set(arms.filter((a) => rk(a.c) < top));
+      if (!stops.size) {
+        let thru: [number, number] | null = null, worst = 0;
+        for (let i = 0; i < arms.length; i++) for (let j = i + 1; j < arms.length; j++) {
+          const d = arms[i].dx * arms[j].dx + arms[i].dy * arms[j].dy;
+          if (d < worst) { worst = d; thru = [i, j]; }
+        }
+        arms.forEach((a, i) => { if (!thru || (i !== thru[0] && i !== thru[1])) stops.add(a); });
+      }
+      if (!signalised && !stops.size) continue;
       // two signal phases: the arms along the first arm's axis, and the cross arms
       const ref = arms[0];
       for (const a of arms) {
@@ -12880,11 +12945,16 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
           if (distToPolylineSq(lx, lz, r.p) < (r.w / 2 + 2) ** 2) { onRoad = true; break; }
         }
         if (onRoad) continue;
-        // the lamps are on the model's -x face; turn that toward the traffic arriving
-        // along this arm, the way a post-mounted head faces the stop line
         const ly = index.surfaceYAt(lx, lz);
-        propSink.add(light, lx, ly, lz, Math.atan2(a.dy, a.dx) + Math.PI);
-        signalSink?.push(lx, ly, lz, a.dx, a.dy, phase);
+        if (signalised) {
+          // the lamps are on the model's -x face; turn that toward the traffic arriving
+          // along this arm, the way a post-mounted head faces the stop line
+          propSink.add(light!, lx, ly, lz, Math.atan2(a.dy, a.dx) + Math.PI);
+          signalSink?.push(lx, ly, lz, a.dx, a.dy, phase);
+        } else if (stops.has(a) && a.c !== 'service') {
+          // the lesser road stops for the greater — never the other way round
+          stopSign(buckets[PLAIN], lx, lz, ly, Math.atan2(a.dy, a.dx));
+        }
       }
     }
   }
