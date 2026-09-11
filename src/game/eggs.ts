@@ -173,9 +173,21 @@ const CARDS: Record<string, Card> = {
     t: 'The Neon at Fowle’s', s: '17 State Street',
     b: 'This neon has glowed over State Street since Fowle’s sold newspapers and ice cream sodas. Half the town has said “meet me under the sign.” It buzzes a little when it wakes up. So does everybody.'
   },
+  // ⚠️ REWRITTEN. This card used to be a large blue raspberry slushie and the line
+  // "Every Newburyport kid knows the truth". Devin grew up here and had never heard
+  // of it — because an earlier session invented it. git log -S finds the string in
+  // exactly one commit, and "slush" appears nowhere in docs/research; the store is
+  // real and well sourced, the slushie was a plausible-sounding childhood memory
+  // bolted onto it. The README promises these secrets are "All rooted in true lore
+  // at exact spots", which makes a made-up one worse than no card at all — and the
+  // people best placed to catch it are the ones the game is for.
+  //
+  // What the research DOES carry, in three separate places: 1 Pleasant Street at the
+  // corner of State, a beloved old five-and-dime, a penny-candy counter you pay for
+  // in coins, NBPT tees and stickers, open 5:30am to 11pm daily.
   richdale: {
-    t: 'Blue Raspberry, Large', s: 'Richdale · State Street',
-    b: 'Every Newburyport kid knows the truth: the walk to Richdale for a slushie IS the activity. The flavor is blue raspberry. It is always blue raspberry. Brain freeze in three… two…'
+    t: 'Paid in Coins', s: 'Richdale · State & Pleasant',
+    b: 'The old five-and-dime on the corner, open half past five in the morning until eleven at night. There is a penny candy counter, and the whole point of a penny candy counter is that a kid with a fistful of coins is a serious customer. Take your time. Everybody does.'
   },
   marco: {
     t: 'Marco.', s: '68 real pools',
@@ -1444,8 +1456,8 @@ export class EggRunner {
       }
       case 'richdale': {
         this.hud.showDialogue([
-          { who: '', text: 'One large blue raspberry. It is extremely blue.' },
-          { who: 'You', text: 'Brain freeze in three… two…' }
+          { who: '', text: 'You count it out in coins on the counter. It takes a while.' },
+          { who: 'You', text: 'Two more of the pink ones, please.' }
         ], () => this.showCard(CARDS.richdale, this.found('richdale')));
         break;
       }
