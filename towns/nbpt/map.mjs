@@ -24,7 +24,13 @@ export const downtownCore = { nw: [42.8146, -70.8748], se: [42.8093, -70.8652], 
 // (Market Square up to High Street, documented in docs/research). Buildings
 // fronting the corridor get storefront ground floors.
 export const storefrontCorridors = [
-  { street: 'State Street', yMinPx: -300, southLat: 42.8078 }
+  // `masonry` also settles the building's MATERIAL, not just its ground floor: a
+  // block fronting this corridor is downtown commercial and gets brick, whatever
+  // the downtownCore box's edge happens to say. The box's south edge is lat 42.8093
+  // and this corridor runs to 42.8078 — so between the two, buildings were getting
+  // storefront glass on clapboard walls. 63-65 State Street was the one Devin
+  // spotted: a 63 m navy colonial with shopfronts, ten metres past the box.
+  { street: 'State Street', yMinPx: -300, southLat: 42.8078, masonry: true, minAreaM2: 150 }
 ];
 
 // ---------- curated landmarks (verified coords from research) ----------

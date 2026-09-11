@@ -847,12 +847,19 @@ for (const cor of T.map.storefrontCorridors ?? []) {
     }
     return best;
   };
-  let added = 0;
+  let added = 0, masoned = 0;
   for (const b of world.buildings) {
-    if (b.sf || !['house', 'commercial', 'civic'].includes(b.k)) continue;
+    if (!['house', 'commercial', 'civic'].includes(b.k)) continue;
+    // ⚠️ do NOT skip on b.sf when the corridor also carries masonry: the building
+    // this rule exists for (63-65 State Street) ALREADY had its storefront from
+    // the corridor and was still a clapboard house. Storefront and material are
+    // two separate questions about the same building.
+    if (b.sf && !cor.masonry) continue;
     const [, cy] = centroid(b.p);
     if (cy < Y_MIN || cy > Y_LIMIT) continue;
-    // facade test: any footprint vertex close to the street centerline
+    // facade test: any footprint vertex close to the street centerline. Vertices,
+    // not the centroid — a downtown block 63 m deep has its centroid 200+ px back
+    // from the street it plainly fronts.
     let fronts = false;
     for (const r of corridors) {
       for (let i = 0; i < b.p.length && !fronts; i += 2) {
@@ -860,12 +867,27 @@ for (const cor of T.map.storefrontCorridors ?? []) {
       }
       if (fronts) break;
     }
-    if (fronts) {
+    if (!fronts) continue;
+    if (!b.sf) {
       b.sf = 1;
       added++;
     }
+    // …and the MATERIAL. A commercial spine is a corridor, but the masonry rule
+    // above (inDowntownCore) tests a hand-drawn RECTANGLE, so a block that fronts
+    // State Street but falls a few metres outside the box stays classified 'house'
+    // and gets clapboard, shutters and a colour off the house palette. 63-65 State
+    // Street missed the box by 82 px — ten metres — and rendered as a 63 m navy
+    // colonial with storefront glass along its ground floor. A box drawn by hand
+    // will always have an edge for a building to fall just outside of; the corridor
+    // already knows which buildings front the street, so ask it.
+    if (cor.masonry && b.k === 'house'
+        && Math.abs(ringArea(b.p)) / (PX_PER_M * PX_PER_M) >= (cor.minAreaM2 ?? 150)) {
+      b.k = 'commercial';
+      masoned++;
+    }
   }
   stats['corridor-storefronts'] = (stats['corridor-storefronts'] || 0) + added;
+  if (masoned) stats['corridor-masonry'] = (stats['corridor-masonry'] || 0) + masoned;
 }
 
 // ---------- every mapped address (assessor-imported addr tags) ----------
