@@ -4231,7 +4231,12 @@ function stopSign(plain: Bucket, x: number, z: number, g: number, facing: number
 // the front, and a porch across the face. Getting that from the sources first is
 // the difference between this and the four passes the osprey cost.
 function buildPinkHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
-  const PINK = '#eeb2bd';        // the pale rose that mirrored the sunsets
+  // ⚠️ THE CLAPBOARD TEXTURE EATS MID-TONES. clapboardTex is near-white with a
+  // 55%-black shadow line under every board, and STYLE.building.wallDarken is 0.78
+  // on top — so #eeb2bd, which looks like the right pink in a swatch, multiplies
+  // down to a dusty mauve and the house stops being pink at all. Mission Oak's
+  // #e3e8e8 survived only because it was already near-white. Start high.
+  const PINK = '#fbd7de';        // the pale rose that mirrored the sunsets
   const TRIM = '#f7eef0';
   const ROOF = '#4a4440';        // asphalt shingle, near-black against the marsh
   const obb = obbOf(b.p);
