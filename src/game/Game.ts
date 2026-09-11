@@ -134,7 +134,12 @@ function pointInRing(x: number, y: number, pts: number[]): boolean {
   return inside;
 }
 
-// real store signs: small canvas-texture boards mounted on the building edge
+// real store signs: small canvas-texture boards mounted on the building edge.
+// ⚠️ SHOP_SIGN_W is load-bearing OUTSIDE this file: shopSignsFor (world/index.ts)
+// stands the sign off the facade by half of it, because a blade sign's width runs
+// along the wall normal and anything less leaves the start of the name inside the
+// brick. Change it here and change the stand-off there.
+const SHOP_SIGN_W = 36, SHOP_SIGN_H = 9;
 let shopBackGeo: THREE.PlaneGeometry | null = null;
 let shopBackMat: THREE.MeshBasicMaterial | null = null;
 function makeSignMesh(name: string): THREE.Mesh {
@@ -164,10 +169,10 @@ function makeSignMesh(name: string): THREE.Mesh {
   // front face carries the text; the back is a plain board — DoubleSide showed the
   // lettering mirrored to anyone behind the sign (same fix as the welcome signs)
   const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(36, 9),
+    new THREE.PlaneGeometry(SHOP_SIGN_W, SHOP_SIGN_H),
     new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.FrontSide })
   );
-  shopBackGeo ??= new THREE.PlaneGeometry(36, 9);
+  shopBackGeo ??= new THREE.PlaneGeometry(SHOP_SIGN_W, SHOP_SIGN_H);
   shopBackMat ??= new THREE.MeshBasicMaterial({ color: '#1a2028', side: THREE.FrontSide });
   const back = new THREE.Mesh(shopBackGeo, shopBackMat);
   back.rotation.y = Math.PI;

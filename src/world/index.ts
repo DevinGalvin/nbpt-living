@@ -900,8 +900,17 @@ export class WorldIndex {
       }
       if (!bestEdge || bestEdge.score > 360 * 360) continue;
       out.push({
-        x: bestEdge.x + bestEdge.nx * 6,
-        z: bestEdge.y + bestEdge.ny * 6,
+        // ⚠️ THE WHOLE SIGN HAS TO CLEAR THE WALL. This is a BLADE sign — rotY below
+        // turns it perpendicular to the facade, which means its 36 px WIDTH runs
+        // along the wall's outward normal, not across the face. Centred 6 px off the
+        // wall it reached from -12 to +24: the inner THIRD stood inside the building,
+        // and since the width axis points outward, the buried third is always the
+        // START of the text. Every shop in town was missing its first word —
+        // "Richdale Convenience Store" read "Convenience Store", "Phoenix Room" read
+        // "hoenix Room". 24 = half the sign (SHOP_SIGN_W / 2 in Game.ts) + 6 clear,
+        // so the near edge starts just proud of the brick.
+        x: bestEdge.x + bestEdge.nx * 24,
+        z: bestEdge.y + bestEdge.ny * 24,
         name: poi.n,
         // blade sign: face PERPENDICULAR to the facade so it reads down the street
         rotY: Math.atan2(-bestEdge.ny, bestEdge.nx)
