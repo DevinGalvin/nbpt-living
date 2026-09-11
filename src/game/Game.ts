@@ -70,6 +70,15 @@ const STORY = TOWN.story;
 
 const JOG = 200;     // world px/s (8 px = 1 m) — fast, gamey
 const SPRINT = 380;
+// Where a fast-travel arrival is allowed to put you down, scored against the 0..100
+// openness of its view (see travelToPlace). A made surface — the boardwalk, a brick
+// mall, the rail trail, a plaza — is where a person would actually stand to look at
+// something; a parking lot is where the algorithm used to stand because nothing was
+// in the way. Sized so it settles ties and near-ties, and never overrides a view
+// that is genuinely much clearer.
+const SURFACE_BONUS: Record<'parking' | 'road' | 'made' | 'green' | 'plain', number> = {
+  parking: -18, road: -8, plain: 0, green: 3, made: 6,
+};
 const BOAT_DOOR = { x: -224, z: -1183 }; // the waterline den door — rowing near it beaches you
 const TOWER_LOOK = { x: 2412, z: 255 };  // 🔦 the Level 2 finale: where you stand at the Rear Range Light to sweep the beam (just south, facing the harbor)
 
@@ -638,7 +647,12 @@ export class Game {
     this.hud.initBag(histMarkers);
     // searchable places: landmarks, businesses, named areas/buildings, streets
     for (const lm of world.landmarks) this.places.push({ label: lm.name, sub: lm.sub, x: lm.x, y: lm.y });
-    for (const p of world.pois) this.places.push({ label: p.n, sub: p.k.replace(/_/g, ' '), x: p.x, y: p.y });
+    // ⚠️ a POI need not be NAMED. The search index assumed one and the dedupe below
+    // called toLowerCase() on it, so a single nameless POI took the whole boot down
+    // with "FAILED TO LOAD — SEE CONSOLE". OSM is full of unnamed nodes worth
+    // rendering and not worth searching for — the six sculptures standing in the
+    // Range Light Sculpture Garden are exactly that.
+    for (const p of world.pois) if (p.n) this.places.push({ label: p.n, sub: p.k.replace(/_/g, ' '), x: p.x, y: p.y });
     for (const l of world.labels) this.places.push({ label: l.t, sub: l.k === 'water' ? 'water' : l.k === 'bldg' ? 'building' : 'place', x: l.x, y: l.y });
     {
       const longest = new Map<string, number>();
@@ -3611,13 +3625,24 @@ export class Game {
         const dist = Math.hypot(spot.x - x, spot.y - y);
         if (dist < lo || dist > Math.min(hi, R + 420)) continue;
         const open = this.sightlineScore(spot.x, spot.y, x, y, stopShort, aimY);
+        // …and WHERE YOU ARE STANDING, which openness alone can never express. A
+        // parking lot obstructs nothing, so it scores a perfect 1.0 and wins every
+        // tie — four of Newburyport's first seven landmarks landed you in one
+        // (Custom House, the Boardwalk in the NRA East Lot, Inn Street in the Green
+        // Street Lot, the Tannery). The term is deliberately smaller than a real
+        // difference in view: a lot still wins when the alternatives are genuinely
+        // obstructed, it just stops winning ties.
+        const surface = SURFACE_BONUS[this.index.standingOn(spot.x, spot.y)];
         // ⚠️ The distance penalty has to bite. At /500 a marginally clearer view
         // three times too far away wins, and Old South Meeting House was chosen
         // from 292 m — technically visible, unidentifiable in practice.
-        const score = open * 100 - Math.abs(dist - d) / 100;
+        const score = open * 100 + surface - Math.abs(dist - d) / 100;
         if (!best || score > best.score) best = { x: spot.x, y: spot.y, score };
       }
-      if (best && best.score > 99.5) break;   // a clean view — stop looking
+      // a clean view from somewhere worth standing — stop looking. Note the surface
+      // term rides in the score, so a wide-open PARKING LOT (100 − 18) no longer
+      // clears this bar and the rings keep walking outward for something better.
+      if (best && best.score > 99.5) break;
     }
     this.arriveLooking(best ? best.x : x, best ? best.y : y, x, y, mass ? mass.rad : r, mass ? mass.top : gy + 40);
   }

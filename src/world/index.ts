@@ -1016,6 +1016,34 @@ export class WorldIndex {
     return false;
   }
 
+  // What you are STANDING ON. Fast-travel picks its vantage by sightline alone,
+  // and a sightline has never included the ground under your feet — so the most
+  // OPEN surface always wins, and downtown's most open surface is its parking.
+  // Newburyport's waterfront is ringed by lots, which is how tapping 🗺 Waterfront
+  // Boardwalk put you in the middle of the NRA East Lot looking at parked cars.
+  // Reads off the global buckets, so unlike isBlocked it is honest anywhere on the
+  // map, not only in streamed chunks.
+  standingOn(x: number, y: number): 'parking' | 'road' | 'made' | 'green' | 'plain' {
+    const bucket = this.bucket(Math.floor(x / CHUNK) + ',' + Math.floor(y / CHUNK));
+    for (const pi of bucket.polys) {
+      const poly = this.world.polys[pi];
+      if (poly.k === 'parking' && pointInPoly(x, y, poly)) return 'parking';
+    }
+    if (this.onCarriageway(x, y, bucket)) return 'road';
+    // a made walking surface: the boardwalk, a brick mall, a plaza, the rail trail
+    if (this.onPathSurface(x, y, bucket, 2)) return 'made';
+    for (const pi of bucket.polys) {
+      const poly = this.world.polys[pi];
+      if ((poly.k === 'plaza' || poly.k === 'pier') && pointInPoly(x, y, poly)) return 'made';
+    }
+    for (const pi of bucket.polys) {
+      const poly = this.world.polys[pi];
+      if ((poly.k === 'park' || poly.k === 'grass' || poly.k === 'garden' || poly.k === 'sand'
+        || poly.k === 'reserve' || poly.k === 'pitch') && pointInPoly(x, y, poly)) return 'green';
+    }
+    return 'plain';
+  }
+
   // driveways: house -> nearest neighborhood road; painted on the ground and
   // used by the decor pass to park cars. Cached per owning chunk.
   private drivewayCache = new Map<string, Driveway[]>();

@@ -249,6 +249,23 @@ export function manualFeatures({ world }) {
     n: 'USRC Massachusetts', k: 'ship', lv: 1, s: 'nbpt-manual',
     p: [103, -1522, 247, -1522, 247, -1478, 103, -1478],
   });
+
+  // 🗿 THE RANGE LIGHT SCULPTURE GARDEN. OSM maps six sculptures standing in it —
+  // nodes 9739802472-77, tourism=artwork, artwork_type=sculpture — and the build
+  // drops every one of them, because the POI pass keeps POIs by NAME and these carry
+  // none. The garden polygon survives, so the game had a lawn called a sculpture
+  // garden with nothing in it, on a trail whose entire point is the art.
+  //
+  // Their own coordinates, projected with this town's origin (42.81135,-70.86976 at
+  // 8 px/m) and rounded to the pixel — no re-siting. They have no names to carry, so
+  // they render as the generic abstract in decor.ts (trailSculpture), which varies
+  // its form by position; naming them here would be inventing what the map does not
+  // say. The one artwork OSM DOES name, Wendy Klemperer's osprey out at the
+  // waterfront, is already a POI and now has a builder of its own.
+  world.pois = (world.pois || []).filter((p) => p.s !== 'nbpt-trailart');
+  for (const [x, y] of [[2631, 58], [2663, 113], [2603, 104], [2576, 68], [2555, 43], [2640, -9]]) {
+    world.pois.push({ x, y, k: 'artwork', s: 'nbpt-trailart' });
+  }
 }
 
 // QA: known distances (build_world) + elevation spots (fetch_terrain)

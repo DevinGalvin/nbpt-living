@@ -2665,6 +2665,101 @@ function landmarkStatue(plain: Bucket, cx: number, cz: number, g: number) {
   plain.box(cx, cz, 1.5, 1.5, g + 38.5, g + 43, BRONZE);    // head
 }
 
+// 🗿 PUBLIC SCULPTURE — the generic for an OSM `tourism=artwork` node.
+//
+// The Clipper City Rail Trail is a sculpture walk. That is what the trail is FOR:
+// more than a dozen pieces over three and a third miles, figurative to abstract to
+// climb-on. OSM carries eight artwork records for Newburyport and SEVEN of them
+// never reached the game — six unnamed sculpture nodes standing in the Range Light
+// Sculpture Garden (the pipeline keeps POIs by name, and these have none; they come
+// back in through towns/nbpt/map.mjs at their real coordinates) and the mural, and
+// the one named piece had no builder. So the trail rendered as a painted stripe.
+//
+// OSM says "a sculpture stands here" and nothing more, so this is deliberately
+// generic: four abstract forms picked by position, in weathering steel and granite
+// — the materials the real garden is made of — so a garden of six reads as six
+// different works rather than six copies. A piece the map actually NAMES gets its
+// own builder instead (see POI_HEROES).
+function trailSculpture(plain: Bucket, cx: number, cz: number, g: number) {
+  const seed = hash32(Math.round(cx), Math.round(cz), 41);
+  const CORTEN = ['#7c4b33', '#8b5537', '#6d4530'][seed % 3];   // weathering steel, rusted to orange-brown
+  const STEEL = '#8d9198';
+  const GRANITE = '#9c968b', GRANITE_D = '#857f74';
+  const ang = (((seed >> 5) % 64) / 64) * Math.PI;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  // the pad every piece stands on — a sculpture sitting straight on turf reads as
+  // dropped rather than sited
+  plain.box(cx, cz, 7.5, 7.5, g - 0.5, g + 1.8, GRANITE_D);
+  switch (seed % 4) {
+    case 0: {   // two standing slabs, one tall one short, a hand's breadth apart
+      rotBox(plain, cx - sa * 3.2, cz + ca * 3.2, 8, 1.3, g + 1.8, g + 40, ang, CORTEN);
+      rotBox(plain, cx + sa * 3.2, cz - ca * 3.2, 6, 1.3, g + 1.8, g + 27, ang, CORTEN);
+      break;
+    }
+    case 1: {   // a cairn of granite blocks, each one turned off the last
+      let y = g + 1.8;
+      for (let i = 0; i < 4; i++) {
+        const h = 9 - i * 1.4, r = 7 - i * 1.3;
+        rotBox(plain, cx, cz, r, r * 0.8, y, y + h, ang + i * 0.42, i % 2 ? GRANITE_D : GRANITE);
+        y += h;
+      }
+      break;
+    }
+    case 2: {   // a portal: two legs and a lintel you can walk under
+      for (const s of [-1, 1] as const) {
+        rotBox(plain, cx - sa * s * 9, cz + ca * s * 9, 2.2, 2.2, g + 1.8, g + 32, ang, CORTEN);
+      }
+      rotBox(plain, cx, cz, 2.6, 11.5, g + 32, g + 36, ang, CORTEN);
+      break;
+    }
+    default: {  // a stand of thin verticals, each capped — birds on a wire, roughly
+      const rng = mulberry32(seed);
+      for (let i = 0; i < 5; i++) {
+        const u = (i - 2) * 4.6, v = (rng() - 0.5) * 7;
+        const px = cx + u * ca - v * sa, pz = cz + u * sa + v * ca;
+        const h = 18 + rng() * 20;
+        plain.box(px, pz, 0.9, 0.9, g + 1.8, g + 1.8 + h, STEEL);
+        plain.box(px, pz, 2.1, 1.5, g + 1.8 + h, g + 4.6 + h, CORTEN);
+      }
+    }
+  }
+}
+
+// 🦅 "Osprey: Pandion Haliaetus" — Wendy Klemperer's welded-steel raptor, raised on
+// its pole above the rail trail out at the waterfront. OSM has carried this node,
+// artist and all, the whole time; nothing was ever built on it. The bird is the one
+// piece on the trail everybody can name, so it gets a real silhouette: wings up and
+// swept back, head forward, the whole thing high enough to read against the sky from
+// the trail below.
+function buildOsprey(buckets: Bucket[], cx: number, cz: number, g: number) {
+  const plain = buckets[PLAIN];
+  const STEEL_D = '#4c4038', STEEL = '#5f5044', RUST = '#6b4a35';
+  const ang = 2.35;                       // facing the river, as it stands
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  // the pole, tapering in two stages, and the nest platform it perches on
+  plain.box(cx, cz, 1.5, 1.5, g, g + 30, STEEL_D);
+  plain.box(cx, cz, 1.1, 1.1, g + 30, g + 52, STEEL_D);
+  rotBox(plain, cx, cz, 6.5, 6.5, g + 52, g + 54.5, ang + 0.5, RUST);
+  const yB = g + 54.5;                    // the bird's feet
+  // body: a long wedge along the heading, head and beak proud of it, tail behind
+  rotBox(plain, cx + ca * 1, cz + sa * 1, 8, 3.2, yB, yB + 7.5, ang, STEEL);
+  rotBox(plain, cx + ca * 8.5, cz + sa * 8.5, 3, 2.6, yB + 4.5, yB + 10.5, ang, STEEL);   // head
+  rotBox(plain, cx + ca * 12, cz + sa * 12, 2.2, 1.1, yB + 5.6, yB + 7.6, ang, STEEL_D);  // beak
+  rotBox(plain, cx - ca * 10, cz - sa * 10, 5, 2.4, yB + 1.2, yB + 3, ang, STEEL_D);      // tail
+  // the wings — raised and swept, one open quad each (DoubleSide, like every wall
+  // in this file). A bird with its wings folded into boxes is a lump on a stick.
+  tmp.set(RUST);
+  for (const s of [-1, 1] as const) {
+    const fx = ca, fz = sa, nx = -sa * s, nz = ca * s;
+    const rfx = cx + fx * 4 + nx * 2.4, rfz = cz + fz * 4 + nz * 2.4;
+    const rbx = cx - fx * 4 + nx * 2.4, rbz = cz - fz * 4 + nz * 2.4;
+    const tfx = cx + fx * 2 + nx * 18, tfz = cz + fz * 2 + nz * 18;
+    const tbx = cx - fx * 7 + nx * 18, tbz = cz - fz * 7 + nz * 18;
+    plain.quad(rfx, yB + 6, rfz, tfx, yB + 17, tfz, tbx, yB + 15.5, tbz, rbx, yB + 5, rbz,
+      0, 1, 0, tmp.r, tmp.g, tmp.b);
+  }
+}
+
 // A granite obelisk on a stepped base — the archetype for war/civic memorials
 // (historic=memorial named "…Memorial/War/Veterans"): tapered shaft + pyramidion.
 function landmarkObelisk(plain: Bucket, cx: number, cz: number, g: number) {
@@ -5752,6 +5847,7 @@ const POI_HEROES: Record<string, (buckets: Bucket[], x: number, z: number, g: nu
   "Whale's Jaw": buildWhalesJaw,
   'William Lloyd Garrison Statue': buildGarrisonStatue,   // added via nbpt manualFeatures — OSM has no node for it
   'Coast Guard Aviation Monument': buildCGMonument,
+  'Osprey: Pandion Haliaetus': buildOsprey,         // Wendy Klemperer, on the rail trail at the waterfront
   'Doughboy Statue': buildDoughboy,                 // Amesbury
   'Colonel William Prescott': buildPrescott,        // Charlestown — OSM's name for the statue
 };
@@ -12065,6 +12161,9 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     } else if (poi.k === 'lighthouse') {
       // a lighthouse mapped as a point (not a building footprint) — e.g. Fort Pickering Light
       lighthouse(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
+    } else if (poi.k === 'artwork') {
+      // any mapped tourism=artwork with no builder of its own — see trailSculpture
+      trailSculpture(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
     } else if (poi.k === 'statue') {
       landmarkStatue(buckets[PLAIN], poi.x, poi.y, index.heightAtPx(poi.x, poi.y));
     } else if (poi.k === 'obelisk') {

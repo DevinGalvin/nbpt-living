@@ -424,6 +424,30 @@ function anchorMedallionTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+// The beacon shaft's vertical falloff: solid at the ground, gone at the top. A
+// cylinder's v runs 0 at the base to 1 at the crown, and a canvas' first row is
+// its TOP, so the ramp is written dark-first. Built once and shared by all three
+// concentric layers.
+let beamFade: THREE.CanvasTexture | null = null;
+function beamFadeTex(): THREE.CanvasTexture {
+  if (beamFade) return beamFade;
+  const c = document.createElement('canvas');
+  c.width = 1;
+  c.height = 128;
+  const g = c.getContext('2d')!;
+  const ramp = g.createLinearGradient(0, 0, 0, 128);
+  ramp.addColorStop(0, '#000000');      // the crown — nothing
+  ramp.addColorStop(0.32, '#242424');
+  ramp.addColorStop(0.58, '#767676');
+  ramp.addColorStop(0.8, '#c6c6c6');
+  ramp.addColorStop(1, '#ffffff');      // where it leaves the ground — full
+  g.fillStyle = ramp;
+  g.fillRect(0, 0, 1, 128);
+  beamFade = new THREE.CanvasTexture(c);
+  beamFade.wrapS = beamFade.wrapT = THREE.ClampToEdgeWrapping;
+  return beamFade;
+}
+
 function bangSprite(): THREE.Sprite {
   const c = document.createElement('canvas');
   c.width = 64;
@@ -636,8 +660,16 @@ export class QuestRunner {
     // the vertical beam draws on top (depthTest off, NORMAL blending) so it reads
     // the SAME on any background — additive used to vanish over the dark water and
     // only "appear" once it crossed into the sky
+    //
+    // …and it FADES OUT with height. A cylinder at one opacity ends in a flat cut
+    // 460 px up, and since it also draws over everything the result read as a yellow
+    // rod standing in front of the town rather than light going up out of it. The
+    // alpha map is a vertical ramp — solid where it leaves the ground, gone by the
+    // top — so the shaft dissipates instead of stopping. (depthTest stays off on
+    // purpose: seeing the objective through the block in front of you is the whole
+    // job of a beacon.)
     const glowMat = (op: number) => new THREE.MeshBasicMaterial({
-      color: 0xffd863, transparent: true, opacity: op,
+      color: 0xffd863, transparent: true, opacity: op, alphaMap: beamFadeTex(),
       side: THREE.DoubleSide, depthWrite: false, depthTest: false
     });
     // a soft filled glow disc marks the exact landing spot
