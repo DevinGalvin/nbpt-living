@@ -2756,8 +2756,11 @@ function buildOsprey(buckets: Bucket[], cx: number, cz: number, g: number) {
   // body: chest forward and deeper, rear tapering to the tail
   rotBox(plain, cx + ca * 4, cz + sa * 4, 5.5, 3.0, yB, yB + 8, ang, BODY);
   rotBox(plain, cx - ca * 4.5, cz - sa * 4.5, 5, 2.1, yB + 1.4, yB + 6.4, ang, BODY);
-  rotBox(plain, cx + ca * 10, cz + sa * 10, 2.8, 2.4, yB + 5, yB + 11, ang, BODY);        // head
-  rotBox(plain, cx + ca * 13.6, cz + sa * 13.6, 2.4, 1.0, yB + 6.2, yB + 8.6, ang, DARK); // hooked beak
+  // neck and head carried well FORWARD of the shoulders. Stopped level with them,
+  // the front of the bird is an aircraft nose; an osprey in flight leads with its head.
+  rotBox(plain, cx + ca * 9, cz + sa * 9, 3.2, 2.0, yB + 4.4, yB + 9.2, ang, BODY);        // neck
+  rotBox(plain, cx + ca * 14, cz + sa * 14, 3.0, 2.4, yB + 5.4, yB + 11, ang, BODY);       // head
+  rotBox(plain, cx + ca * 18, cz + sa * 18, 2.6, 1.0, yB + 6.4, yB + 8.8, ang, DARK);      // hooked beak
   tmp.set(WING);
   // THE WINGS — one open quad each (DoubleSide, like every wall in this file), broad
   // at the shoulder and swept back to a narrow tip. The normal is tilted outward as
@@ -2766,8 +2769,11 @@ function buildOsprey(buckets: Bucket[], cx: number, cz: number, g: number) {
     const nx = -sa * s, nz = ca * s;
     const rf = [cx + ca * 7 + nx * 2.6, cz + sa * 7 + nz * 2.6] as const;   // root, leading edge
     const rb = [cx - ca * 7 + nx * 2.6, cz - sa * 7 + nz * 2.6] as const;   // root, trailing
-    const tf = [cx + ca * 1 + nx * 26, cz + sa * 1 + nz * 26] as const;     // tip, leading (swept back)
-    const tb = [cx - ca * 6 + nx * 26, cz - sa * 6 + nz * 26] as const;     // tip, trailing
+    // ⚠️ the TIP SITS ENTIRELY BEHIND THE ROOT. A wing whose tip is level with its
+    // shoulder is an aircraft wing panel however much it tapers — the sweep is what
+    // makes the plan form read as a bird rather than a model aeroplane.
+    const tf = [cx - ca * 7 + nx * 27, cz - sa * 7 + nz * 27] as const;     // tip, leading
+    const tb = [cx - ca * 15 + nx * 27, cz - sa * 15 + nz * 27] as const;   // tip, trailing
     const nl = Math.hypot(0.42, 1);
     plain.quad(rf[0], yB + 6.4, rf[1], tf[0], yB + 11.4, tf[1], tb[0], yB + 10.6, tb[1], rb[0], yB + 5.6, rb[1],
       (nx * 0.42) / nl, 1 / nl, (nz * 0.42) / nl, tmp.r, tmp.g, tmp.b);
@@ -2777,9 +2783,11 @@ function buildOsprey(buckets: Bucket[], cx: number, cz: number, g: number) {
   tmp.set(DARK);
   const tr = [cx - ca * 8, cz - sa * 8] as const;
   const tlx = -sa, tlz = ca;
-  plain.quad(tr[0] + tlx * 2.4, yB + 3.4, tr[1] + tlz * 2.4, tr[0] - tlx * 2.4, yB + 3.4, tr[1] - tlz * 2.4,
-    tr[0] - ca * 13 - tlx * 6.5, yB + 4.6, tr[1] - sa * 13 - tlz * 6.5,
-    tr[0] - ca * 13 + tlx * 6.5, yB + 4.6, tr[1] - sa * 13 + tlz * 6.5,
+  // short and WIDE — a long narrow one is a tailplane, which was half of why the
+  // whole bird read as an aircraft
+  plain.quad(tr[0] + tlx * 2.6, yB + 3.4, tr[1] + tlz * 2.6, tr[0] - tlx * 2.6, yB + 3.4, tr[1] - tlz * 2.6,
+    tr[0] - ca * 9 - tlx * 8.5, yB + 4.4, tr[1] - sa * 9 - tlz * 8.5,
+    tr[0] - ca * 9 + tlx * 8.5, yB + 4.4, tr[1] - sa * 9 + tlz * 8.5,
     0, 1, 0, tmp.r, tmp.g, tmp.b);
 }
 
