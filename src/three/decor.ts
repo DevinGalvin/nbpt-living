@@ -4236,7 +4236,12 @@ function buildPinkHouse(buckets: Bucket[], b: Building, g: number, index: WorldI
   // on top — so #eeb2bd, which looks like the right pink in a swatch, multiplies
   // down to a dusty mauve and the house stops being pink at all. Mission Oak's
   // #e3e8e8 survived only because it was already near-white. Start high.
-  const PINK = '#fbd7de';        // the pale rose that mirrored the sunsets
+  // ⚠️ …AND LIGHTENING ALONE TURNS IT GREY. #fbd7de cleared the darkening but its
+  // red-to-green gap is only 36, and after the multiply the eye stops reading the
+  // hue as pink at all — a pale grey house. What survives is HIGH LIGHTNESS WITH
+  // THE GAP KEPT WIDE: #ffc4d2 is 59 apart, like the first attempt, but bright
+  // enough that 0.78 x the shadow lines still lands on rose instead of mauve.
+  const PINK = '#ffc4d2';        // the pale rose that mirrored the sunsets
   const TRIM = '#f7eef0';
   const ROOF = '#4a4440';        // asphalt shingle, near-black against the marsh
   const obb = obbOf(b.p);
