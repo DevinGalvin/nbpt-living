@@ -2725,69 +2725,72 @@ function trailSculpture(plain: Bucket, cx: number, cz: number, g: number) {
   }
 }
 
-// 🦅 "Osprey: Pandion Haliaetus" — Wendy Klemperer's welded-steel raptor, raised on
-// its pole above the rail trail out at the waterfront. OSM has carried this node,
-// artist and all, the whole time; nothing was ever built on it. The bird is the one
-// piece on the trail everybody can name, so it gets a real silhouette: wings up and
-// swept back, head forward, the whole thing high enough to read against the sky from
-// the trail below.
+// 🦅 "Osprey: Pandion Haliaetus" — Wendy Klemperer, on the Clipper City Rail Trail
+// at the waterfront. OSM has carried this node, artist tag and all, the whole time;
+// nothing was ever built on it, so the one piece on the trail everybody can name
+// rendered as nothing at all.
+//
+// ⚠️ THE POSE IS THE WHOLE THING, AND IT IS NOT A GUESS. The piece is a
+// larger-than-life raptor CLUTCHING A FISH IN ITS TALONS AS IT LANDS ON A LARGE
+// GRANITE POST. Three passes were spent inventing a bird — first a steep V of
+// narrow blades (a weathervane), then broad level wings (a model aeroplane), then
+// swept ones (a dart) — because flat wings on a box body, held level, is an
+// aircraft in any plan form, and this camera is elevated enough to see plan form.
+// A LANDING bird is not: the wings throw UP and FORWARD into the flare, which is a
+// silhouette nothing man-made shares. Built to the documented pose instead, the
+// shape reads without any of the coaxing the level-flight versions needed.
 function buildOsprey(buckets: Bucket[], cx: number, cz: number, g: number) {
   const plain = buckets[PLAIN];
-  // ⚠️ TWO THINGS THIS GOT WRONG THE FIRST TIME, both only visible in a render.
-  //
-  // Steep V + narrow blades. The chase camera is ELEVATED, so what you mostly read
-  // of a bird up on a pole is its PLAN form — and wings raised 11 px over an 18 px
-  // span at a constant 8 px chord are, seen from above, two propeller blades. The
-  // thing came out a weathervane. Wings are broad now (14 px of chord at the root),
-  // long (26 px of span each side), swept back, and lifted only 5 px — so the plan
-  // form is a bird and the elevation still has some lift in it.
-  //
-  // And it was nearly BLACK. #4c4038 sounds like weathered steel and renders as a
-  // silhouette against both sky and water, which kills the shape at any distance a
-  // sculpture on a pole is actually seen from. Rust reads mid-tone in daylight.
-  const POLE = '#584a3f', BODY = '#7d5f45', WING = '#8a6a4e', DARK = '#5f4734';
-  const ang = 2.35;                       // facing out over the river, as it stands
+  // rust reads mid-tone in daylight — the first cut used #4c4038 for "weathered
+  // steel" and rendered as a silhouette against both the sky and the water, which
+  // kills the shape at the distance a sculpture on a post is actually seen from
+  const BODY = '#7d5f45', WING = '#8a6a4e', DARK = '#5f4734';
+  const GRANITE = '#9c968b', GRANITE_D = '#867f75', FISH = '#8d959b';
+  const ang = 2.35;                       // facing in over the trail, as it lands
   const ca = Math.cos(ang), sa = Math.sin(ang);
-  // the pole, tapering in two stages, and the platform it perches on
-  plain.box(cx, cz, 1.8, 1.8, g, g + 30, POLE);
-  plain.box(cx, cz, 1.3, 1.3, g + 30, g + 52, POLE);
-  rotBox(plain, cx, cz, 7, 7, g + 52, g + 54.5, ang + 0.5, DARK);
-  const yB = g + 55;                      // the bird's feet
-  // body: chest forward and deeper, rear tapering to the tail
-  rotBox(plain, cx + ca * 4, cz + sa * 4, 5.5, 3.0, yB, yB + 8, ang, BODY);
-  rotBox(plain, cx - ca * 4.5, cz - sa * 4.5, 5, 2.1, yB + 1.4, yB + 6.4, ang, BODY);
-  // neck and head carried well FORWARD of the shoulders. Stopped level with them,
-  // the front of the bird is an aircraft nose; an osprey in flight leads with its head.
-  rotBox(plain, cx + ca * 9, cz + sa * 9, 3.2, 2.0, yB + 4.4, yB + 9.2, ang, BODY);        // neck
-  rotBox(plain, cx + ca * 14, cz + sa * 14, 3.0, 2.4, yB + 5.4, yB + 11, ang, BODY);       // head
-  rotBox(plain, cx + ca * 18, cz + sa * 18, 2.6, 1.0, yB + 6.4, yB + 8.8, ang, DARK);      // hooked beak
+  // THE GRANITE POST — a post, quarried and square, not the steel pole this had
+  // before. It is half the piece: the bird is landing ON something.
+  rotBox(plain, cx, cz, 6.5, 6.5, g - 1, g + 3, ang, GRANITE_D);      // footing
+  rotBox(plain, cx, cz, 4.6, 4.6, g + 3, g + 40, ang, GRANITE);       // shaft
+  rotBox(plain, cx, cz, 5.0, 5.0, g + 40, g + 43, ang, GRANITE_D);    // cap
+  const yB = g + 46;                      // the talons, just clear of the cap
+  // the fish in the talons, held crosswise under the bird — the detail that names
+  // the sculpture the moment you are close enough to see it
+  rotBox(plain, cx + ca * 2, cz + sa * 2, 2.2, 7.5, yB - 3.4, yB - 0.6, ang + 1.35, FISH);
+  rotBox(plain, cx + ca * 2 - sa * 8.5, cz + sa * 2 + ca * 8.5, 1.6, 2.6, yB - 3.2, yB - 1, ang + 1.35, FISH);
+  for (const s of [-1, 1] as const) {     // legs, reaching down to it
+    rotBox(plain, cx + ca * 2.5 - sa * s * 2.2, cz + sa * 2.5 + ca * s * 2.2, 1.0, 1.0, yB - 1.2, yB + 3.4, ang, DARK);
+  }
+  // body, pitched nose-up the way a landing bird throws its chest forward
+  rotBox(plain, cx + ca * 2, cz + sa * 2, 5.4, 3.0, yB + 3, yB + 10.5, ang, BODY);
+  rotBox(plain, cx - ca * 5.5, cz - sa * 5.5, 4.6, 2.2, yB + 2.2, yB + 8, ang, BODY);
+  rotBox(plain, cx + ca * 8, cz + sa * 8, 2.8, 2.2, yB + 8, yB + 13.5, ang, BODY);        // neck
+  rotBox(plain, cx + ca * 11.5, cz + sa * 11.5, 2.8, 2.4, yB + 10, yB + 15.5, ang, BODY); // head
+  rotBox(plain, cx + ca * 15, cz + sa * 15, 2.4, 1.0, yB + 10.6, yB + 12.8, ang, DARK);   // hooked beak
+  // THE WINGS, thrown up and CUPPED FORWARD into the flare: the tip is forward of
+  // the shoulder and 17 px above it. Sweep the tip back instead and you have a jet;
+  // hold it level and you have an airliner. Forward and up is a bird braking, and
+  // nothing else. One open quad each, DoubleSide like every wall in this file, with
+  // the normal tilted outward so the two wings take different light.
   tmp.set(WING);
-  // THE WINGS — one open quad each (DoubleSide, like every wall in this file), broad
-  // at the shoulder and swept back to a narrow tip. The normal is tilted outward as
-  // well as up so the two wings take different light and the bird has a near side.
   for (const s of [-1, 1] as const) {
     const nx = -sa * s, nz = ca * s;
-    const rf = [cx + ca * 7 + nx * 2.6, cz + sa * 7 + nz * 2.6] as const;   // root, leading edge
-    const rb = [cx - ca * 7 + nx * 2.6, cz - sa * 7 + nz * 2.6] as const;   // root, trailing
-    // ⚠️ the TIP SITS ENTIRELY BEHIND THE ROOT. A wing whose tip is level with its
-    // shoulder is an aircraft wing panel however much it tapers — the sweep is what
-    // makes the plan form read as a bird rather than a model aeroplane.
-    const tf = [cx - ca * 7 + nx * 27, cz - sa * 7 + nz * 27] as const;     // tip, leading
-    const tb = [cx - ca * 15 + nx * 27, cz - sa * 15 + nz * 27] as const;   // tip, trailing
-    const nl = Math.hypot(0.42, 1);
-    plain.quad(rf[0], yB + 6.4, rf[1], tf[0], yB + 11.4, tf[1], tb[0], yB + 10.6, tb[1], rb[0], yB + 5.6, rb[1],
-      (nx * 0.42) / nl, 1 / nl, (nz * 0.42) / nl, tmp.r, tmp.g, tmp.b);
+    const rf = [cx + ca * 7 + nx * 2.8, cz + sa * 7 + nz * 2.8] as const;    // root, leading
+    const rb = [cx - ca * 7 + nx * 2.8, cz - sa * 7 + nz * 2.8] as const;    // root, trailing
+    const tf = [cx + ca * 11 + nx * 22, cz + sa * 11 + nz * 22] as const;    // tip, leading (FORWARD)
+    const tb = [cx + ca * 2 + nx * 22, cz + sa * 2 + nz * 22] as const;      // tip, trailing
+    const nl = Math.hypot(0.5, 1);
+    plain.quad(rf[0], yB + 9, rf[1], tf[0], yB + 26, tf[1], tb[0], yB + 24.5, tb[1], rb[0], yB + 8, rb[1],
+      (nx * 0.5) / nl, 1 / nl, (nz * 0.5) / nl, tmp.r, tmp.g, tmp.b);
   }
-  // the tail, a spread fan behind — the counterweight that stops it reading as a
-  // cross, and the last piece of the bird silhouette from above
+  // tail fanned down and forward — the brake. Short and wide; long and narrow is a
+  // tailplane, which was half of why the level-flight cuts read as aircraft.
   tmp.set(DARK);
-  const tr = [cx - ca * 8, cz - sa * 8] as const;
+  const tx = cx - ca * 9, tz2 = cz - sa * 9;
   const tlx = -sa, tlz = ca;
-  // short and WIDE — a long narrow one is a tailplane, which was half of why the
-  // whole bird read as an aircraft
-  plain.quad(tr[0] + tlx * 2.6, yB + 3.4, tr[1] + tlz * 2.6, tr[0] - tlx * 2.6, yB + 3.4, tr[1] - tlz * 2.6,
-    tr[0] - ca * 9 - tlx * 8.5, yB + 4.4, tr[1] - sa * 9 - tlz * 8.5,
-    tr[0] - ca * 9 + tlx * 8.5, yB + 4.4, tr[1] - sa * 9 + tlz * 8.5,
+  plain.quad(tx + tlx * 2.6, yB + 4.4, tz2 + tlz * 2.6, tx - tlx * 2.6, yB + 4.4, tz2 - tlz * 2.6,
+    tx - ca * 8 - tlx * 8.5, yB - 1, tz2 - sa * 8 - tlz * 8.5,
+    tx - ca * 8 + tlx * 8.5, yB - 1, tz2 - sa * 8 + tlz * 8.5,
     0, 1, 0, tmp.r, tmp.g, tmp.b);
 }
 
