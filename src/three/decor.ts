@@ -4126,6 +4126,70 @@ function steeple(buckets: Bucket[], b: Building, g: number, index: WorldIndex, g
   buckets[PLAIN].box(tx, tz, 0.35, 0.35, y + (grand ? 38 : 22), y + (grand ? 50 : 30), '#d8d4c8');
 }
 
+// ⛪ MISSION OAK GRILL, 26 Green Street — a Gothic Revival CHURCH that is now a
+// restaurant, built from Devin's photograph.
+//
+// OSM knows only the restaurant: amenity=restaurant, building=yes, and not one tag
+// saying what the building IS. So it fell to the generic path, the downtown-core
+// rule promoted it to commercial (correctly, for almost everything else on this
+// block), and the town's most distinctive corner rendered as a flat-roofed brick
+// box with a parapet. No classification rule was going to save this one — the fact
+// that it is a church simply is not in the data, and only a hero can carry it.
+//
+// From the photograph: pale clapboard, near-black steep roof, a square bell tower
+// standing proud of the front with tall louvered lancets and a STEEP FOUR-SIDED
+// SPIRE, red-brown painted pilasters at the base, and the black entrance awning
+// with its sign under the tower.
+//
+// ⚠️ The spire is taperBand, NOT cone(). cone() is a 16-gon and on a square tower
+// it reads as a round hat — the thing that made Trinity a chess rook in Boston.
+function buildMissionOak(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const plain = buckets[PLAIN];
+  const WALL = '#e3e8e8';     // pale grey-blue clapboard — reads white down the street
+  const ROOF = '#3b3733';     // near-black slate, roof and spire alike
+  const BASE = '#7d4a3c';     // the red-brown painted pilasters along the base
+  const DARK = '#2b2e2b';
+  const f = frontSegment(b, index);
+  const ang = Math.atan2(f.tz, f.tx);
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const EAVE = g + 42;
+
+  walls(buckets[CLAP], b.p, g - 6, EAVE, WALL);
+  walls(plain, expandRing(b.p, 0.5), g - 6, g + 7, BASE, 0);
+  complexGable(buckets[SHINGLE], buckets[CLAP], b.p, EAVE, ROOF, WALL);
+  houseTrim(plain, b.p, EAVE, g - 6);
+  archWindows(plain, b.p, g + 15, 20, 17, 4.5);          // the tall lancets down the sides
+
+  // THE TOWER — square, proud of the front wall, and what you know it by
+  const tx = f.x + f.nx * 5, tz = f.z + f.nz * 5;
+  const sq = (r: number) => {
+    const pts: number[] = [];
+    for (const [lx, lz] of [[-r, -r], [r, -r], [r, r], [-r, r]] as const) {
+      pts.push(tx + lx * ca - lz * sa, tz + lx * sa + lz * ca);
+    }
+    return pts;
+  };
+  const TOP = g + 84;
+  walls(buckets[CLAP], sq(9), g - 6, TOP, WALL);
+  walls(plain, expandRing(sq(9), 0.5), g - 6, g + 7, BASE, 0);
+  walls(plain, expandRing(sq(9), 0.9), TOP - 4, TOP, WALL, 0);            // the cornice under the spire
+  // paired louvered lancets high on all four faces
+  for (const a of [ang, ang + Math.PI, ang + Math.PI / 2, ang - Math.PI / 2]) {
+    const nx = Math.cos(a), nz = Math.sin(a);
+    for (const off of [-3.4, 3.4]) {
+      rotBox(plain, tx + nx * 8.9 - nz * off, tz + nz * 8.9 + nx * off, 0.6, 2.2, TOP - 28, TOP - 9, a, DARK);
+    }
+  }
+  // THE SPIRE — four sides, steep, dark, with the weathervane on top
+  taperBand(plain, sq(9.6), sq(0.5), TOP, TOP + 36, ROOF, 0);
+  plain.box(tx, tz, 0.35, 0.35, TOP + 36, TOP + 47, ROOF);
+  rotBox(plain, tx, tz, 3.2, 0.3, TOP + 43, TOP + 44, ang + 0.6, ROOF);   // the vane
+  // the black entrance awning under the tower, and its lit sign band
+  rotBox(plain, tx + ca * 12, tz + sa * 12, 4.5, 8, g + 15, g + 19.5, ang, DARK);
+  rotBox(plain, tx + ca * 15.5, tz + sa * 15.5, 0.5, 5.4, g + 19.5, g + 25, ang, DARK);
+  rotBox(buckets[GLOW], tx + ca * 16.1, tz + sa * 16.1, 0.3, 4.4, g + 20.4, g + 24, ang, '#c9a24a');
+}
+
 // ---------- the landmark heroes ----------
 
 // First Religious Society (1801) — white meetinghouse with THE Newburyport steeple
@@ -9872,6 +9936,7 @@ function modernBlock(buckets: Bucket[], b: Building, g: number,
 }
 
 const HEROES: Record<string, HeroBuilder> = {
+  'Mission Oak': buildMissionOak,                   // 26 Green Street — a church, whatever OSM says
   // Both towns' heroes coexist here — entries are keyed by unique OSM building
   // names, so only the loaded town's world.json ever matches its own set.
   // ── BOSTON ──
