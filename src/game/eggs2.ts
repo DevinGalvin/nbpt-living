@@ -214,11 +214,45 @@ export class MoreEggs {
       if (edge) {
         const [ex, ez] = edge;
         const dz = ez < bw.y ? -1 : 1;
-        this.sealAt = { x: ex + 40, z: ez + dz * 170 };
+        // ⚠️ 170 px is 21 METRES OUT. The seal read as a black dot and the first
+        // fix went at the model — but a seal-shaped object 21 m out on open water
+        // is a dot however well the head is built, which the close-up proved by
+        // looking identical. Distance was the fault. 78 px (under 10 m) puts it
+        // in the water you are actually looking down into from the boardwalk,
+        // which is where people really see them.
+        this.sealAt = { x: ex + 40, z: ez + dz * 78 };
+        // ⚠️ A SEAL AT THE SURFACE IS A HEAD *AND* A BACK. This was a lone
+        // SphereGeometry(3.2) in #5a5f63 — six pixels across, of which a three
+        // pixel cap cleared the water — with a 0.5 px snout and 0.5 px eyes that
+        // are below one screen pixel at any range you actually see the river
+        // from. It read as a small black dot, which is Devin's report exactly.
+        // Scale alone does not fix it; a bigger dark ball is a bigger dot. Three
+        // things do: a BACK breaking the surface behind the head (the silhouette
+        // that says animal rather than buoy), a face pale enough for the eyes to
+        // read against it, and a RING OF RIPPLE at the waterline — which is what
+        // tells you something is out there before you can make out what it is.
+        // Sized against the KID, who is 36 px tall — this town's people are drawn
+        // well over life scale, and a seal built to its true 0.3 m head was the one
+        // thing in the river rendered honestly, which is why it vanished. The head
+        // is ~19 px across now, about half the kid's height: chunky, and the only
+        // version of this that reads as an animal from the boardwalk rail.
         const g = new THREE.Group();
-        const head = new THREE.Mesh(new THREE.SphereGeometry(3.2, 10, 8), lam('#5a5f63')); head.position.y = 2.2; g.add(head);
-        const snout = box(2.2, 1.6, 2.0, '#6d7377'); snout.position.set(2.6, 1.6, 0); g.add(snout);
-        for (const s of [-1, 1]) { const eye = box(0.5, 0.5, 0.5, '#111'); eye.position.set(1.8, 3.2, s * 1.3); g.add(eye); }
+        const back = new THREE.Mesh(new THREE.SphereGeometry(10, 14, 10), lam('#6b7376'));
+        back.scale.set(2.0, 0.55, 1.05); back.position.set(-16, 0.4, 0); g.add(back);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(9.5, 14, 12), lam('#7e8688'));
+        head.position.set(0, 4.6, 0); g.add(head);
+        const snout = box(7, 5.2, 6, '#939a99'); snout.position.set(7.4, 3.6, 0); g.add(snout);
+        const nose = box(2, 2, 3, '#2b2f31'); nose.position.set(11, 4.2, 0); g.add(nose);
+        for (const s of [-1, 1]) { const eye = box(2, 2.4, 2, '#15181a'); eye.position.set(4.8, 7.5, s * 4); g.add(eye); }
+        // The ripple it sits in. ⚠️ The first one was a 7-12.5 ring set 0.1 px over
+        // the water plane and it never appeared in a single render — too thin to
+        // survive the grazing angle you view the river at, and close enough to the
+        // surface to be swallowed by it. Wide, brighter, and clear of the water;
+        // still well under it while the seal is down, so it hides itself on a dive.
+        const ripple = new THREE.Mesh(
+          new THREE.RingGeometry(20, 38, 32).rotateX(-Math.PI / 2),
+          new THREE.MeshBasicMaterial({ color: '#e2eef2', transparent: true, opacity: 0.45, depthWrite: false }));
+        ripple.position.y = -0.6; g.add(ripple);
         g.position.set(this.sealAt.x, WATER_Y - 9, this.sealAt.z);
         scene.add(g);
         this.seal = g;
