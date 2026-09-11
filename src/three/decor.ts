@@ -2733,31 +2733,54 @@ function trailSculpture(plain: Bucket, cx: number, cz: number, g: number) {
 // the trail below.
 function buildOsprey(buckets: Bucket[], cx: number, cz: number, g: number) {
   const plain = buckets[PLAIN];
-  const STEEL_D = '#4c4038', STEEL = '#5f5044', RUST = '#6b4a35';
-  const ang = 2.35;                       // facing the river, as it stands
+  // ⚠️ TWO THINGS THIS GOT WRONG THE FIRST TIME, both only visible in a render.
+  //
+  // Steep V + narrow blades. The chase camera is ELEVATED, so what you mostly read
+  // of a bird up on a pole is its PLAN form — and wings raised 11 px over an 18 px
+  // span at a constant 8 px chord are, seen from above, two propeller blades. The
+  // thing came out a weathervane. Wings are broad now (14 px of chord at the root),
+  // long (26 px of span each side), swept back, and lifted only 5 px — so the plan
+  // form is a bird and the elevation still has some lift in it.
+  //
+  // And it was nearly BLACK. #4c4038 sounds like weathered steel and renders as a
+  // silhouette against both sky and water, which kills the shape at any distance a
+  // sculpture on a pole is actually seen from. Rust reads mid-tone in daylight.
+  const POLE = '#584a3f', BODY = '#7d5f45', WING = '#8a6a4e', DARK = '#5f4734';
+  const ang = 2.35;                       // facing out over the river, as it stands
   const ca = Math.cos(ang), sa = Math.sin(ang);
-  // the pole, tapering in two stages, and the nest platform it perches on
-  plain.box(cx, cz, 1.5, 1.5, g, g + 30, STEEL_D);
-  plain.box(cx, cz, 1.1, 1.1, g + 30, g + 52, STEEL_D);
-  rotBox(plain, cx, cz, 6.5, 6.5, g + 52, g + 54.5, ang + 0.5, RUST);
-  const yB = g + 54.5;                    // the bird's feet
-  // body: a long wedge along the heading, head and beak proud of it, tail behind
-  rotBox(plain, cx + ca * 1, cz + sa * 1, 8, 3.2, yB, yB + 7.5, ang, STEEL);
-  rotBox(plain, cx + ca * 8.5, cz + sa * 8.5, 3, 2.6, yB + 4.5, yB + 10.5, ang, STEEL);   // head
-  rotBox(plain, cx + ca * 12, cz + sa * 12, 2.2, 1.1, yB + 5.6, yB + 7.6, ang, STEEL_D);  // beak
-  rotBox(plain, cx - ca * 10, cz - sa * 10, 5, 2.4, yB + 1.2, yB + 3, ang, STEEL_D);      // tail
-  // the wings — raised and swept, one open quad each (DoubleSide, like every wall
-  // in this file). A bird with its wings folded into boxes is a lump on a stick.
-  tmp.set(RUST);
+  // the pole, tapering in two stages, and the platform it perches on
+  plain.box(cx, cz, 1.8, 1.8, g, g + 30, POLE);
+  plain.box(cx, cz, 1.3, 1.3, g + 30, g + 52, POLE);
+  rotBox(plain, cx, cz, 7, 7, g + 52, g + 54.5, ang + 0.5, DARK);
+  const yB = g + 55;                      // the bird's feet
+  // body: chest forward and deeper, rear tapering to the tail
+  rotBox(plain, cx + ca * 4, cz + sa * 4, 5.5, 3.0, yB, yB + 8, ang, BODY);
+  rotBox(plain, cx - ca * 4.5, cz - sa * 4.5, 5, 2.1, yB + 1.4, yB + 6.4, ang, BODY);
+  rotBox(plain, cx + ca * 10, cz + sa * 10, 2.8, 2.4, yB + 5, yB + 11, ang, BODY);        // head
+  rotBox(plain, cx + ca * 13.6, cz + sa * 13.6, 2.4, 1.0, yB + 6.2, yB + 8.6, ang, DARK); // hooked beak
+  tmp.set(WING);
+  // THE WINGS — one open quad each (DoubleSide, like every wall in this file), broad
+  // at the shoulder and swept back to a narrow tip. The normal is tilted outward as
+  // well as up so the two wings take different light and the bird has a near side.
   for (const s of [-1, 1] as const) {
-    const fx = ca, fz = sa, nx = -sa * s, nz = ca * s;
-    const rfx = cx + fx * 4 + nx * 2.4, rfz = cz + fz * 4 + nz * 2.4;
-    const rbx = cx - fx * 4 + nx * 2.4, rbz = cz - fz * 4 + nz * 2.4;
-    const tfx = cx + fx * 2 + nx * 18, tfz = cz + fz * 2 + nz * 18;
-    const tbx = cx - fx * 7 + nx * 18, tbz = cz - fz * 7 + nz * 18;
-    plain.quad(rfx, yB + 6, rfz, tfx, yB + 17, tfz, tbx, yB + 15.5, tbz, rbx, yB + 5, rbz,
-      0, 1, 0, tmp.r, tmp.g, tmp.b);
+    const nx = -sa * s, nz = ca * s;
+    const rf = [cx + ca * 7 + nx * 2.6, cz + sa * 7 + nz * 2.6] as const;   // root, leading edge
+    const rb = [cx - ca * 7 + nx * 2.6, cz - sa * 7 + nz * 2.6] as const;   // root, trailing
+    const tf = [cx + ca * 1 + nx * 26, cz + sa * 1 + nz * 26] as const;     // tip, leading (swept back)
+    const tb = [cx - ca * 6 + nx * 26, cz - sa * 6 + nz * 26] as const;     // tip, trailing
+    const nl = Math.hypot(0.42, 1);
+    plain.quad(rf[0], yB + 6.4, rf[1], tf[0], yB + 11.4, tf[1], tb[0], yB + 10.6, tb[1], rb[0], yB + 5.6, rb[1],
+      (nx * 0.42) / nl, 1 / nl, (nz * 0.42) / nl, tmp.r, tmp.g, tmp.b);
   }
+  // the tail, a spread fan behind — the counterweight that stops it reading as a
+  // cross, and the last piece of the bird silhouette from above
+  tmp.set(DARK);
+  const tr = [cx - ca * 8, cz - sa * 8] as const;
+  const tlx = -sa, tlz = ca;
+  plain.quad(tr[0] + tlx * 2.4, yB + 3.4, tr[1] + tlz * 2.4, tr[0] - tlx * 2.4, yB + 3.4, tr[1] - tlz * 2.4,
+    tr[0] - ca * 13 - tlx * 6.5, yB + 4.6, tr[1] - sa * 13 - tlz * 6.5,
+    tr[0] - ca * 13 + tlx * 6.5, yB + 4.6, tr[1] - sa * 13 + tlz * 6.5,
+    0, 1, 0, tmp.r, tmp.g, tmp.b);
 }
 
 // A granite obelisk on a stepped base — the archetype for war/civic memorials
