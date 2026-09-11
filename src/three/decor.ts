@@ -4216,6 +4216,76 @@ function stopSign(plain: Bucket, x: number, z: number, g: number, facing: number
   }
 }
 
+// 🩷 THE PINK HOUSE, 60 Plum Island Turnpike — 1925 to 11 March 2025.
+//
+// Built as a gift for Harry and Ruth Cutter and their infant son, and for a
+// hundred years the only thing standing in that stretch of salt marsh: painters
+// painted it, photographers chased its light off the sunsets, and when the refuge
+// took it down the whole region felt it. OSM has no footprint here and correctly
+// never will, so the house comes in through towns/nbpt/map.mjs — the one case in
+// this town where the map is right and the world is still wrong without it.
+//
+// ⚠️ ARCHITECTURE IS RESEARCHED, NOT REMEMBERED. It was an American Foursquare of
+// about 2,100 sq ft over two floors — one of the Sears Roebuck catalogue cottages —
+// which means a CUBE under a LOW HIPPED ROOF with deep eaves, a hipped dormer on
+// the front, and a porch across the face. Getting that from the sources first is
+// the difference between this and the four passes the osprey cost.
+function buildPinkHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+  const PINK = '#eeb2bd';        // the pale rose that mirrored the sunsets
+  const TRIM = '#f7eef0';
+  const ROOF = '#4a4440';        // asphalt shingle, near-black against the marsh
+  const obb = obbOf(b.p);
+  const f = frontSegment(b, index);
+  const ang = Math.atan2(f.tz, f.tx);
+  const EAVE = g + 44;
+
+  walls(buckets[CLAP], b.p, g - 8, EAVE, PINK);
+  houseTrim(buckets[PLAIN], b.p, EAVE, g - 8);
+  facades(buckets[PLAIN], b.p, EAVE, 2, 1925, true, false, false, g, 34);
+  // the low hip with its deep overhang — the Foursquare silhouette
+  hipRoof(buckets[SHINGLE], obb, EAVE, 15, 5, ROOF, false);
+  // the hipped dormer, centred on the front face
+  const dx = f.x + f.nx * -3, dz = f.z + f.nz * -3;
+  const dr = (r: number, w: number) => {
+    const ca = Math.cos(ang), sa = Math.sin(ang), pts: number[] = [];
+    for (const [lx, lz] of [[-r, -w], [r, -w], [r, w], [-r, w]] as const) pts.push(dx + lx * ca - lz * sa, dz + lx * sa + lz * ca);
+    return pts;
+  };
+  walls(buckets[CLAP], dr(8, 5), EAVE + 3, EAVE + 13, PINK);
+  hipRoof(buckets[SHINGLE], obbOf(dr(8, 5)), EAVE + 13, 5, 1.5, ROOF, false);
+  rotBox(buckets[GLOW], dx + f.nx * 5.2, dz + f.nz * 5.2, 0.4, 3.2, EAVE + 5.5, EAVE + 11, ang, '#2c3238');
+  // the porch across the front: deck, four posts, its own shallow hip
+  const px2 = f.x + f.nx * 9, pz2 = f.z + f.nz * 9;
+  const half = Math.min(f.len / 2 - 2, 40);
+  rotBox(buckets[PLANK], px2, pz2, 9, half, g - 2, g + 3, ang, '#d9c9bd');
+  for (const t of [-half + 3, -half / 3, half / 3, half - 3]) {
+    buckets[PLAIN].box(f.x + f.tx * t + f.nx * 16, f.z + f.tz * t + f.nz * 16, 1.1, 1.1, g + 3, g + 26, TRIM);
+  }
+  rotBox(buckets[PLAIN], px2, pz2, 9.5, half + 1, g + 26, g + 29, ang, ROOF);
+  // the chimney, and the front door under the porch
+  buckets[BRICK].box(obb.cx + 9, obb.cz - 6, 3.2, 3.2, EAVE + 8, EAVE + 22, '#8a6a5e');
+  rotBox(buckets[PLAIN], f.x + f.nx * 0.8, f.z + f.nz * 0.8, 0.6, 4.2, g + 2, g + 20, ang, '#7a4a52');
+}
+
+// 🪦 THE PINK HOUSE MEMORIAL — the sign between two granite posts that went up on
+// the site in April 2026, carrying a Kathy Culbert painting of the house and the
+// words "honoring 100 years of memories. Demolished March 11, 2025, but never
+// forgotten." It stands toward the Turnpike, where the people who stop to look at
+// the empty marsh actually stand.
+function pinkHouseMemorial(buckets: Bucket[], x: number, z: number, g: number, ang: number) {
+  const plain = buckets[PLAIN];
+  const GRANITE = '#9d978d', DARK = '#6b655c';
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  for (const s2 of [-1, 1] as const) {
+    const px2 = x - sa * s2 * 11, pz2 = z + ca * s2 * 11;
+    rotBox(plain, px2, pz2, 2.2, 2.2, g - 2, g + 21, ang, GRANITE);      // the granite posts
+    rotBox(plain, px2, pz2, 2.8, 2.8, g + 21, g + 23, ang, DARK);        // their caps
+  }
+  // the sign slung between them: dark frame, and the painting inside it
+  rotBox(plain, x, z, 0.7, 11, g + 9, g + 19.5, ang, '#4a4038');
+  rotBox(buckets[GLOW], x + ca * 0.8, z + sa * 0.8, 0.3, 9.6, g + 10.2, g + 18.4, ang, '#e9b9c4');
+}
+
 // ---------- the landmark heroes ----------
 
 // First Religious Society (1801) — white meetinghouse with THE Newburyport steeple
@@ -5971,6 +6041,7 @@ const POI_HEROES: Record<string, (buckets: Bucket[], x: number, z: number, g: nu
   "Whale's Jaw": buildWhalesJaw,
   'William Lloyd Garrison Statue': buildGarrisonStatue,   // added via nbpt manualFeatures — OSM has no node for it
   'Coast Guard Aviation Monument': buildCGMonument,
+  'The Pink House Memorial': (bk, x, z, g) => pinkHouseMemorial(bk, x, z, g, Math.PI / 2),
   'Osprey: Pandion Haliaetus': buildOsprey,         // Wendy Klemperer, on the rail trail at the waterfront
   'Doughboy Statue': buildDoughboy,                 // Amesbury
   'Colonel William Prescott': buildPrescott,        // Charlestown — OSM's name for the statue
@@ -9962,6 +10033,7 @@ function modernBlock(buckets: Bucket[], b: Building, g: number,
 }
 
 const HEROES: Record<string, HeroBuilder> = {
+  'The Pink House': buildPinkHouse,                 // 60 Plum Island Turnpike, 1925-2025 (see map.mjs)
   'Mission Oak': buildMissionOak,                   // 26 Green Street — a church, whatever OSM says
   // Both towns' heroes coexist here — entries are keyed by unique OSM building
   // names, so only the loaded town's world.json ever matches its own set.

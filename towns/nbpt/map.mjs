@@ -256,6 +256,27 @@ export function manualFeatures({ world }) {
     p: [103, -1522, 247, -1522, 247, -1478, 103, -1478],
   });
 
+  // 🩷 THE PINK HOUSE, 60 Plum Island Turnpike (1925-2025). OSM has no footprint
+  // here and never will: the house was demolished on 11 March 2025, so the map is
+  // right and the town is still wrong without it. The site is in the data — the
+  // "The Pink House Site" landmark, the 🏛 discovery card, and the house's own
+  // SERVICE DRIVE off the Turnpike, which survives at (25931, 13467) and is the
+  // best evidence of where the building stood.
+  //
+  // A 10 m square: it was an American Foursquare of about 2,100 sq ft over two
+  // floors, one of the Sears Roebuck catalogue cottages, which is a cube by
+  // definition. Centred on the landmark, square to the Turnpike it faced.
+  world.buildings = world.buildings.filter((b) => b.s !== 'nbpt-pinkhouse');
+  world.buildings.push({
+    n: 'The Pink House', k: 'house', lv: 2, s: 'nbpt-pinkhouse',
+    p: [25852, 13326, 25932, 13326, 25932, 13406, 25852, 13406],
+  });
+  // …and the memorial that went up on the site in April 2026, north of where the
+  // house stood, facing the Turnpike — where the people who pull over to look at
+  // the marsh actually stand. Built in decor.ts (POI_HEROES).
+  world.pois = (world.pois || []).filter((q) => q.s !== 'nbpt-pinkmem');
+  world.pois.push({ x: 25892, y: 13268, k: 'memorial', n: 'The Pink House Memorial', s: 'nbpt-pinkmem' });
+
   // 🗿 THE RANGE LIGHT SCULPTURE GARDEN. OSM maps six sculptures standing in it —
   // nodes 9739802472-77, tourism=artwork, artwork_type=sculpture — and the build
   // drops every one of them, because the POI pass keeps POIs by NAME and these carry
