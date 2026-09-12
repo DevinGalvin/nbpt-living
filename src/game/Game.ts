@@ -325,6 +325,13 @@ export class Game {
   private printSide = 1;
   // ❄️ snow angels: a roll in the snow that leaves the shape behind
   private snowAngelT = 0;
+  // 🌿 THE FLOP — the snow angel's three other seasons. Jack (7) loves that Clipper
+  // does snow angels, and that is the whole argument for this: it is a thing the dog
+  // DOES, it answers back, and a kid tells someone about it. But it was winter-only,
+  // so for nine months of the year the button offers nothing. Same verb, dressed for
+  // the season: leaves in fall, grass in spring and summer.
+  private rollT = 0;
+  private rollHex = '#6f8f4a';
   private angels: THREE.Mesh[] = [];
   private angelIdx = 0;
   private angelTex: THREE.CanvasTexture | null = null;
@@ -2746,6 +2753,7 @@ export class Game {
     // louder by the river, a rumour from uptown
     if (this.timeLapse) this.sky.setTod(this.sky.tod + dt * 0.05);
     this.updatePuddles(dt, sky.wet);
+    this.updateRoll(dt);
     this.updateSnowAngel(dt);
     if (SEASON === 'fall') this.updatePiles(dt);
     if (sky.mist > 0.4 && !this.inside) {
@@ -2892,8 +2900,13 @@ export class Game {
       const door = !this.onTrain && !this.flying && !this.kayaking && !this.inside && !this.riding ? this.life?.trainDoor() ?? null : null;
       if (this.flying) act = { label: '🛬 LAND', cb: () => this.land() };
       else if (door && Math.hypot(this.px - door.x, this.pz - door.z) < 70) act = { label: '🚆 BOARD', cb: () => this.openTrainBoard() };
-      else if (SEASON === 'winter' && this.snowAngelT <= 0 && this.lastSpeed < 6 && !this.inside && !this.onWater && !this.swimming && !this.riding && !this.kayaking && !this.flying
-        && !this.index.onPavedAt(this.px, this.pz) && !this.index.isWaterAt(this.px, this.pz)) act = { label: '❄️ SNOW ANGEL', cb: () => this.snowAngel() };
+      else if (this.snowAngelT <= 0 && this.rollT <= 0 && this.lastSpeed < 6 && !LEGACY_KID && !this.inside && !this.onWater && !this.swimming && !this.riding && !this.kayaking && !this.flying
+        && !this.index.onPavedAt(this.px, this.pz) && !this.index.isWaterAt(this.px, this.pz)) {
+        // the same flop all year: snow to lie in, leaves to scatter, or just grass
+        act = SEASON === 'winter' ? { label: '❄️ SNOW ANGEL', cb: () => this.snowAngel() }
+          : SEASON === 'fall' ? { label: '🍂 LEAF PILE', cb: () => this.roll('#c96a27') }
+          : { label: '🌿 ROLL', cb: () => this.roll('#6f8f4a') };
+      }
       else if (this.kayaking) { if (this.landNear()) act = { label: '🛶 HOP OUT', cb: () => this.exitKayak() }; }
       else if (!this.inside && !this.boating && !this.sweeping) {
         if (this.flightEnabled && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
@@ -3393,6 +3406,35 @@ export class Game {
   }
 
   /** ❄️ down on his back in the snow, a wriggle, and the angel stays until spring (or the eighth one) */
+  /** 🌿 roll on his back in the grass (or the leaves) — the snow angel, out of season */
+  private roll(hex: string) {
+    if (this.rollT > 0 || this.snowAngelT > 0) return;
+    this.rollT = 2.2;
+    this.rollHex = hex;
+    this.audio.pop();
+  }
+
+  private updateRoll(dt: number) {
+    if (this.rollT <= 0) return;
+    const root = this.player.root;
+    this.rollT -= dt;
+    if (this.rollT > 0) {
+      // over onto his back and wriggling, the way a dog scrubs its shoulders in
+      const k = Math.min(1, (2.2 - this.rollT) / 0.3);
+      // ⚠️ ASSIGN, never accumulate — the snow angel learned this the hard way: a
+      // += here bakes yaw into the root and the dog runs sideways for ever after.
+      root.rotation.z = Math.PI * k * (0.82 + Math.sin(this.rollT * 9) * 0.18);
+      root.rotation.y = Math.sin(this.rollT * 16) * 0.1;
+      root.position.y = this.kidY + 7 * k;
+      if (Math.random() < dt * 7) this.eggs?.burst(this.px, this.kidY + 6, this.pz, this.rollHex, 5, false, 2.2, 0.7);
+      return;
+    }
+    root.rotation.z = 0;
+    root.rotation.y = 0;
+    root.position.y = this.kidY;
+    (this.player as Dog).shake?.();      // up, and a shake to finish — pure dog
+  }
+
   private snowAngel() {
     if (this.snowAngelT > 0) return;
     this.snowAngelT = 2.6;
