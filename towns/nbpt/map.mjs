@@ -267,10 +267,39 @@ export function manualFeatures({ world }) {
   // floors, one of the Sears Roebuck catalogue cottages, which is a cube by
   // definition. Centred on the landmark, square to the Turnpike it faced.
   world.buildings = world.buildings.filter((b) => b.s !== 'nbpt-pinkhouse');
+  // ⚠️ k IS 'shed', NOT 'house', AND THAT IS DELIBERATE. The look comes from the
+  // hero (HEROES['The Pink House']), which fires on the NAME and ignores the class
+  // — so the class is free to do one job: keep the generic suburban dressing off.
+  // drivewaysFor and foundationPlanting both gate on k === 'house', and as a house
+  // this got a paved drive, a parked car and a ring of foundation bushes. The Pink
+  // House had none of that. It stood alone.
   world.buildings.push({
-    n: 'The Pink House', k: 'house', lv: 2, s: 'nbpt-pinkhouse',
+    n: 'The Pink House', k: 'shed', lv: 2, s: 'nbpt-pinkhouse',
     p: [25852, 13326, 25932, 13326, 25932, 13406, 25852, 13406],
   });
+
+  // …AND THE MARSH AROUND IT STAYS OPEN. Two small scrub polygons sit on the site
+  // (261x143 px and 152x130 px) and the deterministic scatter fills scrub with
+  // trees — which put a little wood around the one house in the region famous for
+  // having nothing near it. Only these two go; the 7082 px wetland that IS the
+  // marsh is untouched.
+  world.polys = world.polys.filter((q) => {
+    if (q.k !== 'scrub') return true;
+    let cx = 0, cy = 0;
+    for (let i = 0; i < q.p.length; i += 2) { cx += q.p[i]; cy += q.p[i + 1]; }
+    cx /= q.p.length / 2; cy /= q.p.length / 2;
+    return Math.hypot(cx - 25892, cy - 13366) > 320;
+  });
+
+  // …AND THE DRIVE IS A DIRT TRACK. OSM carries the approach as highway=service,
+  // which paves it: a suburban driveway laid across a salt marsh. It was a track
+  // through the grass. The way is dropped and re-laid along its own geometry as a
+  // path of class 'track', which STYLE paints #a88e62 — earth, not asphalt.
+  world.roads = world.roads.filter((r) => !(r.c === 'service' && r.p.length >= 4
+    && Math.hypot(r.p[0] - 25931, r.p[1] - 13467) < 40));
+  world.paths = (world.paths || []).filter((q) => q.s !== 'nbpt-pinkdrive');
+  world.paths.push({ c: 'track', w: 18, s: 'nbpt-pinkdrive',
+    p: [25931, 13467, 25874, 13414, 25760, 13290, 25640, 13200, 25539, 13107] });
   // …and the memorial that went up on the site in April 2026, north of where the
   // house stood, facing the Turnpike — where the people who pull over to look at
   // the marsh actually stand. Built in decor.ts (POI_HEROES).
