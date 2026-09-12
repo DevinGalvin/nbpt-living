@@ -2415,9 +2415,22 @@ export class Game {
     const stepX = moveX / steps, stepZ = moveZ / steps;
     nx = this.px; nz = this.pz;
     const spd = Math.hypot(stepX, stepZ);       // intended per-step speed, preserved when we skim
+    // ⚠️ THE SNOUT. free() tests the centre and ±5 px ON THE X AXIS — a footprint
+    // deliberately slim so narrow streets stay passable. But you PLAY as Clipper, and
+    // a dog is not radially symmetric: measured off the model at scale 1.15 the chest
+    // front reaches ~15 px ahead of the root and the rump ~12 px behind, on a body
+    // only ~6 px wide. So walking at a wall, the centre stopped ON the face and the
+    // whole muzzle carried on through it — Devin: "clipper still walks into buildings,
+    // like half body into a building." Widening `half` would fix it by walling off
+    // every alley in town; the length has to be tested along the way he is GOING.
+    // Tested ahead of the candidate step only, so it never interferes with standing
+    // or turning near a wall — you can still put your nose right up to the brick.
+    const SNOUT = LEGACY_KID ? 0 : 11;
+    const nose = (x: number, z: number, ux: number, uz: number) =>
+      SNOUT === 0 || free(x + ux * SNOUT, z + uz * SNOUT);
     for (let s = 0; s < steps; s++) {
       // fast path: the intended move is clear — take it and clear any wedge
-      if (free(nx + stepX, nz + stepZ)) { nx += stepX; nz += stepZ; this.wedgeDir = 0; continue; }
+      if (free(nx + stepX, nz + stepZ) && nose(nx + stepX, nz + stepZ, stepX / (spd || 1), stepZ / (spd || 1))) { nx += stepX; nz += stepZ; this.wedgeDir = 0; continue; }
       if (spd < 1e-6) break;                    // no input, nowhere to go
       // BLOCKED → glance along the wall. Rotate the intended move toward the first
       // open direction (smallest turn first; an axis-slide falls out near 90°), so you
@@ -2434,7 +2447,7 @@ export class Game {
         for (const a of [0.28, 0.6, 0.95, 1.3] as const) {
           const ang = base + sgn * a;
           const rx = Math.cos(ang) * spd, rz = Math.sin(ang) * spd;
-          if (free(nx + rx, nz + rz)) { nx += rx; nz += rz; this.wedgeDir = sgn; glanced = true; break; }
+          if (free(nx + rx, nz + rz) && nose(nx + rx, nz + rz, Math.cos(ang), Math.sin(ang))) { nx += rx; nz += rz; this.wedgeDir = sgn; glanced = true; break; }
         }
         if (glanced) break;
       }
