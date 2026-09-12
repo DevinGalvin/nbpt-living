@@ -277,7 +277,7 @@ the 1871 brownstone; osprey wing quality.
 
 Devin: "What's next that we can add that kids will love" → "Do all of them". Five
 things, every one triggered by what he already does (run, bark, sound) — **no new
-buttons**; the hydrant joke was offered and left for Devin to call.
+buttons**. The hydrant joke was offered, and Devin took it (row at the bottom).
 
 | what | where | how it fires |
 |---|---|---|
@@ -287,6 +287,7 @@ buttons**; the hydrant joke was offered and left for Devin to call.
 | 💦 **Shake on people** | `Dog.onShake` → `Game.shakeSpray` → `Life.splash` | only when `wetCoat > 0` (14 s after water, 4 s in rain): droplets, and walkers within 64 px stop, turn, and say HEY! / UGH! / HA HA! / CLIPPER! / EW! via `hud.woof`. |
 | 🐾 **Muddy paws** | `Game.updatePuddles` / `layPrint` | `mudPaws` = 1 out of water or a dig, builds on soft ground in rain; each paved print spends 0.07; mud prints are `#3b2614` at 0.8 (brown vanished on brick), 11 s. The paw texture is white now and tinted. |
 | 🎾 **Play with the park dog** | `ParkDog.play` in `life.ts`, `Game.bark` | its bow + a bark back within 44 px = Clipper's own zoomies (`zoomT`), then 9 s of it CHASING him (175 px/s), bowing every time it catches him. |
+| 🚒 **The hydrant** | `Game` sniff block (`legHold`/`legT`/`hydrantMark`), `Dog.setLegUp`, hydrants recorded per chunk by `decor.ts` (`ChunkDecor.hydrants`) | Devin: "Sure add the leg." Hold the sniff within 26 px of a hydrant, standing still: 0.7 s later he turns broadside (right leg to it), leg up for 2.4 s, head up and round over his shoulder, a small dark patch at its foot that dries over half a minute. Once per hold. |
 
 Dev hooks on `window.nbpt`: `squirrel()` (one under the nearest tree), `flock()`
 (one 90 px away), `howl()`. Screenshot-verified: squirrel foraging and treed, the

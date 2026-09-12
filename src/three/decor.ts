@@ -15,6 +15,7 @@ import { ChunkProps } from './props';
 // chunk builds, and come back as instanced meshes beside the merged decor mesh. Null
 // when the kit failed to load — every emitter below then falls back to its boxes.
 let propSink: ChunkProps | null = null;
+let hydrantList: number[] = [];      // the chunk's hydrants (x, z), returned with the decor
 // chimney tops (x, y, z triples) collected per chunk build; life.ts puts smoke on them
 let chimneySink: number[] | null = null;
 // traffic-signal heads placed this chunk: x, y, z, approach dx, dy, phase — Life lights them
@@ -11439,7 +11440,10 @@ function styledHouse(buckets: Bucket[], b: Building, g: number, index: WorldInde
   }
 }
 
-export interface ChunkDecor { mesh: THREE.Mesh | null; props: THREE.Group | null; chimneys: number[]; signals: number[]; spills: number[] }
+export interface ChunkDecor {
+  mesh: THREE.Mesh | null; props: THREE.Group | null; chimneys: number[]; signals: number[]; spills: number[];
+  hydrants: number[];               // (x, z) of every hydrant placed — Clipper has plans for them
+}
 
 export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string): ChunkDecor | null {
   const buckets = [new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket(), new Bucket()];
@@ -11448,6 +11452,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   shopGlow = buckets[GLOW];
   signBk = buckets[SIGN];
   propSink = PROPS ? new ChunkProps() : null;
+  hydrantList = [];
   chimneySink = [];
   signalSink = [];
   wireSink = new Bucket();
@@ -11834,6 +11839,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
             const hx = x - tz * flip * (r.w / 2 + 4), hz = z + tx * flip * (r.w / 2 + 4);
             if (hx >= ox && hx < ox + CHUNK && hz >= oy && hz < oy + CHUNK && !index.isBlocked(hx, hz))
               propSink.add(PROPS.get('firehydrant'), hx, index.heightAtPx(hx, hz), hz, Math.atan2(tz, tx));
+              hydrantList.push(hx, hz);
           }
           return;
         }
@@ -13112,7 +13118,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   propSink = null;
   let total = 0;
   for (const bk of buckets) total += bk.pos.length;
-  if (!total) { const ch = chimneySink ?? [], sg = signalSink ?? [], sp = spillSink ?? []; chimneySink = null; signalSink = null; wireSink = null; spillSink = null; return props ? { mesh: null, props, chimneys: ch, signals: sg, spills: sp } : null; }
+  if (!total) { const ch = chimneySink ?? [], sg = signalSink ?? [], sp = spillSink ?? []; chimneySink = null; signalSink = null; wireSink = null; spillSink = null; return props ? { mesh: null, props, chimneys: ch, signals: sg, spills: sp, hydrants: hydrantList } : null; }
 
   // copy via typed-array set — spreading huge buckets into push() blows the call stack
   const pos = new Float32Array(total);
@@ -13157,7 +13163,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   signalSink = null;
   const spills = spillSink ?? [];
   spillSink = null;
-  return { mesh, props, chimneys, signals, spills };
+  return { mesh, props, chimneys, signals, spills, hydrants: hydrantList };
 }
 
 function flatRoofPlank(bk: Bucket, ring: number[], h: number) {

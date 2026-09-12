@@ -122,6 +122,7 @@ interface ChunkEntry {
   chimneys: number[];               // chimney tops (x, y, z) for the smoke
   signals: number[];                // traffic-signal heads (x, y, z, dx, dy, phase) Life cycles
   spills: number[];                 // lit ground-floor windows (x, z, nx, nz, ground y, threshold, shop) for the light spill
+  hydrants: number[];               // (x, z) of the chunk's fire hydrants
 }
 
 // point-in-polygon (ray cast) over a flat [x,y,...] ring — town-line checks
@@ -337,6 +338,10 @@ export class Game {
   private angelTex: THREE.CanvasTexture | null = null;
   private pawTex: THREE.CanvasTexture | null = null;
   private howlCool = 0;            // seconds before the next thing in town can set him off
+  private legHold = 0;             // seconds the sniff has been held beside a hydrant
+  private legT = 0;                // seconds of leg left
+  private legDone = false;         // once per hold — let go and sniff again for another
+  private hydrantMark: THREE.Mesh | null = null;
   private wetCoat = 0;             // seconds his coat stays wet (a swim, the rain) — a shake then sprays
   private mudPaws = 0;             // 0..1 how much mud is on his paws, left behind on the brick print by print
   // 🍂 leaf piles in fall: raked to the kerb, and a dog who runs into one sends it flying
@@ -1236,7 +1241,7 @@ export class Game {
       }
     }
 
-    this.chunks.set(key, { ground, decor, props, tex, signs, decorOnly, chimneys: built?.chimneys ?? [], signals: built?.signals ?? [], spills: built?.spills ?? [] });
+    this.chunks.set(key, { ground, decor, props, tex, signs, decorOnly, chimneys: built?.chimneys ?? [], signals: built?.signals ?? [], spills: built?.spills ?? [], hydrants: built?.hydrants ?? [] });
     this.farTown?.setLoaded(key, true);
   }
 
@@ -1347,6 +1352,19 @@ export class Game {
     // WOOF! at Clipper's screen spot — the same projection the pet-tap uses
     const sp = this.screenOf(this.player.root.position.x, this.player.root.position.y + 14, this.player.root.position.z);
     if (sp) this.hud.woof(sp[0], sp[1]);
+  }
+
+  /** the nearest hydrant in any loaded chunk within r, or null */
+  private nearestHydrant(x: number, z: number, r: number): { x: number; z: number } | null {
+    let best: { x: number; z: number } | null = null, bd = r * r;
+    for (const e of this.chunks.values()) {
+      const h = e.hydrants;
+      for (let i = 0; i + 1 < h.length; i += 2) {
+        const dx = h[i] - x, dz = h[i + 1] - z, dd = dx * dx + dz * dz;
+        if (dd < bd) { bd = dd; best = { x: h[i], z: h[i + 1] }; }
+      }
+    }
+    return best;
   }
 
   /** a world point on the screen, or null when it is behind the camera */
@@ -1480,6 +1498,7 @@ export class Game {
 
   private endSniff() {
     if (this.diggingNow) { this.diggingNow = false; this.digAnim = 0; (this.player as Dog).setDigging?.(false); }
+    this.legHold = 0; this.legDone = false;
     this.digHold = 0;
     this.sniffing = false;
     this.hud.setSniffState(false);
@@ -2405,7 +2424,7 @@ export class Game {
     if (this.inside) this.sprinting = false;
     let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
-    if (this.snowAngelT > 0 || this.rollT > 0 || (this.player as Dog).flopping || (this.player as Dog).howling) speed = 0; // flat on his back, or mid-howl
+    if (this.snowAngelT > 0 || this.rollT > 0 || (this.player as Dog).flopping || (this.player as Dog).howling || this.legT > 0) speed = 0; // flat on his back, mid-howl, or busy at a hydrant
     if (this.sniffing) speed *= 0.4;    // nose down = a careful, readable creep
     // the dog-paddle: 200 cruising, 320 with RUN held — a harbor or a lake is a long
     // way across at a paddle, and the run button should mean something in the water too
@@ -2919,7 +2938,17 @@ export class Game {
       // 🕳 hold the sniff, stand still on soft ground, and it becomes a DIG —
       // press length keeps being the only control: tap bark, hold sniff, keep
       // holding dig. Most holes are just holes; the seeded spots hold bones.
-      const canDig = this.lastSpeed < 6 && !this.onWater && !this.swimming && !this.riding && !this.inside && !this.flying
+      // 🚒 THE HYDRANT. Hold the sniff beside one and he does what every dog does to
+      // a hydrant — right leg up, a lean, a glance back, and a small dark patch on
+      // the kerb. Devin's call (9/12: "Sure add the leg"). Once per hold; it beats
+      // the dig, which never fires on pavement anyway. The bar is a kid cackling.
+      const hyd = this.legT <= 0 && !this.legDone && this.lastSpeed < 6 && !this.onWater && !this.swimming && !this.riding && !this.inside && !this.flying
+        ? this.nearestHydrant(this.px, this.pz, 26) : null;
+      if (hyd) {
+        this.legHold += dt;
+        if (this.legHold > 0.7) { this.legHold = 0; this.legDone = true; this.legT = 2.4; (this.player as Dog).setLegUp?.(true); this.player.face(Math.atan2(hyd.x - this.px, hyd.z - this.pz) - Math.PI / 2); }   // broadside, RIGHT leg to the hydrant
+      } else this.legHold = 0;
+      const canDig = this.legT <= 0 && !hyd && this.lastSpeed < 6 && !this.onWater && !this.swimming && !this.riding && !this.inside && !this.flying
         && !this.index.onPavedAt(this.px, this.pz);
       if (!canDig) {
         if (this.diggingNow) { this.diggingNow = false; this.digAnim = 0; (this.player as Dog).setDigging?.(false); }
@@ -3427,6 +3456,31 @@ export class Game {
       if (p.life <= 0) p.m.visible = false;
     }
     if (this.howlCool > 0) this.howlCool -= dt;
+    if (this.legT > 0) {
+      this.legT -= dt;
+      if (this.legT < 1.5 && this.legT + dt >= 1.5) {
+        // the patch: a small dark wet spot at the hydrant's foot, on his side of it
+        const h = this.nearestHydrant(this.px, this.pz, 40);
+        if (h) {
+          if (!this.hydrantMark) {
+            this.hydrantMark = new THREE.Mesh(new THREE.CircleGeometry(3.2, 12), new THREE.MeshBasicMaterial({ color: '#2b3038', transparent: true, opacity: 0.38, depthWrite: false }));
+            this.hydrantMark.rotation.x = -Math.PI / 2; this.hydrantMark.renderOrder = 3;
+            this.scene.add(this.hydrantMark);
+          }
+          const dx = this.px - h.x, dz = this.pz - h.z, d = Math.hypot(dx, dz) || 1;
+          this.hydrantMark.position.set(h.x + (dx / d) * 4.5, this.kidY + 0.3, h.z + (dz / d) * 4.5);
+          this.hydrantMark.scale.set(1.3, 0.8, 1);
+          this.hydrantMark.visible = true;
+          (this.hydrantMark.material as THREE.MeshBasicMaterial).opacity = 0.38;
+          if (Math.random() < 0.5) this.audio.plink();
+        }
+      }
+      if (this.legT <= 0) (this.player as Dog).setLegUp?.(false);
+    } else if (this.hydrantMark?.visible) {
+      const m = this.hydrantMark.material as THREE.MeshBasicMaterial;
+      m.opacity -= dt * 0.012;   // dries over half a minute
+      if (m.opacity <= 0) this.hydrantMark.visible = false;
+    }
     // 💦 the coat stays wet a while after a swim, or in the rain — and a shake then
     // sprays whoever is standing close (shakeSpray). 🐾 The paws pick up MUD from the
     // water's edge, from a dig, or from soft ground in the rain, and leave it on the

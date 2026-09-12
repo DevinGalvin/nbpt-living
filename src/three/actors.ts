@@ -820,6 +820,12 @@ export class Dog {
   /** Game listens: a wet dog shaking next to people is a joke the people are in on */
   onShake: (() => void) | null = null;
 
+  /** 🚒 the hydrant: right hind leg up and out, a lean off it, a glance back at
+   *  his own work. Game holds it for a couple of seconds. */
+  setLegUp(on: boolean) { this.legUpNow = on; }
+  private legUpNow = false;
+  private legUpP = 0;
+
   /** 🐺 the howl: muzzle to the sky for the length of the note. Game fires it when
    *  something in town worth howling at sounds (the foghorn, the train). */
   howl() { this.howlT = 1.9; }
@@ -1144,6 +1150,24 @@ export class Dog {
     this.tailTip.rotation.z = Math.sin(this.wagPhase - 0.55) * wagAmp * 0.8;
 
     this.flopPose(dt, wagAmp);
+    this.legUpPose(dt);
+  }
+
+  // 🚒 runs after flopPose (which zeroes the legs' z each frame it is idle), so the
+  // lifted leg is the last word. Right hind leg swings out to the side and folds,
+  // the body leans away off the other three, tail up, and he looks round at it.
+  private legUpPose(dt: number) {
+    this.legUpP = ease(this.legUpP, this.legUpNow ? 1 : 0, dt, this.legUpNow ? 6 : 9);
+    const k = this.legUpP;
+    if (k < 0.005) return;
+    this.legs[3].rotation.z += 1.05 * k;
+    this.legs[3].rotation.x += 0.35 * k;
+    this.shins[3].rotation.x += 0.5 * k;
+    this.trunk.rotation.z += 0.14 * k;
+    this.trunk.position.x = -0.8 * k;
+    this.headGroup.rotation.x -= 0.95 * k;   // up out of the sniff…
+    this.headGroup.rotation.y += 0.7 * k;    // …and round over his shoulder to admire it
+    this.tail.rotation.x -= 0.4 * k;
   }
 
   // the body's outline in the roll plane, in paw space (x across him, y up): the
