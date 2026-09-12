@@ -2358,7 +2358,7 @@ export class Game {
     if (this.inside) this.sprinting = false;
     let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
-    if (this.snowAngelT > 0) speed = 0; // flat on his back in the snow
+    if (this.snowAngelT > 0 || this.rollT > 0 || (this.player as Dog).flopping) speed = 0; // flat on his back
     if (this.sniffing) speed *= 0.4;    // nose down = a careful, readable creep
     // the dog-paddle: 200 cruising, 320 with RUN held — a harbor or a lake is a long
     // way across at a paddle, and the run button should mean something in the water too
@@ -2933,7 +2933,7 @@ export class Game {
       // asked: is there grass, park, garden, sand or marsh under him?
       const canFlop = !LEGACY_KID && !this.inside && !this.onWater && !this.swimming
         && !this.riding && !this.kayaking && !this.flying && !this.inTunnel
-        && this.snowAngelT <= 0 && this.rollT <= 0 && this.lastSpeed < 6
+        && this.snowAngelT <= 0 && this.rollT <= 0 && !(this.player as Dog).flopping && this.lastSpeed < 6
         && this.softGround();
       this.hud.setRoll(canFlop, SEASON === 'winter' ? '❄️' : SEASON === 'fall' ? '🍂' : '🌿',
         SEASON === 'winter' ? 'ANGEL' : SEASON === 'fall' ? 'LEAVES' : 'ROLL');
@@ -3431,6 +3431,7 @@ export class Game {
 
   private flop() {
     if (this.snowAngelT > 0 || this.rollT > 0 || LEGACY_KID || this.inside) return;
+    if ((this.player as Dog).flopping) return;   // still coming back up off the last one
     if (!this.softGround()) return;
     if (SEASON === 'winter') this.snowAngel();
     else this.roll(SEASON === 'fall' ? '#c96a27' : '#6f8f4a');
@@ -3442,61 +3443,49 @@ export class Game {
     this.rollT = 2.2;
     this.rollHex = hex;
     this.audio.pop();
+    (this.player as Dog).flop('roll');
+  }
+
+  /** the grass / leaves / snow he kicks up: low and SIDEWAYS from under his shoulders
+      on the side he is rocking toward — not a fountain out of his middle. */
+  private flopKick(hex: string, n: number, size: number, life: number, t: number) {
+    const az = this.player.facing;
+    const fx = Math.sin(az), fz = Math.cos(az), rx = Math.cos(az), rz = -Math.sin(az);
+    const side = Math.sin(t * 5.5) >= 0 ? 1 : -1;
+    const along = 3 + Math.random() * 6;
+    this.eggs?.burst(this.px + fx * along + rx * side * 7, this.kidY + 1.5, this.pz + fz * along + rz * side * 7,
+      hex, n, false, size, life, 0.55, 6);
   }
 
   private updateRoll(dt: number) {
     if (this.rollT <= 0) return;
-    const root = this.player.root;
     this.rollT -= dt;
     if (this.rollT > 0) {
-      // over onto his back and wriggling, the way a dog scrubs its shoulders in
-      const k = Math.min(1, (2.2 - this.rollT) / 0.3);
-      // ⚠️ ASSIGN, never accumulate — the snow angel learned this the hard way: a
-      // += here bakes yaw into the root and the dog runs sideways for ever after.
-      root.rotation.z = Math.PI * k * (0.82 + Math.sin(this.rollT * 9) * 0.18);
-      root.rotation.y = Math.sin(this.rollT * 16) * 0.1;
-      // ⚠️ AND THE LIFT HAS TO CLEAR HIS OWN BODY. The root sits at the PAWS, so a
-      // 180° roll about it swings the whole trunk BELOW ground — Devin: "his entire
-      // body can be underground during the rolling process." The trunk rides ~8 px
-      // over the root, so an upside-down dog needs about twice that to come back up
-      // level. Scaled by k so he rises as he goes over, not before.
-      root.position.y = this.kidY + 15 * k;
-      if (Math.random() < dt * 7) this.eggs?.burst(this.px, this.kidY + 6, this.pz, this.rollHex, 5, false, 2.2, 0.7);
+      // the Dog owns the pose now (actors.ts flopPose) — this is only the timer
+      // and the debris. ⚠️ Nothing here touches root.rotation: the old rigid flip
+      // of `root` was a world-axis roll that swung the trunk underground.
+      if (this.rollT < 1.9 && Math.random() < dt * 8) this.flopKick(this.rollHex, 8, 3.2, 0.8, 2.2 - this.rollT);
       return;
     }
-    root.rotation.z = 0;
-    root.rotation.y = 0;
-    root.position.y = this.kidY;
-    (this.player as Dog).shake?.();      // up, and a shake to finish — pure dog
+    (this.player as Dog).unflop();       // he rolls the rest of the way over, up, and shakes
   }
 
   private snowAngel() {
     if (this.snowAngelT > 0) return;
     this.snowAngelT = 2.6;
     this.audio.pop();
+    (this.player as Dog).flop('angel');
   }
 
   private updateSnowAngel(dt: number) {
     if (this.snowAngelT <= 0) return;
-    const root = this.player.root;
     this.snowAngelT -= dt;
     if (this.snowAngelT > 0) {
-      // on his back, wriggling: the roll, a lift so the legs clear the snow, a wag of the whole dog
-      const k = Math.min(1, (2.6 - this.snowAngelT) / 0.35);
-      root.rotation.z = Math.PI * k;
-      root.position.y = this.kidY + 15 * k;   // ⚠️ was 9 — not enough to clear his own trunk, so he sank through the snow (same fault as the roll)
-      // ASSIGN, never accumulate: `+=` here added a fresh wriggle on top of the last one
-      // every frame for 2.6 s, and the tidy-up below only cleared rotation.z — so the dog
-      // stood up with a few tenths of a radian of yaw baked into its root and ran sideways
-      // ever after. root.rotation.y is otherwise always 0 (the Player yaws its `heading`).
-      root.rotation.y = Math.sin(this.snowAngelT * 14) * 0.08;
-      if (Math.random() < dt * 6) this.eggs?.burst(this.px, this.kidY + 6, this.pz, '#ffffff', 6, false, 2.4, 0.8);
+      if (this.snowAngelT < 2.25 && Math.random() < dt * 7) this.flopKick('#ffffff', 9, 3.2, 0.9, 2.6 - this.snowAngelT);
       return;
     }
+    (this.player as Dog).unflop();
     // up again, and the shape left behind
-    root.rotation.z = 0;
-    root.rotation.y = 0;
-    root.position.y = this.kidY;
     if (!this.angelTex) {
       const c = document.createElement('canvas'); c.width = 96; c.height = 96;
       const g = c.getContext('2d')!;

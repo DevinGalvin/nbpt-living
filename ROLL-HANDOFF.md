@@ -1,13 +1,47 @@
 # Handoff — the flop (roll / leaf pile / snow angel) and its button
 
-Cold-start doc for a fresh session. Devin asked for one because the flop needs a
-**fresh look at both the animation and the button**, and the last session was too
-deep in its own patches to see either clearly.
+Cold-start doc for a fresh session. **Updated 9/12 after the rewrite** — §3 and §4
+below describe what shipped and how it is built; the history of why is kept under
+them so the same mistakes are not remade.
 
-Read `HANDOFF.md` for the project. This file is only about the flop.
+Read `HANDOFF.md` for the project. This file is only about the flop (and, at the
+end, the Pink House, which rode along).
 
-Branch: `claude/next-steps-ng14v3`. Deploy: push to `source` → `deploy.yml` → `main`
-→ clippertown.io. Head at time of writing: `98d7ea3`, deployed as `main` `3e89887`.
+Branch: `claude/flop-animation-pink-house-cc3jhp`. Deploy: push to `source` →
+`deploy.yml` → `main` → clippertown.io.
+
+---
+
+## 0. What shipped 9/12 (read this first)
+
+- **The flop is posed by the Dog now, not by the Game.** `Dog.flop('roll'|'angel')`
+  / `Dog.unflop()` / `Dog.flopping` in `src/three/actors.ts`; the pose lives in
+  `Dog.flopPose()` and runs LAST in `pose()`, k-blended over the gait so k → 0
+  hands every joint back untouched. `Game.updateRoll` / `updateSnowAngel` are a
+  timer and the debris and nothing else — **they never touch `root`**.
+- **He rolls about his own spine.** A new `roller` group sits between `heading`
+  and the body (legs + trunk). `root.rotation.z` was a WORLD axis: facing north
+  it was a barrel roll, facing east a somersault.
+- **The lift is derived, not tuned.** `FLOP_HULL` is his outline in the roll
+  plane; the lowest point is kept on the ground at every roll angle. It comes out
+  at 14.9 px belly-up — which is what the 7 → 9 → 15 by-eye tuning was groping
+  for — and it is right at every angle in between, which the tuning never was.
+- **The choreography:** tip over (ease 7), a squash as the back lands, then a
+  side-to-side rock (the motion that reads at distance), the loose bicycle —
+  front paws curled over the chest, hind legs froggy and splayed, every leg on
+  its own beat — spine scrubbing, face to the sky lolling with the rock, ears
+  splayed on the grass, tail flat and thumping. The angel instead sweeps all four
+  legs wide and back together, slowly, with the tail sweeping the snow. Exit:
+  he keeps rolling the SAME way round, comes up on his feet (smoothstep, 0.5 s),
+  and `shake()` fires.
+- **Debris kicks low and sideways** from under the shoulder on the side he is
+  rocking toward (`Game.flopKick`; `Eggs.burst` grew an `up` bias parameter —
+  30 is the old fountain, 6 is a kick along the ground).
+- **The button is the TOP of the stack** (last child; the stack is
+  column-reverse) and pops in with the TALK spring. Between BARK and LOOK UP it
+  shoved LOOK UP 80 px every time he stepped on or off the grass.
+- **Verified by screenshot** in fall and winter (see §6 for the rig and its traps).
+  Spring/summer is the fall path with a green hex.
 
 ---
 
@@ -44,7 +78,7 @@ that technically fires.** That is the whole spec.
 
 ---
 
-## 3. PROBLEM A — the animation is not a roll
+## 3. PROBLEM A — the animation is not a roll *(SOLVED 9/12 — see §0; kept as the record)*
 
 **Devin's screenshot:** Clipper mid-flop in an autumn field reads as a **pale
 jumble of limbs** — a pile, not a dog enjoying himself. Legs splayed stiff, no
@@ -107,7 +141,7 @@ bug once. If the rewrite moves the wriggle onto `trunk`, reset `trunk` on exit t
 
 ---
 
-## 4. PROBLEM B — the button
+## 4. PROBLEM B — the button *(CSS was already fixed; the design call was made 9/12 — see below)*
 
 **Devin: "look how different it looks from the others."** In his screenshot the
 LEAVES button's `G` renders as **raw 26px black text** beside the leaf, while
@@ -144,6 +178,16 @@ bottom-right column that already has four, and it appears and disappears as he w
 treatment than a full peer button; only revealing it the first few times; or
 accepting the jump. **Ask Devin — he is the UX call, and he wants to be argued with,
 not agreed with.**
+
+**The call made 9/12, and why (Devin can overrule it):** the jump was the real
+problem, not the fifth circle. A verb that appears only where it applies is fine
+— TALK already does that — but a button that displaces its neighbours reads as
+the UI twitching. So it moved to the **top** of the column, where it comes and
+goes without moving anything, and it pops in with the TALK spring so it reads as
+a treat offered rather than a control that was always there. Not done, on
+purpose: a quieter/smaller treatment (it would then look like a different
+species again, which was the complaint that started §4), and a "first few times
+only" reveal (a kid on grass should always be able to find it).
 
 ---
 
@@ -203,18 +247,25 @@ found three faults in under a minute.
 
 ---
 
-## 7. Also open (not flop, but queued behind it)
+## 7. The Pink House (done 9/12) and what is still open
 
-Devin asked for both of these and neither is started:
-
-1. **Pink House realism pass** — "go look up the pink house and make it look as
-   realistic as possible". Current build is a generic American Foursquare
-   (`buildPinkHouse` in `src/three/decor.ts`). The real one on Plum Island Turnpike
-   is well photographed; look it up rather than inventing it. *(Inventing a landmark
-   from memory cost four rebuild passes on the osprey last session. One search would
-   have got it first time.)*
-2. **House / memorial mutual exclusivity** — "if the pink house is shown it shouldnt
-   have memorial, if its not it should have memorial". Both are currently present.
+1. **Pink House realism pass — DONE.** Researched, not remembered (Wikipedia,
+   the Preservation Trust, Apartment Therapy, The Town Common — fetches were
+   egress-blocked, so this came through search summaries): a two-storey
+   Foursquare under a low **pyramid** roof with deep eaves, a square **windowed
+   cupola** on the peak (an actual room), a tall brick **chimney** clearing the
+   ridge, a one-storey **glazed enclosed entry** across the middle of the road
+   face, white trim, no shutters. The old build's hipped dormer and open post
+   porch never existed. `buildPinkHouse` in `src/three/decor.ts`.
+   ⚠️ **The pink needed `boost`.** Even `#ffc4d2` came out mauve on the marsh in
+   full sun — the clapboard multiply cannot be beaten from inside 0..1. It is
+   beaten from outside: `walls(..., PINK, TEX_SCALE, 1.4)`, the whitewashed-
+   lighthouse trick. Screenshot-verified bubblegum.
+2. **House / memorial mutual exclusivity — DONE.** The memorial POI builds only
+   when no building named `The Pink House` is in the world (the chunk builder's
+   POI loop). The switch is the data: drop the building from
+   `towns/nbpt/map.mjs` and the sign appears on the empty marsh. The house
+   stands by default because that is what Devin built it back for.
 
 Carried, not requested: the 41-egg audit against `docs/research/`; a CI rebake to
 pick up real `highway` stop/signal nodes; 81 State Street is built as a duplicate of

@@ -809,7 +809,8 @@ export class EggRunner {
 
   // `spray` scales how hard the particles are thrown: 1 is the confetti burst this was
   // written for, a fraction is a kick of water off the paws that stays near the ground
-  burst(x: number, y: number, z: number, hex: string, n = 50, withPop = true, size = 3.4, lifeMax = 1.7, spray = 1) {
+  /** `up` is the upward bias on every particle: 30 is a fountain; a few px is a kick along the ground */
+  burst(x: number, y: number, z: number, hex: string, n = 50, withPop = true, size = 3.4, lifeMax = 1.7, spray = 1, up = 30) {
     const pos = new Float32Array(n * 3);
     const vel: number[] = [];
     for (let i = 0; i < n; i++) {
@@ -819,7 +820,7 @@ export class EggRunner {
       const a = Math.random() * Math.PI * 2;
       const b = Math.random() * Math.PI - Math.PI / 2;
       const sp = (60 + Math.random() * 110) * spray;
-      vel.push(Math.cos(a) * Math.cos(b) * sp, Math.sin(b) * sp + 30 * spray, Math.sin(a) * Math.cos(b) * sp);
+      vel.push(Math.cos(a) * Math.cos(b) * sp, Math.sin(b) * sp + up * spray, Math.sin(a) * Math.cos(b) * sp);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));

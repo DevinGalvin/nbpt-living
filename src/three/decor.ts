@@ -4218,18 +4218,24 @@ function stopSign(plain: Bucket, x: number, z: number, g: number, facing: number
 
 // 🩷 THE PINK HOUSE, 60 Plum Island Turnpike — 1925 to 11 March 2025.
 //
-// Built as a gift for Harry and Ruth Cutter and their infant son, and for a
-// hundred years the only thing standing in that stretch of salt marsh: painters
-// painted it, photographers chased its light off the sunsets, and when the refuge
-// took it down the whole region felt it. OSM has no footprint here and correctly
-// never will, so the house comes in through towns/nbpt/map.mjs — the one case in
-// this town where the map is right and the world is still wrong without it.
+// Built by Gertrude Cutter for her son Henry and his wife Ruth, and for a hundred
+// years the only thing standing in that stretch of salt marsh: painters painted
+// it, photographers chased its light off the sunsets, and when the refuge took it
+// down the whole region felt it. OSM has no footprint here and correctly never
+// will, so the house comes in through towns/nbpt/map.mjs — the one case in this
+// town where the map is right and the world is still wrong without it.
 //
-// ⚠️ ARCHITECTURE IS RESEARCHED, NOT REMEMBERED. It was an American Foursquare of
-// about 2,100 sq ft over two floors — one of the Sears Roebuck catalogue cottages —
-// which means a CUBE under a LOW HIPPED ROOF with deep eaves, a hipped dormer on
-// the front, and a porch across the face. Getting that from the sources first is
-// the difference between this and the four passes the osprey cost.
+// ⚠️ ARCHITECTURE IS RESEARCHED, NOT REMEMBERED. From the record and the thousand
+// photographs (Wikipedia, the Preservation Trust, Apartment Therapy, The Town
+// Common's "Inside the Pink House"): a two-storey AMERICAN FOURSQUARE of ~2,100 sq
+// ft — a Sears Roebuck catalogue cottage, so a cube under a LOW PYRAMID ROOF with
+// deep eaves — and the thing every painting keys on, a square WINDOWED CUPOLA
+// riding the peak ("an actual, wood-panelled room and not an architectural
+// ornament"). A tall brick CHIMNEY off the north slope that the birds sat on. A
+// one-storey ENCLOSED ENTRY across the middle of the road face, glazed, under its
+// own little hip. White trim, no shutters, and that Pepto pink. Nothing else near
+// it: no garage, no trees, no fence — the emptiness is the composition.
+// The old build had a hipped dormer and an open post porch. Neither existed.
 function buildPinkHouse(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
   // ⚠️ THE CLAPBOARD TEXTURE EATS MID-TONES. clapboardTex is near-white with a
   // 55%-black shadow line under every board, and STYLE.building.wallDarken is 0.78
@@ -4241,40 +4247,96 @@ function buildPinkHouse(buckets: Bucket[], b: Building, g: number, index: WorldI
   // hue as pink at all — a pale grey house. What survives is HIGH LIGHTNESS WITH
   // THE GAP KEPT WIDE: #ffc4d2 is 59 apart, like the first attempt, but bright
   // enough that 0.78 x the shadow lines still lands on rose instead of mauve.
-  const PINK = '#ffc4d2';        // the pale rose that mirrored the sunsets
+  // ⚠️ …AND EVEN THAT CAME OUT MAUVE ON THE MARSH (screenshot, 9/12: a dusty
+  // brown-pink cube in full sun). The multiply cannot be beaten from inside the
+  // 0..1 swatch, so it is beaten from outside it: `boost` lifts the albedo past 1,
+  // the same trick that keeps the whitewashed lighthouse white in its own shade.
+  // 1.4 x #ffb8ca x the clapboard shadows x 0.78 lands on bubblegum, which is the
+  // colour every photograph agrees on.
+  const PINK = '#ffb8ca';        // the rose that mirrored the sunsets
+  const BOOST = 1.4;
   const TRIM = '#f7eef0';
   const ROOF = '#4a4440';        // asphalt shingle, near-black against the marsh
+  const GLASS = '#2c3238';
   const obb = obbOf(b.p);
   const f = frontSegment(b, index);
   const ang = Math.atan2(f.tz, f.tx);
-  const EAVE = g + 44;
-
-  walls(buckets[CLAP], b.p, g - 8, EAVE, PINK);
-  houseTrim(buckets[PLAIN], b.p, EAVE, g - 8);
-  facades(buckets[PLAIN], b.p, EAVE, 2, 1925, true, false, false, g, 34);
-  // the low hip with its deep overhang — the Foursquare silhouette
-  hipRoof(buckets[SHINGLE], obb, EAVE, 15, 5, ROOF, false);
-  // the hipped dormer, centred on the front face
-  const dx = f.x + f.nx * -3, dz = f.z + f.nz * -3;
-  const dr = (r: number, w: number) => {
-    const ca = Math.cos(ang), sa = Math.sin(ang), pts: number[] = [];
-    for (const [lx, lz] of [[-r, -w], [r, -w], [r, w], [-r, w]] as const) pts.push(dx + lx * ca - lz * sa, dz + lx * sa + lz * ca);
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  // a rectangle centred on (cx, cz): half `t` along the front's tangent, half `n` along its normal
+  const rect = (cx: number, cz: number, t: number, n: number) => {
+    const pts: number[] = [];
+    for (const [lt, ln] of [[-t, -n], [t, -n], [t, n], [-t, n]] as const) pts.push(cx + lt * ca - ln * sa, cz + lt * sa + ln * ca);
     return pts;
   };
-  walls(buckets[CLAP], dr(8, 5), EAVE + 3, EAVE + 13, PINK);
-  hipRoof(buckets[SHINGLE], obbOf(dr(8, 5)), EAVE + 13, 5, 1.5, ROOF, false);
-  rotBox(buckets[GLOW], dx + f.nx * 5.2, dz + f.nz * 5.2, 0.4, 3.2, EAVE + 5.5, EAVE + 11, ang, '#2c3238');
-  // the porch across the front: deck, four posts, its own shallow hip
-  const px2 = f.x + f.nx * 9, pz2 = f.z + f.nz * 9;
-  const half = Math.min(f.len / 2 - 2, 40);
-  rotBox(buckets[PLANK], px2, pz2, 9, half, g - 2, g + 3, ang, '#d9c9bd');
-  for (const t of [-half + 3, -half / 3, half / 3, half - 3]) {
-    buckets[PLAIN].box(f.x + f.tx * t + f.nx * 16, f.z + f.tz * t + f.nz * 16, 1.1, 1.1, g + 3, g + 26, TRIM);
+  const EAVE = g + 44;
+
+  // the cube: two storeys of pink clapboard on a raised foundation, white corner
+  // boards, windows but NO DOOR on the body — the door is inside the entry below
+  walls(buckets[CLAP], b.p, g - 8, EAVE, PINK, TEX_SCALE, BOOST);
+  houseTrim(buckets[PLAIN], b.p, EAVE, g - 8);
+  facades(buckets[PLAIN], b.p, EAVE, 2, 1925, false, false, false, g, 34);
+  // the low pyramid with its deep overhang — the Foursquare silhouette. A square
+  // footprint makes hipRoof a pyramid on its own; 6 px of eave is what the
+  // photographs show, a hat brim the whole way round.
+  hipRoof(buckets[SHINGLE], obb, EAVE, 15, 6, ROOF, true);
+
+  // 🔲 THE CUPOLA. A square room on the peak, glazed on all four sides, under its
+  // own small pyramid: 12 px across (1.5 m) — it seats two people, per the people
+  // who sat in it. It rests where the roof slopes reach it: at 6 px from the
+  // centre a 15-over-46 pitch is 2 px below the ridge, so the walls start there.
+  const cs = 6;
+  const cup = rect(obb.cx, obb.cz, cs, cs);
+  const CUP0 = EAVE + 13, CUP1 = EAVE + 25;
+  walls(buckets[CLAP], cup, CUP0 - 1, CUP1, PINK, TEX_SCALE, BOOST);
+  houseTrim(buckets[PLAIN], cup, CUP1, CUP0 - 1);
+  for (let side = 0; side < 4; side++) {
+    // two panes per face, sitting just proud of the clapboard
+    const sx = side === 0 ? 1 : side === 2 ? -1 : 0, sz = side === 1 ? 1 : side === 3 ? -1 : 0;   // the face normal, in front space
+    const nxw = sx * ca - sz * sa, nzw = sx * sa + sz * ca;                                         // …and in the world
+    const fa = ang + side * Math.PI / 2;                                                            // the pane runs across that face
+    for (const off of [-2.6, 2.6]) {
+      const px = obb.cx + nxw * (cs + 0.35) + (-nzw) * off, pz = obb.cz + nzw * (cs + 0.35) + nxw * off;
+      rotBox(buckets[GLOW], px, pz, 1.8, 0.3, CUP0 + 3, CUP1 - 2.5, fa, GLASS);
+    }
   }
-  rotBox(buckets[PLAIN], px2, pz2, 9.5, half + 1, g + 26, g + 29, ang, ROOF);
-  // the chimney, and the front door under the porch
-  buckets[BRICK].box(obb.cx + 9, obb.cz - 6, 3.2, 3.2, EAVE + 8, EAVE + 22, '#8a6a5e');
-  rotBox(buckets[PLAIN], f.x + f.nx * 0.8, f.z + f.nz * 0.8, 0.6, 4.2, g + 2, g + 20, ang, '#7a4a52');
+  hipRoof(buckets[SHINGLE], obbOf(cup), CUP1, 4.5, 2, ROOF, true);
+  buckets[PLAIN].box(obb.cx, obb.cz, 0.5, 0.5, CUP1 + 4.5, CUP1 + 8, '#3a3631');   // the finial
+
+  // 🧱 THE CHIMNEY: tall brick, rising off the back slope, clearing the ridge —
+  // where the cormorants and the gulls sat in every photo. "Back" is away from
+  // whichever face frontSegment picked, so it stays behind the entry either way.
+  const chx = obb.cx + f.nx * -14 + f.tx * 22, chz = obb.cz + f.nz * -14 + f.tz * 22;
+  buckets[BRICK].box(chx, chz, 2.6, 2.6, EAVE + 3, EAVE + 26, '#8a6a5e');
+  buckets[PLAIN].box(chx, chz, 3.1, 3.1, EAVE + 26, EAVE + 27.2, '#6b5a52');       // the cap
+
+  // 🚪 THE ENCLOSED ENTRY: one storey across the middle of the road face, a band
+  // of windows either side of the door, its own shallow hip, three steps down to
+  // the marsh. In the photographs it is the pale block at the bottom of the front,
+  // and the reason the front elevation reads as "a face" — eyes, and a mouth.
+  const ph = 15, pd = 6;                                        // half-width along the front, half-depth out from it
+  const pcx = f.x + f.nx * pd, pcz = f.z + f.nz * pd;
+  const porch = rect(pcx, pcz, ph, pd);
+  const PE = g + 17;
+  walls(buckets[CLAP], porch, g - 4, PE, PINK, TEX_SCALE, BOOST);
+  houseTrim(buckets[PLAIN], porch, PE, g - 4);
+  hipRoof(buckets[SHINGLE], obbOf(porch), PE, 3.5, 2.5, ROOF, false);
+  // the door, and a window each side of it on the front; one on each end
+  const frx = f.x + f.nx * (pd * 2 + 0.35), frz = f.z + f.nz * (pd * 2 + 0.35);
+  rotBox(buckets[PLAIN], frx, frz, 2.4, 0.3, g + 1, g + 12, ang, '#7a4a52');
+  rotBox(buckets[PLAIN], frx, frz, 2.9, 0.2, g + 12, g + 12.8, ang, TRIM);
+  for (const off of [-8.5, 8.5]) {
+    rotBox(buckets[GLOW], frx + f.tx * off, frz + f.tz * off, 3.2, 0.3, g + 5, g + 13, ang, GLASS);
+    rotBox(buckets[PLAIN], frx + f.tx * off, frz + f.tz * off, 3.6, 0.25, g + 4.4, g + 5, ang, TRIM);   // the sill
+  }
+  for (const end of [-1, 1]) {
+    const ex = pcx + f.tx * end * (ph + 0.35), ez = pcz + f.tz * end * (ph + 0.35);
+    rotBox(buckets[GLOW], ex, ez, 0.3, 3.0, g + 5, g + 13, ang, GLASS);
+  }
+  // three steps down off the entry
+  for (let i = 0; i < 3; i++) {
+    const out = pd * 2 + 1.5 + i * 2.2;
+    rotBox(buckets[PLAIN], f.x + f.nx * out, f.z + f.nz * out, 4.6, 1.1, g - 4, g + 1 - i * 1.6, ang, '#d9cfc7');
+  }
 }
 
 // 🪦 THE PINK HOUSE MEMORIAL — the sign between two granite posts that went up on
@@ -12351,6 +12413,11 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
   for (const poi of world.pois) {
     if (poi.x < ox || poi.x >= ox + CHUNK || poi.y < oy || poi.y >= oy + CHUNK) continue;
     if (poi.k === 'slipway') { boatRamp(buckets, poi.x, poi.y, index); continue; }
+    // 🩷 the Pink House and its memorial are one story told two ways: the house
+    // standing, or the sign that says it stood. Never both — the sign went up on
+    // an empty marsh. So the memorial builds only when the house is NOT in the
+    // world (drop the building from towns/nbpt/map.mjs and the sign appears).
+    if (poi.n === 'The Pink House Memorial' && world.buildings.some((q) => q.n === 'The Pink House')) continue;
     const ph = POI_HEROES[poi.n || ''];
     if (ph) { ph(buckets, poi.x, poi.y, index.heightAtPx(poi.x, poi.y)); continue; }   // named monuments (Man at the Wheel &c.)
     if (poi.k === 'airliner') {

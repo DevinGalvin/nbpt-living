@@ -546,6 +546,12 @@ export function buildKayak(): THREE.Group {
 export class Dog {
   root = new THREE.Group();
   private heading = new THREE.Group();
+  // 🌿 the roll axis. Everything with fur hangs off THIS, not off `heading`, so a
+  // flop rolls him about his own spine whichever way he is facing. The first flop
+  // rolled `root.rotation.z` — a WORLD axis — so facing north it was a barrel roll
+  // and facing east it was a somersault. And with the origin at the paws it swung
+  // the trunk underground; the lift is derived from the roll angle now (see pose).
+  private roller = new THREE.Group();
   private trunk = new THREE.Group();   // pivots at the rear hips (sit, gallop pitch)
   private headGroup = new THREE.Group();
   private earL: THREE.Group;
@@ -558,6 +564,14 @@ export class Dog {
   private t = 0;
   private phase = 0;
   private wagPhase = 0;
+  // 🌿 the flop: flopP eases him over (0 = on his feet, 1 = on his back), flopExit
+  // carries him the REST of the way round and back onto his feet, flopT clocks the
+  // wriggle. flopStyle picks the choreography: a grass/leaf roll or a snow angel.
+  private flopOn = false;
+  private flopP = 0;
+  private flopExit = 0;
+  private flopT = 0;
+  private flopStyle: 'roll' | 'angel' = 'roll';
   private amp = 0;
   private gallop = 0;
   private sitP = 0;
@@ -745,10 +759,11 @@ export class Dog {
       leg.add(capTop, upper, knee, shin);
       this.legs.push(leg);
       this.shins.push(shin);
-      this.heading.add(leg);
+      this.roller.add(leg);
     }
 
-    this.heading.add(this.trunk);
+    this.roller.add(this.trunk);
+    this.heading.add(this.roller);
     this.heading.rotation.y = this.faceAngle;
     // (no saddle bags: the kid's earned 🎒 has no dog edition — Devin: "we dont
     // need them". setBackpack() stays a no-op so the shared player contract holds.)
@@ -803,6 +818,19 @@ export class Dog {
   /** the full-body wet-dog shake, fired as he climbs out */
   shake() { this.shakeT = 0.9; }
 
+  /** 🌿 over onto his back — and he stays there, wriggling, until unflop(). 'roll' is
+   *  the grass/leaf-pile scrub; 'angel' sweeps all four legs wide in the snow. */
+  flop(style: 'roll' | 'angel' = 'roll') {
+    if (this.flopping) return;
+    this.flopOn = true; this.flopStyle = style; this.flopT = 0; this.flopExit = 0;
+  }
+
+  /** finish: he rolls the rest of the way over, lands on his feet, and shakes */
+  unflop() { this.flopOn = false; }
+
+  /** true from flop() until his paws are back under him — Game holds him still for it */
+  get flopping(): boolean { return this.flopOn || this.flopP > 0.02 || this.flopExit > 0; }
+
   /** the identity-neutral customization: your dog, your collar */
   setCollar(hex: string) { (this.collarMesh.material as THREE.MeshStandardMaterial).color.set(hex); }
 
@@ -825,7 +853,14 @@ export class Dog {
     const moving = speed > 6 && !mounted;
     const norm = Math.min(1.2, speed / 300);
     this.skating = riding;
-    if (riding) {
+    if (this.flopping) {
+      // 🌿 on his back: the gait settles, and idle never drifts him into a sit
+      const rest = Math.round(this.phase / Math.PI) * Math.PI;
+      this.phase = ease(this.phase, rest, dt, 9);
+      this.mode = 'stand';
+      this.idleT = 0;
+      this.nextPushAt = 0;
+    } else if (riding) {
       // 🛹 ON THE BOARD. Front paws stay planted on the deck. A hind leg kicks
       // the ground to get going (~1.1 s of pushes from a standstill), then all
       // four hop on and he coasts — with a fresh kick every few seconds to keep
@@ -1044,10 +1079,12 @@ export class Dog {
       this.shakeT = Math.max(0, this.shakeT - dt);
       const env = Math.sin(Math.min(1, this.shakeT / 0.9) * Math.PI);
       this.heading.rotation.z = Math.sin(this.t * 42) * 0.26 * env;
-      this.earL.rotation.z = Math.sin(this.t * 42 + 1) * 0.5 * env;
-      this.earR.rotation.z = -Math.sin(this.t * 42 + 1) * 0.5 * env;
-    } else if (this.rideP <= 0.01) {
-      this.heading.rotation.z = 0;
+      this.earL.rotation.z = -0.2 + Math.sin(this.t * 42 + 1) * 0.5 * env;
+      this.earR.rotation.z = 0.2 - Math.sin(this.t * 42 + 1) * 0.5 * env;
+    } else {
+      if (this.rideP <= 0.01) this.heading.rotation.z = 0;
+      this.earL.rotation.z = -0.2;   // the resting tilt from mkEar — the first shake used to wipe it
+      this.earR.rotation.z = 0.2;
     }
 
     // ears flop against the bounce
@@ -1086,5 +1123,107 @@ export class Dog {
     const wagAmp = moving ? 0.22 : 0.42 + this.sitP * 0.18 - this.sniffP * 0.2;
     this.tail.rotation.z = Math.sin(this.wagPhase) * wagAmp;
     this.tailTip.rotation.z = Math.sin(this.wagPhase - 0.55) * wagAmp * 0.8;
+
+    this.flopPose(dt, wagAmp);
+  }
+
+  // the body's outline in the roll plane, in paw space (x across him, y up): the
+  // paws, the sides of the barrel, the top of the back, the tucked skull. The lift
+  // keeps the LOWEST of these on the ground at every roll angle, so nothing is ever
+  // buried and nothing is a magic number.
+  private static readonly FLOP_HULL: [number, number][] =
+    [[-3.3, 0], [3.3, 0], [-4.9, 11], [4.9, 11], [-3, 14.2], [3, 14.2], [0, 14.8], [0, 16.2]];
+
+  /** 🌿 THE FLOP — over onto his back and wriggling like he means it. Runs LAST in
+   *  pose(), and every joint here is a k-blend over whatever the gait set, so as k
+   *  returns to 0 the dog is handed back exactly as he was. Devin's bar: "the bar
+   *  is a 7-year-old laughing, not a state machine that technically fires." */
+  private flopPose(dt: number, wagAmp: number) {
+    if (this.flopOn) {
+      this.flopP = ease(this.flopP, 1, dt, 7);       // tips over fast, lands soft
+      this.flopT += dt;
+    } else if (this.flopExit > 0 || this.flopP > 0.4) {
+      // the exit is the other half of the roll: keep going the same way round and
+      // come up on his feet — a smoothstep over 0.5 s, then snap the full turn to 0
+      this.flopT += dt;
+      const u = Math.min(1, this.flopExit + dt / 0.5);
+      this.flopExit = u;
+      if (u >= 1) { this.flopP = 0; this.flopExit = 0; this.shake(); }
+    } else if (this.flopP > 0.001) {
+      this.flopP = ease(this.flopP, 0, dt, 9);        // interrupted before he was over: just get up
+      if (this.flopP < 0.005) this.flopP = 0;
+    }
+    const ex = this.flopExit * this.flopExit * (3 - 2 * this.flopExit);
+    const k = this.flopP * (1 - ex);                  // how much of him is "on his back"
+    if (this.flopP <= 0 && this.flopExit <= 0) {
+      this.roller.rotation.z = 0; this.roller.position.y = 0; this.roller.scale.set(1, 1, 1);
+      for (const l of this.legs) l.rotation.z = 0;
+      this.trunk.rotation.y = 0; this.trunk.rotation.z = 0;
+      return;
+    }
+    const tw = this.flopT;
+    const angel = this.flopStyle === 'angel';
+    // the rock: on his back he scrubs side to side — the one motion that reads at
+    // any distance. The angel rocks less; the sweep of the legs is its motion.
+    const rock = Math.sin(tw * 5.5) * (angel ? 0.1 : 0.24) * k;
+    const th = Math.PI * (this.flopP + ex) + rock;
+    // a squash as the back lands, then a pop back up
+    const land = Math.sin(Math.PI * THREE.MathUtils.clamp((this.flopT - 0.2) / 0.34, 0, 1)) * (this.flopOn ? 1 : 0);
+    const sy = 1 - 0.13 * land, sx = 1 + 0.07 * land;
+    this.roller.scale.set(sx, sy, 1);
+    this.roller.rotation.z = th;
+    const s = Math.sin(th), c = Math.cos(th);
+    let low = 0;
+    for (const [hx, hy] of Dog.FLOP_HULL) low = Math.min(low, hx * sx * s + hy * sy * c);
+    this.roller.position.y = -low - 1.2 * k;         // and pressed a touch into the grass
+
+    // the limbs. ⚠️ paw space is upside down here: local −y is the sky once he is over.
+    if (!angel) {
+      // front: elbows bent, forearms folded, paws curled loose over the chest; rear:
+      // thighs up and splayed froggy, hocks bent. Every leg on its own beat — the
+      // loose bicycle of a dog who cannot decide which paw to kick with next.
+      const ph = [0, 2.2, 3.6, 1.1];
+      for (let i = 0; i < 4; i++) {
+        const w = Math.sin(tw * 9 + ph[i]);
+        const sgn = i % 2 === 0 ? -1 : 1;
+        const front = i < 2;
+        const up = front ? -0.35 + w * 0.3 : 0.5 + w * 0.35;
+        const fold = front ? 1.5 + w * 0.5 : 1.3 + w * 0.4;
+        this.legs[i].rotation.x = this.legs[i].rotation.x * (1 - k) + up * k;
+        this.shins[i].rotation.x = this.shins[i].rotation.x * (1 - k) + fold * k;
+        this.legs[i].rotation.z = sgn * (front ? 0.28 : 0.6) * k;
+      }
+      // the spine: shoulders scrubbing, the whole front end swinging with the rock
+      this.trunk.rotation.y = Math.sin(tw * 5.5 + 0.6) * 0.16 * k;
+      this.trunk.rotation.z = Math.sin(tw * 11) * 0.1 * k;
+    } else {
+      // ❄️ the angel: all four legs sweep wide and back together, slow and big,
+      // the way arms do — and the tail sweeps the snow between the hind paws
+      const sweep = 0.35 + (Math.sin(tw * 4.2) * 0.5 + 0.5) * 0.75;
+      for (let i = 0; i < 4; i++) {
+        const sgn = i % 2 === 0 ? -1 : 1;
+        const front = i < 2;
+        const up = front ? -0.25 : 0.35;
+        this.legs[i].rotation.x = this.legs[i].rotation.x * (1 - k) + up * k;
+        this.shins[i].rotation.x = this.shins[i].rotation.x * (1 - k) + (front ? 0.7 : 0.8) * k;
+        this.legs[i].rotation.z = sgn * sweep * (front ? 1 : 0.85) * k;
+      }
+      this.trunk.rotation.y = Math.sin(tw * 4.2 + 1.2) * 0.05 * k;
+      this.trunk.rotation.z = 0;
+    }
+    // head tipped back — chin to chest in paw space, which is a face grinning at the
+    // sky once he is over — lolling with the rock; ears splayed out on the grass
+    this.headGroup.rotation.x += 1.15 * k;
+    this.headGroup.rotation.y += Math.sin(tw * 5.5) * 0.35 * k;
+    this.earL.rotation.z += (-0.75 + Math.sin(tw * 5.5 - 1) * 0.3) * k;
+    this.earR.rotation.z += (0.75 - Math.sin(tw * 5.5 - 1) * 0.3) * k;
+    this.earL.rotation.x -= 0.25 * k;
+    this.earR.rotation.x -= 0.25 * k;
+    // the tail: out flat behind him on the ground, thumping
+    this.tail.rotation.x = this.tail.rotation.x * (1 - k) + 1.35 * k;
+    this.wagPhase += dt * (angel ? 3 : 8) * k;
+    const thump = wagAmp * (1 - k) + (angel ? 0.9 : 0.8) * k;
+    this.tail.rotation.z = Math.sin(this.wagPhase) * thump;
+    this.tailTip.rotation.z = Math.sin(this.wagPhase - 0.55) * thump * 0.8;
   }
 }
