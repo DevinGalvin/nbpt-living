@@ -458,7 +458,7 @@ const css = `
 #hud .look-btn:hover { border-color: var(--gold); }
 #hud.indoors .look-btn { display: none !important; }
 /* desktop key-hint badge on the action buttons — only shown on keyboard (#hud.keys) */
-#hud .run-btn .kc, #hud .bike-btn .kc, #hud .bark-btn .kc {
+#hud .run-btn .kc, #hud .bike-btn .kc, #hud .bark-btn .kc, #hud .roll-btn .kc {
   position: absolute; right: -5px; bottom: -5px;
   min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box;
   background: var(--ink); color: rgb(var(--maroon));
@@ -467,8 +467,8 @@ const css = `
   font: 800 11px/1 system-ui, sans-serif;
   display: none; align-items: center; justify-content: center; pointer-events: none;
 }
-#hud.keys .run-btn .kc, #hud.keys .bike-btn .kc, #hud.keys .bark-btn .kc { display: flex; }
-#hud .run-btn:hover, #hud .bike-btn:hover, #hud .bark-btn:hover { border-color: var(--gold); }
+#hud.keys .run-btn .kc, #hud.keys .bike-btn .kc, #hud.keys .bark-btn .kc, #hud.keys .roll-btn .kc { display: flex; }
+#hud .run-btn:hover, #hud .bike-btn:hover, #hud .bark-btn:hover, #hud .roll-btn:hover { border-color: var(--gold); }
 /* indoors (tunnels + interiors) is walk-only — hide the run + bike buttons there */
 #hud.indoors .run-btn, #hud.indoors .bike-btn { display: none !important; }
 #hud .travel-panel {
@@ -1406,13 +1406,13 @@ const css = `
 }
 #hud .travel-btn:active, #hud .settings-btn:active, #hud .class-btn:active,
 #hud .journey-btn:active, #hud .bag-btn:active, #hud .race-btn:active,
-#hud .run-btn:active, #hud .bike-btn:active, #hud .bark-btn:active, #hud .talk-btn:active,
+#hud .run-btn:active, #hud .bike-btn:active, #hud .bark-btn:active, #hud .roll-btn:active, #hud .talk-btn:active,
 #hud .modal-x:active { transform: scale(0.9); }
 /* journey + bag open panels — keep their gold ring after the group reset above */
 #hud .journey-btn, #hud .bag-btn { border-color: rgba(var(--gold-rgb), 0.6); }
 
 /* ── action buttons (run / bike / talk): material + press ──────────── */
-#hud .run-btn, #hud .bike-btn, #hud .bark-btn {
+#hud .run-btn, #hud .bike-btn, #hud .bark-btn, #hud .roll-btn {
   -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
   box-shadow: var(--shadow-btn);
   transition: transform 0.14s var(--ease-out), border-color 0.18s ease, background 0.18s ease;

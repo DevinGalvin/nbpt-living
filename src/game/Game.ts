@@ -2934,7 +2934,7 @@ export class Game {
       const canFlop = !LEGACY_KID && !this.inside && !this.onWater && !this.swimming
         && !this.riding && !this.kayaking && !this.flying && !this.inTunnel
         && this.snowAngelT <= 0 && this.rollT <= 0 && this.lastSpeed < 6
-        && this.index.standingOn(this.px, this.pz) === 'green';
+        && this.softGround();
       this.hud.setRoll(canFlop, SEASON === 'winter' ? '❄️' : SEASON === 'fall' ? '🍂' : '🌿',
         SEASON === 'winter' ? 'ANGEL' : SEASON === 'fall' ? 'LEAVES' : 'ROLL');
       this.hud.setStreet(this.inTunnel ? 'the tunnels' : this.interior ? this.interior.name : this.index.nearestRoadName(this.px, this.pz, 170));
@@ -3415,9 +3415,23 @@ export class Game {
 
   /** ❄️ down on his back in the snow, a wriggle, and the angel stays until spring (or the eighth one) */
   /** the season's flop, from the stack button or G */
+  /** somewhere worth flopping in: grass, or the soft unbuilt ground between things.
+      'green' ALONE IS TOO STRICT. Measured over 961 walkable spots across NBPT:
+      plain 59.7%, road 18.7%, parking 8.1%, made 7.3%, **green only 6.1%** — so
+      gating on green hid the button almost everywhere and G did nothing (Devin:
+      "g does nothing by the way"). But `plain` alone reinstates the bug that
+      started this: downtown BRICK reads plain, and Clipper threw up grass on
+      State Street. downtownAt() is exactly that carve-out. green || soft-plain
+      covers 64.1% of walkable town with road, paths, parking and downtown brick
+      all still excluded. */
+  private softGround(): boolean {
+    const g = this.index.standingOn(this.px, this.pz);
+    return g === 'green' || (g === 'plain' && !this.index.downtownAt(this.px, this.pz));
+  }
+
   private flop() {
     if (this.snowAngelT > 0 || this.rollT > 0 || LEGACY_KID || this.inside) return;
-    if (this.index.standingOn(this.px, this.pz) !== 'green') return;
+    if (!this.softGround()) return;
     if (SEASON === 'winter') this.snowAngel();
     else this.roll(SEASON === 'fall' ? '#c96a27' : '#6f8f4a');
   }
