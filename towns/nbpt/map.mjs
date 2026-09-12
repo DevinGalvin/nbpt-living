@@ -290,6 +290,20 @@ export function manualFeatures({ world }) {
     cx /= q.p.length / 2; cy /= q.p.length / 2;
     return Math.hypot(cx - 25892, cy - 13366) > 320;
   });
+  // …and the site is a CLEARING: paints nothing, grows nothing. Measured in the
+  // running game, the marsh around the house was still putting 34 trees, 31 bushes
+  // and 26 reeds inside 260 px — the refuge reserve scatters at density 0.4 and the
+  // wetland at 1.2, and no polygon even CONTAINS the house, so there was nothing to
+  // delete. A 300 px radius of open ground round it instead.
+  world.polys = world.polys.filter((q) => q.s !== 'nbpt-pinkclear');
+  {
+    const ring = [];
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      ring.push(Math.round(25892 + Math.cos(a) * 300), Math.round(13366 + Math.sin(a) * 300));
+    }
+    world.polys.push({ k: 'clearing', s: 'nbpt-pinkclear', p: ring });
+  }
 
   // …AND THE DRIVE IS A DIRT TRACK. OSM carries the approach as highway=service,
   // which paves it: a suburban driveway laid across a salt marsh. It was a track

@@ -927,7 +927,12 @@ export class WorldIndex {
   private onClearedGround(x: number, y: number, bucket: Bucket): boolean {
     for (const pi of bucket.polys) {
       const poly = this.world.polys[pi];
-      if (poly.k !== 'pitch' && poly.k !== 'playground' && poly.k !== 'parking'
+      // 'clearing' is ground DELIBERATELY KEPT OPEN: it paints nothing (see fillPoly)
+      // and grows nothing. The Pink House stood alone in the salt marsh — that was the
+      // whole of its fame — and the marsh polys around it scatter reeds, scrub and
+      // refuge trees that closed in on the one house in the region known for having
+      // nothing near it. Deleting the marsh was the wrong tool; the site is a clearing.
+      if (poly.k !== 'pitch' && poly.k !== 'playground' && poly.k !== 'parking' && poly.k !== 'clearing'
         && poly.k !== 'plaza' && poly.k !== 'pool' && poly.k !== 'pier' && poly.k !== 'sand') continue;
       if (pointInPoly(x, y, poly)) return true;
     }
@@ -1762,6 +1767,9 @@ export class WorldIndex {
   }
 
   private fillPoly(ctx: CanvasRenderingContext2D, poly: Poly, pi = -1, bucket?: Bucket) {
+    // a clearing is an absence, not a surface: it keeps growth off (onClearedGround)
+    // and leaves whatever is under it to paint itself
+    if (poly.k === 'clearing') return;
     // Plum Island + the barrier beaches read as sand, not lawn: east of PLUM_X recolor
     // grassy upland to sand. Marshes (wetland) keep their green so the reeds still read.
     let k = poly.k;
