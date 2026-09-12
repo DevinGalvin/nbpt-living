@@ -816,7 +816,15 @@ export class Dog {
   setSwimming(on: boolean) { this.swimmingNow = on; }
 
   /** the full-body wet-dog shake, fired as he climbs out */
-  shake() { this.shakeT = 0.9; }
+  shake() { this.shakeT = 0.9; this.onShake?.(); }
+  /** Game listens: a wet dog shaking next to people is a joke the people are in on */
+  onShake: (() => void) | null = null;
+
+  /** 🐺 the howl: muzzle to the sky for the length of the note. Game fires it when
+   *  something in town worth howling at sounds (the foghorn, the train). */
+  howl() { this.howlT = 1.9; }
+  get howling(): boolean { return this.howlT > 0; }
+  private howlT = 0;
 
   /** 🌿 over onto his back — and he stays there, wriggling, until unflop(). 'roll' is
    *  the grass/leaf-pile scrub; 'angel' sweeps all four legs wide in the snow. */
@@ -853,8 +861,8 @@ export class Dog {
     const moving = speed > 6 && !mounted;
     const norm = Math.min(1.2, speed / 300);
     this.skating = riding;
-    if (this.flopping) {
-      // 🌿 on his back: the gait settles, and idle never drifts him into a sit
+    if (this.flopping || this.howlT > 0) {
+      // 🌿 on his back (or 🐺 mid-howl): the gait settles, and idle never drifts him into a sit
       const rest = Math.round(this.phase / Math.PI) * Math.PI;
       this.phase = ease(this.phase, rest, dt, 9);
       this.mode = 'stand';
@@ -1114,6 +1122,17 @@ export class Dog {
       this.earR.rotation.x -= b * 0.3;
     }
     this.headGroup.rotation.y = this.lookY;
+    if (this.howlT > 0) {
+      // 🐺 the howl: muzzle straight up, ears pinned back, chest lifted, a slow sway
+      // through the note — and it holds; a bark is a beat, a howl is a sentence
+      this.howlT = Math.max(0, this.howlT - dt);
+      const h = Math.min(1, Math.min(this.howlT / 0.3, (1.9 - this.howlT) / 0.25));
+      this.headGroup.rotation.x -= h * 1.05;
+      this.headGroup.rotation.y = this.headGroup.rotation.y * (1 - h) + Math.sin(this.t * 2.2) * 0.12 * h;
+      this.earL.rotation.x += 0.45 * h;
+      this.earR.rotation.x += 0.45 * h;
+      this.trunk.rotation.x -= 0.08 * h;
+    }
     this.headGroup.position.z = 14.5 + this.sniffP * 1.5;
 
     // tail: streams at a run, wags at rest (hardest at a happy sit)

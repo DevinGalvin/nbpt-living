@@ -462,6 +462,63 @@ export class GameAudio {
     }
   }
 
+  /** 🐺 a howl: the long "awooo" — a soft saw with a slow vibrato, rising a fifth
+   *  and settling, over ~1.8 s. `detune` (semitones) gives every dog its own voice,
+   *  so a chorus is a chorus and not one sound played five times. */
+  howl(level = 1, detune = 0) {
+    if (!this.ctx || !this.enabled) return;
+    const t0 = this.ctx.currentTime + 0.02;
+    const base = 270 * Math.pow(2, detune / 12);
+    const o = this.ctx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(base, t0);
+    o.frequency.exponentialRampToValueAtTime(base * 1.55, t0 + 0.45);
+    o.frequency.setValueAtTime(base * 1.55, t0 + 0.9);
+    o.frequency.exponentialRampToValueAtTime(base * 1.25, t0 + 1.7);
+    const vib = this.ctx.createOscillator();
+    vib.frequency.value = 5.5;
+    const vg = this.ctx.createGain();
+    vg.gain.value = base * 0.03;
+    vib.connect(vg);
+    vg.connect(o.frequency);
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = 1400;
+    f.Q.value = 2;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.16 * level, t0 + 0.25);
+    g.gain.setValueAtTime(0.16 * level, t0 + 1.1);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.8);
+    o.connect(f);
+    f.connect(g);
+    g.connect(this.master);
+    o.start(t0); vib.start(t0);
+    o.stop(t0 + 1.85); vib.stop(t0 + 1.85);
+  }
+
+  /** 🐿 a squirrel scolding from its branch: a burst of fast, high, cross chirps */
+  chatter(level = 1) {
+    if (!this.ctx || !this.enabled) return;
+    const t0 = this.ctx.currentTime + 0.02;
+    const n = 5 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      const at = t0 + i * 0.075;
+      const o = this.ctx.createOscillator();
+      o.type = 'square';
+      o.frequency.setValueAtTime(2600 + Math.random() * 500, at);
+      o.frequency.exponentialRampToValueAtTime(1500, at + 0.05);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.05 * level, at + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.055);
+      o.connect(g);
+      g.connect(this.master);
+      o.start(at);
+      o.stop(at + 0.06);
+    }
+  }
+
   // ---------- secret stingers (the easter-egg voice: quick, high, sly) ----------
 
   // four fast sparkle plucks + a shimmer tail — "you found something"

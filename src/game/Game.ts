@@ -320,7 +320,7 @@ export class Game {
   private timeLapse = false;
   // 💦 puddle stomping after rain: splashes off the paws and wet prints that fade
   private puddleT = 0;
-  private prints: { m: THREE.Mesh; life: number }[] = [];
+  private prints: { m: THREE.Mesh; life: number; max: number }[] = [];
   private printIdx = 0;
   private printSide = 1;
   // ❄️ snow angels: a roll in the snow that leaves the shape behind
@@ -336,6 +336,9 @@ export class Game {
   private angelIdx = 0;
   private angelTex: THREE.CanvasTexture | null = null;
   private pawTex: THREE.CanvasTexture | null = null;
+  private howlCool = 0;            // seconds before the next thing in town can set him off
+  private wetCoat = 0;             // seconds his coat stays wet (a swim, the rain) — a shake then sprays
+  private mudPaws = 0;             // 0..1 how much mud is on his paws, left behind on the brick print by print
   // 🍂 leaf piles in fall: raked to the kerb, and a dog who runs into one sends it flying
   private piles: { g: THREE.Group; x: number; z: number; flat: number }[] = [];
   private pileT = 0;
@@ -599,6 +602,8 @@ export class Game {
 
     const arrivedByTrain = new URLSearchParams(location.search).get('arrive') === 'train' && !!TOWN.trainPlatform;
     this.life = new Life(this.scene, this.index, this.audio);
+    this.life.onSay = (x, y, z, text) => { const sp = this.screenOf(x, y, z); if (sp) this.hud.woof(sp[0], sp[1], text); };
+    this.life.onHowlCue = (lv) => this.howlCue(lv);
     this.life.setRange(this.mobile ? 1 : 1.6);   // a desktop sees further: spawn and retire further out
     if (arrivedByTrain) {
       this.life.trainArrived();
@@ -782,6 +787,7 @@ export class Game {
       // one red collar for every Clipper — the picker went with the 8/24 simplification
       (this.player as Dog).setCollar('#b5402f');
       this.hud.initRoll(() => this.flop());
+      (this.player as Dog).onShake = () => this.shakeSpray();
       this.hud.initBark(() => this.barkPress(), () => this.barkRelease());
       // B barks (Devin's pick); F stays as a quiet alias for anyone who learned it
       window.addEventListener('keydown', (e) => { if ((e.code === 'KeyB' || e.code === 'KeyF') && !e.repeat && !this.hud.dialogueOpen) this.barkPress(); });
@@ -903,6 +909,11 @@ export class Game {
         heapMB: heapMB(), lastCrash: this.lastCrash,
       }),
       _quest: this.quest,
+      // dev: the new town life, on demand — a squirrel under the nearest tree, a flock a
+      // few steps away, and the howl (all three are otherwise found, not summoned)
+      squirrel: () => this.life?.debugSquirrel(this.px, this.pz),
+      flock: () => this.life?.debugFlock(this.px, this.pz),
+      howl: () => { this.howlCool = 0; this.howlCue(1); },
       // dev: teleport to a course start + begin it (nbpt.race() = the homecoming run)
       race: (id = TOWN.devCourse) => {
         const c = COURSES.find((k) => k.id === id);
@@ -1326,13 +1337,49 @@ export class Game {
     pl.bark?.();
     // a bark carries — any deer in earshot bolts, no wary step in between; gulls go up,
     // walkers turn to look, the cat jumps, the seal ducks
-    if (this.life && !this.inside) this.life.scare(this.px, this.pz);
+    if (this.life && !this.inside) {
+      // 🎾 a loose dog down in a play-bow right here, and a bark back: GAME ON — it
+      // does its lap and Clipper does his, and then it chases him wherever he goes
+      if (this.life.bowingDogNear(this.px, this.pz) && !this.riding && !this.swimming) { this.zoomT = 2.8; this.zoomAng = Math.random() * Math.PI * 2; }
+      this.life.scare(this.px, this.pz);
+    }
     if (this.eggs && !this.inside) this.eggs.bark(this.px, this.pz);
     // WOOF! at Clipper's screen spot — the same projection the pet-tap uses
-    const p = this.player.root.position.clone();
-    p.y += 14;
-    p.project(this.camera);
-    if (p.z < 1) this.hud.woof((p.x * 0.5 + 0.5) * window.innerWidth, (-p.y * 0.5 + 0.5) * window.innerHeight);
+    const sp = this.screenOf(this.player.root.position.x, this.player.root.position.y + 14, this.player.root.position.z);
+    if (sp) this.hud.woof(sp[0], sp[1]);
+  }
+
+  /** a world point on the screen, or null when it is behind the camera */
+  private screenOf(x: number, y: number, z: number): [number, number] | null {
+    const p = new THREE.Vector3(x, y, z).project(this.camera);
+    if (p.z >= 1) return null;
+    return [(p.x * 0.5 + 0.5) * window.innerWidth, (-p.y * 0.5 + 0.5) * window.innerHeight];
+  }
+
+  /** 🐺 something in town worth howling at just sounded (the foghorn, the train's horn):
+   *  Clipper throws his head back and howls, and every dog in earshot joins in. Once
+   *  per half-minute at most — a howl is an event, not a tic. */
+  private howlCue(level: number) {
+    if (level < 0.35 || LEGACY_KID || this.inside || this.swimming || this.riding || this.kayaking || this.flying
+      || this.howlCool > 0 || this.hud.dialogueOpen || this.race?.active) return;
+    const dog = this.player as Dog;
+    if (dog.flopping || dog.howling) return;
+    this.howlCool = 30;
+    dog.howl();
+    this.audio.howl(0.55);
+    if (this.sniffing) this.endSniff();
+    const sp = this.screenOf(this.player.root.position.x, this.player.root.position.y + 16, this.player.root.position.z);
+    if (sp) this.hud.woof(sp[0], sp[1], 'AWOOOO!');
+    this.life?.howlChorus(this.px, this.pz);
+  }
+
+  /** 💦 the wet-dog shake, with people in range: droplets everywhere, and a "HEY!" from
+   *  whoever caught it. Only when he is actually wet — a dry shake bothers nobody. */
+  private shakeSpray() {
+    if (this.wetCoat <= 0 || this.inside) return;
+    this.wetCoat = 0;   // dried off, for now
+    this.eggs?.burst(this.px, this.kidY + 9, this.pz, '#dfeaf2', 22, false, 2.1, 0.55, 0.65, 24);
+    this.life?.splash(this.px, this.pz);
   }
 
   // ---------- 🦴 buried bones ----------
@@ -2358,7 +2405,7 @@ export class Game {
     if (this.inside) this.sprinting = false;
     let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
-    if (this.snowAngelT > 0 || this.rollT > 0 || (this.player as Dog).flopping) speed = 0; // flat on his back
+    if (this.snowAngelT > 0 || this.rollT > 0 || (this.player as Dog).flopping || (this.player as Dog).howling) speed = 0; // flat on his back, or mid-howl
     if (this.sniffing) speed *= 0.4;    // nose down = a careful, readable creep
     // the dog-paddle: 200 cruising, 320 with RUN held — a harbor or a lake is a long
     // way across at a paddle, and the run button should mean something in the water too
@@ -2760,7 +2807,12 @@ export class Game {
     if (SEASON === 'fall') this.updatePiles(dt);
     if (sky.mist > 0.4 && !this.inside) {
       this.foghornT -= dt;
-      if (this.foghornT <= 0) { this.foghornT = 24 + Math.random() * 10; this.audio.foghorn(sky.mist * (this.nearWater ? 1 : 0.5)); }
+      if (this.foghornT <= 0) {
+        this.foghornT = 24 + Math.random() * 10;
+        const lv = sky.mist * (this.nearWater ? 1 : 0.5);
+        this.audio.foghorn(lv);
+        this.howlCue(lv);   // 🐺 and Clipper answers it
+      }
     }
     if (this.gillis && !this.inside) this.gillis.update(dt);
     if (this.inTunnel) this.tunnel!.update(dt, this.px, this.pz);
@@ -3371,11 +3423,25 @@ export class Game {
     for (const p of this.prints) {
       if (p.life <= 0) continue;
       p.life -= dt;
-      (p.m.material as THREE.MeshBasicMaterial).opacity = Math.min(0.6, p.life * 0.14);
+      (p.m.material as THREE.MeshBasicMaterial).opacity = Math.min(p.max, p.life * 0.14);
       if (p.life <= 0) p.m.visible = false;
     }
-    if (wet < 0.25 || this.inside || this.onWater || this.swimming || this.flying || this.riding || this.kayaking || this.lastSpeed < 70) return;
+    if (this.howlCool > 0) this.howlCool -= dt;
+    // 💦 the coat stays wet a while after a swim, or in the rain — and a shake then
+    // sprays whoever is standing close (shakeSpray). 🐾 The paws pick up MUD from the
+    // water's edge, from a dig, or from soft ground in the rain, and leave it on the
+    // brick print by print until it is walked off. Kids know exactly whose fault it is.
+    if (this.wetCoat > 0) this.wetCoat -= dt;
+    if (this.swimming || this.onWater) { this.wetCoat = 14; this.mudPaws = 1; }
+    else if (wet > 0.3 && !this.inside && !this.flying) {
+      this.wetCoat = Math.max(this.wetCoat, 4);
+      if (this.lastSpeed > 30 && this.softGround()) this.mudPaws = Math.min(1, this.mudPaws + dt * 0.5);
+    }
+    if (this.diggingNow) this.mudPaws = 1;
+    if (this.inside || this.onWater || this.swimming || this.flying || this.riding || this.kayaking || this.lastSpeed < 70) return;
     if (!this.index.onPavedAt(this.px, this.pz)) return;
+    const wetPrint = wet >= 0.25, mud = this.mudPaws > 0.08;
+    if (!wetPrint && !mud) return;
     this.puddleT -= dt;
     if (this.puddleT > 0) return;
     this.puddleT = 0.3;
@@ -3384,12 +3450,19 @@ export class Game {
     // pixels (eleven metres) off the dog, and about thirty-three droplets hung in the air
     // at once. Four droplets, a third as often gone, a third the throw: they hop off the
     // paw, fall inside a stride, and are gone.
-    this.eggs?.burst(this.px, this.kidY + 2, this.pz, '#dfeaf2', 4, false, 1.8, 0.3, 0.3);
-    // the print: a wet paw, alternating sides, laid just behind the kid on his heading
+    if (wetPrint) this.eggs?.burst(this.px, this.kidY + 2, this.pz, '#dfeaf2', 4, false, 1.8, 0.3, 0.3);
+    if (mud) this.mudPaws = Math.max(0, this.mudPaws - 0.07);
+    this.layPrint(mud ? '#3b2614' : '#1a1c20', mud ? 0.8 : 0.6);   // mud dark enough to read on BRICK, not just on concrete
+  }
+
+  /** the print: one paw, alternating sides, laid just behind him on his heading — wet
+   *  (near-black, on a wet street) or muddy (brown, and it stays longer) */
+  private layPrint(hex: string, alpha: number) {
     if (!this.pawTex) {
+      // drawn WHITE so the material's colour tints it: the same texture is a wet print or a muddy one
       const c = document.createElement('canvas'); c.width = c.height = 32;
       const g = c.getContext('2d')!;
-      g.fillStyle = '#1a1c20';
+      g.fillStyle = '#ffffff';
       g.beginPath(); g.ellipse(16, 20, 7, 6, 0, 0, Math.PI * 2); g.fill();
       for (const [x, y] of [[8, 9], [14, 6], [20, 6], [25, 10]]) { g.beginPath(); g.ellipse(x, y, 2.6, 3.2, 0, 0, Math.PI * 2); g.fill(); }
       this.pawTex = new THREE.CanvasTexture(c);
@@ -3399,18 +3472,21 @@ export class Game {
     this.printSide = -this.printSide;
     let p = this.prints[this.printIdx % 28];
     if (!p) {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(6, 7), new THREE.MeshBasicMaterial({ map: this.pawTex, transparent: true, opacity: 0.6, depthWrite: false }));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(6, 7), new THREE.MeshBasicMaterial({ map: this.pawTex, transparent: true, opacity: alpha, depthWrite: false }));
       m.rotation.x = -Math.PI / 2; m.renderOrder = 3;
       this.scene.add(m);
-      p = { m, life: 0 };
+      p = { m, life: 0, max: alpha };
       this.prints[this.printIdx % 28] = p;
     }
     this.printIdx++;
-    p.life = 7;
+    p.life = hex === '#1a1c20' ? 7 : 11;
+    p.max = alpha;
     p.m.visible = true;
     p.m.position.set(this.px + sx - Math.sin(heading) * 6, this.kidY + 0.3, this.pz + sz - Math.cos(heading) * 6);
     p.m.rotation.z = heading;
-    (p.m.material as THREE.MeshBasicMaterial).opacity = 0.6;
+    const mat = p.m.material as THREE.MeshBasicMaterial;
+    mat.color.set(hex);
+    mat.opacity = alpha;
   }
 
   /** ❄️ down on his back in the snow, a wriggle, and the angel stays until spring (or the eighth one) */

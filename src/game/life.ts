@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { WorldIndex, CHUNK, pointInPoly, distToPolylineSq } from '../world/index';
+import { WorldIndex, CHUNK, pointInPoly, distToPolylineSq, type Tree } from '../world/index';
 import { hash32, mulberry32, SEASON } from '../world/style';
 import { WATER_Y, TIDE } from '../three/water';
 import { PROPS } from '../three/assets';
@@ -1549,11 +1549,24 @@ class LeashDog {
   private side: number;                 // which side of the walker this dog heels on
   private collarY: number;
 
+  // 🐺 the chorus: Life hands each dog a delay so they come in one after another
+  private howlIn = -1;
+  private howlT = 0;
+  howlDetune = 0;
+  onHowl: () => void = () => {};
+  howl(delay: number) { if (this.howlT <= 0 && this.howlIn < 0) this.howlIn = delay; }
+  private howlTick(dt: number): number {
+    if (this.howlIn >= 0) { this.howlIn -= dt; if (this.howlIn < 0) { this.howlT = 1.8; this.howlIn = -1; this.onHowl(); } }
+    if (this.howlT > 0) { this.howlT -= dt; return Math.min(1, Math.min(this.howlT / 0.3, (1.8 - this.howlT) / 0.25)); }
+    return 0;
+  }
+
   constructor(seed: number) {
     const rng = mulberry32(seed);
     const b = pupBody(rng);
     this.heading = b.heading; this.headGrp = b.headGrp; this.legs = b.legs; this.tailM = b.tail;
     this.root.add(this.heading);
+    this.howlDetune = -3 + rng() * 7;
     this.side = rng() < 0.5 ? -1 : 1;
     this.nextSniff = 2 + rng() * 6;
     this.collarY = b.collarY;
@@ -1596,7 +1609,8 @@ class LeashDog {
     const s = Math.sin(this.phase) * Math.min(1, chase / 26) * 0.6;
     this.legs[0].rotation.x = s; this.legs[3].rotation.x = s;      // diagonal pairs
     this.legs[1].rotation.x = -s; this.legs[2].rotation.x = -s;
-    const sn = this.sniffT > 0 ? 0.8 : 0;
+    const hw = this.howlTick(dt);
+    const sn = hw > 0 ? -1.0 * hw : this.sniffT > 0 ? 0.8 : 0;   // 🐺 muzzle up for the chorus
     this.headGrp.rotation.x += (sn - this.headGrp.rotation.x) * Math.min(1, dt * 8);
     this.tailM.rotation.z = Math.sin(this.phase * 1.6) * (0.3 + (sn ? 0.25 : 0));
     this.heading.rotation.y = this.face;
@@ -1638,13 +1652,29 @@ class ParkDog {
   private bow = 0;                      // seconds of play-bow left
   private zoom = 0;                     // seconds of zoomies left
   private zoomA = 0;
+  private play = 0;                     // seconds of CHASE ME left — it runs you down and bows
   private rng: () => number;
+  // 🐺 the chorus: Life hands each dog a delay so they come in one after another
+  private howlIn = -1;
+  private howlT = 0;
+  howlDetune = 0;
+  onHowl: () => void = () => {};
+  howl(delay: number) { if (this.howlT <= 0 && this.howlIn < 0) this.howlIn = delay; }
+  private howlTick(dt: number): number {
+    if (this.howlIn >= 0) { this.howlIn -= dt; if (this.howlIn < 0) { this.howlT = 1.8; this.howlIn = -1; this.onHowl(); } }
+    if (this.howlT > 0) { this.howlT -= dt; return Math.min(1, Math.min(this.howlT / 0.3, (1.8 - this.howlT) / 0.25)); }
+    return 0;
+  }
+  /** true while it is down in a play-bow — Game reads this: a bark back means GAME ON */
+  get bowing(): boolean { return this.bow > 0; }
+  get playing(): boolean { return this.play > 0 || this.zoom > 0; }
 
   constructor(seed: number) {
     this.rng = mulberry32(seed);
     const b = pupBody(this.rng);
     this.heading = b.heading; this.headGrp = b.headGrp; this.legs = b.legs; this.tailM = b.tail;
     this.root.add(this.heading);
+    this.howlDetune = -3 + this.rng() * 7;
   }
 
   /** put it down on a fresh patch of grass */
@@ -1657,20 +1687,37 @@ class ParkDog {
     this.active = true;
   }
 
-  /** a bark in earshot: bow, then zoomies */
-  startle() { this.bow = 0.7; this.zoom = 2.6; this.zoomA = this.rng() * 6.28; }
+  /** a bark in earshot: bow, a lap of zoomies — and then it is YOUR turn to be chased */
+  startle() { this.bow = 0.7; this.zoom = 2.6; this.zoomA = this.rng() * 6.28; this.play = 9; }
 
   step(dt: number, gy: number, px: number, pz: number) {
     const dxP = px - this.root.position.x, dzP = pz - this.root.position.z;
     const dP = Math.hypot(dxP, dzP);
+    const hw = this.howlTick(dt);
     let speed = 0;
-    if (this.zoom > 0) {
+    if (hw > 0) {
+      // 🐺 mid-howl: planted, muzzle to the sky
+      this.face = lerpAngle(this.face, Math.atan2(dxP, dzP), Math.min(1, dt * 2));
+    } else if (this.zoom > 0) {
       // zoomies: a fast lap around wherever it happens to be
       this.zoom -= dt;
       this.zoomA += dt * 3.4;
       this.tx = this.home.x + Math.cos(this.zoomA) * 46;
       this.tz = this.home.z + Math.sin(this.zoomA) * 46;
       speed = 150;
+    } else if (this.play > 0) {
+      // 🎾 PLAYING. The whole game of tag: it runs you down wherever you go on the
+      // lawn, and every time it catches you it drops into a bow and waits for you to
+      // run again. A dog that chases YOU is the part a kid remembers.
+      this.play -= dt;
+      if (dP > 34) {
+        this.tx = px; this.tz = pz;
+        speed = 175;
+      } else {
+        this.bow -= dt;
+        if (this.bow < -0.9 && this.rng() < dt * 2.5) this.bow = 0.8;
+        this.face = lerpAngle(this.face, Math.atan2(dxP, dzP), Math.min(1, dt * 8));
+      }
     } else if (dP < 240 && dP > 26) {
       // it has clocked you — straight over, from right across the lawn
       this.tx = px; this.tz = pz;
@@ -1709,11 +1756,256 @@ class ParkDog {
     // speed says how pleased it is to see you — and at 26 px it is very pleased.
     const bowing = Math.max(0, Math.min(1, this.bow * 2.2));
     this.heading.rotation.x += (bowing * 0.55 - this.heading.rotation.x) * Math.min(1, dt * 9);
-    this.headGrp.rotation.x += ((bowing ? -0.3 : (speed ? 0 : 0.5)) - this.headGrp.rotation.x) * Math.min(1, dt * 6);
-    const glad = dP < 90 ? 1 : 0.45;
+    this.headGrp.rotation.x += ((hw > 0 ? -1.05 * hw : bowing ? -0.3 : (speed ? 0 : 0.5)) - this.headGrp.rotation.x) * Math.min(1, dt * 6);
+    const glad = dP < 90 || this.play > 0 ? 1 : 0.45;
     this.tailM.rotation.z = Math.sin(this.phase * (2.2 + glad * 4)) * (0.35 + glad * 0.45);
     this.heading.rotation.y = this.face;
     this.root.position.y += (gy - this.root.position.y) * Math.min(1, dt * 10);
+  }
+}
+
+// 🐿 A SQUIRREL THAT RUNS. decor.ts scatters a static one in the woods; this one has
+// a tree of its own and a nervous system. It forages under the tree in little hops,
+// tail twitching, and the moment Clipper comes for it — and he will — it bolts for
+// the trunk, goes straight up, and scolds him from just under the canopy with its
+// tail going like a flag. Bark at the trunk and it scolds harder. Walk away and it
+// comes back down. "The dog chased a squirrel" is the most-told dog story there is;
+// this is that story, on demand, in every season.
+const SQUIRRELS = 5;
+// where it sits: the top of the trunk, just under the canopy, where it can be seen
+// (decor: a deciduous trunk is (r*1.6+8)*0.55 tall, a pine's 7 + r*0.5)
+const perchHeight = (r: number) => 8 + r * 0.5;
+class Squirrel {
+  root = new THREE.Group();
+  active = false;
+  tree = { x: 0, z: 0, h: 20 };
+  onChatter: (x: number, z: number, hard: boolean) => void = () => {};
+  private heading = new THREE.Group();
+  private tail = new THREE.Group();
+  private state: 'forage' | 'bolt' | 'climb' | 'perch' | 'descend' = 'forage';
+  private tx = 0; private tz = 0;
+  private face = 0;
+  private hopT = 0;
+  private restT = 0;
+  private gone = 0;          // seconds the player has been far away while it is up the tree
+  private scold = 0;
+  private chatterT = 1;
+  private t = 0;
+  private rng: () => number;
+
+  constructor(seed: number) {
+    this.rng = mulberry32(seed);
+    const fur = '#8a5a32', dark = '#6e4524', pale = '#d9c7a8';
+    const body = sph(2.1, fur, 0.9, 0.85, 1.3); body.position.set(0, 2.1, 0);
+    const belly = sph(1.5, pale, 0.8, 0.6, 1.0); belly.position.set(0, 1.4, 0.4);
+    const head = sph(1.45, fur); head.position.set(0, 3.3, 2.5);
+    const nose = sph(0.4, '#2a221c'); nose.position.set(0, 3.1, 3.9);
+    for (const sx of [-1, 1]) {
+      const ear = sph(0.48, dark, 0.7, 1.1, 0.5); ear.position.set(sx * 0.75, 4.5, 2.2);
+      const eye = sph(0.28, '#1c1714'); eye.position.set(sx * 0.9, 3.6, 3.4);
+      this.heading.add(ear, eye);
+    }
+    // the tail: a fat S curled over the back — to a dog, this IS the squirrel
+    this.tail.position.set(0, 2.2, -2.2);
+    const t1 = sph(1.35, dark, 0.75, 1.2, 0.8); t1.position.set(0, 2.2, -0.6);
+    const t2 = sph(1.15, dark, 0.7, 1.05, 0.75); t2.position.set(0, 4.4, 0.2);
+    const t3 = sph(0.8, fur, 0.6, 0.9, 0.6); t3.position.set(0, 5.9, 1.2);
+    this.tail.add(t1, t2, t3);
+    this.heading.add(body, belly, head, nose, this.tail);
+    // ⚠️ DRAWN BIG. A true-scale squirrel beside a 36 px kid is a 4 px smudge, and a
+    // thing a seven-year-old cannot see is not in the game. Half again real size
+    // (screenshot, 9/12: at 1.0 it vanished against the trunk).
+    this.heading.scale.setScalar(1.6);
+    this.root.add(this.heading);
+  }
+
+  place(tree: { x: number; z: number; h: number }, gy: number) {
+    this.tree = tree;
+    const a = this.rng() * Math.PI * 2, d = 16 + this.rng() * 26;
+    this.root.position.set(tree.x + Math.cos(a) * d, gy, tree.z + Math.sin(a) * d);
+    this.tx = this.root.position.x; this.tz = this.root.position.z;
+    this.state = 'forage'; this.restT = this.rng() * 2; this.gone = 0; this.scold = 0;
+    this.heading.rotation.x = 0;
+    this.active = true;
+  }
+
+  hide() { this.active = false; this.root.position.set(0, 0, 1e7); }
+
+  /** a bark: on the ground it bolts; up the tree it gives him a piece of its mind */
+  scare() {
+    if (this.state === 'forage' || this.state === 'descend') this.state = 'bolt';
+    else if (this.state === 'perch') { this.scold = 2.5; this.chatterT = 0; }
+  }
+
+  step(dt: number, gy: number, px: number, pz: number, running: boolean) {
+    this.t += dt;
+    const p = this.root.position;
+    const dP = Math.hypot(px - p.x, pz - p.z);
+    let moving = 0;
+    if (this.state === 'forage') {
+      if (dP < (running ? 150 : 90)) this.state = 'bolt';
+      const dT = Math.hypot(this.tx - p.x, this.tz - p.z);
+      if (dT < 2) {
+        this.restT -= dt;
+        if (this.restT <= 0) {
+          const a = this.rng() * Math.PI * 2, d = 10 + this.rng() * 32;
+          this.tx = this.tree.x + Math.cos(a) * d; this.tz = this.tree.z + Math.sin(a) * d;
+          this.restT = 0.8 + this.rng() * 2.4;
+        }
+      } else moving = 42;
+      p.y += (gy - p.y) * Math.min(1, dt * 10);
+    } else if (this.state === 'bolt') {
+      this.tx = this.tree.x; this.tz = this.tree.z;
+      moving = 190;
+      if (Math.hypot(this.tx - p.x, this.tz - p.z) < 2.5) { this.state = 'climb'; p.x = this.tree.x; p.z = this.tree.z; }
+      p.y += (gy - p.y) * Math.min(1, dt * 10);
+    } else if (this.state === 'climb') {
+      p.y += 70 * dt;
+      if (p.y >= gy + this.tree.h) { p.y = gy + this.tree.h; this.state = 'perch'; this.chatterT = 0.4; this.gone = 0; }
+    } else if (this.state === 'perch') {
+      // round the trunk to the side he is on, so it is always in view — and always looking at him
+      const ax = Math.atan2(px - this.tree.x, pz - this.tree.z);
+      p.x += (this.tree.x + Math.sin(ax) * 3.2 - p.x) * Math.min(1, dt * 4);
+      p.z += (this.tree.z + Math.cos(ax) * 3.2 - p.z) * Math.min(1, dt * 4);
+      this.face = lerpAngle(this.face, ax, Math.min(1, dt * 6));
+      if (this.scold > 0) this.scold -= dt;
+      this.chatterT -= dt;
+      if (this.chatterT <= 0) {
+        if (dP < 150) this.onChatter(p.x, p.z, this.scold > 0);
+        this.chatterT = (this.scold > 0 ? 0.9 : 1.6) + this.rng() * 1.6;
+      }
+      if (dP > 230) this.gone += dt; else this.gone = 0;
+      if (this.gone > 5) this.state = 'descend';
+    } else {
+      p.y -= 55 * dt;
+      if (p.y <= gy) { p.y = gy; this.state = 'forage'; this.restT = 0.5; }
+      if (dP < 90) this.state = 'climb';   // no you don't
+    }
+    if (moving > 0) {
+      const dx = this.tx - p.x, dz = this.tz - p.z, d = Math.hypot(dx, dz) || 1;
+      const stepD = Math.min(d, moving * dt);
+      p.x += (dx / d) * stepD; p.z += (dz / d) * stepD;
+      this.face = lerpAngle(this.face, Math.atan2(dx, dz), Math.min(1, dt * 14));
+      // it hops: a bound at a run, a bob foraging
+      this.hopT += dt * (moving > 100 ? 22 : 14);
+      p.y += Math.abs(Math.sin(this.hopT)) * (moving > 100 ? 3.2 : 1.4);
+    }
+    // up the trunk nose-first, down it nose-first, sat up on the branch, flat on the ground
+    const pitch = this.state === 'climb' ? -Math.PI / 2 : this.state === 'descend' ? Math.PI / 2 : this.state === 'perch' ? -0.35 : 0;
+    this.heading.rotation.x += (pitch - this.heading.rotation.x) * Math.min(1, dt * 8);
+    this.heading.rotation.y = this.face;
+    // the tail: a twitch foraging, a flag when it is telling him off
+    const flick = this.state === 'perch' ? (this.scold > 0 ? 9 : 4.5) : 2.2;
+    this.tail.rotation.x = Math.sin(this.t * flick) * (this.state === 'perch' ? 0.45 : 0.18) - 0.2;
+    this.tail.rotation.z = Math.sin(this.t * flick * 0.7) * 0.15;
+  }
+}
+
+// 🕊 A FLOCK ON THE GROUND — the flats, a beach, the wharf edge. They stand about,
+// peck, waddle a step. Creep up and they waddle off ahead of you; run at them and
+// the whole lot goes up at once in a clatter of wings, wheels out over the water,
+// and drops back onto the same spots a few seconds later, so you can do it again.
+// (The wheeling gulls in Gull above are the ones already in the air.)
+const FLOCKS = 2, FLOCK_N = 7;
+function gullBird(): { g: THREE.Group; wl: THREE.Mesh; wr: THREE.Mesh } {
+  const g = new THREE.Group();
+  const body = sph(2.4, '#f2f2ec', 0.9, 0.75, 2.0); body.position.y = 2.4;
+  const head = sph(1.5, '#f6f6f0'); head.position.set(0, 2.9, 3.0);
+  const beak = box(0.7, 0.7, 1.8, '#e0a23a'); beak.position.set(0, 2.7, 4.4);
+  const wl = box(9, 0.5, 4.0, '#dfe2e3'); wl.position.set(-5, 2.8, 0);
+  const wr = box(9, 0.5, 4.0, '#dfe2e3'); wr.position.set(5, 2.8, 0);
+  for (const sx of [-1, 1]) { const leg = box(0.4, 2.4, 0.4, '#e0a23a'); leg.position.set(sx * 0.9, 1.2, 0.3); g.add(leg); }
+  g.add(body, head, beak, wl, wr);
+  return { g, wl, wr };
+}
+class Flock {
+  active = false;
+  cx = 0; cz = 0;
+  onBurst: (x: number, z: number) => void = () => {};
+  private birds: { g: THREE.Group; wl: THREE.Mesh; wr: THREE.Mesh; hx: number; hz: number; ph: number; ax: number; az: number; alt: number; face: number; peck: number }[] = [];
+  private state: 'ground' | 'air' = 'ground';
+  private u = 0;
+  private airT = 8;
+  private t = 0;
+  private rng: () => number;
+
+  constructor(seed: number, scene: THREE.Scene) {
+    this.rng = mulberry32(seed);
+    for (let i = 0; i < FLOCK_N; i++) {
+      const b = gullBird();
+      b.g.position.set(0, 0, 1e7);
+      scene.add(b.g);
+      this.birds.push({ ...b, hx: 0, hz: 0, ph: this.rng() * 6, ax: 0, az: 0, alt: 50 + this.rng() * 60, face: this.rng() * 6.28, peck: this.rng() * 3 });
+    }
+  }
+
+  place(cx: number, cz: number, gy: (x: number, z: number) => number) {
+    this.cx = cx; this.cz = cz;
+    for (const b of this.birds) {
+      const a = this.rng() * Math.PI * 2, d = this.rng() * 28;
+      b.hx = cx + Math.cos(a) * d; b.hz = cz + Math.sin(a) * d;
+      b.g.position.set(b.hx, gy(b.hx, b.hz), b.hz);
+      b.face = this.rng() * 6.28;
+      b.peck = this.rng() * 3;
+    }
+    this.state = 'ground';
+    this.active = true;
+  }
+
+  hide() { this.active = false; for (const b of this.birds) b.g.position.set(0, 0, 1e7); }
+
+  /** everybody up — away from whoever did it, then round and back */
+  burst(px: number, pz: number) {
+    if (!this.active || this.state !== 'ground') return;
+    this.state = 'air'; this.u = 0; this.airT = 7 + this.rng() * 4;
+    for (const b of this.birds) {
+      const away = Math.atan2(b.hx - px, b.hz - pz) + (this.rng() - 0.5) * 1.2;
+      const r = 70 + this.rng() * 90;
+      b.ax = Math.sin(away) * r; b.az = Math.cos(away) * r;
+    }
+    this.onBurst(this.cx, this.cz);
+  }
+
+  step(dt: number, px: number, pz: number, running: boolean, gy: (x: number, z: number) => number) {
+    this.t += dt;
+    const dP = Math.hypot(px - this.cx, pz - this.cz);
+    if (this.state === 'ground') {
+      if (dP < (running ? 130 : 42)) this.burst(px, pz);
+      for (const b of this.birds) {
+        b.peck -= dt;
+        if (b.peck <= 0) { b.peck = 1.5 + this.rng() * 3; b.face = this.rng() * 6.28; }
+        if (dP < 110) {
+          // a creeping dog: waddle off ahead of him, keeping the distance
+          const ax = b.g.position.x - px, az = b.g.position.z - pz, d = Math.hypot(ax, az) || 1;
+          b.g.position.x += (ax / d) * 18 * dt; b.g.position.z += (az / d) * 18 * dt;
+          b.face = Math.atan2(ax, az);
+        }
+        const bob = b.peck < 0.4 ? -0.6 : 0;
+        b.g.rotation.x += (bob - b.g.rotation.x) * Math.min(1, dt * 8);
+        b.g.rotation.y = b.face; b.g.rotation.z = 0;
+        b.wl.position.set(-2.4, 3.3, -0.6); b.wl.rotation.set(0, 0.55, 0.3);      // folded along the back
+        b.wr.position.set(2.4, 3.3, -0.6); b.wr.rotation.set(0, -0.55, -0.3);
+        b.g.position.y += (gy(b.g.position.x, b.g.position.z) - b.g.position.y) * Math.min(1, dt * 10);
+      }
+    } else {
+      this.u += dt / this.airT;
+      const u = Math.min(1, this.u), arc = Math.sin(Math.PI * u);
+      for (const b of this.birds) {
+        // out and up, then back down onto the same spot — one arc, so the flock reads
+        // as a flock and not seven birds with seven opinions
+        const x = b.hx + b.ax * arc, z = b.hz + b.az * arc;
+        const dir = Math.cos(Math.PI * u);
+        b.face = Math.atan2(b.ax * dir, b.az * dir);
+        b.g.position.set(x, gy(x, z) + arc * b.alt + 2, z);
+        b.g.rotation.y = b.face;
+        b.g.rotation.x = -0.2 * dir;
+        b.g.rotation.z = Math.sin(this.t * 3 + b.ph) * 0.2;
+        const flap = u < 0.75 ? Math.sin(this.t * 16 + b.ph) * 0.6 : 0.15 + Math.sin(this.t * 4 + b.ph) * 0.1;
+        b.wl.position.set(-5, 2.8, 0); b.wl.rotation.set(0, 0, 0.2 + flap);
+        b.wr.position.set(5, 2.8, 0); b.wr.rotation.set(0, 0, -0.2 - flap);
+      }
+      if (u >= 1) { this.state = 'ground'; for (const b of this.birds) b.peck = this.rng() * 2; }
+    }
   }
 }
 
@@ -2086,6 +2378,13 @@ class Sledder {
 export class Life {
   private index: WorldIndex;
   private peds: Walker[] = [];
+  private squirrels: Squirrel[] = [];
+  private flocks: Flock[] = [];
+  private lastPx = NaN; private lastPz = 0; private pSpeed = 0;   // the player's pace, for who runs from him
+  /** Game: put a word over someone's head (it needs the camera to place it) */
+  onSay: (x: number, y: number, z: number, text: string) => void = () => {};
+  /** Game: something in town worth howling at just sounded (0..1 how loud, here) */
+  onHowlCue: (level: number) => void = () => {};
   private smoke: Smoke;
   private fireflies: Fireflies;
   private signals: Signals;
@@ -2198,8 +2497,23 @@ export class Life {
     for (let i = 0; i < PARK_DOGS; i++) {
       const d = new ParkDog(i * 811 + 37);
       d.root.position.set(0, 0, 1e7);
+      d.onHowl = () => this.audio?.howl(0.35, d.howlDetune);
       scene.add(d.root);
       this.parkDogs.push(d);
+    }
+    for (const { d } of this.pups) d.onHowl = () => this.audio?.howl(0.3, d.howlDetune);
+    // 🐿 squirrels, each given a tree by update(); 🕊 flocks on the shore
+    for (let i = 0; i < SQUIRRELS; i++) {
+      const sq = new Squirrel(i * 613 + 29);
+      sq.root.position.set(0, 0, 1e7);
+      sq.onChatter = (_x, _z, hard) => this.audio?.chatter(hard ? 1 : 0.6);
+      scene.add(sq.root);
+      this.squirrels.push(sq);
+    }
+    for (let i = 0; i < FLOCKS; i++) {
+      const f = new Flock(i * 449 + 17, scene);
+      f.onBurst = () => { this.audio?.gull(); setTimeout(() => this.audio?.gull(), 380); };
+      this.flocks.push(f);
     }
     for (let i = 0; i < CARS; i++) {
       const car = new TrafficCar(i * 569 + 7);
@@ -2562,7 +2876,73 @@ export class Life {
       const dx = x - p.root.position.x, dz = z - p.root.position.z;
       if (dx * dx + dz * dz < 150 * 150) { p.pause = Math.max(p.pause, 1.4); p.pauseFace = Math.atan2(dx, dz); }
     }
+    // a squirrel bolts (or scolds back, from up its tree); a flock on the ground goes up
+    for (const sq of this.squirrels) {
+      if (!sq.active) continue;
+      const dx = sq.root.position.x - x, dz = sq.root.position.z - z;
+      if (dx * dx + dz * dz < 220 * 220) sq.scare();
+    }
+    for (const f of this.flocks) {
+      const dx = f.cx - x, dz = f.cz - z;
+      if (dx * dx + dz * dz < 260 * 260) f.burst(x, z);
+    }
   }
+
+  /** 🐺 THE CHORUS. Something sounded and Clipper is howling: every dog in earshot
+   *  joins in, each a little late and in its own voice, the way a street of dogs does. */
+  howlChorus(x: number, z: number) {
+    let delay = 0.4;
+    for (const d of this.parkDogs) {
+      if (!d.active) continue;
+      const dx = d.root.position.x - x, dz = d.root.position.z - z;
+      if (dx * dx + dz * dz < 560 * 560) { d.howl(delay); delay += 0.35 + Math.random() * 0.5; }
+    }
+    for (const { d, w } of this.pups) {
+      if (!w.pts.length) continue;
+      const dx = d.root.position.x - x, dz = d.root.position.z - z;
+      if (dx * dx + dz * dz < 560 * 560) { d.howl(delay); delay += 0.35 + Math.random() * 0.5; }
+    }
+  }
+
+  /** 💦 a wet dog just shook next to people: whoever is in range stops, turns, and says so */
+  splash(x: number, z: number): number {
+    const words = ['HEY!', 'UGH!', 'HA HA!', 'CLIPPER!', 'EW!'];
+    let hit = 0;
+    for (const p of [...this.peds, ...this.kids]) {
+      if (!p.pts.length) continue;
+      const dx = x - p.root.position.x, dz = z - p.root.position.z;
+      if (dx * dx + dz * dz > 64 * 64) continue;
+      p.pause = Math.max(p.pause, 1.8); p.pauseFace = Math.atan2(dx, dz);
+      this.onSay(p.root.position.x, p.root.position.y + 36, p.root.position.z, words[Math.floor(Math.random() * words.length)]);
+      hit++;
+    }
+    return hit;
+  }
+
+  /** a loose dog down in a play-bow right beside him — a bark back is the yes */
+  bowingDogNear(x: number, z: number): boolean {
+    for (const d of this.parkDogs) {
+      if (!d.active || !d.bowing) continue;
+      const dx = d.root.position.x - x, dz = d.root.position.z - z;
+      if (dx * dx + dz * dz < 44 * 44) return true;
+    }
+    return false;
+  }
+
+  /** dev: a squirrel under the nearest tree, a flock a few steps away — for looking, not for play */
+  debugSquirrel(px: number, pz: number): boolean {
+    const key = Math.floor(px / CHUNK) + ',' + Math.floor(pz / CHUNK);
+    let best: Tree | null = null, bd = 1e12;
+    for (const t of this.index.treesFor(key)) {
+      if (t.bush || t.reed || t.r < 8) continue;
+      const dd = (t.x - px) ** 2 + (t.y - pz) ** 2;
+      if (dd > 40 * 40 && dd < bd) { bd = dd; best = t; }
+    }
+    if (!best) return false;
+    this.squirrels[0].place({ x: best.x, z: best.y, h: perchHeight(best.r) }, this.index.heightAtPx(best.x, best.y));
+    return true;
+  }
+  debugFlock(px: number, pz: number) { this.flocks[0].place(px + 90, pz, (x, z) => this.index.heightAtPx(x, z)); }
 
   // the player can't walk through cars or people (and they step around the player)
   obstacleAt(x: number, z: number): boolean {
@@ -2787,7 +3167,7 @@ export class Life {
         // the horn, two longs' worth, as the engine reaches the whistle post
         c.horned = true;
         const sp = alongPolyline(this.rail, tr.head);
-        if (sp) this.audio?.trainHorn(Math.max(0, Math.min(1, 1 - (Math.hypot(sp.x - px, sp.z - pz) - 300) / 2200)));
+        if (sp) { const lv = Math.max(0, Math.min(1, 1 - (Math.hypot(sp.x - px, sp.z - pz) - 300) / 2200)); this.audio?.trainHorn(lv); this.onHowlCue(lv); }
       }
     }
     if (nearest) {
@@ -2837,7 +3217,7 @@ export class Life {
       if (tr.timer <= 0) {
         tr.state = 'out'; tr.speed = 0;
         const sp = alongPolyline(this.rail, tr.head);
-        if (sp) this.audio?.trainHorn(Math.max(0, Math.min(1, 1 - (Math.hypot(sp.x - px, sp.z - pz) - 300) / 2200)));
+        if (sp) { const lv = Math.max(0, Math.min(1, 1 - (Math.hypot(sp.x - px, sp.z - pz) - 300) / 2200)); this.audio?.trainHorn(lv); this.onHowlCue(lv); }
       }
     } else if (tr.state === 'out') {
       tr.speed = Math.min(230, tr.speed + 28 * dt);
@@ -3448,6 +3828,33 @@ export class Life {
       d.step(dt, this.index.heightAtPx(d.root.position.x, d.root.position.z), px, pz);
     }
 
+    // how fast he is coming: a squirrel or a gull that is walked up to is a different
+    // animal from one that is run at
+    if (!Number.isNaN(this.lastPx) && dt > 0) this.pSpeed += (Math.hypot(px - this.lastPx, pz - this.lastPz) / dt - this.pSpeed) * Math.min(1, dt * 8);
+    this.lastPx = px; this.lastPz = pz;
+    const running = this.pSpeed > 130;
+
+    // 🐿 the squirrels: one tree each, re-homed on a fresh tree ahead when the player wanders off
+    for (const sq of this.squirrels) {
+      const sdx = sq.tree.x - px, sdz = sq.tree.z - pz;
+      if (!sq.active || sdx * sdx + sdz * sdz > 1300 * 1300) {
+        const spot = this.treeSpot(px, pz, fx, fz, rng);
+        if (spot) sq.place(spot, this.index.heightAtPx(spot.x, spot.z)); else sq.hide();
+        continue;
+      }
+      sq.step(dt, this.index.heightAtPx(sq.root.position.x, sq.root.position.z), px, pz, running);
+    }
+    // 🕊 the flocks on the shore
+    for (const f of this.flocks) {
+      const fdx = f.cx - px, fdz = f.cz - pz;
+      if (!f.active || fdx * fdx + fdz * fdz > 1500 * 1500) {
+        const spot = this.shoreSpot(px, pz, fx, fz, rng);
+        if (spot) f.place(spot.x, spot.z, (x, z) => this.index.heightAtPx(x, z)); else f.hide();
+        continue;
+      }
+      f.step(dt, px, pz, running, (x, z) => this.index.heightAtPx(x, z));
+    }
+
     for (const c of this.cars) {
       const dx = c.root.position.x - px, dz = c.root.position.z - pz;
       // the service fleet keeps hours: the bus runs the school bell, the engine runs
@@ -3741,6 +4148,48 @@ export class Life {
 
   // 🐕 a patch of park lawn for a loose dog: inside a mapped park or green, on open
   // ground, and back from the kerb — nobody lets a dog off the lead beside a road
+  // 🐿 a tree for a squirrel: a real (not bush, not reed) tree near a random point
+  // out of view, on ground he can reach
+  private treeSpot(px: number, pz: number, fx: number, fz: number, rng: () => number): { x: number; z: number; h: number } | null {
+    for (let tries = 0; tries < 10; tries++) {
+      const a = rng() * Math.PI * 2, d = 260 + rng() * 560;
+      const x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d;
+      if (!this.okToSpawn(x, z, px, pz, fx, fz, 220, 1000)) continue;
+      const key = Math.floor(x / CHUNK) + ',' + Math.floor(z / CHUNK);
+      if (!this.index.buckets.has(key)) continue;
+      let best: Tree | null = null, bd = 160 * 160;
+      for (const t of this.index.treesFor(key)) {
+        if (t.bush || t.reed || t.r < 8) continue;
+        const dx = t.x - x, dz = t.y - z, dd = dx * dx + dz * dz;
+        if (dd < bd) { bd = dd; best = t; }
+      }
+      if (!best) continue;
+      if (this.index.isWaterAt(best.x, best.y) || this.index.isBlocked(best.x + 12, best.y)) continue;
+      return { x: best.x, z: best.y, h: perchHeight(best.r) };
+    }
+    return null;
+  }
+
+  // 🕊 a shore for a flock: dry, unpaved-ish ground with water a few steps away
+  private shoreSpot(px: number, pz: number, fx: number, fz: number, rng: () => number): { x: number; z: number } | null {
+    for (let tries = 0; tries < 12; tries++) {
+      const a = rng() * Math.PI * 2, d = 300 + rng() * 700;
+      const x = px + Math.cos(a) * d, z = pz + Math.sin(a) * d;
+      if (!this.okToSpawn(x, z, px, pz, fx, fz, 260, 1100)) continue;
+      if (this.index.isWaterAt(x, z) || this.index.isBlocked(x, z)) continue;
+      const on = this.index.standingOn(x, z);
+      if (on === 'road' || on === 'parking') continue;
+      let dry = true, wet = false;
+      for (let k = 0; k < 8; k++) {
+        const cx = Math.cos(k * Math.PI / 4), cz = Math.sin(k * Math.PI / 4);
+        if (this.index.isWaterAt(x + cx * 30, z + cz * 30)) dry = false;
+        if (this.index.isWaterAt(x + cx * 70, z + cz * 70)) wet = true;
+      }
+      if (dry && wet) return { x, z };
+    }
+    return null;
+  }
+
   private parkSpot(px: number, pz: number, fx: number, fz: number, rng: () => number): { x: number; z: number } | null {
     for (let tries = 0; tries < 14; tries++) {
       const a = rng() * Math.PI * 2, d = 320 + rng() * 620;

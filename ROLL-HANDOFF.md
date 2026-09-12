@@ -270,3 +270,26 @@ found three faults in under a minute.
 Carried, not requested: the 41-egg audit against `docs/research/`; a CI rebake to
 pick up real `highway` stop/signal nodes; 81 State Street is built as a duplicate of
 the 1871 brownstone; osprey wing quality.
+
+---
+
+## 8. What rode along 9/12 — the "kids will love" batch
+
+Devin: "What's next that we can add that kids will love" → "Do all of them". Five
+things, every one triggered by what he already does (run, bark, sound) — **no new
+buttons**; the hydrant joke was offered and left for Devin to call.
+
+| what | where | how it fires |
+|---|---|---|
+| 🐿 **Squirrel chase** | `Squirrel` in `life.ts`, 5 of them, one tree each via `index.treesFor` | forages under its tree; bolts when Clipper comes within 90 px (150 at a run), climbs the trunk, perches just under the canopy on HIS side, scolds (`audio.chatter`); a bark scolds harder; comes down 5 s after he leaves. Drawn at 1.6× — true scale was invisible. |
+| 🐺 **Howl chorus** | `Dog.howl()` (actors), `Game.howlCue`, `Life.howlChorus`, `audio.howl` | the foghorn and the train's horn cue it (level ≥ 0.35, 30 s cooldown); Clipper freezes and howls with AWOOOO! over him; every park and leash dog within 560 px joins, staggered, each detuned. (The noon gun does NOT fire — its card says so — so it is not a cue.) |
+| 🕊 **Scatter the gulls** | `Flock` in `life.ts`, 2 flocks × 7, on shore spots (dry within 30 px, water within 70) | creep up and they waddle off; inside 42 px (130 at a run) or a bark within 260 they burst: one arc out over the water and back onto the same spots, 7–11 s. |
+| 💦 **Shake on people** | `Dog.onShake` → `Game.shakeSpray` → `Life.splash` | only when `wetCoat > 0` (14 s after water, 4 s in rain): droplets, and walkers within 64 px stop, turn, and say HEY! / UGH! / HA HA! / CLIPPER! / EW! via `hud.woof`. |
+| 🐾 **Muddy paws** | `Game.updatePuddles` / `layPrint` | `mudPaws` = 1 out of water or a dig, builds on soft ground in rain; each paved print spends 0.07; mud prints are `#3b2614` at 0.8 (brown vanished on brick), 11 s. The paw texture is white now and tinted. |
+| 🎾 **Play with the park dog** | `ParkDog.play` in `life.ts`, `Game.bark` | its bow + a bark back within 44 px = Clipper's own zoomies (`zoomT`), then 9 s of it CHASING him (175 px/s), bowing every time it catches him. |
+
+Dev hooks on `window.nbpt`: `squirrel()` (one under the nearest tree), `flock()`
+(one 90 px away), `howl()`. Screenshot-verified: squirrel foraging and treed, the
+howl, the flock grounded and airborne, mud on State Street. NOT screenshot-verified
+(logic only): the HEY! bubbles (no walker was within 64 px in the rig) and the
+chase — worth a real-hands check on those two.
