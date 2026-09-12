@@ -386,6 +386,20 @@ const css = `
   pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
 }
 #hud .bark-btn.show { display: flex; }
+/* 🌿 ROLL / 🍂 LEAF PILE / ❄️ SNOW ANGEL — a STACK verb, not the contextual pill.
+   It first shipped in the pill and Devin was right that that is wrong: the pill
+   means "the action for HERE", and a dog flopping in the grass is not a place, it
+   is a thing he can do — as a pill it sat on screen almost permanently and read as
+   clutter ("it's too distracting"). In the stack above BARK it is one of his verbs,
+   offered only where there is something to roll in. */
+#hud .roll-btn {
+  position: relative; width: 58px; height: 58px; border-radius: 50%;
+  background: rgba(var(--maroon), 0.65); border: 2px solid rgba(var(--ink-rgb),0.4);
+  display: none; align-items: center; justify-content: center; font-size: 26px;
+  pointer-events: auto; cursor: pointer; user-select: none; -webkit-user-select: none;
+}
+#hud .roll-btn.show { display: flex; }
+#hud.indoors .roll-btn { display: none !important; }
 #hud .bark-btn.on { background: rgba(var(--gold-rgb), 0.45); border-color: var(--gold-mid); }
 #hud.indoors .bark-btn { display: none !important; }
 /* the scent: a warm bloom pinned to the screen edge in the direction of the
@@ -1710,6 +1724,7 @@ export class Hud {
       <div class="run-btn" title="Run (R)">🏃<span class="kc">R</span><span class="blab">RUN</span></div>
       <div class="bike-btn" title="Bike (B)"><svg viewBox="0 0 36 24" width="30" height="20" fill="none" stroke="#f3f1e8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="16" r="6"/><circle cx="28" cy="16" r="6"/><path d="M8 16 L16 16 L13 6 L8 16 M16 16 L22 6 L13 6 M22 6 L28 16"/><path d="M11 6 L15 6"/><path d="M22 6 L25 5"/></svg><span class="kc">B</span><span class="blab">BIKE</span></div>
       <div class="bark-btn" title="Bark (F) — hold to sniff">🐶<span class="kc">F</span><span class="blab">BARK</span></div>
+      <div class="roll-btn" title="Roll (G)">🌿<span class="kc">G</span><span class="blab">ROLL</span></div>
       <div class="look-btn" title="Look up (V)">👀<span class="kc">V</span><span class="blab">LOOK UP</span></div>
       </div>
       <div class="class-btn" title="Class">🍎<span class="blab">CLASS</span></div>
@@ -3059,6 +3074,21 @@ export class Hud {
     btn.addEventListener('pointerup', (e) => { e.stopPropagation(); release(); });
     btn.addEventListener('pointercancel', () => release());
     btn.addEventListener('pointerleave', () => release());
+  }
+
+  /** 🌿 the roll verb: wired once, then shown or hidden as the ground allows */
+  initRoll(tap: () => void) {
+    const btn = document.querySelector('#hud .roll-btn') as HTMLElement | null;
+    if (!btn) return;
+    btn.addEventListener('pointerdown', (e) => { e.stopPropagation(); tap(); });
+  }
+
+  /** offer it (with the season's own label) or take it away */
+  setRoll(on: boolean, emoji = '🌿', label = 'ROLL') {
+    const btn = document.querySelector('#hud .roll-btn') as HTMLElement | null;
+    if (!btn) return;
+    btn.classList.toggle('show', on);
+    if (on) btn.innerHTML = emoji + '<span class="kc">G</span><span class="blab">' + label + '</span>';
   }
 
   setSniffState(on: boolean) {

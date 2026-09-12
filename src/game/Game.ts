@@ -781,6 +781,7 @@ export class Game {
       try { this.bones = new Set(JSON.parse(localStorage.getItem(townKey('bones')) || '[]')); } catch { this.bones = new Set(); }
       // one red collar for every Clipper — the picker went with the 8/24 simplification
       (this.player as Dog).setCollar('#b5402f');
+      this.hud.initRoll(() => this.flop());
       this.hud.initBark(() => this.barkPress(), () => this.barkRelease());
       // B barks (Devin's pick); F stays as a quiet alias for anyone who learned it
       window.addEventListener('keydown', (e) => { if ((e.code === 'KeyB' || e.code === 'KeyF') && !e.repeat && !this.hud.dialogueOpen) this.barkPress(); });
@@ -820,6 +821,7 @@ export class Game {
       }
       if (e.code === 'KeyB' && LEGACY_KID) this.toggleBike();   // dog mode: B is BARK (below)
       if (e.code === 'KeyK') this.toggleBike();
+      if (e.code === 'KeyG' && !e.repeat && !this.hud.dialogueOpen) this.flop();   // 🌿 the season's flop
       const n = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9'].indexOf(e.code);
       if (n >= 0) {
         const travel = ['market-square', 'boardwalk', 'frog-pond', 'marchs-hill', 'mbta', 'gillis', 'airport', 'pink-house', 'pi-light'];
@@ -2900,13 +2902,6 @@ export class Game {
       const door = !this.onTrain && !this.flying && !this.kayaking && !this.inside && !this.riding ? this.life?.trainDoor() ?? null : null;
       if (this.flying) act = { label: '🛬 LAND', cb: () => this.land() };
       else if (door && Math.hypot(this.px - door.x, this.pz - door.z) < 70) act = { label: '🚆 BOARD', cb: () => this.openTrainBoard() };
-      else if (this.snowAngelT <= 0 && this.rollT <= 0 && this.lastSpeed < 6 && !LEGACY_KID && !this.inside && !this.onWater && !this.swimming && !this.riding && !this.kayaking && !this.flying
-        && !this.index.onPavedAt(this.px, this.pz) && !this.index.isWaterAt(this.px, this.pz)) {
-        // the same flop all year: snow to lie in, leaves to scatter, or just grass
-        act = SEASON === 'winter' ? { label: '❄️ SNOW ANGEL', cb: () => this.snowAngel() }
-          : SEASON === 'fall' ? { label: '🍂 LEAF PILE', cb: () => this.roll('#c96a27') }
-          : { label: '🌿 ROLL', cb: () => this.roll('#6f8f4a') };
-      }
       else if (this.kayaking) { if (this.landNear()) act = { label: '🛶 HOP OUT', cb: () => this.exitKayak() }; }
       else if (!this.inside && !this.boating && !this.sweeping) {
         if (this.flightEnabled && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
@@ -2929,6 +2924,19 @@ export class Game {
           this.hud.showTalk(act ? act.label : null, act ? act.cb : undefined);
         }
       }
+      // 🌿 THE FLOP, offered on the STACK — see hud .roll-btn for why it is not the
+      // contextual pill. ⚠️ AND THE GROUND TEST IS POSITIVE NOW. It used to be
+      // !onPavedAt, which is a test for "not a road or a footway" — and downtown's
+      // BRICK is neither, so Clipper rolled on State Street's brick sidewalk throwing
+      // up grass (Devin, with a screenshot: "he's rolling around on brick and yet
+      // there's grass popping up"). standingOn() answers the question actually being
+      // asked: is there grass, park, garden, sand or marsh under him?
+      const canFlop = !LEGACY_KID && !this.inside && !this.onWater && !this.swimming
+        && !this.riding && !this.kayaking && !this.flying && !this.inTunnel
+        && this.snowAngelT <= 0 && this.rollT <= 0 && this.lastSpeed < 6
+        && this.index.standingOn(this.px, this.pz) === 'green';
+      this.hud.setRoll(canFlop, SEASON === 'winter' ? '❄️' : SEASON === 'fall' ? '🍂' : '🌿',
+        SEASON === 'winter' ? 'ANGEL' : SEASON === 'fall' ? 'LEAVES' : 'ROLL');
       this.hud.setStreet(this.inTunnel ? 'the tunnels' : this.interior ? this.interior.name : this.index.nearestRoadName(this.px, this.pz, 170));
       if (!this.inside) {
         // tunnel coords overlap downtown's — minimap dot, gull logic, and
@@ -3406,6 +3414,14 @@ export class Game {
   }
 
   /** ❄️ down on his back in the snow, a wriggle, and the angel stays until spring (or the eighth one) */
+  /** the season's flop, from the stack button or G */
+  private flop() {
+    if (this.snowAngelT > 0 || this.rollT > 0 || LEGACY_KID || this.inside) return;
+    if (this.index.standingOn(this.px, this.pz) !== 'green') return;
+    if (SEASON === 'winter') this.snowAngel();
+    else this.roll(SEASON === 'fall' ? '#c96a27' : '#6f8f4a');
+  }
+
   /** 🌿 roll on his back in the grass (or the leaves) — the snow angel, out of season */
   private roll(hex: string) {
     if (this.rollT > 0 || this.snowAngelT > 0) return;
@@ -3425,7 +3441,12 @@ export class Game {
       // += here bakes yaw into the root and the dog runs sideways for ever after.
       root.rotation.z = Math.PI * k * (0.82 + Math.sin(this.rollT * 9) * 0.18);
       root.rotation.y = Math.sin(this.rollT * 16) * 0.1;
-      root.position.y = this.kidY + 7 * k;
+      // ⚠️ AND THE LIFT HAS TO CLEAR HIS OWN BODY. The root sits at the PAWS, so a
+      // 180° roll about it swings the whole trunk BELOW ground — Devin: "his entire
+      // body can be underground during the rolling process." The trunk rides ~8 px
+      // over the root, so an upside-down dog needs about twice that to come back up
+      // level. Scaled by k so he rises as he goes over, not before.
+      root.position.y = this.kidY + 15 * k;
       if (Math.random() < dt * 7) this.eggs?.burst(this.px, this.kidY + 6, this.pz, this.rollHex, 5, false, 2.2, 0.7);
       return;
     }
@@ -3449,7 +3470,7 @@ export class Game {
       // on his back, wriggling: the roll, a lift so the legs clear the snow, a wag of the whole dog
       const k = Math.min(1, (2.6 - this.snowAngelT) / 0.35);
       root.rotation.z = Math.PI * k;
-      root.position.y = this.kidY + 9 * k;
+      root.position.y = this.kidY + 15 * k;   // ⚠️ was 9 — not enough to clear his own trunk, so he sank through the snow (same fault as the roll)
       // ASSIGN, never accumulate: `+=` here added a fresh wriggle on top of the last one
       // every frame for 2.6 s, and the tidy-up below only cleared rotation.z — so the dog
       // stood up with a few tenths of a radian of yaw baked into its root and ran sideways
