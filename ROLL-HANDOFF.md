@@ -294,3 +294,31 @@ Dev hooks on `window.nbpt`: `squirrel()` (one under the nearest tree), `flock()`
 howl, the flock grounded and airborne, mud on State Street. NOT screenshot-verified
 (logic only): the HEY! bubbles (no walker was within 64 px in the rig) and the
 chase — worth a real-hands check on those two.
+
+---
+
+## 9. The secrets (9/13) — "the ones you always remember"
+
+Devin: "i always loved in mario kart or some other game how there was like easter
+eggs, like a secret tunnel or something.... how could we add those things you
+always remember?" → "i love it, go for all of them". All in `src/game/secrets.ts`;
+Newburyport only (`TOWN.id === 'nbpt'`), every coordinate a real place.
+
+The rules: found by DOING something (dig, walk in, climb, bark); **zero hint** (not
+on the sniff glow, not in DISCOVER); a hidden tally (`nbpt-secrets`, "2 of ??")
+shown on the chapter card only when one is found; a payoff you can show someone.
+
+| secret | how | notes |
+|---|---|---|
+| 🕳 **The Smugglers' Tunnel** | dig on the iron grate in the back lot off State Street (`STATE_LOT`); run the brick corridor; up through the grate off Federal Street. Works both ways. | `SecretTunnel('brick')`: walls along a polyline in its own scene, lantern follows him. Game swaps scenes exactly like the story tunnel (`enterSecretScene` / `exitSecretScene`); `Game.tunnel` is now `TunnelScene \| SecretTunnel`, the story's lives in `storyTunnel`. |
+| 🚇 **The Room in the Pipe** | walk into the culvert mouth beside the rail trail's south stretch (`CULVERT_A/B`, ~(120, 10771)); halfway, a side room — candle on a crate, CLIPPER WAS HERE in chalk, a golden bone. | First pick by the harbour put the mouth in the water; the spot was recomputed inland (green both sides). ⚠️ **No ceiling** on either corridor: the chase cam rides above the walls and a slab is a black screen. |
+| 🏙 **The Weathervane** | the fire escape up the back (SE corner) of the Intermodal garage: 🪜 CLIMB on the contextual button; walk the roof; a hop across the alley onto Horton's Yard; touch the rooster vane and it spins. 🪜 CLIMB DOWN at the ladder. | `roofMode`: movement's `free()` becomes `roofFree` (a roof within ±18 px of `roofY`, or one across a gap ≤ 40 px → `gapHop` → the fence hop); `kidY` = `roofY`; the stuck-ejector is skipped. Lose the roof for 0.6 s and it drops him. |
+| 🌊 **The Tide Pool** | the North Jetty off Plum Island Point (a `pier` poly, `s:'jetty'`, in map.mjs + world.json, drawn as granite in decor). At its tip, a pool in the rocks with a lobster — only when `TIDE.value < -0.55` (the tide runs ±1.2; out at noon and midnight). Get close and the lobster waves. | `s:'jetty'` is exempt from `floatOutForWinter` in index.ts (both sites) and from the moorings fill in decor. |
+| 💥 **The Cannon Fires** | three barks inside six seconds within 95 px of the Custom House cannon (`eggs2 cannonAt` (1040, −1120)). Its own card says it never will. `audio.boom`, recoil on the eggs' cannon group, smoke, BOOM!, gulls up. | `Eggs.cannonGroup` getter hands the group to Secrets for the recoil. |
+
+Dev: `nbpt.secret('state'|'federal'|'pipe'|'ladder'|'vane'|'pool'|'cannon'|'jettyStart')`
+teleports; `nbpt._secrets()` is the object. Rig: `scratchpad/sec.mjs`, `sec2.mjs`.
+All five screenshot-verified (corridor, room card, roof + CLIMB DOWN, vane card,
+granite jetty, lobster at the tip, cannon smoke). ⚠️ Ground props take their height
+from `heightAtPx` **every frame** — at boot the terrain has not loaded and they were
+built 80 px underground.

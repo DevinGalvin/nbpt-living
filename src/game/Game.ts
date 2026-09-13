@@ -23,6 +23,7 @@ import { Diag } from './flickerDiag';
 import { startWatchdog, phase, heartbeat } from './watchdog';
 import { QuestRunner, BOAT_ARRIVE } from './quest';
 import { TunnelScene, TUNNEL_ENTRY } from './tunnel';
+import { Secrets, SecretTunnel } from './secrets';
 import { DenScene, StarRoomScene, NewsroomScene, Interior } from './interiors';
 import { HistoryRunner, SITES } from './history';
 import { initSchool } from './school';
@@ -267,7 +268,9 @@ export class Game {
   private gillis: GillisBridge | null = null;
   private quest: QuestRunner | null = null;
   private sky!: Sky;
-  private tunnel: TunnelScene | null = null;
+  private tunnel: TunnelScene | SecretTunnel | null = null;   // the scene he is in: the story's, or a secret's
+  private storyTunnel: TunnelScene | null = null;
+  private secrets: Secrets | null = null;
   private history: HistoryRunner | null = null;
   private race: RaceRunner | null = null;
   private eggs: EggRunner | null = null;
@@ -609,6 +612,16 @@ export class Game {
     this.life = new Life(this.scene, this.index, this.audio);
     this.life.onSay = (x, y, z, text) => { const sp = this.screenOf(x, y, z); if (sp) this.hud.woof(sp[0], sp[1], text); };
     this.life.onHowlCue = (lv) => this.howlCue(lv);
+    // 🤫 the secrets (Newburyport only — every coordinate is a real place here)
+    this.secrets = new Secrets(this.scene, this.index, this.hud, this.audio, {
+      enterScene: (sc, entry) => this.enterSecretScene(sc, entry),
+      exitScene: (x, z) => this.exitSecretScene(x, z),
+      enterRoof: (x, z) => this.enterRoof(x, z),
+      leaveRoof: (x, z) => this.leaveRoof(x, z),
+      fireCannon: () => this.fireCannon(),
+      burst: (x, y, z, hex, n, size, life, spray, up) => this.eggs?.burst(x, y, z, hex, n, false, size, life, spray, up),
+      say: (text) => { const sp = this.playerScreen(); if (sp) this.hud.woof(sp[0], sp[1] - 12, text); },
+    });
     this.life.setRange(this.mobile ? 1 : 1.6);   // a desktop sees further: spawn and retire further out
     if (arrivedByTrain) {
       this.life.trainArrived();
@@ -919,6 +932,8 @@ export class Game {
       squirrel: () => this.life?.debugSquirrel(this.px, this.pz),
       flock: () => this.life?.debugFlock(this.px, this.pz),
       howl: () => { this.howlCool = 0; this.howlCue(1); },
+      secret: (name: keyof typeof Secrets.SPOTS) => { const p = Secrets.SPOTS[name]; if (p) { this.px = p.x + 6; this.pz = p.z + 6; } return Object.keys(Secrets.SPOTS); },
+      _secrets: () => this.secrets,
       // dev: teleport to a course start + begin it (nbpt.race() = the homecoming run)
       race: (id = TOWN.devCourse) => {
         const c = COURSES.find((k) => k.id === id);
@@ -1349,6 +1364,7 @@ export class Game {
       this.life.scare(this.px, this.pz);
     }
     if (this.eggs && !this.inside) this.eggs.bark(this.px, this.pz);
+    if (!this.inside) this.secrets?.bark(this.px, this.pz);
     // WOOF! at Clipper's screen spot — the same projection the pet-tap uses
     const sp = this.screenOf(this.player.root.position.x, this.player.root.position.y + 14, this.player.root.position.z);
     if (sp) this.hud.woof(sp[0], sp[1]);
@@ -1473,6 +1489,8 @@ export class Game {
     this.digAnim = 0;
     (this.player as Dog).setDigging?.(false);
     const sp = this.playerScreen();
+    // 🕳 dug on the grate? then it is not a hole, it is a way down
+    if (this.secrets?.dig(this.px, this.pz)) { this.digHold = -1.4; this.endSniff(); return; }
     if (found) {
       const cx = Math.floor(this.px / 800), cy = Math.floor(this.pz / 800);
       // the found key is the CELL of the bone actually dug — recompute from the spot
@@ -1681,7 +1699,8 @@ export class Game {
 
   enterTunnel() {
     this.hud.fadeThrough(() => {
-      if (!this.tunnel) this.tunnel = new TunnelScene(this.hud, this.audio, () => this.exitTunnel());
+      if (!this.storyTunnel) this.storyTunnel = new TunnelScene(this.hud, this.audio, () => this.exitTunnel());
+      this.tunnel = this.storyTunnel;
       this.preTunnel = { x: this.px, z: this.pz };
       this.inTunnel = true;
       this.tunnel.scene.add(this.player.root);
@@ -1725,6 +1744,91 @@ export class Game {
         setTimeout(() => this.hud.chapterCard('CHAPTER 2 COMPLETE', 'The Door Under Downtown', 'the lantern is yours · the map is torn'), 500);
       }
     });
+  }
+
+  // ---------- 🤫 the secrets: scene swaps, the roofs, the cannon ----------
+
+  private enterSecretScene(sc: SecretTunnel, entry: { x: number; z: number }) {
+    if (this.inTunnel || this.inside) return;
+    this.hud.fadeThrough(() => {
+      this.tunnel = sc;
+      this.preTunnel = { x: this.px, z: this.pz };
+      this.inTunnel = true;
+      sc.scene.add(this.player.root);
+      if (this.dog) sc.scene.add(this.dog.root);
+      this.px = entry.x; this.pz = entry.z;
+      this.player.setPos(this.px, this.pz);
+      this.kidY = 0; this.dogY = 0;
+      this.dog?.root.position.set(this.px + 14, 0, this.pz - 8);
+      this.camAz = Math.PI;
+      this.dismount();
+      this.audio.setUnderground(true);
+      this.hud.setVignette(true);
+      this.hud.showTalk(null);   // whatever verb was up top-side stays top-side
+      sc.enter();
+      this.updateCamera(0.016, true);
+    });
+  }
+
+  private exitSecretScene(x: number, z: number) {
+    this.hud.fadeThrough(() => {
+      this.inTunnel = false;
+      this.tunnel = null;
+      this.scene.add(this.player.root);
+      if (this.dog) this.scene.add(this.dog.root);
+      this.px = x; this.pz = z;
+      this.player.setPos(this.px, this.pz);
+      const g = this.terrain.heightAt(this.px, this.pz);
+      this.kidY = g; this.dogY = g;
+      this.dog?.root.position.set(this.px - 20, g, this.pz + 12);
+      this.audio.setUnderground(false);
+      this.audio.stoneScrape();
+      this.hud.setVignette(false);
+      this.hud.showTalk(null);
+      this.updateCamera(0.016, true);
+    });
+  }
+
+  /** 🪜 up the fire escape: he lands on the parapet, and the roofs are his */
+  private enterRoof(x: number, z: number) {
+    if (!this.secrets) return;
+    this.hud.fadeThrough(() => {
+      this.px = x; this.pz = z;
+      this.player.setPos(this.px, this.pz);
+      this.secrets!.onRoof(this.px, this.pz);
+      this.kidY = this.secrets!.roofY;
+      this.dismount();
+      this.audio.stoneScrape();
+      this.updateCamera(0.016, true);
+    });
+  }
+
+  private leaveRoof(x: number, z: number) {
+    if (!this.secrets) return;
+    this.hud.fadeThrough(() => {
+      this.secrets!.offRoof();
+      this.px = x; this.pz = z;
+      this.player.setPos(this.px, this.pz);
+      this.kidY = this.terrain.heightAt(this.px, this.pz);
+      this.audio.stoneScrape();
+      this.updateCamera(0.016, true);
+    });
+  }
+
+  /** 💥 the Custom House cannon, which its own card says will never fire */
+  private fireCannon() {
+    const cg = this.eggs?.cannonGroup;
+    this.audio.boom(1);
+    if (cg) {
+      const dx = Math.cos(cg.rotation.y), dz = -Math.sin(cg.rotation.y);
+      const mx = cg.position.x + dx * 9, mz = cg.position.z + dz * 9, my = cg.position.y + 5;
+      this.eggs?.burst(mx, my, mz, '#e9e4d8', 40, false, 4.2, 1.6, 0.9, 14);
+      this.eggs?.burst(mx, my, mz, '#ffb347', 12, false, 3, 0.35, 1.2, 10);
+      const sp = this.screenOf(mx, my + 8, mz);
+      if (sp) this.hud.woof(sp[0], sp[1], 'BOOM!');
+    }
+    this.life?.scare(this.px, this.pz);   // every gull for a quarter mile goes up
+    (this.player as Dog).bark?.();
   }
 
   // ---------- Chapter 4: the boat ride out to the Wharf Rats' den ----------
@@ -2461,6 +2565,8 @@ export class Game {
           || Math.hypot(x - BOAT_DOOR.x, y - BOAT_DOOR.z) < 150
       : this.inTunnel
       ? (x: number, y: number) => this.tunnel!.free(x, y)
+      : this.secrets?.roofMode
+      ? (x: number, y: number) => this.secrets!.roofFree(x, y, this.px, this.pz)   // 🏙 roofs: walkable where a roof is, hop where an alley is
       : this.interior
       ? (x: number, y: number) => this.interior!.free(x, y)
       : (x: number, y: number) => {
@@ -2538,7 +2644,7 @@ export class Game {
     // yanks you back to shore, the flag never flips, and the dog oscillates at the
     // tideline forever (measured: +3 px in, −7 px out, every frame).
     const enteringWater = !LEGACY_KID && this.wetAt(nx, nz);
-    if (!this.inside && !this.onWater && !this.swimming && !enteringWater && !this.sweeping) {   // not while kayaking (or swimming) — the collision
+    if (!this.inside && !this.onWater && !this.swimming && !enteringWater && !this.sweeping && !this.secrets?.roofMode) {   // not while kayaking (or swimming) — the collision
       // grid reads "blocked" out past the built chunks, which would shove the kayak back
       // from open sea (the invisible wall); on the water the isWaterAt free() is enough
       // (and never while pinned at the tower for the beam-sweep)
@@ -2630,7 +2736,7 @@ export class Game {
     // Decks are entered where they meet the grade — passing beneath a raised
     // overpass keeps you on the ground under it, head safely below the span.
     const terrainY = this.inside ? 0 : this.onWater ? WATER_Y : this.terrain.heightAt(this.px, this.pz);
-    const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.swimming ? this.swimSurfaceY() - 8.5 : this.index.surfaceYAt(this.px, this.pz, this.kidY);
+    const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.swimming ? this.swimSurfaceY() - 8.5 : this.secrets?.roofMode ? this.secrets.roofY : this.index.surfaceYAt(this.px, this.pz, this.kidY);
     this.kidY += (surfY - this.kidY) * Math.min(1, dt * 12);
     if (this.flying) this.kidY = this.flyY;   // ✈️ altitude overrides the terrain-follow
     // hop low fences/hedges (they no longer block) — a quick arc as you cross one
@@ -2804,6 +2910,14 @@ export class Game {
     if (this.waterUpdate && !this.inside) this.waterUpdate(t, this.sky.state, tideAt(this.sky.tod));
     phase('life');
     if (this.life && !this.inside) this.life.update(dt, this.px, this.pz, t, Math.sin(this.camAz), Math.cos(this.camAz), sky.night, this.sky.tod, sky.wet);
+    if (this.secrets) {
+      if (!this.secrets.enabled) { /* another town */ }
+      else {
+        if (this.eggs && !(this.secrets as unknown as { cannonSet?: boolean }).cannonSet) { const cg = this.eggs.cannonGroup; if (cg) { this.secrets.setCannon(cg); (this.secrets as unknown as { cannonSet?: boolean }).cannonSet = true; } }
+        this.secrets.update(dt, this.px, this.pz, this.inside || this.flying || this.riding || this.kayaking || this.swimming);
+        if (this.secrets.gapHop) { this.secrets.gapHop = false; if (this.hopT <= 0) this.hopT = 0.5; }
+      }
+    }
     if (this.onTrain && this.life) {
       // aboard: ride the first coach, and once the town has slid away go to the next one
       const car = this.life.trainCar(1);
@@ -2985,7 +3099,9 @@ export class Game {
       else if (door && Math.hypot(this.px - door.x, this.pz - door.z) < 70) act = { label: '🚆 BOARD', cb: () => this.openTrainBoard() };
       else if (this.kayaking) { if (this.landNear()) act = { label: '🛶 HOP OUT', cb: () => this.exitKayak() }; }
       else if (!this.inside && !this.boating && !this.sweeping) {
-        if (this.flightEnabled && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
+        const sa = this.secrets?.action(this.px, this.pz) ?? null;
+        if (sa) act = sa;
+        else if (this.flightEnabled && Math.hypot(this.px - AIRPORT.x, this.pz - AIRPORT.z) < AIRPORT.r) act = { label: '✈️ FLY', cb: () => this.enterPlane() };
         // 🛶 the free-roam kayak is the KID's way onto the water; the dog swims, so
         // the offer is retired for him (Devin: "just get rid of the kayak since the
         // dog can swim now"). The one scripted kayak — Grandpa's, at the Joppa slip in

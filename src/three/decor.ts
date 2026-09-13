@@ -11990,6 +11990,28 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
         if (poly.n) buildGreasyPole(buckets, poly);
         continue;
       }
+      if (poly.s === 'jetty') {
+        // 🪨 THE NORTH JETTY: granite, not planks. Big grey blocks along both edges,
+        // a rough grey top between them, a few blocks tumbled at the toe — the
+        // riprap arm that runs off Plum Island Point into the river mouth. Walkable
+        // (deckHeightAt takes it as a pier), and it does not float out for winter.
+        const py = PIER_DECK_Y + 1.5;
+        walls(buckets[PLAIN], poly.p, -6, py, '#7d7a72', 0);
+        flatRoof(buckets[PLAIN], poly.p, py, '#8d8a82');
+        const [ax, az, bx2, bz] = [poly.p[0], poly.p[1], poly.p[2], poly.p[3]];
+        const [dx2, dz2] = [poly.p[6], poly.p[7]];
+        const len = Math.hypot(bx2 - ax, bz - az), ang = Math.atan2(bz - az, bx2 - ax);
+        const nx = (dx2 - ax), nz = (dz2 - az), nl = Math.hypot(nx, nz) || 1;
+        for (let t = 6; t < len; t += 11) {
+          const h = hash32(Math.round(t), 5);
+          for (const side of [0, 1]) {
+            const cx = ax + (bx2 - ax) * (t / len) + (nx / nl) * (side ? nl - 1 : 1);
+            const cz = az + (bz - az) * (t / len) + (nz / nl) * (side ? nl - 1 : 1);
+            rotBox(buckets[PLAIN], cx, cz, 4 + (h % 3), 3.2, py - 1, py + 1.6 + ((h >> 2) % 3), ang + ((h >> 4) % 7 - 3) * 0.06, (h >> 6) % 2 ? '#6f6c65' : '#85817a');
+          }
+        }
+        continue;
+      }
       if (floatOutForWinter(poly.p)) continue;   // the marina pulls its floats for winter
       // Pier POLYS are the full-width (solid finger) dock surface; OSM often ALSO maps a
       // centerline 'pierline' through them, and that line's deck renders at PIER_DECK_Y too
@@ -12236,7 +12258,7 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
     // EVERY pier moors boats now, not just OSM mooring-tagged ones — a marina's
     // whole float grid sat empty (Devin: "tons of boats docked at all the docks").
     // The Greasy Pole gangway/platform is a fiesta structure, not a marina — no boats.
-    if (poly.k !== 'pier' || poly.s === 'greasy' || !MOOR_FILL || floatOutForWinter(poly.p)) continue;
+    if (poly.k !== 'pier' || poly.s === 'greasy' || poly.s === 'jetty' || !MOOR_FILL || floatOutForWinter(poly.p)) continue;   // nobody moors to a granite jetty
     const ring = poly.p.concat(poly.p.slice(0, 2));
     let placed = 0;
     walkLineD(ring, 74, (x, z, tx, tz) => {

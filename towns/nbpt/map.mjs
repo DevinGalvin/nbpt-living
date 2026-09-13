@@ -317,6 +317,14 @@ export function manualFeatures({ world }) {
   // …and the memorial that went up on the site in April 2026, north of where the
   // house stood, facing the Turnpike — where the people who pull over to look at
   // the marsh actually stand. Built in decor.ts (POI_HEROES).
+  // 🪨 THE NORTH JETTY. OSM has no breakwater here, but the granite arm off Plum
+  // Island Point into the river mouth is the most-walked structure on the island.
+  // A 'pier' so deckHeightAt makes it walkable; s:'jetty' so decor draws granite
+  // and winter does not float it out with the marina. Geometry mirrors
+  // src/game/secrets.ts (jettyRing) — the tide pool at its tip lives there.
+  world.polys = world.polys.filter((q) => q.s !== 'jetty');
+  world.polys.push({ k: 'pier', n: 'North Jetty', s: 'jetty', p: [34257, -4994, 34641, -5478, 34627, -5490, 34243, -5006] });
+
   world.pois = (world.pois || []).filter((q) => q.s !== 'nbpt-pinkmem');
   world.pois.push({ x: 25892, y: 13268, k: 'memorial', n: 'The Pink House Memorial', s: 'nbpt-pinkmem' });
 

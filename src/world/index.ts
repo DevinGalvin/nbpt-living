@@ -2076,7 +2076,7 @@ export class WorldIndex {
     // winter (the Greasy Pole structure is a fixture: walkable in every season)
     for (const pi of bucket.polys) {
       const poly = w.polys[pi];
-      if (poly.k !== 'pier' || (poly.s !== 'greasy' && floatOutForWinter(poly.p))) continue;
+      if (poly.k !== 'pier' || (poly.s !== 'greasy' && poly.s !== 'jetty' && floatOutForWinter(poly.p))) continue;
       ctx.fillStyle = '#000000';
       tracePoly(ctx, poly);
       ctx.fill('evenodd');
@@ -2164,7 +2164,7 @@ export class WorldIndex {
       for (const pi of b.polys) {
         const poly = this.world.polys[pi];
         // s:'greasy' = the Greasy Pole structure: a fixture, never floats out for winter
-        if (poly.k === 'pier' && (poly.s === 'greasy' || !floatOutForWinter(poly.p))) d.piers.push(poly);
+        if (poly.k === 'pier' && (poly.s === 'greasy' || poly.s === 'jetty' || !floatOutForWinter(poly.p))) d.piers.push(poly);
       }
       this.deckCache.set(key, d);
     }

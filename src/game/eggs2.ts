@@ -131,6 +131,8 @@ export class MoreEggs {
   private catHop = 0;
   private lastPx = 0; private lastPz = 0; private dogSpeed = 0;
   private cannon: THREE.Group | null = null;
+  /** the cannon, for Secrets to recoil — its card says it never fires; three barks say otherwise */
+  get cannonGroup(): THREE.Group | null { return this.cannon; }
   private cannonAt = { x: 1040, z: -1120, dx: 1, dz: 0 };
   private diggers: { g: THREE.Group; ph: number }[] = [];
   private cat: THREE.Group | null = null;

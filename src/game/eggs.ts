@@ -806,6 +806,7 @@ export class EggRunner {
 
   /** a bark reaches the second drawer too: the cat, the seal, the plovers */
   bark(px: number, pz: number) { this.more.bark(px, pz); }
+  get cannonGroup(): THREE.Group | null { return this.more.cannonGroup; }
 
   // `spray` scales how hard the particles are thrown: 1 is the confetti burst this was
   // written for, a fraction is a kick of water off the paws that stays near the ground

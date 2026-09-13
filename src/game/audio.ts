@@ -462,6 +462,33 @@ export class GameAudio {
     }
   }
 
+  /** 💥 a cannon: a low thump with a noise tail that rolls off across the water */
+  boom(level = 1) {
+    if (!this.ctx || !this.enabled) return;
+    const t0 = this.ctx.currentTime + 0.02;
+    const o = this.ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(110, t0);
+    o.frequency.exponentialRampToValueAtTime(28, t0 + 0.6);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.9 * level, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.1);
+    o.connect(g); g.connect(this.master);
+    o.start(t0); o.stop(t0 + 1.2);
+    // the crack and the roll: filtered noise, bright then dull
+    const n = 1.6, sr = this.ctx.sampleRate;
+    const buf = this.ctx.createBuffer(1, Math.floor(sr * n), sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2.2);
+    const src = this.ctx.createBufferSource(); src.buffer = buf;
+    const f = this.ctx.createBiquadFilter(); f.type = 'lowpass';
+    f.frequency.setValueAtTime(3200, t0); f.frequency.exponentialRampToValueAtTime(180, t0 + 1.4);
+    const ng = this.ctx.createGain(); ng.gain.value = 0.5 * level;
+    src.connect(f); f.connect(ng); ng.connect(this.master);
+    src.start(t0);
+  }
+
   /** 🐺 a howl: the long "awooo" — a soft saw with a slow vibrato, rising a fifth
    *  and settling, over ~1.8 s. `detune` (semitones) gives every dog its own voice,
    *  so a chorus is a chorus and not one sound played five times. */
