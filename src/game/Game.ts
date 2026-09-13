@@ -413,7 +413,9 @@ export class Game {
   private wedgeDir = 0;   // committed glance side while wedged on a wall/shore — one direction per wedge, so the deflection can't ±flip into an infinite shake
   private hopT = 0; private wasNearFence = false;       // kid hops low fences
   private hopH = 8;                                      // the arc's height: 8 for a fence, more for a roof gap
-  private roofFall = false;                              // dropping off a roof to the street
+  // 🏙 a jump in flight: a parabola from where he left the edge to where he lands.
+  // Position and height are driven from here for its duration; the stick is off.
+  private leapS: { t: number; dur: number; x0: number; z0: number; y0: number; x1: number; z1: number; y1: number; h: number; fall: boolean } | null = null;
   private dogHopT = 0; private dogWasNearFence = false; // so does Clipper
   private dogY = 0;
   private fov = 55;
@@ -1817,14 +1819,44 @@ export class Game {
     });
   }
 
-  /** 🏙 off the edge with nothing under him: the roofs let go, the terrain-follow
-   *  takes him down (it is exponential, so it reads as a drop), and the landing above
-   *  does the rest. No fade, no teleport — he FELL, and that is the fun of it. */
-  private fallFromRoof() {
-    if (!this.secrets?.roofMode) return;
-    this.secrets.offRoof();
-    this.roofFall = true;
+  /** 🏙 THE JUMP. Devin: "the roof jumps are far from natural" — they were the fence
+   *  hop with the walk speed left on: he glided across with a bump. This is a real
+   *  leap: a burst across the gap on a parabola sized to the distance and the drop,
+   *  the stick off, the dog stretched out in the air, a squash and a thump when he
+   *  lands. A fall (nothing to land on) is the same arc with a low hump and the
+   *  street as the target. */
+  private startLeap(x1: number, z1: number, y1: number, fall: boolean) {
+    if (this.leapS || !this.secrets) return;
+    const x0 = this.px, z0 = this.pz, y0 = this.kidY;
+    const dist = Math.hypot(x1 - x0, z1 - z0), drop = Math.max(0, y0 - y1);
+    const dur = Math.max(0.35, Math.min(1.1, 0.3 + dist / 260 + drop / 200));
+    const h = fall ? 6 : Math.max(10, Math.min(28, 10 + dist * 0.22));
+    this.leapS = { t: 0, dur, x0, z0, y0, x1, z1, y1, h, fall };
+    (this.player as Dog).setAirborne?.(true);
     this.hopT = 0;
+    if (fall) this.secrets.offRoof();
+    if (this.sniffing) this.endSniff();
+  }
+
+  private landLeap() {
+    const L = this.leapS;
+    if (!L) return;
+    this.leapS = null;
+    this.px = L.x1; this.pz = L.z1; this.kidY = L.y1;
+    const dog = this.player as Dog;
+    dog.setAirborne?.(false);
+    dog.land?.();
+    if (!L.fall && this.secrets?.roofMode) this.secrets.roofY = L.y1;
+    const drop = L.y0 - L.y1;
+    if (drop > 10 || L.fall) {
+      this.audio.thump();
+      this.eggs?.burst(this.px, this.kidY + 1, this.pz, '#c9bfae', L.fall ? 14 : 8, false, 2.4, 0.5, 0.5, 8);
+    }
+    if (L.fall) {
+      dog.shake?.();
+      const sp = this.playerScreen();
+      if (sp) this.hud.woof(sp[0], sp[1] - 10, 'OOF!');
+    }
   }
 
   /** 💥 the Custom House cannon, which its own card says will never fire */
@@ -2540,7 +2572,7 @@ export class Game {
     if (this.inside) this.sprinting = false;
     let speed = this.inside ? JOG : this.riding ? 530 : this.kayaking ? 600 : this.sprinting ? SPRINT : JOG;
     if (this.race?.freeze) speed = 0;   // held at the start line through the countdown
-    if (this.snowAngelT > 0 || this.rollT > 0 || (this.player as Dog).flopping || (this.player as Dog).howling || this.legT > 0) speed = 0; // flat on his back, mid-howl, or busy at a hydrant
+    if (this.snowAngelT > 0 || this.rollT > 0 || (this.player as Dog).flopping || (this.player as Dog).howling || this.legT > 0 || this.leapS) speed = 0; // flat on his back, mid-howl, busy at a hydrant, or in the air
     if (this.sniffing) speed *= 0.4;    // nose down = a careful, readable creep
     // the dog-paddle: 200 cruising, 320 with RUN held — a harbor or a lake is a long
     // way across at a paddle, and the run button should mean something in the water too
@@ -2656,7 +2688,7 @@ export class Game {
     // yanks you back to shore, the flag never flips, and the dog oscillates at the
     // tideline forever (measured: +3 px in, −7 px out, every frame).
     const enteringWater = !LEGACY_KID && this.wetAt(nx, nz);
-    if (!this.inside && !this.onWater && !this.swimming && !enteringWater && !this.sweeping && !this.secrets?.roofMode) {   // not while kayaking (or swimming) — the collision
+    if (!this.inside && !this.onWater && !this.swimming && !enteringWater && !this.sweeping && !this.secrets?.roofMode && !this.leapS) {   // not while kayaking (or swimming) — the collision
       // grid reads "blocked" out past the built chunks, which would shove the kayak back
       // from open sea (the invisible wall); on the water the isWaterAt free() is enough
       // (and never while pinned at the tower for the beam-sweep)
@@ -2739,6 +2771,15 @@ export class Game {
       r.m.scale.setScalar(1 + k * 2.6);
       (r.m.material as THREE.MeshBasicMaterial).opacity = 0.5 * (1 - k);
     }
+    if (this.leapS) {
+      const L = this.leapS;
+      L.t += dt;
+      const u = Math.min(1, L.t / L.dur);
+      this.px = L.x0 + (L.x1 - L.x0) * u;
+      this.pz = L.z0 + (L.z1 - L.z0) * u;
+      this.kidY = L.y0 + L.h * 4 * u * (1 - u) + (L.y1 - L.y0) * u * u;   // up over the hump, then gravity wins
+      if (u >= 1) this.landLeap();
+    }
     this.player.setPos(this.px, this.pz);
     phase('player');
     this.player.update(dt, realVx, realVz, this.sprinting, this.riding, this.onWater);
@@ -2748,17 +2789,8 @@ export class Game {
     // Decks are entered where they meet the grade — passing beneath a raised
     // overpass keeps you on the ground under it, head safely below the span.
     const terrainY = this.inside ? 0 : this.onWater ? WATER_Y : this.terrain.heightAt(this.px, this.pz);
-    const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.swimming ? this.swimSurfaceY() - 8.5 : this.secrets?.roofMode ? this.secrets.roofY : this.index.surfaceYAt(this.px, this.pz, this.kidY);
+    const surfY = this.leapS ? this.kidY : this.inside ? 0 : this.onWater ? WATER_Y : this.swimming ? this.swimSurfaceY() - 8.5 : this.secrets?.roofMode ? this.secrets.roofY : this.index.surfaceYAt(this.px, this.pz, this.kidY);
     this.kidY += (surfY - this.kidY) * Math.min(1, dt * 12);
-    if (this.roofFall && Math.abs(surfY - this.kidY) < 2.5) {
-      // 🏙 down on the street: a thump, dust, the shake, and on with his day
-      this.roofFall = false;
-      this.audio.thump();
-      (this.player as Dog).shake?.();
-      this.eggs?.burst(this.px, this.kidY + 1, this.pz, '#c9bfae', 14, false, 2.4, 0.5, 0.5, 8);
-      const sp = this.playerScreen();
-      if (sp) this.hud.woof(sp[0], sp[1] - 10, 'OOF!');
-    }
     if (this.flying) this.kidY = this.flyY;   // ✈️ altitude overrides the terrain-follow
     // hop low fences/hedges (they no longer block) — a quick arc as you cross one
     const nearFence = !this.inside && !this.onWater && !this.swimming && this.index.lowBarrierNear(this.px, this.pz);
@@ -2936,9 +2968,15 @@ export class Game {
       else {
         if (this.eggs && !(this.secrets as unknown as { cannonSet?: boolean }).cannonSet) { const cg = this.eggs.cannonGroup; if (cg) { this.secrets.setCannon(cg); (this.secrets as unknown as { cannonSet?: boolean }).cannonSet = true; } }
         this.secrets.update(dt, this.px, this.pz, this.inside || this.flying || this.riding || this.kayaking || this.swimming);
-        if (this.secrets.leap > 0) { if (this.hopT <= 0) { this.hopT = 0.5; this.hopH = this.secrets.leap; } this.secrets.leap = 0; }
+        const jr = this.secrets.jumpReq;
+        if (jr) {
+          this.secrets.jumpReq = null;
+          // only when the stick is pushed that way — the request can come from a probe
+          const am = Math.hypot(this.aimX, this.aimZ);
+          if (!this.leapS && am > 0.2 && (jr.dx * this.aimX + jr.dz * this.aimZ) / am > 0.5) this.startLeap(jr.x, jr.z, jr.y, jr.fall);
+        }
         if (this.secrets.dropReq) { this.secrets.dropReq = false; this.audio.thump(); (this.player as Dog).shake?.(); }
-        if (this.secrets.fallReq) { this.secrets.fallReq = false; this.fallFromRoof(); }
+        if (this.secrets.fallReq) { this.secrets.fallReq = false; this.startLeap(this.px, this.pz, this.terrain.heightAt(this.px, this.pz), true); }
       }
     }
     if (this.onTrain && this.life) {

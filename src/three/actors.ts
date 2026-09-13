@@ -826,6 +826,14 @@ export class Dog {
   private legUpNow = false;
   private legUpP = 0;
 
+  /** 🏙 in the air (a jump between roofs, a drop): front legs reaching, hind legs
+   *  stretched back, tail up, nose up — then land() squashes him for a beat */
+  setAirborne(on: boolean) { this.airNow = on; }
+  land() { this.landT = 0.28; }
+  private airNow = false;
+  private airP = 0;
+  private landT = 0;
+
   /** 🐺 the howl: muzzle to the sky for the length of the note. Game fires it when
    *  something in town worth howling at sounds (the foghorn, the train). */
   howl() { this.howlT = 1.9; }
@@ -1151,6 +1159,28 @@ export class Dog {
 
     this.flopPose(dt, wagAmp);
     this.legUpPose(dt);
+    this.airPose(dt);
+  }
+
+  // 🏙 the jump: reach with the front, stretch the back, and a squash on landing
+  private airPose(dt: number) {
+    this.airP = ease(this.airP, this.airNow ? 1 : 0, dt, 12);
+    const k = this.airP;
+    if (k > 0.005) {
+      this.legs[0].rotation.x += -0.85 * k; this.legs[1].rotation.x += -0.85 * k;
+      this.shins[0].rotation.x += 0.35 * k; this.shins[1].rotation.x += 0.35 * k;
+      this.legs[2].rotation.x += 0.8 * k; this.legs[3].rotation.x += 0.8 * k;
+      this.shins[2].rotation.x += 0.15 * k; this.shins[3].rotation.x += 0.15 * k;
+      this.trunk.rotation.x -= 0.14 * k;
+      this.headGroup.rotation.x -= 0.3 * k;
+      this.earL.rotation.x += 0.5 * k; this.earR.rotation.x += 0.5 * k;   // ears streaming back
+      this.tail.rotation.x -= 0.35 * k;
+    }
+    if (this.landT > 0) {
+      this.landT = Math.max(0, this.landT - dt);
+      const sq = Math.sin((1 - this.landT / 0.28) * Math.PI);
+      this.roller.scale.set(1 + 0.1 * sq, 1 - 0.18 * sq, 1 + 0.06 * sq);
+    }
   }
 
   // 🚒 runs after flopPose (which zeroes the legs' z each frame it is idle), so the

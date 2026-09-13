@@ -39,8 +39,12 @@ export const SECRET_TOTAL = 5;
 const KEY = 'nbpt-secrets';
 
 // the sites, world px (Newburyport)
-const STATE_LOT = { x: -62, z: 551 };        // tunnel end A: near State Street, ~70 m down from Market Square
-const FEDERAL_LOT = { x: 2074, z: 3158 };    // tunnel end B: off Federal Street
+// the tunnel's three ends (seeds — the grate goes on the nearest diggable, dry,
+// unblocked spot, found at runtime): a back lot off State Street, a lot off Federal
+// Street, and Market Square itself. Three real tunnels, three ways up.
+const STATE_LOT = { x: -62, z: 551 };
+const FEDERAL_LOT = { x: 2074, z: 3158 };
+const MARKET_LOT = { x: 70, z: -60 };
 // the pipe's mouths: a box culvert running under the rail trail's south stretch, green
 // both sides (the first pick, by the harbour, put the mouth in the water)
 const CULVERT_A = { x: 120, z: 10771 };
@@ -99,18 +103,20 @@ export class SecretTunnel {
   done = false;
   readonly ends: { x: number; z: number }[];
   private width: number;
-  private path: { x: number; z: number }[];
+  private paths: { x: number; z: number }[][];
   private lantern: THREE.PointLight;
   private t = 0;
   private armed = false;
   private room: { x: number; z: number; r: number } | null;
   private roomSeen = false;
+  private nearEndIdx = -1;
   onExit: (end: number) => void = () => {};
   onRoom: () => void = () => {};
+  /** a way out is close (or not): Secrets puts 🪜 CLIMB OUT on the button */
+  onNearEnd: (end: number) => void = () => {};
 
-  constructor(kind: 'brick' | 'pipe', path: { x: number; z: number }[], width: number, room: { x: number; z: number; r: number } | null = null) {
-    this.path = path; this.width = width; this.room = room;
-    this.ends = [path[0], path[path.length - 1]];
+  constructor(kind: 'brick' | 'pipe', paths: { x: number; z: number }[][], width: number, ends: { x: number; z: number }[], room: { x: number; z: number; r: number } | null = null) {
+    this.paths = paths; this.width = width; this.room = room; this.ends = ends;
     const bg = kind === 'brick' ? '#04050a' : '#06080a';
     this.scene.background = new THREE.Color(bg);
     this.scene.fog = new THREE.Fog(bg, 140, 560);
@@ -123,31 +129,67 @@ export class SecretTunnel {
     const floorMat = new THREE.MeshLambertMaterial({ color: kind === 'brick' ? '#3b342e' : '#4a4f52' });
     const H = kind === 'brick' ? 44 : 30;
     // walls: a slab each side of every segment, overlapping at the corners
-    for (let i = 0; i + 1 < path.length; i++) {
-      const a = path[i], b = path[i + 1];
-      const dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz);
-      const ang = Math.atan2(dx, dz);
-      const nx = -dz / len, nz = dx / len;
-      for (const s of [-1, 1]) {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(8, H, len + width), wallMat);
-        m.position.set((a.x + b.x) / 2 + nx * s * (width / 2 + 4), H / 2, (a.z + b.z) / 2 + nz * s * (width / 2 + 4));
-        m.rotation.y = ang;
-        m.castShadow = true; m.receiveShadow = true;
-        this.scene.add(m);
+    for (const path of paths) {
+      for (let i = 0; i + 1 < path.length; i++) {
+        const a = path[i], b = path[i + 1];
+        const dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz);
+        const ang = Math.atan2(dx, dz);
+        const nx = -dz / len, nz = dx / len;
+        for (const sgn of [-1, 1]) {
+          const m = new THREE.Mesh(new THREE.BoxGeometry(8, H, len + width), wallMat);
+          m.position.set((a.x + b.x) / 2 + nx * sgn * (width / 2 + 4), H / 2, (a.z + b.z) / 2 + nz * sgn * (width / 2 + 4));
+          m.rotation.y = ang;
+          m.castShadow = true; m.receiveShadow = true;
+          this.scene.add(m);
+        }
+        const f = new THREE.Mesh(new THREE.PlaneGeometry(width + 8, len + width), floorMat);
+        f.rotation.x = -Math.PI / 2; f.rotation.z = -ang;
+        f.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
+        f.receiveShadow = true;
+        this.scene.add(f);
       }
-      const f = new THREE.Mesh(new THREE.PlaneGeometry(width + 8, len + width), floorMat);
-      f.rotation.x = -Math.PI / 2; f.rotation.z = -ang;
-      f.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
-      f.receiveShadow = true;
-      this.scene.add(f);
       // ⚠️ NO CEILING, on either kind. The chase camera rides above the walls, and a
       // slab up there is a black screen (the pipe shipped one for a frame: 9/13).
     }
-    // daylight at each end: a pale shaft
-    for (const e of this.ends) {
-      const shaft = new THREE.PointLight('#9fb4cd', 160, 240, 1);
-      shaft.position.set(e.x, 60, e.z);
+    // 🪜 THE WAYS OUT. Devin: "theres no way to get out of the tunnel" — there was, a
+    // 14 px spot in the dark. Now each end is CAPPED (the corridor visibly stops), a
+    // run of iron rungs goes up the cap, daylight comes down a shaft onto a pale
+    // patch of floor, and the button says CLIMB OUT when you are close.
+    for (const e of ends) {
+      let ux = 0, uz = -1;
+      for (const path of paths) {
+        const first = path[0], last = path[path.length - 1];
+        if (Math.hypot(first.x - e.x, first.z - e.z) < 1) { const n2 = path[1]; ux = first.x - n2.x; uz = first.z - n2.z; }
+        else if (Math.hypot(last.x - e.x, last.z - e.z) < 1) { const n2 = path[path.length - 2]; ux = last.x - n2.x; uz = last.z - n2.z; }
+        else continue;
+        const l = Math.hypot(ux, uz) || 1; ux /= l; uz /= l;
+      }
+      const ang = Math.atan2(ux, uz);
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(width + 16, H + 6, 8), wallMat);
+      cap.position.set(e.x + ux * (width / 2 + 2), H / 2, e.z + uz * (width / 2 + 2));
+      cap.rotation.y = ang;
+      this.scene.add(cap);
+      for (let y = 5; y < H + 4; y += 5) {
+        const rung = bx(6, 0.8, 1.2, '#4a4d52');
+        rung.position.set(e.x + ux * (width / 2 - 2.6), y, e.z + uz * (width / 2 - 2.6));
+        rung.rotation.y = ang;
+        this.scene.add(rung);
+      }
+      for (const sgn of [-1, 1]) {
+        const rail = bx(0.8, H + 2, 0.8, '#3a3d42');
+        rail.position.set(e.x + ux * (width / 2 - 2.6) - uz * sgn * 3.4, (H + 2) / 2, e.z + uz * (width / 2 - 2.6) + ux * sgn * 3.4);
+        this.scene.add(rail);
+      }
+      const shaft = new THREE.PointLight('#bcd0e8', 220, 260, 1);
+      shaft.position.set(e.x, H + 20, e.z);
       this.scene.add(shaft);
+      const beam = new THREE.Mesh(new THREE.CylinderGeometry(9, 15, H + 30, 10, 1, true),
+        new THREE.MeshBasicMaterial({ color: '#aebfd6', transparent: true, opacity: 0.12, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+      beam.position.set(e.x, (H + 30) / 2, e.z);
+      this.scene.add(beam);
+      const patch = new THREE.Mesh(new THREE.CircleGeometry(12, 16), new THREE.MeshBasicMaterial({ color: '#8a96a8', transparent: true, opacity: 0.35 }));
+      patch.rotation.x = -Math.PI / 2; patch.position.set(e.x, 0.3, e.z);
+      this.scene.add(patch);
     }
     if (room) {
       // 🕯 somebody's room: a square off the pipe with a candle on a crate, chalk on
@@ -177,18 +219,22 @@ export class SecretTunnel {
   free(x: number, z: number): boolean {
     if (this.room && Math.abs(x - this.room.x) < this.room.r && Math.abs(z - this.room.z) < this.room.r) return true;
     const hw = this.width / 2 - 3;
-    for (let i = 0; i + 1 < this.path.length; i++) {
-      const a = this.path[i], b = this.path[i + 1];
-      const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz;
-      const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / l2));
-      const px = a.x + dx * t, pz = a.z + dz * t;
-      if ((x - px) ** 2 + (z - pz) ** 2 < hw * hw) return true;
+    for (const path of this.paths) {
+      for (let i = 0; i + 1 < path.length; i++) {
+        const a = path[i], b = path[i + 1];
+        const dx = b.x - a.x, dz = b.z - a.z, l2 = dx * dx + dz * dz;
+        const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / l2));
+        const px = a.x + dx * t, pz = a.z + dz * t;
+        if ((x - px) ** 2 + (z - pz) ** 2 < hw * hw) return true;
+      }
     }
     return false;
   }
 
-  enter() { this.armed = false; }
+  enter() { this.armed = false; this.nearEndIdx = -1; }
   tryInteract(_px: number, _pz: number) { /* nothing to pick up: the corridor IS the thing */ }
+  /** the CLIMB OUT button, or E */
+  climbOut(end: number) { if (end >= 0) { this.armed = false; this.nearEndIdx = -1; this.onExit(end); } }
 
   update(dt: number, px: number, pz: number) {
     this.t += dt;
@@ -196,11 +242,13 @@ export class SecretTunnel {
     this.lantern.intensity = 230 + Math.sin(this.t * 7) * 14;
     const b = this.scene.getObjectByName('bone');
     if (b) { b.rotation.y += dt * 1.2; b.position.y = 3 + Math.sin(this.t * 3) * 0.6; }
-    // the far end: arm once you are well inside, then either end takes you out
-    let nearEnd = -1;
-    this.ends.forEach((e, i) => { if (Math.hypot(px - e.x, pz - e.z) < 14) nearEnd = i; });
-    if (!this.armed) { if (nearEnd < 0) this.armed = true; return; }
-    if (nearEnd >= 0) { this.armed = false; this.onExit(nearEnd); return; }
+    // the ends: arm once you are well inside; then close to one = the button, on
+    // top of one = out
+    let nearEnd = -1, atEnd = -1;
+    this.ends.forEach((e, i) => { const d = Math.hypot(px - e.x, pz - e.z); if (d < 44) nearEnd = i; if (d < 14) atEnd = i; });
+    if (nearEnd !== this.nearEndIdx) { this.nearEndIdx = nearEnd; this.onNearEnd(nearEnd); }
+    if (!this.armed) { if (atEnd < 0) this.armed = true; return; }
+    if (atEnd >= 0) { this.climbOut(atEnd); return; }
     if (this.room && !this.roomSeen && Math.abs(px - this.room.x) < this.room.r - 4 && Math.abs(pz - this.room.z) < this.room.r - 4) {
       this.roomSeen = true;
       this.onRoom();
@@ -223,10 +271,8 @@ export class Secrets {
   found = new Set<string>();
   roofMode = false;
   roofY = 0;
-  leap = 0;            // set when roofFree let him over a gap: the hop height Game should give him
   fallReq = false;     // set when he walked off an edge with nothing to land on: Game drops him
   dropReq = false;     // set when he landed on a lower roof: a thump
-  private leapUntil = 0;   // mid-leap until then: over a gap is fine
   private ladders: { foot: { x: number; z: number }; top: { x: number; z: number }; g: THREE.Group }[] = [];
   private scene: THREE.Scene;
   private index: WorldIndex;
@@ -236,6 +282,7 @@ export class Secrets {
   private tunnels: SecretTunnel | null = null;
   private pipe: SecretTunnel | null = null;
   private grates: THREE.Group[] = [];
+  private grateSpots: { x: number; z: number }[] = [];
   private mouths: THREE.Group[] = [];
   private vane: THREE.Group | null = null;
   private vaneAt = { x: VANE.x, z: VANE.z };
@@ -267,7 +314,9 @@ export class Secrets {
     const gy = (x: number, z: number) => this.index.heightAtPx(x, z);
     // 🕳 two iron grates, flush in the ground. Unremarkable on purpose: a storm grate
     // in a yard is a thing nobody looks at twice, which is the whole point.
-    for (const p of [STATE_LOT, FEDERAL_LOT]) {
+    for (const seed of [STATE_LOT, FEDERAL_LOT, MARKET_LOT]) {
+      const p = this.findSpot(seed);
+      this.grateSpots.push(p);
       const g = new THREE.Group();
       const frame = bx(14, 1.2, 10, '#3a3a3c'); g.add(frame);
       for (let i = -2; i <= 2; i++) { const bar = bx(0.9, 1.6, 8.6, '#2b2b2e'); bar.position.set(i * 2.6, 0.3, 0); g.add(bar); }
@@ -384,28 +433,51 @@ export class Secrets {
     setTimeout(() => this.hud.chapterCard('🤫 SECRET FOUND', title, `${this.found.size} of ?? · tell someone`), 300);
   }
 
+  /** the nearest spot to a seed a dog can dig: dry, unblocked, not paved (a spiral out to 100 px) */
+  private findSpot(seed: { x: number; z: number }): { x: number; z: number } {
+    const ok = (x: number, z: number) => !this.index.isWaterAt(x, z) && !this.index.isBlocked(x, z) && !this.index.isBlocked(x + 8, z) && !this.index.isBlocked(x - 8, z)
+      && !this.index.isBlocked(x, z + 8) && !this.index.isBlocked(x, z - 8) && !this.index.onPavedAt(x, z);
+    if (ok(seed.x, seed.z)) return { ...seed };
+    for (let r = 12; r <= 100; r += 12) {
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2, x = seed.x + Math.cos(a) * r, z = seed.z + Math.sin(a) * r;
+        if (ok(x, z)) return { x, z };
+      }
+    }
+    return { ...seed };
+  }
+
+  /** 🏙 a jump he should make (from roofFree): where to land, which way, and whether it is a fall */
+  jumpReq: { x: number; z: number; y: number; dx: number; dz: number; fall: boolean } | null = null;
+
   // ---------- the hooks Game calls ----------
 
   /** a dig finished here: was it on a grate? (returns true when the secret took it) */
   dig(px: number, pz: number): boolean {
     if (!this.enabled) return false;
-    const ends = [STATE_LOT, FEDERAL_LOT];
-    for (let i = 0; i < 2; i++) {
+    const ends = this.grateSpots;
+    for (let i = 0; i < ends.length; i++) {
       if (Math.hypot(px - ends[i].x, pz - ends[i].z) > 22) continue;
       if (!this.tunnels) {
-        // the corridor: down, a long run, a dogleg, and up the other end — 5 bends of
-        // brick in scene space (~180 m of town compressed to a run you can feel)
+        // the network: State Street down, a long run with a dogleg, up at Federal —
+        // and a branch off the first corner that comes up in MARKET SQUARE. Three
+        // ends, like the three real tunnels. Scene space; ~180 m of town compressed
+        // to a run you can feel.
+        const ENDS = [{ x: 0, z: 0 }, { x: -60, z: -700 }, { x: 300, z: -40 }];
         this.tunnels = new SecretTunnel('brick', [
-          { x: 0, z: 0 }, { x: 0, z: -260 }, { x: 120, z: -260 }, { x: 120, z: -520 }, { x: -60, z: -520 }, { x: -60, z: -700 },
-        ], 40);
+          [{ x: 0, z: 0 }, { x: 0, z: -260 }, { x: 120, z: -260 }, { x: 120, z: -520 }, { x: -60, z: -520 }, { x: -60, z: -700 }],
+          [{ x: 120, z: -260 }, { x: 300, z: -260 }, { x: 300, z: -40 }],
+        ], 40, ENDS);
         this.tunnels.onExit = (end) => {
-          const out = end === 0 ? STATE_LOT : FEDERAL_LOT;
-          this.host.exitScene(out.x + 18, out.z + 14);
+          const out = this.grateSpots[end] ?? this.grateSpots[0];
+          this.host.exitScene(out.x + 9, out.z + 7);   // beside the grate, not out in the street
+          this.hud.showTalk(null);
           this.award('tunnels', 'The Smugglers’ Tunnel');
         };
+        this.tunnels.onNearEnd = (end) => this.hud.showTalk(end >= 0 ? '🪜 CLIMB OUT' : null, end >= 0 ? () => this.tunnels?.climbOut(end) : undefined);
       }
       this.audio.stoneScrape();
-      const entry = i === 0 ? { x: 0, z: -22 } : { x: -60, z: -678 };
+      const entry = [{ x: 0, z: -22 }, { x: -60, z: -678 }, { x: 300, z: -62 }][i];
       this.host.enterScene(this.tunnels, entry);
       return true;
     }
@@ -451,16 +523,31 @@ export class Secrets {
    *    Game drops him to the street (a thump, a shake, no harm — it is a cartoon) */
   roofFree(x: number, z: number, px: number, pz: number): boolean {
     const top = this.index.buildingTopAt(x, z);
-    if (Number.isFinite(top)) return top <= this.roofY + 12;
-    const dx = x - px, dz = z - pz, d = Math.hypot(dx, dz) || 1;
-    for (let k = 10; k <= 80; k += 7) {
-      const t2 = this.index.buildingTopAt(x + (dx / d) * k, z + (dz / d) * k);
-      if (Number.isFinite(t2) && t2 <= this.roofY + 12) { this.leap = Math.max(this.leap, 9 + k * 0.14); this.leapUntil = this.t + 0.55; return true; }
+    const dx = x - px, dz = z - pz, d = Math.hypot(dx, dz) || 1, ux = dx / d, uz = dz / d;
+    if (Number.isFinite(top)) {
+      if (top > this.roofY + 12) return false;           // a taller building's wall
+      if (top >= this.roofY - 10) return true;           // this roof, or a step up
+      // a lower roof: he does not walk down a storey, he JUMPS down onto it
+      if (!this.jumpReq) this.jumpReq = { x: x + ux * 16, z: z + uz * 16, y: top, dx: ux, dz: uz, fall: false };
+      return false;
     }
-    // ⚠️ nothing beyond: still walkable — but the FALL is decided in update(), from
-    // where he actually is. This predicate is also called on probe points by the
-    // glance-off-walls logic, and a probe past the edge must not drop him (it did).
-    return true;
+    // a gap: a roof he can land on within 80 px ahead → the jump; nothing → off the edge
+    for (let k = 10; k <= 80; k += 7) {
+      const lx = x + ux * k, lz = z + uz * k;
+      const t2 = this.index.buildingTopAt(lx, lz);
+      if (Number.isFinite(t2) && t2 <= this.roofY + 12) {
+        if (!this.jumpReq) this.jumpReq = { x: lx + ux * 12, z: lz + uz * 12, y: t2, dx: ux, dz: uz, fall: false };
+        return false;
+      }
+    }
+    if (!this.jumpReq) {
+      const fx = x + ux * 26, fz = z + uz * 26;
+      this.jumpReq = { x: fx, z: fz, y: this.index.heightAtPx(fx, fz), dx: ux, dz: uz, fall: true };
+    }
+    // ⚠️ every branch above RETURNS FALSE for anything off this roof: the walk stops at
+    // the edge and Game makes the jump (or not — it checks the stick is pushed that
+    // way, because this predicate is also called on the wall-glance probe points).
+    return false;
   }
 
   onRoof(px: number, pz: number) {
@@ -496,10 +583,10 @@ export class Secrets {
       if (Number.isFinite(top) && top <= this.roofY + 12) {
         if (top < this.roofY - 10) this.dropReq = true;   // landed on a lower roof
         this.roofY = top; this.roofLost = 0;
-      } else if (this.t > this.leapUntil) {
-        // over nothing, and not mid-leap: off the edge he goes
-        this.roofLost = 0;
-        this.fallReq = true;
+      } else {
+        // over nothing (should not happen now — jumps carry him — but a backstop)
+        this.roofLost += dt;
+        if (this.roofLost > 0.3) { this.roofLost = 0; this.fallReq = true; }
       }
       if (this.vane) {
         const spin = this.vane.getObjectByName('spin');
@@ -517,12 +604,14 @@ export class Secrets {
       const m = i === 0 ? CULVERT_A : CULVERT_B;
       if (Math.hypot(px - m.x, pz - m.z) > 11) continue;
       if (!this.pipe) {
-        this.pipe = new SecretTunnel('pipe', [{ x: 0, z: 0 }, { x: 0, z: -230 }], 26, { x: 40, z: -115, r: 22 });
+        this.pipe = new SecretTunnel('pipe', [[{ x: 0, z: 0 }, { x: 0, z: -230 }]], 26, [{ x: 0, z: 0 }, { x: 0, z: -230 }], { x: 40, z: -115, r: 22 });
+        this.pipe.onNearEnd = (end) => this.hud.showTalk(end >= 0 ? '🪜 CLIMB OUT' : null, end >= 0 ? () => this.pipe?.climbOut(end) : undefined);
         this.pipe.onExit = (end) => {
           const out = end === 0 ? CULVERT_A : CULVERT_B;
           const other = end === 0 ? CULVERT_B : CULVERT_A;
           const ang = Math.atan2(out.x - other.x, out.z - other.z);   // step out of the mouth, away from the bank
           this.host.exitScene(out.x + Math.sin(ang) * 16, out.z + Math.cos(ang) * 16);
+          this.hud.showTalk(null);
         };
         this.pipe.onRoom = () => this.award('pipe', 'The Room in the Pipe');
       }
@@ -544,7 +633,7 @@ export class Secrets {
   }
 
   /** dev: teleport spots for the rig */
-  static readonly SPOTS = { state: STATE_LOT, federal: FEDERAL_LOT, pipe: CULVERT_A, ladder: LADDERS[0].toward, garage: LADDERS[1].toward, vane: VANE, pool: POOL, cannon: CANNON, jettyStart: JETTY_S };
+  static readonly SPOTS = { state: STATE_LOT, federal: FEDERAL_LOT, pipe: CULVERT_A, market: MARKET_LOT, ladder: LADDERS[0].toward, garage: LADDERS[1].toward, vane: VANE, pool: POOL, cannon: CANNON, jettyStart: JETTY_S };
   get ladderSpots() { return this.ladders.map((L) => L.foot); }
   get vaneSpot() { return this.vaneAt; }
 }
