@@ -28,7 +28,7 @@
 //   💥 THE CANNON    the Custom House cannon's own card says it "is not going to
 //                    start now". Bark at it three times. It starts now.
 import * as THREE from 'three';
-import { WorldIndex, pointInPoly } from '../world/index';
+import { WorldIndex } from '../world/index';
 import type { Hud } from './hud';
 import type { GameAudio } from './audio';
 import { brickTex } from '../three/textures';
@@ -45,10 +45,23 @@ const FEDERAL_LOT = { x: 2074, z: 3158 };    // tunnel end B: off Federal Street
 // both sides (the first pick, by the harbour, put the mouth in the water)
 const CULVERT_A = { x: 120, z: 10771 };
 const CULVERT_B = { x: 310, z: 10728 };
-const LADDER_FOOT = { x: -2511, z: -275 };   // up the back of the Intermodal garage (its SE corner)
-const LADDER_TOP = { x: -2528, z: -303 };    // where you land on the roof
-const GARAGE_C = { x: -2670, z: -531 };
-const VANE = { x: -2247, z: -888 };          // Horton's Yard roof
+// 🪜 the fire escapes: each goes on the wall of the building containing `inside`, on
+// the face nearest `toward`. Two of them:
+//   - the State Street block: up the alley wall of a 4-storey building (Larosa's is
+//     its neighbour, same height, touching), then over the seam and DOWN onto the
+//     long 2-storey block that runs 630 px along State Street, to the vane at its
+//     far end — THE roof run. Every step of it touches (gap 0): a dog does not
+//     leap a 55 px alley, whatever the bounding boxes said.
+//   - the parking garage: a lookout over the lot, and nothing within a leap of it
+//     (the first cut hoped for Horton's Yard; the alley is 200 px, not 30) — so
+//     from up there the only way is the ladder, or off the edge
+const LADDERS = [
+  { inside: { x: -230, z: 240 }, toward: { x: -300, z: 210 } },
+  { inside: { x: -2670, z: -531 }, toward: { x: -2511, z: -275 } },
+];
+const LADDER_NEAR = LADDERS[0].toward;
+const VANE = { x: -268, z: 812 };            // the far end of the long State Street roof (falls back to its centroid)
+const VANE_ALT = { x: -229, z: 544 };
 const JETTY_S = { x: 34250, z: -5000 };      // the North Jetty runs NE off the Point's beach…
 const JETTY_U = { x: 0.62, z: -0.78 };
 const JETTY_LEN = 620;
@@ -66,6 +79,15 @@ export type SecretHost = {
   say: (text: string) => void;
 };
 
+// point-in-ring over a flat [x, z, x, z, …] ring (a building's `p`)
+function inRing(x: number, z: number, r: number[]): boolean {
+  let inside = false;
+  for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) {
+    const xi = r[i], zi = r[i + 1], xj = r[j], zj = r[j + 1];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
 function lam(hex: string) { return new THREE.MeshLambertMaterial({ color: hex }); }
 function bx(w: number, h: number, d: number, hex: string) { return new THREE.Mesh(new THREE.BoxGeometry(w, h, d), lam(hex)); }
 
@@ -201,7 +223,11 @@ export class Secrets {
   found = new Set<string>();
   roofMode = false;
   roofY = 0;
-  gapHop = false;      // set when roofFree let him over an alley — Game turns it into a hop
+  leap = 0;            // set when roofFree let him over a gap: the hop height Game should give him
+  fallReq = false;     // set when he walked off an edge with nothing to land on: Game drops him
+  dropReq = false;     // set when he landed on a lower roof: a thump
+  private leapUntil = 0;   // mid-leap until then: over a gap is fine
+  private ladders: { foot: { x: number; z: number }; top: { x: number; z: number }; g: THREE.Group }[] = [];
   private scene: THREE.Scene;
   private index: WorldIndex;
   private hud: Hud;
@@ -211,8 +237,8 @@ export class Secrets {
   private pipe: SecretTunnel | null = null;
   private grates: THREE.Group[] = [];
   private mouths: THREE.Group[] = [];
-  private ladder: THREE.Group | null = null;
   private vane: THREE.Group | null = null;
+  private vaneAt = { x: VANE.x, z: VANE.z };
   private vaneSpin = 0;
   private pool: THREE.Group | null = null;
   private lobster: THREE.Group | null = null;
@@ -260,18 +286,42 @@ export class Secrets {
       g.rotation.y = ang + Math.PI;   // faces away from the other mouth, i.e. out of the bank
       this.scene.add(g); this.mouths.push(g);
     }
-    // 🪜 the fire escape: two rails and rungs, from the ground to the garage parapet
-    {
-      const top = this.index.buildingTopAt(LADDER_TOP.x, LADDER_TOP.z);
-      const g0 = gy(LADDER_FOOT.x, LADDER_FOOT.z);
-      const h = Number.isFinite(top) ? Math.max(30, top - g0 + 2) : 60;
+    // 🪜 the fire escapes: two rails and rungs, FLUSH ON A WALL FACE, from the ground
+    // to a hoop over the parapet. ⚠️ Placed from the building's own polygon (the wall
+    // edge nearest `toward`), not a hand-typed point: the first cut stood one on a
+    // polygon corner in mid-air (Devin: "the ladder behind parking garage isnt connected").
+    for (const L of LADDERS) {
+      const gb = this.index.world.buildings.find((b) => inRing(L.inside.x, L.inside.z, b.p));
+      if (!gb) continue;
+      let cx = 0, cz = 0; const n = gb.p.length / 2;
+      for (let i = 0; i < gb.p.length; i += 2) { cx += gb.p[i] / n; cz += gb.p[i + 1] / n; }
+      let bd = 1e12, mx = L.inside.x, mz = L.inside.z, nx = 0, nz = 1;
+      for (let i = 0; i < gb.p.length; i += 2) {
+        const ax = gb.p[i], az = gb.p[i + 1], bx2 = gb.p[(i + 2) % gb.p.length], bz = gb.p[(i + 3) % gb.p.length];
+        const ex = bx2 - ax, ez = bz - az, l2 = ex * ex + ez * ez;
+        if (l2 < 30 * 30) continue;   // a jog, not a wall
+        const t = Math.max(0.2, Math.min(0.8, ((L.toward.x - ax) * ex + (L.toward.z - az) * ez) / l2));
+        const px = ax + ex * t, pz = az + ez * t, d = (px - L.toward.x) ** 2 + (pz - L.toward.z) ** 2;
+        if (d < bd) {
+          bd = d; mx = px; mz = pz;
+          const l = Math.sqrt(l2); nx = -ez / l; nz = ex / l;
+          if ((mx - cx) * nx + (mz - cz) * nz < 0) { nx = -nx; nz = -nz; }   // outward
+        }
+      }
+      const foot = { x: mx + nx * 7, z: mz + nz * 7 }, top = { x: mx - nx * 10, z: mz - nz * 10 };
+      const roof = this.index.buildingTopAt(top.x, top.z);
+      const g0 = gy(mx, mz);
+      const h = Number.isFinite(roof) ? Math.max(30, roof - g0 + 3) : 60;
       const g = new THREE.Group();
       for (const sx of [-2.2, 2.2]) { const rail = bx(0.9, h, 0.9, '#2f3236'); rail.position.set(sx, h / 2, 0); g.add(rail); }
       for (let y = 4; y < h - 2; y += 5) { const rung = bx(4.4, 0.7, 0.7, '#3d4045'); rung.position.set(0, y, 0); g.add(rung); }
-      const dir = Math.atan2(LADDER_FOOT.x - GARAGE_C.x, LADDER_FOOT.z - GARAGE_C.z);
-      g.position.set(LADDER_FOOT.x, g0, LADDER_FOOT.z);
-      g.rotation.y = dir;
-      this.scene.add(g); this.ladder = g;
+      const hoop = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.4, 6, 12, Math.PI), lam('#2f3236'));
+      hoop.position.set(0, h - 1, 0); hoop.rotation.y = Math.PI / 2; g.add(hoop);
+      for (const y of [h * 0.3, h * 0.7]) { const br = bx(5.2, 0.6, 1.4, '#2f3236'); br.position.set(0, y, -0.9); g.add(br); }   // bolted on
+      g.position.set(mx + nx * 1.4, g0, mz + nz * 1.4);
+      g.rotation.y = Math.atan2(nx, nz);
+      this.scene.add(g);
+      this.ladders.push({ foot, top, g });
     }
     // 🐓 the weathervane on Horton's Yard: post, the four letters, and an arrow with a
     // rooster on it — and it turns when you touch it
@@ -290,8 +340,9 @@ export class Secrets {
       const comb = bx(1.2, 1.4, 0.3, '#d8262b'); comb.position.set(2.4, 5.4, 0); spin.add(comb);
       const plume = bx(2.2, 3.4, 0.3, '#3e6b4a'); plume.position.set(-2.6, 3.6, 0); plume.rotation.z = 0.5; spin.add(plume);
       g.add(spin);
-      const top = this.index.buildingTopAt(VANE.x, VANE.z);
-      g.position.set(VANE.x, Number.isFinite(top) ? top : gy(VANE.x, VANE.z) + 60, VANE.z);
+      let top = this.index.buildingTopAt(VANE.x, VANE.z);
+      if (!Number.isFinite(top)) { top = this.index.buildingTopAt(VANE_ALT.x, VANE_ALT.z); this.vaneAt = VANE_ALT; }
+      g.position.set(this.vaneAt.x, Number.isFinite(top) ? top : gy(this.vaneAt.x, this.vaneAt.z) + 60, this.vaneAt.z);
       this.scene.add(g); this.vane = g;
     }
     // 🌊 the tide pool at the jetty's tip: a ring of rocks, water in the hollow, a
@@ -380,25 +431,36 @@ export class Secrets {
   /** the contextual verb, if he is standing at one: the ladder, or the climb down */
   action(px: number, pz: number): { label: string; cb: () => void } | null {
     if (!this.enabled) return null;
-    if (!this.roofMode) {
-      if (Math.hypot(px - LADDER_FOOT.x, pz - LADDER_FOOT.z) < 24) return { label: '🪜 CLIMB', cb: () => this.host.enterRoof(LADDER_TOP.x, LADDER_TOP.z) };
-    } else if (Math.hypot(px - LADDER_TOP.x, pz - LADDER_TOP.z) < 26) {
-      return { label: '🪜 CLIMB DOWN', cb: () => this.host.leaveRoof(LADDER_FOOT.x + 4, LADDER_FOOT.z + 6) };
+    for (const L of this.ladders) {
+      if (!this.roofMode) {
+        if (Math.hypot(px - L.foot.x, pz - L.foot.z) < 24) return { label: '🪜 CLIMB', cb: () => this.host.enterRoof(L.top.x, L.top.z) };
+      } else if (Math.hypot(px - L.top.x, pz - L.top.z) < 26) {
+        return { label: '🪜 CLIMB DOWN', cb: () => this.host.leaveRoof(L.foot.x, L.foot.z) };
+      }
     }
     return null;
   }
 
-  /** on the roofs: walkable where there is a roof at about this height — and across
-   *  an alley when there is one on the far side (a hop) */
+  /** 🏙 FREE-RUNNING. Devin: "climbing only makes sense if he can naturally jump
+   *  between buildings" — so the roofs are a parkour course, not a corridor:
+   *  - any roof at this height, a step up (≤ 12 px), or ANY drop is walkable
+   *  - a gap (an alley, a street) is walkable when there is a roof he can land on
+   *    within 64 px ahead — Game gives him the leap
+   *  - a taller building's wall is a wall
+   *  - an edge with NOTHING beyond it is not a wall either: he goes off it, and
+   *    Game drops him to the street (a thump, a shake, no harm — it is a cartoon) */
   roofFree(x: number, z: number, px: number, pz: number): boolean {
     const top = this.index.buildingTopAt(x, z);
-    if (Number.isFinite(top) && Math.abs(top - this.roofY) < 18) return true;
+    if (Number.isFinite(top)) return top <= this.roofY + 12;
     const dx = x - px, dz = z - pz, d = Math.hypot(dx, dz) || 1;
-    for (let k = 12; k <= 40; k += 7) {
+    for (let k = 10; k <= 80; k += 7) {
       const t2 = this.index.buildingTopAt(x + (dx / d) * k, z + (dz / d) * k);
-      if (Number.isFinite(t2) && Math.abs(t2 - this.roofY) < 18) { this.gapHop = true; return true; }
+      if (Number.isFinite(t2) && t2 <= this.roofY + 12) { this.leap = Math.max(this.leap, 9 + k * 0.14); this.leapUntil = this.t + 0.55; return true; }
     }
-    return false;
+    // ⚠️ nothing beyond: still walkable — but the FALL is decided in update(), from
+    // where he actually is. This predicate is also called on probe points by the
+    // glance-off-walls logic, and a probe past the edge must not drop him (it did).
+    return true;
   }
 
   onRoof(px: number, pz: number) {
@@ -427,15 +489,21 @@ export class Secrets {
     // every frame — six heightAtPx calls, nothing.
     for (const g of this.grates) g.position.y = this.index.heightAtPx(g.position.x, g.position.z) + 0.6;
     for (const g of this.mouths) g.position.y = this.index.heightAtPx(g.position.x, g.position.z) - 2;
-    if (this.ladder) this.ladder.position.y = this.index.heightAtPx(this.ladder.position.x, this.ladder.position.z);
+    for (const L of this.ladders) L.g.position.y = this.index.heightAtPx(L.g.position.x, L.g.position.z);
     // 🏙 the roof
     if (this.roofMode) {
       const top = this.index.buildingTopAt(px, pz);
-      if (Number.isFinite(top) && Math.abs(top - this.roofY) < 18) { this.roofY = top; this.roofLost = 0; }
-      else { this.roofLost += dt; if (this.roofLost > 0.6) { this.roofLost = 0; this.host.leaveRoof(px, pz); } }
+      if (Number.isFinite(top) && top <= this.roofY + 12) {
+        if (top < this.roofY - 10) this.dropReq = true;   // landed on a lower roof
+        this.roofY = top; this.roofLost = 0;
+      } else if (this.t > this.leapUntil) {
+        // over nothing, and not mid-leap: off the edge he goes
+        this.roofLost = 0;
+        this.fallReq = true;
+      }
       if (this.vane) {
         const spin = this.vane.getObjectByName('spin');
-        const near = Math.hypot(px - VANE.x, pz - VANE.z) < 16;
+        const near = Math.hypot(px - this.vaneAt.x, pz - this.vaneAt.z) < 16;
         if (near && this.vaneSpin < 2) { this.vaneSpin = 9; this.audio.jingle(); this.award('vane', 'The Weathervane'); }
         this.vaneSpin = Math.max(0, this.vaneSpin - dt * 3.2);
         if (spin) spin.rotation.y += dt * (0.4 + this.vaneSpin);
@@ -476,7 +544,9 @@ export class Secrets {
   }
 
   /** dev: teleport spots for the rig */
-  static readonly SPOTS = { state: STATE_LOT, federal: FEDERAL_LOT, pipe: CULVERT_A, ladder: LADDER_FOOT, vane: VANE, pool: POOL, cannon: CANNON, jettyStart: JETTY_S };
+  static readonly SPOTS = { state: STATE_LOT, federal: FEDERAL_LOT, pipe: CULVERT_A, ladder: LADDERS[0].toward, garage: LADDERS[1].toward, vane: VANE, pool: POOL, cannon: CANNON, jettyStart: JETTY_S };
+  get ladderSpots() { return this.ladders.map((L) => L.foot); }
+  get vaneSpot() { return this.vaneAt; }
 }
 
 /** the jetty polygon for the world (map.mjs adds it; this is the one source of its geometry) */
@@ -485,4 +555,3 @@ export function jettyRing(): number[] {
   const e = { x: JETTY_S.x + JETTY_U.x * JETTY_LEN, z: JETTY_S.z + JETTY_U.z * JETTY_LEN };
   return [JETTY_S.x + nx * hw, JETTY_S.z + nz * hw, e.x + nx * hw, e.z + nz * hw, e.x - nx * hw, e.z - nz * hw, JETTY_S.x - nx * hw, JETTY_S.z - nz * hw].map((v) => Math.round(v));
 }
-export { pointInPoly };

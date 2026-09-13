@@ -412,6 +412,8 @@ export class Game {
   private kidY = 0;
   private wedgeDir = 0;   // committed glance side while wedged on a wall/shore — one direction per wedge, so the deflection can't ±flip into an infinite shake
   private hopT = 0; private wasNearFence = false;       // kid hops low fences
+  private hopH = 8;                                      // the arc's height: 8 for a fence, more for a roof gap
+  private roofFall = false;                              // dropping off a roof to the street
   private dogHopT = 0; private dogWasNearFence = false; // so does Clipper
   private dogY = 0;
   private fov = 55;
@@ -1815,6 +1817,16 @@ export class Game {
     });
   }
 
+  /** 🏙 off the edge with nothing under him: the roofs let go, the terrain-follow
+   *  takes him down (it is exponential, so it reads as a drop), and the landing above
+   *  does the rest. No fade, no teleport — he FELL, and that is the fun of it. */
+  private fallFromRoof() {
+    if (!this.secrets?.roofMode) return;
+    this.secrets.offRoof();
+    this.roofFall = true;
+    this.hopT = 0;
+  }
+
   /** 💥 the Custom House cannon, which its own card says will never fire */
   private fireCannon() {
     const cg = this.eggs?.cannonGroup;
@@ -2738,13 +2750,22 @@ export class Game {
     const terrainY = this.inside ? 0 : this.onWater ? WATER_Y : this.terrain.heightAt(this.px, this.pz);
     const surfY = this.inside ? 0 : this.onWater ? WATER_Y : this.swimming ? this.swimSurfaceY() - 8.5 : this.secrets?.roofMode ? this.secrets.roofY : this.index.surfaceYAt(this.px, this.pz, this.kidY);
     this.kidY += (surfY - this.kidY) * Math.min(1, dt * 12);
+    if (this.roofFall && Math.abs(surfY - this.kidY) < 2.5) {
+      // 🏙 down on the street: a thump, dust, the shake, and on with his day
+      this.roofFall = false;
+      this.audio.thump();
+      (this.player as Dog).shake?.();
+      this.eggs?.burst(this.px, this.kidY + 1, this.pz, '#c9bfae', 14, false, 2.4, 0.5, 0.5, 8);
+      const sp = this.playerScreen();
+      if (sp) this.hud.woof(sp[0], sp[1] - 10, 'OOF!');
+    }
     if (this.flying) this.kidY = this.flyY;   // ✈️ altitude overrides the terrain-follow
     // hop low fences/hedges (they no longer block) — a quick arc as you cross one
     const nearFence = !this.inside && !this.onWater && !this.swimming && this.index.lowBarrierNear(this.px, this.pz);
-    if (Math.hypot(realVx, realVz) > 4 && nearFence && !this.wasNearFence && this.hopT <= 0) this.hopT = 0.5;
+    if (Math.hypot(realVx, realVz) > 4 && nearFence && !this.wasNearFence && this.hopT <= 0) { this.hopT = 0.5; this.hopH = 8; }
     this.wasNearFence = nearFence;
     if (this.hopT > 0) this.hopT = Math.max(0, this.hopT - dt);
-    const hop = this.hopT > 0 ? Math.sin((1 - this.hopT / 0.5) * Math.PI) * 8 : 0;
+    const hop = this.hopT > 0 ? Math.sin((1 - this.hopT / 0.5) * Math.PI) * this.hopH : 0;
     this.player.root.position.y = this.kidY + hop + (this.riding ? (LEGACY_KID ? 2 : 4.6) : 0);
     if (this.riding) {
       this.bike.root.position.set(this.px, this.kidY, this.pz);
@@ -2915,7 +2936,9 @@ export class Game {
       else {
         if (this.eggs && !(this.secrets as unknown as { cannonSet?: boolean }).cannonSet) { const cg = this.eggs.cannonGroup; if (cg) { this.secrets.setCannon(cg); (this.secrets as unknown as { cannonSet?: boolean }).cannonSet = true; } }
         this.secrets.update(dt, this.px, this.pz, this.inside || this.flying || this.riding || this.kayaking || this.swimming);
-        if (this.secrets.gapHop) { this.secrets.gapHop = false; if (this.hopT <= 0) this.hopT = 0.5; }
+        if (this.secrets.leap > 0) { if (this.hopT <= 0) { this.hopT = 0.5; this.hopH = this.secrets.leap; } this.secrets.leap = 0; }
+        if (this.secrets.dropReq) { this.secrets.dropReq = false; this.audio.thump(); (this.player as Dog).shake?.(); }
+        if (this.secrets.fallReq) { this.secrets.fallReq = false; this.fallFromRoof(); }
       }
     }
     if (this.onTrain && this.life) {
