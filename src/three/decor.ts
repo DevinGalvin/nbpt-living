@@ -12539,9 +12539,17 @@ export function buildChunkDecor(world: WorldData, index: WorldIndex, key: string
       const s = forecourtSpot(world, index, bucket, poi, 48, 30);
       if (s) gasStation(buckets[PLAIN], s.x, s.z, s.ang, index.heightAtPx(s.x, s.z));
     } else if (poi.k === 'ice_cream') {
-      // 🍦 the giant cone + picnic tables out front
+      // 🍦 the giant cone + picnic tables out front — ONLY where there is a front: a
+      // lot or open ground beside the road. A downtown parlour with a walk-up window
+      // (Harbor Creamery, Pleasant Street) has no forecourt, and the placer's fallback
+      // put the cone and both picnic tables on the kerb line in the traffic — Devin
+      // 9/14, with a screenshot: "what is this in the middle of the street".
       const s = forecourtSpot(world, index, bucket, poi, 26, 12);
-      if (s) iceCreamStand(buckets[PLAIN], s.x, s.z, s.ang, index.heightAtPx(s.x, s.z));
+      if (s && !index.downtownAt(s.x, s.z)) {
+        const ca = Math.cos(s.ang), sa = Math.sin(s.ang);
+        const ok = [[0, 0], [17, 0], [-17, 0]].every(([u, v]) => { const on = index.standingOn(s.x + ca * u - sa * v, s.z + sa * u + ca * v); return on === 'plain' || on === 'green' || on === 'parking'; });
+        if (ok) iceCreamStand(buckets[PLAIN], s.x, s.z, s.ang, index.heightAtPx(s.x, s.z));
+      }
     } else if (poi.k === 'fire_station') {
       // 🚒 the engine parked on the apron
       const s = forecourtSpot(world, index, bucket, poi, 34, 12);
