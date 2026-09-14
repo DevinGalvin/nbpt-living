@@ -309,7 +309,7 @@ export class MoreEggs {
 
     // 4. the shop cat in a State Street window (the wall nearest the Fowle's sign)
     {
-      const sx = -109, sz = 545;
+      const sx = -20, sz = 790;   // a few windows down from Fowle's sign (17 State Street, east side), so PSST and WAKE THE SIGN are not the same spot
       let best: { x: number; z: number; nx: number; nz: number } | null = null, bd = 1e9;
       for (const b of index.world.buildings) {
         const p = b.p;

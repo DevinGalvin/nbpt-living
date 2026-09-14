@@ -110,7 +110,7 @@ const SPOTS: Spot[] = [
   { id: 'lantern', x: 33990, z: -4400, label: '🏮 TOUCH' },
   { id: 'purple', x: 34600, z: -4250, label: '✨ SCOOP' },
   { id: 'biplane', x: 17935, z: 14141, label: '🛩 WATCH THE SKY' },
-  { id: 'fowles', x: -109, z: 545, label: '💡 WAKE THE SIGN' },
+  { id: 'fowles', x: -33, z: 738, label: '💡 WAKE THE SIGN' },   // 17 State Street, the EAST side — moved with the shop (map.mjs); Devin 9/14: "the wake the sign thing is still in the old, wrong spot"
   { id: 'richdale', x: -460, z: 1385, label: '🥤 SLUSHIE' },
   { id: 'gillis', x: -2421, z: -3599, label: '👀 LOOK' },
   { id: 'camp', x: -11803, z: -15581, label: '🏕 READ THE SIGN' }
@@ -689,7 +689,31 @@ export class EggRunner {
         new THREE.PlaneGeometry(34, 10.6),
         new THREE.MeshBasicMaterial({ map: neonTexture(false), transparent: true, side: THREE.DoubleSide })
       );
-      this.neonMesh.position.set(s.x, gy(s.x, s.z) + 33, s.z - 4);
+      // ⚠️ MOUNTED ON THE SHOP'S OWN WALL, not hung in the air at a fixed angle: the
+      // nearest building face to the spot, 1.5 px proud of it, turned to face the
+      // street. When Fowle's crossed the street the old flat plane stayed behind.
+      let wall: { x: number; z: number; nx: number; nz: number } | null = null, wd = 1e9;
+      for (const b of this.index.world.buildings) {
+        const p = b.p;
+        let nearAny = false;
+        for (let i = 0; i < p.length; i += 2) if (Math.abs(p[i] - s.x) < 160 && Math.abs(p[i + 1] - s.z) < 160) { nearAny = true; break; }
+        if (!nearAny) continue;
+        for (let i = 0; i + 1 < p.length; i += 2) {
+          const j = (i + 2) % p.length;
+          const ax = p[i], az = p[i + 1], bx2 = p[j], bz2 = p[j + 1];
+          const vx = bx2 - ax, vz = bz2 - az, l2 = vx * vx + vz * vz || 1;
+          if (l2 < 30 * 30) continue;
+          const tt = Math.max(0.15, Math.min(0.85, ((s.x - ax) * vx + (s.z - az) * vz) / l2));
+          const qx = ax + vx * tt, qz = az + vz * tt, d = (qx - s.x) ** 2 + (qz - s.z) ** 2;
+          if (d < wd) { wd = d; const nl = Math.hypot(s.x - qx, s.z - qz) || 1; wall = { x: qx, z: qz, nx: (s.x - qx) / nl, nz: (s.z - qz) / nl }; }
+        }
+      }
+      if (wall) {
+        this.neonMesh.position.set(wall.x + wall.nx * 1.5, gy(wall.x, wall.z) + 23, wall.z + wall.nz * 1.5);   // in the window band, under the enamel FOWLE'S panel (at +33 it overlapped it)
+        this.neonMesh.rotation.y = Math.atan2(wall.nx, wall.nz);
+      } else {
+        this.neonMesh.position.set(s.x, gy(s.x, s.z) + 33, s.z - 4);
+      }
       this.scene.add(this.neonMesh);
     }
 

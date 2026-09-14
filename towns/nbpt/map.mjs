@@ -99,7 +99,7 @@ export const curatedPois = [
 // last resort: positions interpolated offline against calibrated street
 // anchors (27.9 px per house number on State St, Screening Room @82 as anchor)
 export const curatedPoisHand = {
-  "Fowle's": [-109, 519],
+  "Fowle's": [-33, 738],   // the east side of State Street — see the manual POI below, which is what actually places it
   'Anchor Stone Deck Pizza': [-275, 1262],
   'Simply Sweet': [-308, 429]
 };
