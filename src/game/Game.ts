@@ -623,6 +623,7 @@ export class Game {
       enterRoof: (x, z) => this.enterRoof(x, z),
       leaveRoof: (x, z) => this.leaveRoof(x, z),
       fireCannon: () => this.fireCannon(),
+      swapToStory: () => this.swapToStory(),
       burst: (x, y, z, hex, n, size, life, spray, up) => this.eggs?.burst(x, y, z, hex, n, false, size, life, spray, up),
       say: (text) => { const sp = this.playerScreen(); if (sp) this.hud.woof(sp[0], sp[1] - 12, text); },
     });
@@ -1703,7 +1704,7 @@ export class Game {
 
   enterTunnel() {
     this.hud.fadeThrough(() => {
-      if (!this.storyTunnel) this.storyTunnel = new TunnelScene(this.hud, this.audio, () => this.exitTunnel());
+      if (!this.storyTunnel) { this.storyTunnel = new TunnelScene(this.hud, this.audio, () => this.exitTunnel()); this.storyTunnel.onSqueeze = () => this.squeezeToNetwork(); }
       this.tunnel = this.storyTunnel;
       this.preTunnel = { x: this.px, z: this.pz };
       this.inTunnel = true;
@@ -1789,6 +1790,40 @@ export class Game {
       this.audio.stoneScrape();
       this.hud.setVignette(false);
       this.hud.showTalk(null);
+      this.updateCamera(0.016, true);
+    });
+  }
+
+  /** 🐕 through the gap at the foot of the story tunnel's rubble, into the smugglers'
+   *  network — scene to scene, still underground, no daylight in between */
+  private squeezeToNetwork() {
+    if (!this.inTunnel || !this.secrets || !this.tunnel) return;
+    const n = this.secrets.networkEntryFromStory();
+    this.swapUnderground(n.sc, n.entry);
+  }
+
+  /** …and back: the network's collapse end squeezes into the story tunnel's cache room */
+  private swapToStory() {
+    if (!this.inTunnel || !this.tunnel) return;
+    if (!this.storyTunnel) { this.storyTunnel = new TunnelScene(this.hud, this.audio, () => this.exitTunnel()); this.storyTunnel.onSqueeze = () => this.squeezeToNetwork(); }
+    this.swapUnderground(this.storyTunnel, { x: -268, z: -304 });
+  }
+
+  private swapUnderground(sc: TunnelScene | SecretTunnel, entry: { x: number; z: number }) {
+    const from = this.tunnel!;
+    this.hud.fadeThrough(() => {
+      from.scene.remove(this.player.root);
+      if (this.dog) from.scene.remove(this.dog.root);
+      this.tunnel = sc;
+      sc.scene.add(this.player.root);
+      if (this.dog) sc.scene.add(this.dog.root);
+      this.px = entry.x; this.pz = entry.z;
+      this.player.setPos(this.px, this.pz);
+      this.kidY = 0; this.dogY = 0;
+      this.dog?.root.position.set(this.px + 14, 0, this.pz - 8);
+      this.audio.stoneScrape();
+      this.hud.showTalk(null);
+      sc.enter();
       this.updateCamera(0.016, true);
     });
   }

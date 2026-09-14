@@ -134,6 +134,9 @@ export class TunnelScene {
   private t = 0;
   private nearTag: string | null = null;
   private onExit: () => void;
+  /** 🐕 the gap in the rubble, once the collapse has been seen: Game swaps him into the
+   *  smugglers' network (secrets.ts) — the story's dead end is a door for a dog */
+  onSqueeze: () => void = () => {};
 
   constructor(hud: Hud, audio: GameAudio, onExit: () => void) {
     this.hud = hud;
@@ -411,6 +414,7 @@ export class TunnelScene {
     if (this.step === 2) return { tag: 'mark', x: MARK_AT.x, z: MARK_AT.z, label: '\u{1F440} LOOK' };
     if (this.step === 3) return { tag: 'map', x: MAP_AT.x, z: MAP_AT.z, label: '\u{1F9E9} TAKE' };
     if (this.step === 4) return { tag: 'rubble', x: RUBBLE_AT.x, z: RUBBLE_AT.z, label: '\u{1F440} LOOK' };
+    if (this.step >= 5) return { tag: 'squeeze', x: RUBBLE_AT.x + 6, z: RUBBLE_AT.z, label: '\u{1F415} SQUEEZE THROUGH' };
     return null;
   }
 
@@ -500,6 +504,11 @@ export class TunnelScene {
         this.audio.jingle();
         this.setStep(4);
       });
+    } else if (it.tag === 'squeeze') {
+      // Devin (9/14): "when i go down the tunnel its just the dead end from the original
+      // story mode" — not any more. A gap at the foot of the collapse, dog-sized, cold
+      // air moving through it, and the network on the other side.
+      this.hud.showDialogue([{ who: '', text: 'A gap at the foot of the rubble. Dog-sized. Cold air moves through it.' }], () => this.onSqueeze());
     } else if (it.tag === 'rubble') {
       this.hud.showDialogue(RUBBLE, () => this.setStep(5));
     }

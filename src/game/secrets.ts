@@ -45,6 +45,10 @@ const KEY = 'nbpt-secrets';
 const STATE_LOT = { x: -62, z: 551 };
 const FEDERAL_LOT = { x: 2074, z: 3158 };
 const MARKET_LOT = { x: 70, z: -60 };
+// the network in scene space: ends 0-2 are the grates above (State, Federal, Market);
+// end 3 is the collapse whose other side is the story tunnel
+const NET_ENDS: { x: number; z: number; squeeze?: boolean }[] = [{ x: 0, z: 0 }, { x: -60, z: -700 }, { x: 300, z: -40 }, { x: -220, z: -520, squeeze: true }];
+const NET_ENTRIES = [{ x: 0, z: -22 }, { x: -60, z: -678 }, { x: 300, z: -62 }, { x: -160, z: -520 }];   // the squeeze lands him clear of the collapse, so the button is not already up
 // the pipe's mouths: a box culvert running under the rail trail's south stretch, green
 // both sides (the first pick, by the harbour, put the mouth in the water)
 const CULVERT_A = { x: 120, z: 10771 };
@@ -79,6 +83,7 @@ export type SecretHost = {
   enterRoof: (x: number, z: number) => void;
   leaveRoof: (x: number, z: number) => void;
   fireCannon: () => void;
+  swapToStory: () => void;
   burst: (x: number, y: number, z: number, hex: string, n: number, size: number, life: number, spray: number, up: number) => void;
   say: (text: string) => void;
 };
@@ -101,7 +106,7 @@ function bx(w: number, h: number, d: number, hex: string) { return new THREE.Mes
 export class SecretTunnel {
   scene = new THREE.Scene();
   done = false;
-  readonly ends: { x: number; z: number }[];
+  readonly ends: { x: number; z: number; squeeze?: boolean }[];
   private width: number;
   private paths: { x: number; z: number }[][];
   private lantern: THREE.PointLight;
@@ -115,7 +120,7 @@ export class SecretTunnel {
   /** a way out is close (or not): Secrets puts 🪜 CLIMB OUT on the button */
   onNearEnd: (end: number) => void = () => {};
 
-  constructor(kind: 'brick' | 'pipe', paths: { x: number; z: number }[][], width: number, ends: { x: number; z: number }[], room: { x: number; z: number; r: number } | null = null) {
+  constructor(kind: 'brick' | 'pipe', paths: { x: number; z: number }[][], width: number, ends: { x: number; z: number; squeeze?: boolean }[], room: { x: number; z: number; r: number } | null = null) {
     this.paths = paths; this.width = width; this.room = room; this.ends = ends;
     const bg = kind === 'brick' ? '#04050a' : '#06080a';
     this.scene.background = new THREE.Color(bg);
@@ -169,6 +174,21 @@ export class SecretTunnel {
       cap.position.set(e.x + ux * (width / 2 + 2), H / 2, e.z + uz * (width / 2 + 2));
       cap.rotation.y = ang;
       this.scene.add(cap);
+      if (e.squeeze) {
+        // 🪨 the collapse: a pile of fallen brick against the cap, a dog-sized dark gap at
+        // its foot, cold light through it — the far side is the story tunnel's rubble
+        for (let i = 0; i < 14; i++) {
+          const h = (i * 7919) % 100;
+          const r = bx(4 + (h % 4), 3 + (h % 3), 4 + ((h >> 2) % 3), h % 2 ? '#5e4a3e' : '#4a3b31');
+          r.position.set(e.x + ux * (width / 2 - 6 - (h % 5)) - uz * ((h % 9) - 4) * 2.2, 1.5 + (h % 4) * 2.2, e.z + uz * (width / 2 - 6 - (h % 5)) + ux * ((h % 9) - 4) * 2.2);
+          r.rotation.y = h * 0.3;
+          this.scene.add(r);
+        }
+        const gap = new THREE.Mesh(new THREE.CircleGeometry(4.2, 12), new THREE.MeshBasicMaterial({ color: '#05070a' }));
+        gap.position.set(e.x + ux * (width / 2 - 2.4), 4, e.z + uz * (width / 2 - 2.4)); gap.rotation.y = ang + Math.PI; this.scene.add(gap);
+        const cold = new THREE.PointLight('#8fb0d8', 60, 120, 1.4); cold.position.set(e.x, 8, e.z); this.scene.add(cold);
+        continue;
+      }
       for (let y = 5; y < H + 4; y += 5) {
         const rung = bx(6, 0.8, 1.2, '#4a4d52');
         rung.position.set(e.x + ux * (width / 2 - 2.6), y, e.z + uz * (width / 2 - 2.6));
@@ -447,6 +467,32 @@ export class Secrets {
     return { ...seed };
   }
 
+  /** the smugglers' network, built on first use: State Street down, a long run with a
+   *  dogleg, up at Federal — a branch off the first corner up into MARKET SQUARE — and a
+   *  spur off the far corner that ends in a COLLAPSE, the other side of which is the
+   *  story tunnel's rubble (Chapter 1's dead end is a door for a dog). Four ends,
+   *  three of them grates. Scene space; ~180 m of town compressed to a run you feel. */
+  network(): SecretTunnel {
+    if (this.tunnels) return this.tunnels;
+    this.tunnels = new SecretTunnel('brick', [
+      [{ x: 0, z: 0 }, { x: 0, z: -260 }, { x: 120, z: -260 }, { x: 120, z: -520 }, { x: -60, z: -520 }, { x: -60, z: -700 }],
+      [{ x: 120, z: -260 }, { x: 300, z: -260 }, { x: 300, z: -40 }],
+      [{ x: -60, z: -520 }, { x: -220, z: -520 }],
+    ], 40, NET_ENDS);
+    this.tunnels.onExit = (end) => {
+      if (NET_ENDS[end].squeeze) { this.host.swapToStory(); this.hud.showTalk(null); this.award('tunnels', 'The Smugglers’ Tunnel'); return; }
+      const out = this.grateSpots[end] ?? this.grateSpots[0];
+      this.host.exitScene(out.x + 9, out.z + 7);   // beside the grate, not out in the street
+      this.hud.showTalk(null);
+      this.award('tunnels', 'The Smugglers’ Tunnel');
+    };
+    this.tunnels.onNearEnd = (end) => this.hud.showTalk(end >= 0 ? (NET_ENDS[end].squeeze ? '🐕 SQUEEZE THROUGH' : '🪜 CLIMB OUT') : null, end >= 0 ? () => this.tunnels?.climbOut(end) : undefined);
+    return this.tunnels;
+  }
+
+  /** where Game drops him when he squeezes in from the story tunnel's rubble */
+  networkEntryFromStory(): { sc: SecretTunnel; entry: { x: number; z: number } } { return { sc: this.network(), entry: NET_ENTRIES[3] }; }
+
   /** 🏙 a jump he should make (from roofFree): where to land, which way, and whether it is a fall */
   jumpReq: { x: number; z: number; y: number; dx: number; dz: number; fall: boolean } | null = null;
 
@@ -458,27 +504,9 @@ export class Secrets {
     const ends = this.grateSpots;
     for (let i = 0; i < ends.length; i++) {
       if (Math.hypot(px - ends[i].x, pz - ends[i].z) > 22) continue;
-      if (!this.tunnels) {
-        // the network: State Street down, a long run with a dogleg, up at Federal —
-        // and a branch off the first corner that comes up in MARKET SQUARE. Three
-        // ends, like the three real tunnels. Scene space; ~180 m of town compressed
-        // to a run you can feel.
-        const ENDS = [{ x: 0, z: 0 }, { x: -60, z: -700 }, { x: 300, z: -40 }];
-        this.tunnels = new SecretTunnel('brick', [
-          [{ x: 0, z: 0 }, { x: 0, z: -260 }, { x: 120, z: -260 }, { x: 120, z: -520 }, { x: -60, z: -520 }, { x: -60, z: -700 }],
-          [{ x: 120, z: -260 }, { x: 300, z: -260 }, { x: 300, z: -40 }],
-        ], 40, ENDS);
-        this.tunnels.onExit = (end) => {
-          const out = this.grateSpots[end] ?? this.grateSpots[0];
-          this.host.exitScene(out.x + 9, out.z + 7);   // beside the grate, not out in the street
-          this.hud.showTalk(null);
-          this.award('tunnels', 'The Smugglers’ Tunnel');
-        };
-        this.tunnels.onNearEnd = (end) => this.hud.showTalk(end >= 0 ? '🪜 CLIMB OUT' : null, end >= 0 ? () => this.tunnels?.climbOut(end) : undefined);
-      }
+      this.network();
       this.audio.stoneScrape();
-      const entry = [{ x: 0, z: -22 }, { x: -60, z: -678 }, { x: 300, z: -62 }][i];
-      this.host.enterScene(this.tunnels, entry);
+      this.host.enterScene(this.tunnels!, NET_ENTRIES[i]);
       return true;
     }
     return false;
