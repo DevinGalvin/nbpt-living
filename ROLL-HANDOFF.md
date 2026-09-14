@@ -322,3 +322,9 @@ All five screenshot-verified (corridor, room card, ladder on the wall, the drop 
 granite jetty, lobster at the tip, cannon smoke). ⚠️ Ground props take their height
 from `heightAtPx` **every frame** — at boot the terrain has not loaded and they were
 built 80 px underground.
+
+## 10. Rode along 9/14
+
+- **The Tannery farmers' market** (`farmersMarket` in decor.ts, people in life.ts): Devin, with a screenshot — "doesnt really look like a market at all, also the users heads go through it". It was 34 px canopies on 18 px poles packed edge to edge: one tarp at head height (townsfolk are 36 px). Now eight separate tents, 40 px poles, 64 px apart along the row and 84 px across (a 54 px aisle), trestle tables with cloths, crates and produce, baskets, a chalkboard each, bunting across both aisle ends, hay bales + pumpkins in fall / sunflower buckets in summer. ⚠️ life.ts vendors/shoppers sit on the same grid (64 / ±42 / aisle ±110) — change both.
+- **Tunnel walls from the footprint** (`SecretTunnel`): the per-segment slabs overlapped at corners and crossed the other corridor as a wall he walked through (Devin: "walls in the tunnels but it looks like clipper just walks right through them"). The corridor is rasterised on a 4 px grid, the ring of cells outside it is the wall, greedily merged into ~95 boxes; brick UVs repeat per 24 px. Junctions open correctly and ends cap themselves.
+- **GO DOWN** (the quest's button at the story grate) stayed up inside the tunnels: `enterTunnel` now clears the TALK button.

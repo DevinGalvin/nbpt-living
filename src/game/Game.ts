@@ -1721,6 +1721,7 @@ export class Game {
       this.audio.setUnderground(true);
       this.audio.stoneScrape();
       this.hud.setVignette(true);
+      this.hud.showTalk(null);   // the quest's GO DOWN stays up top — Devin: "even when im in the tunnels the Go Down button still shows"
       this.tunnel.enter();
       this.updateCamera(0.016, true);
     });

@@ -2586,13 +2586,14 @@ export class Life {
         const ca = Math.cos(bestA), sa = Math.sin(bestA);
         let n = 0;
         for (let i = 0; i < 4; i++) for (const side of [-1, 1]) {
-          const cx = poi.x + ca * (i - 1.5) * 44, cz = poi.y + sa * (i - 1.5) * 44;
-          const tx = cx - sa * side * 26, tz = cz + ca * side * 26;
+          // ⚠️ the same grid as decor.ts farmersMarket (64 along, ±42 across)
+          const cx = poi.x + ca * (i - 1.5) * 64, cz = poi.y + sa * (i - 1.5) * 64;
+          const tx = cx - sa * side * 42, tz = cz + ca * side * 42;
           n++;
           if (index.isBlocked(tx, tz) || index.isWaterAt(tx, tz)) continue;
           // behind the table, facing the aisle
           const w = new Walker(n * 613 + 3);
-          const vx = tx - sa * side * 2, vz = tz + ca * side * 2;
+          const vx = tx - sa * side * 1, vz = tz + ca * side * 1;   // under the canopy, the table in front of them
           w.root.position.set(vx, index.heightAtPx(vx, vz), vz);
           w.pause = 1e9;
           w.pauseFace = Math.atan2(sa * side, -ca * side);
@@ -2601,10 +2602,10 @@ export class Life {
         }
         for (let i = 0; i < 4; i++) {
           const w = new Walker(i * 271 + 9);
-          w.pts = [poi.x - ca * 95, poi.y - sa * 95, poi.x + ca * 95, poi.y + sa * 95];
-          w.total = 190; w.t = 20 + i * 40; w.dir = i % 2 ? 1 : -1;
+          w.pts = [poi.x - ca * 110, poi.y - sa * 110, poi.x + ca * 110, poi.y + sa * 110];
+          w.total = 220; w.t = 20 + i * 45; w.dir = i % 2 ? 1 : -1;
           w.speed = 14 + i * 3;
-          w.lane = (i % 2 ? 4 : -4);
+          w.lane = (i % 2 ? 9 : -9);   // either side of the aisle's centre, in front of the tables
           w.root.position.set(0, 0, 1e7);
           this.shoppers.push(w);
           scene.add(w.root);

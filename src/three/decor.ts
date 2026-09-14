@@ -11177,8 +11177,16 @@ function photoFacade(bk: Bucket, b: Building, item: FacadeItem, atX: number, atZ
   bk.quadUV(ax, g, az, bx, g, bz, bx, g + h, bz, ax, g + h, az, fs.nx, 0, fs.nz, 1, 1, 1, u0, v0, u1, v0, u1, v1, u0, v1);
 }
 
-// the market: eight tents in two rows along the lot's long way, white and striped
-// canopies on poles, a trestle table under each with crates of what's in season
+// 🥕 THE FARMERS' MARKET: eight pop-up tents in two rows with a proper aisle down the
+// middle, a trestle table under each with a cloth, crates and what's in season, a
+// basket or two on the ground, a chalkboard price sign, and bunting strung across
+// both ends of the aisle. Devin 9/14, with a screenshot: "doesnt really look like a
+// market at all, also the users heads go through it" — the first cut had 34 px
+// canopies on 18 px poles packed edge to edge, i.e. one tarp at head height (the
+// townsfolk are 36 px tall). Now: 30 px canopies on 40 px poles, 64 px apart along
+// the row, the rows 84 px apart — 54 px of clear aisle to walk down.
+// ⚠️ life.ts places the vendors and shoppers on THIS grid (64 along, ±42 across,
+// aisle ±110): change one, change both.
 function farmersMarket(buckets: Bucket[], x: number, z: number, index: WorldIndex) {
   const rng = mulberry32(hash32(Math.round(x), Math.round(z), 77));
   // the row runs along whichever way has the most room
@@ -11190,34 +11198,84 @@ function farmersMarket(buckets: Bucket[], x: number, z: number, index: WorldInde
     if (score > bestScore) { bestScore = score; bestA = a; }
   }
   const ca = Math.cos(bestA), sa = Math.sin(bestA);
-  const canopies = ['#f4f1e8', '#f4f1e8', '#d8543f', '#3f7fc4', '#f4f1e8', '#52a06b', '#f4f1e8', '#e0b53c'];
+  const at = (u: number, v: number): [number, number] => [x + ca * u - sa * v, z + sa * u + ca * v];   // u along the aisle, v across it
+  const canopies = ['#f4f1e8', '#d8543f', '#f4f1e8', '#3f7fc4', '#52a06b', '#f4f1e8', '#e0b53c', '#f4f1e8'];
+  const cloths = ['#c94a3d', '#f4f1e8', '#3a6fa8', '#f4f1e8', '#f4f1e8', '#4d8f5a', '#f4f1e8', '#d9a13a'];
   const goods = ['#d8543f', '#e8b53c', '#52a06b', '#7a52c4', '#ff8c42', '#c84a6b', '#9fbd72', '#f4f1e8'];
+  const POLE = 40, ALONG = 64, ACROSS = 42;
   let n = 0;
   for (let i = 0; i < 4; i++) for (const side of [-1, 1]) {
-    const cx = x + ca * (i - 1.5) * 44, cz = z + sa * (i - 1.5) * 44;
-    const tx = cx - sa * side * 26, tz = cz + ca * side * 26;
+    const u = (i - 1.5) * ALONG, v = side * ACROSS;
+    const [tx, tz] = at(u, v);
     if (index.isBlocked(tx, tz) || index.isWaterAt(tx, tz)) { n++; continue; }
     const g = index.heightAtPx(tx, tz);
     const hex = canopies[n % canopies.length];
-    // four poles, a peaked canopy (two sloped quads over a flat), a valance
-    for (const [u, v] of [[-14, -14], [14, -14], [-14, 14], [14, 14]] as const) buckets[PLAIN].box(tx + ca * u - sa * v, tz + sa * u + ca * v, 0.5, 0.5, g, g + 18, '#d8d2c0');
-    rotBox(buckets[PLAIN], tx, tz, 34, 34, g + 17.5, g + 18.5, bestA, hex);
-    cone(buckets[PLAIN], tx, g + 18.5, tz, 22, 7, new THREE.Color(hex), 0.9, 0);
-    if (n % 3 === 2) { const c2 = new THREE.Color(hex).lerp(new THREE.Color('#ffffff'), 0.6); rotBox(buckets[PLAIN], tx, tz, 34.4, 34.4, g + 16.5, g + 17.5, bestA, '#' + c2.getHexString()); }
-    // the table and its crates, facing the aisle
-    const ax = tx + sa * side * 6, az = tz - ca * side * 6;
-    rotBox(buckets[PLANK], ax, az, 26, 8, g + 7, g + 8, bestA, '#a88a5c');
-    for (const [u2, v2] of [[-9, 0], [0, 0], [9, 0]] as const) {
-      const bx = ax + ca * u2 - sa * v2, bz = az + sa * u2 + ca * v2;
-      rotBox(buckets[PLANK], bx, bz, 7, 5, g + 8, g + 11, bestA, '#8a6a44');
+    // four poles, a peaked canopy, a valance hanging off its edge (striped on every third)
+    for (const [pu, pv] of [[-12, -12], [12, -12], [-12, 12], [12, 12]] as const) { const [px, pz] = at(u + pu, v + pv); buckets[PLAIN].box(px, pz, 0.6, 0.6, g, g + POLE, '#e8e2d2'); }
+    rotBox(buckets[PLAIN], tx, tz, 30, 30, g + POLE, g + POLE + 1, bestA, hex);
+    cone(buckets[PLAIN], tx, g + POLE + 1, tz, 21, 11, new THREE.Color(hex), 0.9, 0);
+    rotBox(buckets[PLAIN], tx, tz, 31, 31, g + POLE - 3.5, g + POLE, bestA, hex);
+    if (n % 3 === 2) for (const su of [-11, -5.5, 0, 5.5, 11]) { const [px, pz] = at(u + su, v); rotBox(buckets[PLAIN], px, pz, 2.2, 31.4, g + POLE - 3.3, g + POLE - 0.2, bestA, '#f4f1e8'); }
+    // the trestle table on the aisle side, a cloth over it, crates and produce on top
+    const [ax, az] = at(u, v - side * 9);
+    for (const lu of [-11, 11]) { const [lx, lz] = at(u + lu, v - side * 9); rotBox(buckets[PLAIN], lx, lz, 1.2, 4, g, g + 15, bestA, '#7a6446'); }
+    rotBox(buckets[PLANK], ax, az, 28, 10, g + 15, g + 17, bestA, '#a88a5c');
+    rotBox(buckets[PLAIN], ax, az, 28.6, 10.6, g + 13.5, g + 15.2, bestA, cloths[n % cloths.length]);
+    for (const cu of [-9, 0, 9]) {
+      const [bx, bz] = at(u + cu, v - side * 9);
+      rotBox(buckets[PLANK], bx, bz, 7, 5, g + 17, g + 20.5, bestA, '#8a6a44');
       const gh = goods[Math.floor(rng() * goods.length)];
-      for (let q = 0; q < 5; q++) buckets[PLAIN].box(bx + (rng() - 0.5) * 5, bz + (rng() - 0.5) * 3, 0.8, 0.8, g + 11, g + 12.2, gh);
+      for (let q = 0; q < 6; q++) buckets[PLAIN].box(bx + (rng() - 0.5) * 5, bz + (rng() - 0.5) * 3, 1.1, 1.1, g + 20.5, g + 22.3, gh);
     }
+    // a bushel basket or two on the ground in front, and the chalkboard on an easel
+    for (const bu of [-10, 8]) {
+      if (rng() < 0.4) continue;
+      const [kx, kz] = at(u + bu, v - side * 17);
+      buckets[PLAIN].box(kx, kz, 3.2, 3.2, g, g + 4, '#8a6a44');
+      const gh = goods[Math.floor(rng() * goods.length)];
+      for (let q = 0; q < 4; q++) buckets[PLAIN].box(kx + (rng() - 0.5) * 3.5, kz + (rng() - 0.5) * 3.5, 1, 1, g + 4, g + 5.4, gh);
+    }
+    const [sx2, sz2] = at(u + 16, v - side * 14);
+    rotBox(buckets[PLAIN], sx2, sz2, 5, 0.6, g, g + 10, bestA + side * 0.4, '#2a2a2a');
+    rotBox(buckets[PLAIN], sx2, sz2, 4.2, 0.9, g + 3, g + 9, bestA + side * 0.4, '#f4f1e8');
     n++;
   }
-  // a sandwich board at the aisle's end
-  const sx = x + ca * -100, sz = z + sa * -100;
-  if (!index.isBlocked(sx, sz) && !index.isWaterAt(sx, sz)) { const g = index.heightAtPx(sx, sz); rotBox(buckets[PLAIN], sx, sz, 8, 1, g, g + 9, bestA + Math.PI / 2, '#2a2a2a'); rotBox(buckets[PLAIN], sx, sz, 7, 1.2, g + 2, g + 8, bestA + Math.PI / 2, '#f4f1e8'); }
+  // 🎏 bunting across both ends of the aisle: two poles, a line, a run of pennants
+  for (const end of [-1, 1]) {
+    const eu = end * (1.5 * ALONG + 40);
+    const [p0x, p0z] = at(eu, -ACROSS - 8), [p1x, p1z] = at(eu, ACROSS + 8);
+    if (index.isBlocked(p0x, p0z) || index.isBlocked(p1x, p1z) || index.isWaterAt(p0x, p0z) || index.isWaterAt(p1x, p1z)) continue;
+    const g0 = index.heightAtPx(p0x, p0z), g1 = index.heightAtPx(p1x, p1z), gl = (g0 + g1) / 2;
+    buckets[PLAIN].box(p0x, p0z, 0.7, 0.7, g0, g0 + 38, '#e8e2d2');
+    buckets[PLAIN].box(p1x, p1z, 0.7, 0.7, g1, g1 + 38, '#e8e2d2');
+    const [mx, mz] = at(eu, 0);
+    rotBox(buckets[PLAIN], mx, mz, 0.25, ACROSS + 8, gl + 36.5, gl + 37, bestA + Math.PI / 2, '#3a3a3a');
+    for (let k = -8; k <= 8; k++) {
+      const [fx, fz] = at(eu, k * 5.6);
+      const dip = Math.cos((k / 8) * Math.PI / 2) * 3;   // the line sags a little in the middle
+      rotBox(buckets[PLAIN], fx, fz, 0.3, 2.2, gl + 33 - dip, gl + 36.6 - dip, bestA, goods[(k + 8) % goods.length]);
+    }
+  }
+  // what the season brings: hay bales and pumpkins in fall, sunflowers in buckets in summer
+  const [su, sv] = [-(1.5 * ALONG + 26), 0];
+  const [hx, hz] = at(su, sv);
+  if (!index.isBlocked(hx, hz) && !index.isWaterAt(hx, hz)) {
+    const g = index.heightAtPx(hx, hz);
+    if (SEASON === 'fall') {
+      rotBox(buckets[PLANK], hx, hz, 9, 5, g, g + 6, bestA, '#c9a85a');
+      const [h2x, h2z] = at(su - 4, sv + 11); rotBox(buckets[PLANK], h2x, h2z, 9, 5, g, g + 6, bestA + 0.3, '#c9a85a');
+      rotBox(buckets[PLANK], hx, hz, 8.5, 4.6, g + 6, g + 11.5, bestA, '#d6b567');
+      for (let q = 0; q < 6; q++) { const [px, pz] = at(su + (rng() - 0.5) * 28, sv - 10 + (rng() - 0.5) * 12); octoCanopy(buckets[PLAIN], px, index.heightAtPx(px, pz) + 2.2, pz, 2.4 + rng(), new THREE.Color('#e0762a')); }
+    } else {
+      for (let q = 0; q < 3; q++) {
+        const [px, pz] = at(su + (q - 1) * 9, sv);
+        buckets[PLAIN].box(px, pz, 2.6, 2.6, g, g + 6, '#6e7c86');
+        buckets[PLAIN].box(px, pz, 0.4, 0.4, g + 6, g + 22, '#4d8f3a');
+        octoCanopy(buckets[PLAIN], px, g + 23, pz, 3.2, new THREE.Color('#e8c22e'));
+        buckets[PLAIN].box(px, pz, 1.1, 1.1, g + 23.5, g + 25, '#5a3a1e');
+      }
+    }
+  }
 }
 
 

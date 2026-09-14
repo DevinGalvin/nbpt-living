@@ -133,29 +133,81 @@ export class SecretTunnel {
       : new THREE.MeshLambertMaterial({ color: '#6f7477', side: THREE.DoubleSide });
     const floorMat = new THREE.MeshLambertMaterial({ color: kind === 'brick' ? '#3b342e' : '#4a4f52' });
     const H = kind === 'brick' ? 44 : 30;
-    // walls: a slab each side of every segment, overlapping at the corners
+    // 🧱 THE WALLS, FROM THE FOOTPRINT. The first cut hung a slab down each side of
+    // every segment, overlapping at the corners — and at every corner and junction
+    // the overlap crossed the OTHER corridor as a wall he walked straight through
+    // (Devin 9/14: "theres walls in the tunnels but it looks like clipper just walks
+    // right through them"). Now the corridor's real footprint is rasterised on a 4 px
+    // grid, the cells just outside it are the wall, and those are greedily merged into
+    // boxes. Junctions open where they should; ends cap themselves.
+    const C = 4;
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const path of paths) for (const q of path) { x0 = Math.min(x0, q.x); x1 = Math.max(x1, q.x); z0 = Math.min(z0, q.z); z1 = Math.max(z1, q.z); }
+    if (room) { x0 = Math.min(x0, room.x - room.r); x1 = Math.max(x1, room.x + room.r); z0 = Math.min(z0, room.z - room.r); z1 = Math.max(z1, room.z + room.r); }
+    const pad = width + 16;
+    x0 -= pad; z0 -= pad; x1 += pad; z1 += pad;
+    const NX = Math.ceil((x1 - x0) / C), NZ = Math.ceil((z1 - z0) / C);
+    const inside = new Uint8Array(NX * NZ);
+    for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) inside[j * NX + i] = this.within(x0 + (i + 0.5) * C, z0 + (j + 0.5) * C, width / 2 + 1) ? 1 : 0;
+    const wallCell = new Uint8Array(NX * NZ);
+    for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
+      if (inside[j * NX + i]) continue;
+      let near = false;
+      for (let dj = -2; dj <= 2 && !near; dj++) for (let di = -2; di <= 2 && !near; di++) {
+        const ii = i + di, jj = j + dj;
+        if (ii >= 0 && ii < NX && jj >= 0 && jj < NZ && inside[jj * NX + ii]) near = true;
+      }
+      if (near) wallCell[j * NX + i] = 1;
+    }
+    // greedy merge: runs along x, then runs of identical extent stacked along z
+    const runs: { i0: number; i1: number; j0: number; j1: number }[] = [];
+    for (let j = 0; j < NZ; j++) {
+      for (let i = 0; i < NX; i++) {
+        if (!wallCell[j * NX + i]) continue;
+        let i1r = i; while (i1r + 1 < NX && wallCell[j * NX + i1r + 1]) i1r++;
+        const prev = runs.find((r) => r.j1 === j - 1 && r.i0 === i && r.i1 === i1r);
+        if (prev) prev.j1 = j; else runs.push({ i0: i, i1: i1r, j0: j, j1: j });
+        i = i1r;
+      }
+    }
+    const tex = kind === 'brick' ? brickTex() : null;
+    if (tex) { tex.wrapS = tex.wrapT = THREE.RepeatWrapping; }
+    for (const r of runs) {
+      const w = (r.i1 - r.i0 + 1) * C, d = (r.j1 - r.j0 + 1) * C;
+      const geo = new THREE.BoxGeometry(w, H, d);
+      if (tex) {
+        // the brick repeats per 24 px, not once per box face — a 400 px wall is not one brick
+        const uv = geo.getAttribute('uv') as THREE.BufferAttribute;
+        const dims: [number, number][] = [[d, H], [d, H], [w, d], [w, d], [w, H], [w, H]];
+        for (const [gi, grp] of geo.groups.entries()) {
+          const [du, dv] = dims[gi];
+          for (let k = grp.start; k < grp.start + grp.count; k++) {
+            const vi = geo.index ? geo.index.getX(k) : k;
+            uv.setXY(vi, uv.getX(vi) * (du / 24), uv.getY(vi) * (dv / 24));
+          }
+        }
+        uv.needsUpdate = true;
+      }
+      const m = new THREE.Mesh(geo, wallMat);
+      m.position.set(x0 + (r.i0 + (r.i1 - r.i0 + 1) / 2) * C, H / 2, z0 + (r.j0 + (r.j1 - r.j0 + 1) / 2) * C);
+      m.castShadow = true; m.receiveShadow = true;
+      this.scene.add(m);
+    }
+    // the floor: one plane per segment (they may overlap; that is fine) and one for the room
     for (const path of paths) {
       for (let i = 0; i + 1 < path.length; i++) {
         const a = path[i], b = path[i + 1];
         const dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz);
         const ang = Math.atan2(dx, dz);
-        const nx = -dz / len, nz = dx / len;
-        for (const sgn of [-1, 1]) {
-          const m = new THREE.Mesh(new THREE.BoxGeometry(8, H, len + width), wallMat);
-          m.position.set((a.x + b.x) / 2 + nx * sgn * (width / 2 + 4), H / 2, (a.z + b.z) / 2 + nz * sgn * (width / 2 + 4));
-          m.rotation.y = ang;
-          m.castShadow = true; m.receiveShadow = true;
-          this.scene.add(m);
-        }
         const f = new THREE.Mesh(new THREE.PlaneGeometry(width + 8, len + width), floorMat);
         f.rotation.x = -Math.PI / 2; f.rotation.z = -ang;
         f.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
         f.receiveShadow = true;
         this.scene.add(f);
       }
-      // ⚠️ NO CEILING, on either kind. The chase camera rides above the walls, and a
-      // slab up there is a black screen (the pipe shipped one for a frame: 9/13).
     }
+    // ⚠️ NO CEILING, on either kind. The chase camera rides above the walls, and a
+    // slab up there is a black screen (the pipe shipped one for a frame: 9/13).
     // 🪜 THE WAYS OUT. Devin: "theres no way to get out of the tunnel" — there was, a
     // 14 px spot in the dark. Now each end is CAPPED (the corridor visibly stops), a
     // run of iron rungs goes up the cap, daylight comes down a shaft onto a pale
@@ -170,10 +222,6 @@ export class SecretTunnel {
         const l = Math.hypot(ux, uz) || 1; ux /= l; uz /= l;
       }
       const ang = Math.atan2(ux, uz);
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(width + 16, H + 6, 8), wallMat);
-      cap.position.set(e.x + ux * (width / 2 + 2), H / 2, e.z + uz * (width / 2 + 2));
-      cap.rotation.y = ang;
-      this.scene.add(cap);
       if (e.squeeze) {
         // 🪨 the collapse: a pile of fallen brick against the cap, a dog-sized dark gap at
         // its foot, cold light through it — the far side is the story tunnel's rubble
@@ -216,11 +264,6 @@ export class SecretTunnel {
       // the wall, and the thing they hid — a golden bone
       const rf = new THREE.Mesh(new THREE.PlaneGeometry(room.r * 2 + 8, room.r * 2 + 8), floorMat);
       rf.rotation.x = -Math.PI / 2; rf.position.set(room.x, 0.1, room.z); this.scene.add(rf);
-      for (const [sx, sz, w, d] of [[-1, 0, 8, room.r * 2 + 8], [1, 0, 8, room.r * 2 + 8], [0, -1, room.r * 2 + 8, 8]] as const) {
-        const m = new THREE.Mesh(new THREE.BoxGeometry(w, H, d), wallMat);
-        m.position.set(room.x + sx * (room.r + 4), H / 2, room.z + sz * (room.r + 4));
-        this.scene.add(m);
-      }
       const crate = bx(8, 6, 8, '#6b4e2e'); crate.position.set(room.x - room.r + 10, 3, room.z - room.r + 10); this.scene.add(crate);
       const candle = bx(1.2, 3.4, 1.2, '#f2e8cf'); candle.position.set(crate.position.x, 7.7, crate.position.z); this.scene.add(candle);
       const flame = new THREE.PointLight('#ffb347', 90, 120, 1.2); flame.position.set(crate.position.x, 10.5, crate.position.z); this.scene.add(flame);
@@ -236,9 +279,11 @@ export class SecretTunnel {
     }
   }
 
-  free(x: number, z: number): boolean {
-    if (this.room && Math.abs(x - this.room.x) < this.room.r && Math.abs(z - this.room.z) < this.room.r) return true;
-    const hw = this.width / 2 - 3;
+  free(x: number, z: number): boolean { return this.within(x, z, this.width / 2 - 3); }
+
+  /** inside the corridor (or the room) with this half-width — the walk uses a slimmer one than the walls */
+  private within(x: number, z: number, hw: number): boolean {
+    if (this.room && Math.abs(x - this.room.x) < this.room.r + (hw - this.width / 2) && Math.abs(z - this.room.z) < this.room.r + (hw - this.width / 2)) return true;
     for (const path of this.paths) {
       for (let i = 0; i + 1 < path.length; i++) {
         const a = path[i], b = path[i + 1];
