@@ -2219,8 +2219,11 @@ function mistTexture(): THREE.CanvasTexture {
   if (_mistTex) return _mistTex;
   const cv = document.createElement('canvas'); cv.width = cv.height = 64;
   const c = cv.getContext('2d')!;
+  // ⚠️ SOFT, not a hot disc: the old centre was 0.9 alpha, and at 150–320 px across and
+  // 0.72 opacity eleven of these read as white saucers on the grass from the chase cam
+  // (Devin 9/14: "is this supposed to be fog?"). A low centre with a long falloff.
   const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, 'rgba(228,232,236,0.9)'); g.addColorStop(0.55, 'rgba(216,222,228,0.4)'); g.addColorStop(1, 'rgba(210,218,224,0)');
+  g.addColorStop(0, 'rgba(206,214,224,0.42)'); g.addColorStop(0.4, 'rgba(206,214,224,0.2)'); g.addColorStop(0.75, 'rgba(206,214,224,0.06)'); g.addColorStop(1, 'rgba(206,214,224,0)');
   c.fillStyle = g; c.fillRect(0, 0, 64, 64);
   _mistTex = new THREE.CanvasTexture(cv);
   return _mistTex;
@@ -2234,21 +2237,25 @@ class GraveMist {
 
   constructor(cx: number, cz: number, groundY: number) {
     const rng = mulberry32(hash32(Math.round(cx), Math.round(cz), 17));
-    for (let i = 0; i < 11; i++) {
+    // MANY SMALL FAINT puffs, hugging the ground: mist is a layer you see through,
+    // not a set of objects. 44 puffs of 45–110 px, flattened to a third, 3–7 px up,
+    // each breathing on its own clock so none of them holds still as a shape.
+    for (let i = 0; i < 44; i++) {
       const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTexture(), transparent: true, opacity: 0, depthWrite: false, fog: true }));
-      const sz = 150 + rng() * 170;
-      s.scale.set(sz, sz * 0.5, 1);                         // low, wide puffs
-      const bx = cx + (rng() - 0.5) * 620, bz = cz + (rng() - 0.5) * 620;
-      s.position.set(bx, groundY + 13 + rng() * 9, bz);
+      const sz = 45 + rng() * 65;
+      s.scale.set(sz, sz * 0.34, 1);
+      const bx = cx + (rng() - 0.5) * 680, bz = cz + (rng() - 0.5) * 680;
+      s.position.set(bx, groundY + 3 + rng() * 4, bz);
       this.puffs.push({ s, bx, bz, ph: rng() * 6, spd: 0.2 + rng() * 0.3 });
       this.root.add(s);
     }
   }
 
   update(dt: number, t: number, night: number) {
-    const op = Math.max(0, Math.min(0.72, (night - 0.12) * 1.6));
+    const op = Math.max(0, Math.min(0.5, (night - 0.12) * 1.1));
     for (const p of this.puffs) {
-      (p.s.material as THREE.SpriteMaterial).opacity = op;
+      const breathe = 0.6 + 0.4 * Math.sin(t * 0.0005 * p.spd + p.ph * 2.1);
+      (p.s.material as THREE.SpriteMaterial).opacity = op * breathe;
       p.s.position.x = p.bx + Math.sin(t * 0.0002 * p.spd + p.ph) * 40;   // slow drift
       p.s.position.z = p.bz + Math.cos(t * 0.00017 * p.spd + p.ph) * 36;
     }
