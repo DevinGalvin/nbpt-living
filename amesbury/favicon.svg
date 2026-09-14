@@ -1,17 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <circle cx="50" cy="50" r="47" fill="#1c2430" stroke="#d8b94a" stroke-width="4"/>
-  <line x1="50" y1="10" x2="50" y2="80" stroke="#3a342c" stroke-width="2.6"/>
-  <path d="M50 10 L58 13 L50 16 Z" fill="#d8b94a"/>
-  <g stroke="#3a342c" stroke-width="2.2" stroke-linecap="round">
-    <line x1="39" y1="21" x2="61" y2="21"/>
-    <line x1="33" y1="37" x2="67" y2="37"/>
-    <line x1="26" y1="56" x2="74" y2="56"/>
+  <!-- Clipper's paw, in the Clipper maroon on cream: the tab icon (Devin 9/14) -->
+  <circle cx="50" cy="50" r="48" fill="#f3f1e8"/>
+  <g fill="#5a1c26">
+    <ellipse cx="50" cy="62" rx="19" ry="16.5"/>
+    <ellipse cx="29" cy="40" rx="8.5" ry="10.5" transform="rotate(-18 29 40)"/>
+    <ellipse cx="43" cy="28" rx="8.5" ry="10.5" transform="rotate(-6 43 28)"/>
+    <ellipse cx="57" cy="28" rx="8.5" ry="10.5" transform="rotate(6 57 28)"/>
+    <ellipse cx="71" cy="40" rx="8.5" ry="10.5" transform="rotate(18 71 40)"/>
   </g>
-  <g fill="#f4f1e6">
-    <path d="M41 23 L59 23 Q60 29 62 34 L38 34 Q40 29 41 23 Z"/>
-    <path d="M35 39 L65 39 Q66 46 69 53 L31 53 Q34 46 35 39 Z"/>
-    <path d="M28 58 L72 58 Q74 66 78 73 L22 73 Q26 66 28 58 Z"/>
-  </g>
-  <path d="M20 77 Q50 83 80 77 Q72 91 50 91 Q28 91 20 77 Z" fill="#5e442c"/>
-  <path d="M20 77 Q50 83 80 77 L79 79.5 Q50 85 21 79.5 Z" fill="#d8b94a"/>
 </svg>
