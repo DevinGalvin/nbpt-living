@@ -185,6 +185,31 @@ carving anything in stone).
   1854, Bristol RI Oct 28 1681, Barrington RI 1717 (re-established 1770),
   Warren RI 1747, East Providence 1862.
 
+## Building heights (why Swansea carries `overtureHeightScale: 1.3`)
+
+Devin's first look at the live town: "so many of the homes aren't the right
+height, a lot are 1 story instead of 2". The numbers agreed. With the overlay's
+ridge thresholds as calibrated on North Shore knowns (5.2 m → 1, 7.2 m → 1.5,
+above → 2+), Swansea's 27,562 Overture heights split **69% / 27% / 5%**; every
+other town splits 35–46% / 33–37% / 21–28%. Checks made before touching it:
+
+- **Not release drift.** Amesbury re-fetched on the 2026-08-19 release: 11,267
+  matched footprints, every height byte-identical to the 2026-06-17 data.
+- **Swansea's own OSM floor tags** (106 buildings with both a tag and an ML
+  height): tagged two-storey homes read a median 5.0 m (p25 4.3, p75 5.7) —
+  under the one-storey cutoff. Tagged one-storey read 4.9 m. The ML barely
+  separates the two here; the whole distribution is compressed (p50 4.6 m, p90
+  6.3 m vs 5.4–5.8 / 8.7–9.0 up north).
+- A multiplier fits the compression; an offset does not (offsets flood the 1.5
+  band). Candidate scales against the North Shore mix: 1.25 → 35/47/18,
+  **1.3 → 28/50/22**, 1.35 → 25/49/26. 1.3 chosen: it restores a two-storey
+  share in the North Shore range while keeping a real ranch share (Swansea is
+  a cape-and-ranch suburb too). The 1.5-storey lean that remains is the source
+  data's, not a threshold choice.
+
+If a street still reads low on the ground, raise the scale in `town.json` and
+re-bake — it is one number, and explicit OSM floor tags are never scaled.
+
 ## Unverified / do not model
 
 - Christ Church's exact footprint: OSM has no tagged church on Main St; the

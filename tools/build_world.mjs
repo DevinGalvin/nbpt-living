@@ -1014,6 +1014,16 @@ const addrMap = new Map();
 // Explicit OSM levels (LV_EXPLICIT), MANUAL_BUILDINGS and LEVEL_FIXES all beat the
 // overlay. Missing heights.json = warn and keep the guesses (build still works).
 const HEIGHT_KINDS = new Set(['house', 'commercial', 'civic', 'industrial', 'church', 'shed']);
+// Per-town calibration of Overture's ML height, town.json `overtureHeightScale`
+// (default 1 = the thresholds as calibrated). The ML reads some regions short:
+// Swansea's houses came out 69% single-storey on the raw numbers (every North
+// Shore town lands 35–46%), its OSM-tagged two-storey homes measure a median
+// 5.0 m — under the 5.2 m ranch cutoff — and the whole distribution is
+// compressed at the top (p90 6.3 m against 8.7–9.0 m up north), which is why
+// this is a multiplier and not an offset. It is NOT release drift: Amesbury's
+// heights are byte-identical between the 2026-06-17 and 2026-08-19 releases.
+// Explicit num_floors are never scaled. See docs/research/swansea.md.
+const HSCALE = Number(T.cfg.overtureHeightScale ?? 1);
 try {
   const hj = JSON.parse(await readFile(new URL('heights.json', T.rawDir), 'utf8'));
   const CELL = 512; // px grid over the height points; building bboxes stay well under a few cells
@@ -1057,7 +1067,8 @@ try {
       else if ((b.k === 'commercial' || b.k === 'civic') && areaM2 > 140 && b.lv < 3) b.lv = 3;
       continue;
     }
-    const [, , h, nf] = best;
+    const [, , h0, nf] = best;
+    const h = h0 == null ? h0 : h0 * HSCALE;
     let lv;
     if (nf) lv = nf;
     else if (areaM2 > 2000 && h < 11) lv = areaM2 > 4000 ? 1 : 1.5;

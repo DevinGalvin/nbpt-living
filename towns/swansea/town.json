@@ -13,6 +13,7 @@
   "bbox": { "s": 41.69, "w": -71.32, "n": 41.822, "e": -71.145 },
   "mPerDegLat": 111068.4,
   "mPerDegLon": 83176.8,
+  "overtureHeightScale": 1.3,
   "spawn": { "landmark": "town-hall", "dx": 0, "dz": 0 },
   "branding": {
     "htmlTitle": "Swansea — walk the real map of Swansea, MA in 3D",
