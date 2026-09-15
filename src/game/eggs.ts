@@ -111,7 +111,7 @@ const SPOTS: Spot[] = [
   { id: 'purple', x: 34600, z: -4250, label: '✨ SCOOP' },
   { id: 'biplane', x: 17935, z: 14141, label: '🛩 WATCH THE SKY' },
   { id: 'fowles', x: -33, z: 738, label: '💡 WAKE THE SIGN' },   // 17 State Street, the EAST side — moved with the shop (map.mjs); Devin 9/14: "the wake the sign thing is still in the old, wrong spot"
-  { id: 'richdale', x: -460, z: 1385, label: '🥤 SLUSHIE' },
+  { id: 'richdale', x: -460, z: 1385, label: '🍬 PENNY CANDY' },   // the card and the dialogue moved to the candy counter in 675db22; the button had not (Devin 9/15)
   { id: 'gillis', x: -2421, z: -3599, label: '👀 LOOK' },
   { id: 'camp', x: -11803, z: -15581, label: '🏕 READ THE SIGN' }
 ];
