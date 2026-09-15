@@ -10,7 +10,9 @@
   "hidden": true,
   "pxPerMeter": 8,
   "origin": { "lat": 41.748, "lon": -71.19 },
-  "bbox": { "s": 41.69, "w": -71.26, "n": 41.805, "e": -71.145 },
+  "bbox": { "s": 41.69, "w": -71.32, "n": 41.822, "e": -71.145 },
+  "mPerDegLat": 111068.4,
+  "mPerDegLon": 83176.8,
   "spawn": { "landmark": "town-hall", "dx": 0, "dz": 0 },
   "branding": {
     "htmlTitle": "Swansea — walk the real map of Swansea, MA in 3D",

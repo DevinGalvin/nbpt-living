@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { loadTown } from './lib/town.mjs';
 
 const T = await loadTown();
-const RELEASE = '2026-06-17.0';
+const RELEASE = '2026-08-19.0';   // Overture keeps only recent releases on S3 — bump when a fetch 404s
 const BBOX = T.BBOX; // per-town, from towns/<id>/town.json
 
 const sql = `

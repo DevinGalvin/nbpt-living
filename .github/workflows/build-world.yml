@@ -45,13 +45,25 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Fetch boundaries, OSM, build world, fetch terrain
+      # Real building heights come from Overture's GeoParquet on S3, read with the
+      # duckdb CLI (tools/fetch_heights.mjs). Without it every town ships with
+      # guessed storeys — Ipswich overlaid 5,261 buildings from this. Non-fatal:
+      # a town still bakes if the download or the S3 scan fails.
+      - name: Install duckdb CLI (for Overture building heights)
+        run: |
+          curl -sSL https://github.com/duckdb/duckdb/releases/latest/download/duckdb_cli-linux-amd64.zip -o /tmp/duckdb.zip \
+            && sudo unzip -o -q /tmp/duckdb.zip -d /usr/local/bin \
+            && duckdb --version \
+            || echo "duckdb install failed (heights will be skipped)"
+
+      - name: Fetch boundaries, OSM, heights, build world, fetch terrain
         run: |
           set -euo pipefail
           for t in ${{ github.event.inputs.towns }}; do
             echo "::group::$t"
             TOWN=$t node tools/fetch_boundaries.mjs || echo "boundaries failed for $t (borders will be skipped)"
             TOWN=$t npm run fetch-osm
+            TOWN=$t node tools/fetch_heights.mjs || echo "heights failed for $t (Overture overlay will be skipped)"
             TOWN=$t npm run build-world
             TOWN=$t npm run fetch-terrain
             echo "::endgroup::"
@@ -75,6 +87,7 @@ jobs:
             # MB of intermediate that nothing downstream reads.
             git add -f "towns/$t/public/world.json" "towns/$t/public/heights.bin" || true
             git add -f "data/$t/raw/boundaries.json" || true
+            git add -f "data/$t/raw/heights.json" || true
           done
           if git diff --cached --quiet; then
             echo "No new data."
