@@ -138,6 +138,17 @@ Swansea carries **1.3** → houses 23% / 38% / 36% (1 / 1.5 / 2+) from 54% /
 19% / 27%. Derivation in docs/research/swansea.md. If a street still reads
 low, it is one number and a CI re-bake.
 
+## The assessor overlay (same evening, after "the mall is not brick")
+
+`tools/fetch_parcels.mjs` → `data/<town>/raw/parcels.json` (MassGIS Level 3,
+`massgisTownIds` in town.json) → `tools/lib/parcels.mjs` in the bake (and
+`tools/patch_parcels.mjs` in place). Storeys per house from the assessor's
+card, garages to one, kinds for untagged big footprints from the lot's use
+code — 419 commercial / 68 industrial / 66 civic / 9 churches reclassified.
+Plus `masonryMix: 0.7` and liveried heroes for the mall (strip), Walmart, the
+Venus and the five schools. Any Massachusetts town can have this now: one
+array in town.json.
+
 ## Ride notes (September 15, headless Chromium against the production bundle)
 
 `scratchpad/ride.mjs` pattern: `nbpt.race(id)`, then chase the course route

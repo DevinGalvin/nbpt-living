@@ -210,6 +210,28 @@ other town splits 35–46% / 33–37% / 21–28%. Checks made before touching it
 If a street still reads low on the ground, raise the scale in `town.json` and
 re-bake — it is one number, and explicit OSM floor tags are never scaled.
 
+**Superseded the same evening by the assessor overlay.** Devin: "a lot of houses
+aren't the right height" (still) and "the Swansea Mall is not brick". Both are
+now answered from the town's own records: MassGIS Level 3 parcels (M292, plus
+Somerset 273, Rehoboth 247, Dighton 76, Seekonk 265 for the frame) carry
+`STORIES` and `STYLE` per lot — Swansea has 1,636 Ranch / 1,291 Colonial /
+1,096 Cape Cod / 577 Raised Ranch lots — so the largest house on each lot takes
+its assessed storeys (Swansea houses: 42% one / 25% cape / 28% two-plus, per
+house rather than per guess), garages drop to one, and the DOR use code
+reclassifies big untagged footprints: 419 commercial, 68 industrial, 66 civic,
+9 churches. That is what turns the Target/Marshalls plaza (a 17,358 m²
+"house" at three storeys) into a one-storey commercial box, the police station
+and the Y into civic, and lets `masonryMix: 0.7` paint the Route 6 strip in
+beige block instead of brick. The Overture scale stays for lots the assessor
+has nothing on (Rhode Island).
+
+Materials researched: the Shoppes at Swansea (the 2021 gutting made it an
+exterior-entrance strip — `buildStrip`), Walmart (its tan-and-blue livery),
+the Venus (white, "grand white columns at its entrance" — pbn.com), Case High
+(1927 brick-and-granite Colonial Revival core per the MHC inventory SWN.46;
+`buildModernSchool` is brick). The elementaries are modelled brick on the
+strength of every 1950s–60s Massachusetts school being brick — unverified.
+
 ## Unverified / do not model
 
 - Christ Church's exact footprint: OSM has no tagged church on Main St; the

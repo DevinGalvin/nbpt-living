@@ -44,6 +44,10 @@ export const TOWN: TownPack = {
   },
 
   beachX: Infinity,      // the bay shore is short and unmapped as sand — no recolor zone
+  // Route 6 is a strip of beige and grey boxes — split-face block, stucco, metal
+  // panel — not a brick downtown: most commercial/civic stock goes to the stone
+  // palette (the mall and the big boxes are heroes in their own liveries)
+  masonryMix: 0.7,
   sledLane: { x: 520, z0: -5216, z1: -4416, halfW: 62 },   // Village Park's hill above the soccer field (terrain-verified: 28 m → 11 m over 100 m, northbound)
   trainPlatform: null,   // no passenger rail in Swansea — the rails in frame are Fall River's freight spur
   holidayTree: { x: -285, z: -967 },     // the Town Hall lawn on Main Street — Holiday in the Village lights it here

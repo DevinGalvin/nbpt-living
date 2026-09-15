@@ -3305,10 +3305,13 @@ function buildGarage(buckets: Bucket[], b: Building, g: number, index: WorldInde
 
 // The supermarket: a long low box in split-face block with a tall front parapet, a
 // glass entrance under a deep canopy, the red sign, and the mechanical units on the roof.
-function buildSupermarket(buckets: Bucket[], b: Building, g: number, index: WorldIndex) {
+// `o` recolours the box for another chain: Walmart is the same building in tan
+// with a blue sign. Defaults are Market Basket's, byte-for-byte.
+function buildSupermarket(buckets: Bucket[], b: Building, g: number, index: WorldIndex, o: { wall?: string; base?: string; sign?: string; signFace?: string } = {}) {
   const top = g + 30;
-  walls(buckets[PLAIN], b.p, g - 6, top, '#d8cfbd', 0);
-  walls(buckets[PLAIN], expandRing(b.p, 0.3), g - 6, g + 4, '#b9ad98', 0);       // darker base course
+  const WALL = o.wall ?? '#d8cfbd', BASE = o.base ?? '#b9ad98', SIGN = o.sign ?? '#b3242a', FACE = o.signFace ?? '#f5f1e8';
+  walls(buckets[PLAIN], b.p, g - 6, top, WALL, 0);
+  walls(buckets[PLAIN], expandRing(b.p, 0.3), g - 6, g + 4, BASE, 0);       // darker base course
   walls(buckets[PLAIN], expandRing(b.p, 0.3), top - 2.5, top, '#c5bba7', 0);     // coping
   flatRoof(buckets[PLAIN], b.p, top, '#8d8a82');
   roofClutter(buckets, b.p, top, 77, ringAreaM2(b.p), false);
@@ -3317,7 +3320,7 @@ function buildSupermarket(buckets: Bucket[], b: Building, g: number, index: Worl
   const half = Math.min(f.len / 2 - 6, 400);
   facePanel(buckets[PLAIN], f, -half, half, g + 2, g + 15, 0.6, '#2c3a44');
   for (let t = -half + 20; t < half; t += 20) facePanel(buckets[PLAIN], f, t - 0.6, t + 0.6, g + 2, g + 15, 0.9, '#cfc6b3');
-  rotBox(buckets[PLAIN], f.x + f.nx * 4, f.z + f.nz * 4, half, 4, g + 16, g + 18.5, Math.atan2(f.tz, f.tx), '#b3242a');   // the red canopy
+  rotBox(buckets[PLAIN], f.x + f.nx * 4, f.z + f.nz * 4, half, 4, g + 16, g + 18.5, Math.atan2(f.tz, f.tx), SIGN);   // the red canopy
   // the taller entrance pavilion, proud of the front, a fifth of the facade wide
   const pw = Math.min(130, Math.max(46, f.len * 0.1));
   facePanel(buckets[PLAIN], f, -pw, pw, g - 6, top + 12, 2.5, '#e2d9c6');
@@ -3326,8 +3329,8 @@ function buildSupermarket(buckets: Bucket[], b: Building, g: number, index: Worl
   facePanel(buckets[PLAIN], f, -6, 6, g, g + 13, 3.2, '#3d4c57');
   entryCanopy(buckets, f, g, Math.min(pw - 2, 40), 22, g + 17, '#e8e2d4');
   // the red sign with its white face, across the pavilion
-  facePanel(buckets[PLAIN], f, -pw * 0.8, pw * 0.8, top + 1.5, top + 10, 3.2, '#b3242a');
-  facePanel(buckets[PLAIN], f, -pw * 0.72, pw * 0.72, top + 3, top + 8.5, 3.5, '#f5f1e8');
+  facePanel(buckets[PLAIN], f, -pw * 0.8, pw * 0.8, top + 1.5, top + 10, 3.2, SIGN);
+  facePanel(buckets[PLAIN], f, -pw * 0.72, pw * 0.72, top + 3, top + 8.5, 3.5, FACE);
   // cart corrals out front
   for (const s of [-1, 1]) {
     const cx = f.x + f.tx * pw * 1.4 * s + f.nx * 40, cz = f.z + f.tz * pw * 1.4 * s + f.nz * 40;
@@ -10338,7 +10341,18 @@ const HEROES: Record<string, HeroBuilder> = {
   'Swansea Free Public Library': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#b4b1a9', material: 'stone', trim: '#9c5442', roof: '#4e535c', storeys: 2, roofKind: 'gable', entrance: 'pediment', stringcourses: true, chimney: 'ends2', door: '#3a2c22' }),   // 1900, Henry Vaughan: granite with red Potsdam sandstone trim, Elizabethan
   'Christ Church Swansea': (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#9a9b9d' }),
   'Birch-Stevens Mansion': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#d7b455', material: 'clap', trim: '#f4efe2', roof: '#5a5e66', storeys: 2, roofKind: 'hip', cupola: true, entrance: 'portico', chimney: 'interior4', shutter: '#4a4a44' }),   // 1855 Italianate, mustard yellow: low hip with a belvedere (the cupola), bracketed eaves, paired arched windows, wrap-around porch — the Stevenses' house, a boys' home since 1939
-  'First Baptist Church in Swansea': (bk, b, g, i) => meetinghouse(bk, b, g, i, { clock: null, balustrade: false, belfry: 'square', cap: 'spire', capHex: '#3a3f46', towerH: 54 }),   // 1848 vernacular Greek Revival: white, pedimented front with pilasters, a SQUARE belfry (Buildings of New England) — Massachusetts' oldest Baptist congregation, 1663   // 1900, Henry Vaughan: granite Gothic, lancets, a crenellated entry tower — St. Peter's Salem's granite register (the name is stamped by map.mjs nameFixes — 57 Main St)
+  'First Baptist Church in Swansea': (bk, b, g, i) => meetinghouse(bk, b, g, i, { clock: null, balustrade: false, belfry: 'square', cap: 'spire', capHex: '#3a3f46', towerH: 54 }),   // 1848 vernacular Greek Revival: white, pedimented front with pilasters, a SQUARE belfry (Buildings of New England) — Massachusetts' oldest Baptist congregation, 1663
+  // — Swansea's Route 6 and its schools: the materials Devin flagged ("the mall is not brick").
+  //   Kinds and storeys come from the assessor overlay (tools/lib/parcels.mjs); these pick
+  //   the builder. Colours are the chains' own liveries / the town's brick schools — no photo pass.
+  'Swansea Mall': buildStrip,                                       // gutted to a strip in 2021 — the Shoppes at Swansea: one storey, beige, a canopy band of storefronts
+  'Walmart Supercenter': (bk, b, g, i) => buildSupermarket(bk, b, g, i, { wall: '#d9cdb0', base: '#b7a98c', sign: '#1b5fb5', signFace: '#f7f3ea' }),   // tan box, blue sign
+  'Venus de Milo Event Facility': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#f3efe6', material: 'clap', trim: '#ffffff', roof: '#7c7f86', storeys: 2, roofKind: 'flat', entrance: 'colossal', chimney: 'none', door: '#3a3230' }),   // the white banquet hall with the grand white columns at its entrance (pbn.com, 2023 renovation)
+  'Joseph Case High School': buildModernSchool,                     // 1927 Colonial Revival core in brick and granite (MHC inventory SWN.46), later brick wings — a brick school
+  'Case Junior High School': buildModernSchool,
+  'Gardner School': buildModernSchool,
+  'Joseph G. Luther School': buildModernSchool,
+  'Mark G. Hoyle School': buildModernSchool,   // 1900, Henry Vaughan: granite Gothic, lancets, a crenellated entry tower — St. Peter's Salem's granite register (the name is stamped by map.mjs nameFixes — 57 Main St)
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,

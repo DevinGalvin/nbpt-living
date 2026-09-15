@@ -35,9 +35,14 @@ Say the next town is Portsmouth (`id: pmth`).
 2. **Curation** — `towns/pmth/map.mjs`: start with everything empty (Salem's is
    nearly empty). You can ship with zero curation; add landmarks after the
    world builds (grab centroids from world.json, or lat/lon like Newburyport's).
-3. **Map data** — `TOWN=pmth npm run map` (Overpass fetch → world build →
-   terrain), plus `TOWN=pmth node tools/fetch_heights.mjs` for real building
-   heights (needs the `duckdb` CLI). Outputs land in `towns/pmth/public/`.
+3. **Map data** — `TOWN=pmth npm run map` (Overpass fetch → parcels → world
+   build → terrain), plus `TOWN=pmth node tools/fetch_heights.mjs` for real
+   building heights (needs the `duckdb` CLI). For a Massachusetts town set
+   `"massgisTownIds": [<id>, …]` in town.json (the town and any MA neighbours
+   in frame) and `tools/fetch_parcels.mjs` pulls the assessor parcels: every
+   house takes its assessed storeys and untagged plazas / stations / halls get
+   their kind from the lot's use code (`tools/lib/parcels.mjs`). Outputs land
+   in `towns/pmth/public/`.
    Watch the QA lines; add `qaDistances` (real, independently-known distances)
    once you have two verified points.
 4. **The drop point (the town's HEART)** — where a first-time player lands must

@@ -10,6 +10,7 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { loadTown } from './lib/town.mjs';
+import { overlayParcels } from './lib/parcels.mjs';
 import { bakeBorders } from './lib/borders.mjs';
 
 const T = await loadTown();
@@ -1096,6 +1097,22 @@ try {
   console.log(`Height overlay (Overture ${hj.release}): ${raised} raised, ${lowered} lowered of ${world.buildings.length} buildings`);
 } catch (e) {
   console.warn('Height overlay SKIPPED (run `node tools/fetch_heights.mjs` first):', e.message);
+}
+
+// ---------- the assessor overlay: storeys and kinds from the town's own records ----------
+// data/<town>/raw/parcels.json (tools/fetch_parcels.mjs, MassGIS Level 3): the
+// largest house on each residential lot takes the assessed STORIES (Overture's
+// ML is a guess; the assessor's card is the answer), garages on the lot drop to
+// one, and big untagged footprints on commercial / industrial / civic / church
+// lots get that kind — the strip plaza stops being a three-storey clapboard
+// house. Explicit OSM levels still win. Shared with tools/patch_parcels.mjs.
+try {
+  const pj = JSON.parse(await readFile(new URL('parcels.json', T.rawDir), 'utf8'));
+  const ps = overlayParcels(world, pj.parcels, px, PX_PER_M, { explicit: LV_EXPLICIT, maxLv: MAX_LV, ringArea, centroid, pointInRing });
+  stats['assessor-lots'] = ps.lots; stats['assessor-storeys'] = ps.raised + ps.lowered; stats['assessor-kinds'] = ps.commercial + ps.industrial + ps.civic + ps.church;
+  console.log(`Assessor overlay (${pj.source}):`, ps);
+} catch (e) {
+  if (T.cfg.massgisTownIds?.length) console.warn('Assessor overlay SKIPPED (run `node tools/fetch_parcels.mjs` first):', e.message);
 }
 
 // ---------- manual infill: real buildings newer than the OSM snapshot ----------
