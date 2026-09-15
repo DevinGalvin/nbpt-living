@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Clipper's paw, in the Clipper maroon on cream: the tab icon (Devin 9/14) -->
+  <circle cx="50" cy="50" r="48" fill="#f3f1e8"/>
+  <g fill="#5a1c26">
+    <ellipse cx="50" cy="62" rx="19" ry="16.5"/>
+    <ellipse cx="29" cy="40" rx="8.5" ry="10.5" transform="rotate(-18 29 40)"/>
+    <ellipse cx="43" cy="28" rx="8.5" ry="10.5" transform="rotate(-6 43 28)"/>
+    <ellipse cx="57" cy="28" rx="8.5" ry="10.5" transform="rotate(6 57 28)"/>
+    <ellipse cx="71" cy="40" rx="8.5" ry="10.5" transform="rotate(18 71 40)"/>
+  </g>
+</svg>
