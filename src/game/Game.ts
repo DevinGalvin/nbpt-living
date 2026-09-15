@@ -380,6 +380,9 @@ export class Game {
   private sniffHoldTimer = 0;
   private sniffing = false;
   private zoomT = 0;               // seconds of zoomies left
+  // 📷 where the camera parks for the whole zoomie. The dog spins round this
+  // point; the camera never follows him round it (Devin: 'the camera goes crazy').
+  private zoomCX = 0; private zoomCZ = 0; private zoomCY = 0;
   private digHold = 0;             // held-sniff seconds toward a dig (negative = cooldown)
   private digAnim = 0;             // seconds into the dig itself
   private diggingNow = false;
@@ -1365,7 +1368,7 @@ export class Game {
     if (this.life && !this.inside) {
       // 🎾 a loose dog down in a play-bow right here, and a bark back: GAME ON — it
       // does its lap and Clipper does his, and then it chases him wherever he goes
-      if (this.life.bowingDogNear(this.px, this.pz) && !this.riding && !this.swimming) { this.zoomT = 2.8; this.zoomAng = Math.random() * Math.PI * 2; }
+      if (this.life.bowingDogNear(this.px, this.pz) && !this.riding && !this.swimming) this.startZoomies();
       this.life.scare(this.px, this.pz);
     }
     if (this.eggs && !this.inside) this.eggs.bark(this.px, this.pz);
@@ -2562,15 +2565,20 @@ export class Game {
       else if (this.zoomT > 0) {
         this.zoomT -= dt;
         // ⚠️ TIGHT. At 3 rad/s and gallop speed this was a 120 px lap — a jog round the
-        // yard, not zoomies (Devin: "basically just spinning"). 11 rad/s at a brisk
-        // 230 px/s is a ~20 px circle: a frantic spin with the gallop animation on top.
-        this.zoomAng += dt * 11;
+        // yard, not zoomies (Devin: "basically just spinning"). 11 rad/s at 230 px/s
+        // was a ~20 px circle — still "too much movement" (9/15). Now 12 rad/s at
+        // 110 px/s: a ~9 px circle, basically a tail-chase on the spot, with the
+        // camera parked (see updateCamera) so only the dog moves.
+        this.zoomAng += dt * 12;
         vx = Math.sin(this.zoomAng); vz = Math.cos(this.zoomAng);
+        // bypass the heading smoother below: a 12 rad/s vector through a 7.5/s lag
+        // filter came out half-size and jittery (the U-turn boost kept toggling),
+        // and the circle wandered off its anchor. Feed it the exact heading.
+        this.aimX = vx; this.aimZ = vz;
       } else {
         this.idleCalm += dt;
         if (this.idleCalm > 9 && Math.random() < dt / 7) {
-          this.zoomT = 2.8;
-          this.zoomAng = Math.random() * Math.PI * 2;
+          this.startZoomies();
           // no bark: the zoomies used to announce themselves and Devin found the
           // beep annoying (8/24) — the spin IS the announcement. Silent delight.
         }
@@ -2613,7 +2621,7 @@ export class Game {
     // the dog-paddle: 200 cruising, 320 with RUN held — a harbor or a lake is a long
     // way across at a paddle, and the run button should mean something in the water too
     if (this.swimming) speed = this.sprinting ? 320 : 200;
-    if (this.zoomT > 0) speed = 230;    // zoomies: brisk, but slow enough to spin on a dime
+    if (this.zoomT > 0) speed = 110;    // zoomies: 110 px/s at 12 rad/s = a ~9 px tail-chase
     if (this.index.isSlow(this.px, this.pz)) speed *= 0.5;
     // mobile: ease the on-foot top speed when steering with the joystick so narrow
     // streets are controllable. Kids kept overshooting into houses in the neighborhoods,
@@ -3425,6 +3433,19 @@ export class Game {
     this.sun.target.position.set(tx, 0, tz);
   }
 
+  /** 💨 kick off a zoomie: pin the camera anchor to where Clipper is standing NOW. */
+  private startZoomies() {
+    this.zoomT = 2.4;
+    this.zoomAng = Math.random() * Math.PI * 2;
+    // anchor = the CENTRE of the circle he's about to run, not where he stands
+    // (that's a point on its rim): heading (sin a, cos a) at 110 px/s and 12 rad/s
+    // orbits a centre r = 110/12 px off to his right.
+    const r = 110 / 12;
+    this.zoomCX = this.px + r * Math.cos(this.zoomAng);
+    this.zoomCZ = this.pz - r * Math.sin(this.zoomAng);
+    this.zoomCY = this.kidY;
+  }
+
   private updateCamera(dt: number, snap = false) {
     // ✈️ flight: a wide chase cam high + behind the plane, looking ahead and down over
     // the town. No building-occlusion clamp (you're in the air); fog opened for the vista.
@@ -3456,15 +3477,20 @@ export class Game {
     // the face of the building rather than down onto its roof
     const high = this.inside ? 330 : 340 * z * (1 - 0.38 * lift);
     const fx = Math.sin(this.camAz), fz = Math.cos(this.camAz);
-    let tx = this.px - fx * dist;
-    let ty = high + this.kidY;
-    let tz = this.pz - fz * dist;
+    // 💨 zoomies: the camera frames the spot he started spinning on, not the dog —
+    // following a 9 px circle at 12 rad/s made the whole world wobble.
+    const zooming = this.zoomT > 0 && !this.inside;
+    const px = zooming ? this.zoomCX : this.px, pz = zooming ? this.zoomCZ : this.pz;
+    const py = zooming ? this.zoomCY : this.kidY;
+    let tx = px - fx * dist;
+    let ty = high + py;
+    let tz = pz - fz * dist;
     if (!this.inside) {
       // camera collision: sample the sight line from the kid's head out to the
       // desired spot; the first wall that would swallow the view pulls the
       // camera in just short of it — down to over-the-shoulder against a wall.
       // Two consecutive blocked samples required, so corner grazes don't twitch.
-      const lx = this.px, ly = this.kidY + (LEGACY_KID ? 26 : 16), lz = this.pz;
+      const lx = px, ly = py + (LEGACY_KID ? 26 : 16), lz = pz;
       let want = 1, run = 0, firstS = 0;
       for (let s = 0.08; s <= 1.001; s += 0.045) {
         const top = this.index.buildingTopAt(lx + (tx - lx) * s, lz + (tz - lz) * s);
@@ -3495,7 +3521,7 @@ export class Game {
       this.camera.lookAt(this.cineLook.x, WATER_Y + 50, this.cineLook.z);
     } else {
       const ahead = this.inside ? 60 : 190 * z * this.camClamp;
-      const ax = this.px + fx * ahead, az2 = this.pz + fz * ahead;
+      const ax = px + fx * ahead, az2 = pz + fz * ahead;
       // ⚠️ The lift has to be measured against the camera's ACTUAL position, not
       // a nominal one. When a wall pulls the camera in, the horizontal run to the
       // aim point collapses; a fixed vertical rise then becomes a near-vertical
@@ -3503,7 +3529,7 @@ export class Game {
       // constant however hard the camera is clamped.
       const cp = this.camera.position;
       const run = Math.hypot(ax - cp.x, az2 - cp.z);
-      const baseY = this.kidY + 20;
+      const baseY = py + 20;
       // 0.32 of the run ≈ 18° up. Steeper fills the frame with empty sky; this
       // puts the tower tops in the upper half and still shows the street.
       this.camera.lookAt(ax, baseY + lift * (cp.y + run * 0.32 - baseY), az2);
