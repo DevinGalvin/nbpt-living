@@ -159,6 +159,32 @@ carving anything in stone).
   **Swansea Country Club** — par-72 public course. **Touisset Marsh Wildlife
   Refuge** (66 acres, seals and foxes) is on the Warren, RI side.
 
+## Second pass (polish, same day)
+
+- **Birch-Stevens Mansion, 24 Main St**: 1855, built for Julia Chase Birch while
+  James Birch ran a stagecoach business in Gold Rush California; Birch drowned in
+  the *Central America* wreck of 1857; Julia married his partner Frank Shaw
+  Stevens in 1858. "Grand Italianate: low hipped roof with belvedere, broad
+  bracketed eaves, paired arched windows, expansive wrap-around porch."
+  Elizabeth Stevens's will (1930) made it a home for boys — the Frank S. Stevens
+  Home opened 1939, today Stevens Treatment Programs. (buildingsofnewengland.com
+  Frank S. Stevens tag; swanseahistoricalsociety.org; stevensprograms.org.)
+- **First Baptist Church in Swansea, 21 Baptist St**: 1848, vernacular Greek
+  Revival — pedimented facade, pilasters dividing the bays, a square belfry;
+  built under Rev. J. J. Thatcher (pastor 1846–54); the congregation's fifth
+  building; NRHP Feb 16, 1990. (Wikipedia; Buildings of New England 2026-04-17.)
+- **The Swansea Dam**: Lewin Brook "meanders into Swansea Dam" (kayaking video
+  title "Swansea Dam, Lewin Brook"); Village Park's Lakeside Trail ends at "a
+  dam and waterfall", trailhead behind the library (Trails & Walks RI); mindat
+  also lists a separate "Lewin Brook Pond Upper Dam" downstream. The in-game dam
+  sits at the Village Park lake's south tip below Main Street.
+- **Abram's Rock**: no public coordinates found (the GC3B192 earthcache page
+  holds them); Wildcat Rock is OSM's only mapped viewpoint in the park.
+- **Neighbour dates** (for borderLore): Rehoboth inc. 1645, Dighton 1712,
+  Somerset 1790 (from Swansea), Seekonk 1812 (from Rehoboth), Fall River city
+  1854, Bristol RI Oct 28 1681, Barrington RI 1717 (re-established 1770),
+  Warren RI 1747, East Providence 1862.
+
 ## Unverified / do not model
 
 - Christ Church's exact footprint: OSM has no tagged church on Main St; the

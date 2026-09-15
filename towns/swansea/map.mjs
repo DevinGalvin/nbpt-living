@@ -35,7 +35,7 @@ const SWANSEA_LM = [
   ['christ-church', 'Christ Church', 'Granite Gothic with battlements, 1900', 269, -694, 280],
   ['stevens-mansion', 'Stevens Mansion', 'The mustard-yellow 1855 mansion on Main Street', 1069, -747, 280],
   ['case-jr', 'Case Junior High', 'Grades 6–8 on Main Street', -2655, -1707, 350],
-  ['swansea-dam', 'Swansea Dam', 'The village lake’s waterfall, lit for the holidays', -3300, -1650, 300],
+  ['swansea-dam', 'Swansea Dam', 'The village lake’s waterfall, lit for the holidays', -3425, -1380, 300],
   ['village-park', 'Village Park', '194 acres of trails, boulders & the Rusty Car', 1538, -4470, 700],
   ['wildcat-rock', 'Wildcat Rock', 'Puddingstone lookout 140 ft up in Village Park', 2690, -8860, 320],
   ['fire-station-1', 'Fire Station 1', 'Frosty & treats here at Holiday in the Village', -1669, -1661, 250],
@@ -89,7 +89,25 @@ export const manualBuildings = [];
 // 17 m deep. ⚠️ IDEMPOTENT: build_world runs this AND tools/patch_features.mjs
 // re-runs it in place, so the previous copy is dropped by its `s` tag first.
 export function manualFeatures({ world }) {
-  world.polys = world.polys.filter((p) => p.s !== 'swansea-beach');
+  world.polys = world.polys.filter((p) => p.s !== 'swansea-beach' && p.s !== 'swansea-village-woods');
+  world.pois = (world.pois || []).filter((p) => p.s !== 'swansea-manual');
+
+  // 🌲 VILLAGE PARK IS WOODS. OSM tags the 194-acre conservation park leisure=park,
+  // which the build paints as open lawn — a kid from Swansea knows it as miles of
+  // trails through forest, puddingstone boulders in the trees. A `wood` overlay on
+  // the park's own mapped ring gives it the forest-density tree scatter (the sled
+  // lane above the soccer field is kept clear by the pack's `sledLane`; the tree
+  // scatter already avoids trails and water on its own).
+  const park = world.polys.find((p) => p.k === 'park' && p.n === 'Village Park');
+  if (park) world.polys.push({ k: 'wood', s: 'swansea-village-woods', p: park.p.slice() });
+
+  // 🌊 THE SWANSEA DAM — the outlet of the Village Park lake at its Main Street end
+  // (Lewin Brook runs south from here to Lewin Brook Pond and the Lee River; the
+  // Lakeside Trail ends at "a dam and waterfall", the trailhead is behind the
+  // library, and the town lights the Town Hall, library and dam together for the
+  // holidays). The lake ring's south tip runs east–west from (-3337,-1525) to
+  // (-3510,-1505); the wall sits just below it. Built by POI_HEROES['Swansea Dam'].
+  world.pois.push({ x: -3425, y: -1478, k: 'memorial', n: 'Swansea Dam', s: 'swansea-manual' });
   const shoreY = (x) => 20107 + (x + 19958) * ((20813 - 20107) / (19958 - 17775));   // the mapped waterline
   const x0 = -19500, x1 = -18100, dx = -43, dy = -133;                                  // 17 m inland, normal to the shore
   world.polys.push({ k: 'sand', s: 'swansea-beach', p: [
@@ -106,7 +124,9 @@ export const levelFixes = [];
 export const nameFixes = [
   { x: -289, y: -972, n: 'Swansea Town Hall' },          // 81 Main St — the POI node sits 40 px off the 405 m² footprint
   { x: -7549, y: -5425, n: 'Joseph Case High School' },   // 70 School St — the 7,548 m² civic block by the fields
-  { x: 466, y: -1220, n: 'Christ Church Swansea' },       // 57 Main St (Boston's world has two footprints named plain "Christ Church" — a HEROES key must be unique across towns) — the one footprint on the mapped "Church Grounds" lawn between the library and the mansion
+  { x: 466, y: -1220, n: 'Christ Church Swansea' },
+  { x: 1054, y: -333, n: 'Birch-Stevens Mansion' },      // 24 Main St — even numbers sit south of Main Street here; the one 2-storey 361 m² block set back on its lawn
+  { x: -52347, y: -20778, n: 'First Baptist Church in Swansea' },   // 21 Baptist St — address-exact, the 379 m² footprint       // 57 Main St (Boston's world has two footprints named plain "Christ Church" — a HEROES key must be unique across towns) — the one footprint on the mapped "Church Grounds" lawn between the library and the mansion
   { x: -2655, y: -1707, n: 'Case Junior High School' },   // 195 Main St — address-exact
   { x: -21844, y: 4887, n: 'Joseph G. Luther School' },   // 100 Pearse Rd — address-exact
   { x: -8553, y: 20703, n: 'Gardner School' },            // 10 Church St — address-exact

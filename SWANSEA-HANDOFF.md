@@ -51,7 +51,9 @@ auto-deploys it.
   the villages, the Stevens gifts, the summer colony and Hurricane Carol, then
   modern Swansea (Route 6, the mall, the Venus, the Cardinals, the Brayton
   Point implosion, Big Mamie). `check_markers swansea` is clean.
-- **Racing ladder** (make_course; NOT yet ridden end-to-end — see open items):
+- **Racing ladder** (make_course; every course RIDDEN END-TO-END in headless
+  Chromium — finish card, name save, 👻 ghost recorded under the `swansea:`
+  keys, "NEW BEST" placement line — see the ride notes below):
   - Village Dash 0.9 mi — Town Hall → Main St → Route 6 → the Venus de Milo
   - Ocean Grove Run 1.7 mi — St Francis → Gardners Neck Rd → Wilbur Ave →
     Ocean Grove Ave → the Town Beach (the Memorial Day parade route, ridden)
@@ -73,15 +75,26 @@ auto-deploys it.
   Santa parade on Main Street at the Town Hall (Holiday in the Village);
   no train (no passenger rail). Theme: bay teal + marsh gold. Tag "The Town
   on Mount Hope Bay", emoji 🦢.
-- **3 heroes** (config-tier, colours from written descriptions — NO photo pass
-  yet): **Swansea Town Hall** (1891 rubblestone + brownstone, pyramidal slate
+- **5 heroes + 2 set pieces** (config-tier, colours from written descriptions —
+  NO photo pass yet): **Swansea Town Hall** (1891 rubblestone + brownstone, pyramidal slate
   roof, cupola standing in for the clock tower, flag), **Swansea Free Public
   Library** (1900 granite + red Potsdam sandstone bands, Elizabethan gable),
   **Christ Church** (1900 granite Gothic with a crenellated tower — the
   `salemChurch` builder is exactly this church; keyed `Christ Church Swansea`
   because Boston's world has two plain "Christ Church" footprints). The
   `federalHouse` builder gained `material: 'stone'` (flat PLAIN walls, texScale
-  0) for the first two — reusable anywhere.
+  0) for the first two — reusable anywhere. Second pass: the **Birch-Stevens
+  Mansion** (1855 Italianate, mustard yellow, low hip + belvedere, the boys'
+  home since 1939 — 24 Main St, the one 2-storey block set back south of the
+  street) and **First Baptist Church in Swansea** (1848 vernacular Greek
+  Revival, white, pedimented front, SQUARE belfry — the `meetinghouse` builder).
+  Set pieces: **Wildcat Rock** (POI hero on OSM's lowercase `wildcat rock`
+  viewpoint — a two-kids-tall puddingstone outcrop with pebbles in the matrix)
+  and **the Swansea Dam** (a manual POI at the Village Park lake's south tip:
+  granite wall, white spill sheet, the brook below). And **Village Park is
+  woods now**: a `wood` overlay on the park's own ring (map.mjs manualFeatures)
+  gives the 194-acre conservation park forest-density trees with the trails
+  threading through, instead of the lawn OSM's leisure=park implied.
 - **Assets**: manifest, unique og-image (real in-game shot of the Town Beach at
   golden hour, kid + Clipper on the sand, boats on the bay).
 - **Research**: `docs/research/swansea.md` — every fact with its source; the
@@ -113,25 +126,45 @@ auto-deploys it.
 - Overpass mirrors were fast today (a 40 MB frame in 6.5 s) — but the
   Overture scan is the slow step (~4 min).
 
+## Ride notes (September 15, headless Chromium against the production bundle)
+
+`scratchpad/ride.mjs` pattern: `nbpt.race(id)`, then chase the course route
+(densified to 120 px steps) with `nbpt.walk()`, jink perpendicular when wedged,
+poll `nbpt._game.race.state`, fill the finish card's name input, then read the
+per-town storage shim for `swansea-race-<id>-ghost-<NAME>`.
+
+- Village Dash — finished 0:24.4 on the clock; card, save, ghost (1.8 KB) ✓
+- Ocean Grove Run — finished 0:40.8; card, save, ghost (3.4 KB) ✓
+- Martin House Homecoming — finished 1:43.5; card, save, ghost (8.8 KB) ✓ (a 25-minute
+  ride at swiftshader frame rates; the clock runs on sim time, so 1:43 is honest)
+
+Two traps: **any edit to `src/` while a ride runs kills it** (Vite's full
+reload destroys the page context) — ride against a static `dist-swansea/`
+served by `http-server` instead; and **a far start sits in `count` for a
+minute** while the chunks around it stream in under swiftshader — that is
+streaming, not a stuck countdown.
+
 ## Remaining polish (ranked)
 
-1. **Ride each race end-to-end** on a real device (finish card, name save,
-   ghost under `swansea:` keys) and the cloud-board round-trip on the deployed
-   site; hand-tune gates where the arch sits off the kerb.
-2. **Photo pass on the three heroes** — Town Hall's real offset tower and
+1. **Cloud-board round-trip on the DEPLOYED site** — local board write/ghost
+   verified for all three courses; the Apps Script POST needs one finish on
+   clippertown.io/swansea/ (board auto-partitions by raceTown; nothing to
+   deploy). Delete the "NIECE" test rows if they somehow synced.
+2. **Photo pass on the five heroes** — the Town Hall's real offset tower and
    turret (the cupola is a stand-in), the library's mullioned windows, the
-   church's tower proportions. Then First Baptist (1848 Greek Revival chapel,
-   21 Baptist St, footprint 379 m² at -52347,-20778) and the Stevens mansion
-   (mustard yellow — the 1069,-747 address anchor hits three small footprints;
-   identify the right one first).
-3. **Wildcat Rock / Abram's Rock set pieces** — the puddingstone monoliths are
-   mapped only as a viewpoint node; a boulder hero on the viewpoint would make
-   the park's card land.
-4. **Somerset Creamery hero** (the corner every kid knows) and the Venus's
-   roadside sign.
-5. **The Swansea Dam** — placed at the Village Park lake's Main Street end
-   from the Holiday-in-the-Village and lighting-project descriptions; confirm
-   on the ground (a waterfall set piece would be a jewel).
-6. borderLore copy check for the RI neighbours (Barrington / Bristol lines).
-7. Kid-UX wave parity (blab labels / read-aloud / 44px closes) — same gap as
-   the other sandbox towns.
+   church's tower proportions, the mansion's wrap-around porch and bracketed
+   eaves, the chapel's pilasters. Cloud sessions cannot fetch photos; this is
+   a laptop job.
+3. **Abram's Rock itself** — OSM carries only Wildcat Rock; the legend's rock
+   has no mapped point and nothing was invented. Pin it (the geocache GC3B192
+   has the coordinates) and reuse `buildWildcatRock`.
+4. **Somerset Creamery hero and the Venus's roadside sign** — no verified
+   visuals found (the Ropes trap: not modelled without them).
+5. Hand-tune race gates where an arch sits off the kerb, on a real device.
+6. Swansea's OSM is thin: no Town Beach sand, no school/church tags, unnamed
+   civic footprints. Fixing OSM upstream (or adding `curatedPois` by address —
+   the Ice Cream Barn, the Cole River marina) would deepen every rebuild.
+
+(Kid-UX wave parity, item 7 of the first list, is moot: the blab labels,
+read-aloud and 44 px closes live in the shared HUD now and Swansea gets them
+like every town.)

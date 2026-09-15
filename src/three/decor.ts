@@ -6118,7 +6118,53 @@ const POI_HEROES: Record<string, (buckets: Bucket[], x: number, z: number, g: nu
   'Osprey: Pandion Haliaetus': buildOsprey,         // Wendy Klemperer, on the rail trail at the waterfront
   'Doughboy Statue': buildDoughboy,                 // Amesbury
   'Colonel William Prescott': buildPrescott,        // Charlestown — OSM's name for the statue
+  'wildcat rock': buildWildcatRock,                 // Swansea — Village Park's puddingstone lookout (OSM's lowercase name, kept)
+  'Swansea Dam': buildSwanseaDam,                   // Swansea — added via map.mjs manualFeatures; the lake outlet below Main Street
 };
+
+// The Swansea Dam: a low granite dam across the Village Park lake's outlet, the
+// lake held two metres above the brook below it, water sheeting down the face.
+// Oriented east–west because the lake's south tip is (see towns/swansea/map.mjs).
+function buildSwanseaDam(buckets: Bucket[], x: number, z: number, g: number) {
+  const p = buckets[PLAIN];
+  const HW = 92, HD = 5;                                                // half-extents: 23 m across, 1.25 m thick
+  p.box(x, z, HW, HD, g - 6, g + 17, '#a3a49e');                         // the granite wall, crest at lake level
+  p.box(x, z, HW + 3, HD + 1.2, g + 17, g + 19, '#b9bab4');              // the capstone course
+  for (const s of [-1, 1] as const) p.box(x + s * (HW + 4), z, 4, HD + 4, g - 6, g + 23, '#8e8f89');   // abutments
+  // the spill: a bright sheet down the south face, foam where it lands
+  p.box(x, z + HD + 0.9, HW * 0.8, 0.8, g - 4, g + 16.5, '#dfe9ee');
+  p.box(x, z + HD + 3, HW * 0.86, 2.4, g - 5, g - 2.5, '#eef3f5');
+  for (let i = -4; i <= 4; i++) p.box(x + i * 18, z + HD + 7 + ((i * 7) & 3), 5, 2.2, g - 5.5, g - 4, '#f4f7f8');
+  // the brook below, a dark ribbon running south
+  p.box(x, z + HD + 22, 14, 16, g - 6.5, g - 5.8, '#3f5a66');
+}
+
+// Village Park, Swansea: the puddingstone monoliths — Wildcat Rock, Lion Rock,
+// Abram's Rock — are outcrops of conglomerate, a purple-brown matrix packed with
+// pebbles, standing well above the kid. Only Wildcat Rock is mapped (a viewpoint
+// node); the card's legend belongs to Abram's Rock, which OSM does not carry, so
+// nothing is invented for it. Sized against the kid (36 px): a real outcrop, not
+// a garden stone — about two kids tall, with the trail scrambling up its shoulder.
+function buildWildcatRock(buckets: Bucket[], x: number, z: number, g: number) {
+  const p = buckets[PLAIN];
+  const M = '#a8968e', L = '#b8a79f', D = '#8f7d76';                   // puddingstone: purple-brown matrix, lit crown, shaded shoulder (hexes in the Custom House register — mid-tones render two stops dark)
+  p.box(x, z, 13, 9, g - 4, g + 42, M);                                // the mass
+  p.box(x - 3, z + 1, 9, 6.5, g + 42, g + 58, L);                      // the upper block, set back
+  p.box(x - 5, z + 2, 5, 4, g + 58, g + 66, L);                        // the crown
+  p.box(x + 12, z - 3, 6, 7, g - 3, g + 22, D);                        // the shoulder the trail climbs
+  p.box(x + 17, z + 5, 4, 4, g - 3, g + 10, M);                        // a step down
+  p.box(x - 14, z - 6, 5, 3.5, g - 3, g + 9, D);                       // a fallen slab
+  // pebbles in the matrix — the whole point of puddingstone
+  const pr = (n: number) => ((x * 7 + z * 13 + n * 31) & 15) / 15;
+  for (let i = 0; i < 26; i++) {
+    const side = i % 4, t = pr(i), y = g + 3 + pr(i + 40) * 52;
+    const hex = ['#a89a8c', '#8f8073', '#b5a89b', '#7c7066'][i % 4];
+    if (side === 0) p.box(x - 13.3, z - 9 + t * 18, 0.9, 1.1, y, y + 1.6, hex);
+    else if (side === 1) p.box(x + 13.3, z - 9 + t * 18, 0.9, 1.1, y, y + 1.6, hex);
+    else if (side === 2) p.box(x - 13 + t * 26, z - 9.3, 1.1, 0.9, y, y + 1.6, hex);
+    else p.box(x - 13 + t * 26, z + 9.3, 1.1, 0.9, y, y + 1.6, hex);
+  }
+}
 
 // Babson's boulders register themselves — 21 real stones, real words, real
 // coordinates, all already carried in OSM as historic=archaeological_site. Listing
@@ -10290,7 +10336,9 @@ const HEROES: Record<string, HeroBuilder> = {
   //  chocolate; stone wants the Custom House's '#a3a49e' register)
   'Swansea Town Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#aaa196', material: 'stone', trim: '#8c5a44', roof: '#4a4f58', storeys: 2, roofKind: 'hip', entrance: 'canopy', cupola: true, flag: true, chimney: 'none' }),   // 1891: random rubblestone + brownstone trim, massive pyramidal slate roof; the cupola stands in for its offset clock tower
   'Swansea Free Public Library': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#b4b1a9', material: 'stone', trim: '#9c5442', roof: '#4e535c', storeys: 2, roofKind: 'gable', entrance: 'pediment', stringcourses: true, chimney: 'ends2', door: '#3a2c22' }),   // 1900, Henry Vaughan: granite with red Potsdam sandstone trim, Elizabethan
-  'Christ Church Swansea': (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#9a9b9d' }),   // 1900, Henry Vaughan: granite Gothic, lancets, a crenellated entry tower — St. Peter's Salem's granite register (the name is stamped by map.mjs nameFixes — 57 Main St)
+  'Christ Church Swansea': (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#9a9b9d' }),
+  'Birch-Stevens Mansion': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#d7b455', material: 'clap', trim: '#f4efe2', roof: '#5a5e66', storeys: 2, roofKind: 'hip', cupola: true, entrance: 'portico', chimney: 'interior4', shutter: '#4a4a44' }),   // 1855 Italianate, mustard yellow: low hip with a belvedere (the cupola), bracketed eaves, paired arched windows, wrap-around porch — the Stevenses' house, a boys' home since 1939
+  'First Baptist Church in Swansea': (bk, b, g, i) => meetinghouse(bk, b, g, i, { clock: null, balustrade: false, belfry: 'square', cap: 'spire', capHex: '#3a3f46', towerH: 54 }),   // 1848 vernacular Greek Revival: white, pedimented front with pilasters, a SQUARE belfry (Buildings of New England) — Massachusetts' oldest Baptist congregation, 1663   // 1900, Henry Vaughan: granite Gothic, lancets, a crenellated entry tower — St. Peter's Salem's granite register (the name is stamped by map.mjs nameFixes — 57 Main St)
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,
