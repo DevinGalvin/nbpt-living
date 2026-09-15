@@ -126,6 +126,18 @@ auto-deploys it.
 - Overpass mirrors were fast today (a 40 MB frame in 6.5 s) — but the
   Overture scan is the slow step (~4 min).
 
+## Heights (post-launch fix, same day)
+
+Devin's first look live: "a lot are 1 story instead of 2." Raw Overture put 69%
+of Swansea under the one-storey cutoff (North Shore towns: 35–46%); not release
+drift (Amesbury re-fetched byte-identical), the ML just reads this region short
+— tagged two-storey homes measure 5.0 m. New town.json knob
+`overtureHeightScale` (build_world multiplies ML heights before the ridge
+thresholds; floor tags never scaled; default 1 = every other town byte-stable).
+Swansea carries **1.3** → houses 23% / 38% / 36% (1 / 1.5 / 2+) from 54% /
+19% / 27%. Derivation in docs/research/swansea.md. If a street still reads
+low, it is one number and a CI re-bake.
+
 ## Ride notes (September 15, headless Chromium against the production bundle)
 
 `scratchpad/ride.mjs` pattern: `nbpt.race(id)`, then chase the course route
