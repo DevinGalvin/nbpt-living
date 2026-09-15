@@ -7119,7 +7119,11 @@ function roofRail(buckets: Bucket[], ring: number[], y: number, h: number, col: 
   }
 }
 type FederalOpts = {
-  wall: string; material: 'brick' | 'clap'; trim: string; roof: string;
+  // 'stone' = flat-coloured ashlar/rubble on the PLAIN bucket (brickTex bakes RED
+  // into every wall it touches, so a granite hall handed to BRICK comes out
+  // chocolate — the Bunker Hill Monument lesson). Swansea's 1891 rubblestone
+  // Town Hall and 1900 granite library are the first stone Federal-shaped heroes.
+  wall: string; material: 'brick' | 'clap' | 'stone'; trim: string; roof: string;
   storeys?: number; roofKind?: 'hip' | 'gable' | 'flat'; balustrade?: 'plain' | 'fret';
   stringcourses?: boolean; chimney?: 'ends2' | 'interior4' | 'none'; bays?: number;
   entrance?: 'pediment' | 'fan' | 'portico' | 'colossal' | 'canopy'; palladian?: 'single' | 'row';
@@ -7134,10 +7138,11 @@ function federalHouse(buckets: Bucket[], b: Building, g: number, index: WorldInd
   const front = (fs.nx * (-sa) + fs.nz * ca) >= 0 ? 1 : -1, FW = front * (W + 0.4);
   const nx = -sa * front, nz = ca * front;
   const storeys = o.storeys ?? 2.5, floors = Math.max(2, Math.round(storeys)), eaveH = g + floors * 19 + 7;   // size walls to the 19px window rhythm
-  const WALLBK = o.material === 'brick' ? BRICK : CLAP;
+  const WALLBK = o.material === 'brick' ? BRICK : o.material === 'stone' ? PLAIN : CLAP;
   tmp.set(o.trim); const tr = tmp.r, tg = tmp.g, tb = tmp.b;
 
   if (o.material === 'brick') walls(buckets[BRICK], b.p, g - 4, eaveH, o.wall);
+  else if (o.material === 'stone') walls(buckets[PLAIN], b.p, g - 4, eaveH, o.wall, 0);
   else clad(buckets[CLAP], b.p, g - 2, eaveH, o.wall);
   const exr = expandRing(b.p, 0.5);                                                         // proud trim bands (no z-fight)
   walls(buckets[PLAIN], exr, g + 0.5, g + 1.8, o.trim, 0);                                  // water table
@@ -10280,6 +10285,10 @@ const HEROES: Record<string, HeroBuilder> = {
   'Clam Box': clamBox,
   "Woodman's": woodmansEssex,
   'Russell Orchards': (bk, b, g, i) => boardBarn(bk, b, g, i, { wall: '#a8845c', roof: '#c4c7cb', door: '#2f4a30', trim: '#f4f1ea', h: 18 }),   // honey-amber weathered boards, SILVER metal roof, dark green sliding doors — NOT a red barn
+  // — Swansea (the Stevens gifts on Main Street; specs from docs/research/swansea.md, colours from the written descriptions — no photo pass yet) —
+  'Swansea Town Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#7b766c', material: 'stone', trim: '#6b4a3a', roof: '#41464e', storeys: 2, roofKind: 'hip', entrance: 'canopy', cupola: true, flag: true, chimney: 'none' }),   // 1891: random rubblestone + brownstone trim, massive pyramidal slate roof; the cupola stands in for its offset clock tower
+  'Swansea Free Public Library': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#8f8b82', material: 'stone', trim: '#8a4a3c', roof: '#4a4e56', storeys: 2, roofKind: 'gable', entrance: 'pediment', stringcourses: true, chimney: 'ends2', door: '#3a2c22' }),   // 1900, Henry Vaughan: granite with red Potsdam sandstone trim, Elizabethan
+  'Christ Church Swansea': (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#8d8a84' }),   // 1900, Henry Vaughan: granite Gothic, lancets, a crenellated entry tower (the name is stamped by map.mjs nameFixes — 57 Main St)
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,

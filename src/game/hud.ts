@@ -12,7 +12,7 @@ export const RACES_UI = false;
 // DOM HUD: street pill, landmark banner, help, attribution, virtual joystick.
 
 import { TOWN } from '@town';
-import { TOWNS } from '../towns/registry';
+import { TOWNS, currentTown } from '../towns/registry';
 import { loadShot } from './shots';
 
 // marker titles are authored copy, but they land in innerHTML — keep them literal
@@ -2360,10 +2360,7 @@ export class Hud {
       sw.addEventListener('click', (e) => { e.stopPropagation(); panel.classList.add('towns'); });
       (panel.querySelector('.tv-back') as HTMLElement)
         .addEventListener('click', (e) => { e.stopPropagation(); panel.classList.remove('towns'); });
-      const here = ((window as unknown as { __townPath?: string }).__townPath || location.pathname).replace(/\/+$/, '');
-      const cur = TOWNS.filter((t) => t.path !== '/').sort((a, b) => b.path.length - a.path.length)
-        .find((t) => { const p = t.path.replace(/\/+$/, ''); return here === p || here.startsWith(p + '/'); })
-        || TOWNS.find((t) => t.path === '/');
+      const cur = currentTown();
       // (the button used to preview the towns as a fan of their emoji — cut 8/24,
       // Devin's call: just "‹ Towns", the roster inside shows the faces)
       for (const t of TOWNS) {

@@ -66,7 +66,11 @@ Say the next town is Portsmouth (`id: pmth`).
    fine to start; author races later with `TOWN=pmth node tools/make_course.mjs`.
 5. **Register** — one line in `src/towns/registry.ts` (adds it to every town's
    Fast-Travel switcher) and a `build:pmth`-style step in `build:all`
-   (package.json) so CI ships it under `/pmth/`.
+   (package.json) so CI ships it under `/pmth/`. A town that should be
+   reachable by URL only — off every other town's roster — sets
+   `"hidden": true` in its town.json (Swansea, a South Coast town built for one
+   family, is the first); its own build still shows the roster and marks itself
+   "you're here".
 6. **Assets** — `towns/pmth/public/`: manifest (copy Salem's and re-word,
    incl. theme colors) + a UNIQUE og-image (1200×630) — capture a real
    in-game screenshot of THIS town (Beverly once launched with Salem's photo

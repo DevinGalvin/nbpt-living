@@ -265,6 +265,19 @@
       "port": 5309
     },
     {
+      "name": "swansea",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:swansea",
+        "--",
+        "--port",
+        "5319",
+        "--strictPort"
+      ],
+      "port": 5319
+    },
+    {
       "name": "boston-hero",
       "runtimeExecutable": "npm",
       "runtimeArgs": [

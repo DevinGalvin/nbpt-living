@@ -12,7 +12,7 @@ import { buildChunkDecor, setWindowNight, setDecorWind, setDecorGolden } from '.
 import { detailTex } from '../three/textures';
 import { buildWater, WATER_Y, tideAt } from '../three/water';
 import { FarTown } from '../three/farTown';
-import { TOWNS } from '../towns/registry';
+import { ALL_TOWNS } from '../towns/registry';
 import { LINE, BRANCH_ROCKPORT, BRANCH_BOSTON, BOARDABLE, type LineStop } from './trainLine';
 import { Sky, type SkyState } from '../three/sky';
 import { Kid, Dog, Bike, Skateboard, buildKayak } from '../three/actors';
@@ -3031,7 +3031,7 @@ export class Game {
       const gone = this.life.trainOut() > 1500 || this.life.trainState() === 'away' || this.trainRideT > 14;
       if (gone && this.trainDest) {
         const dest = this.trainDest; this.trainDest = null;
-        const t = TOWNS.find((e) => e.path === '/' ? dest === 'nbpt' : e.path.replace(/\//g, '') === dest);
+        const t = ALL_TOWNS.find((e) => e.path === '/' ? dest === 'nbpt' : e.path.replace(/\//g, '') === dest);
         const path = t ? t.path : '/' + dest + '/';
         this.hud.fadeThrough(() => { location.href = path + (path.includes('?') ? '&' : '?') + 'arrive=train'; });
       }
