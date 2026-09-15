@@ -1,0 +1,41 @@
+{
+  "id": "swansea",
+  "name": "Swansea",
+  "worldName": "Swansea, MA",
+  "title": "Swansea",
+  "tag": "The Town on Mount Hope Bay",
+  "emoji": "🦢",
+  "path": "/swansea/",
+  "savePrefix": "swansea:",
+  "hidden": true,
+  "pxPerMeter": 8,
+  "origin": { "lat": 41.748, "lon": -71.19 },
+  "bbox": { "s": 41.69, "w": -71.26, "n": 41.805, "e": -71.145 },
+  "spawn": { "landmark": "town-hall", "dx": 0, "dz": 0 },
+  "branding": {
+    "htmlTitle": "Swansea — walk the real map of Swansea, MA in 3D",
+    "appleTitle": "Swansea",
+    "themeColor": "#14303a",
+    "bgTop": "#1c414e",
+    "bgBottom": "#0c1e26",
+    "ruleColor": "#e6b348",
+    "description": "A cozy, all-ages 3D walk through the exact map of Swansea, Massachusetts. Wander the real streets, the village, the Cole River and Mount Hope Bay — and find your own house.",
+    "ogSiteName": "Swansea in 3D",
+    "ogDescription": "A cozy, all-ages 3D walk through the real map of Swansea. Wander the streets, the village, and the bay — and find your own house.",
+    "ogUrl": "https://clippertown.io/swansea/",
+    "ogImage": "https://clippertown.io/swansea/og-image.jpg",
+    "ogImageType": "image/jpeg",
+    "ogImageAlt": "A 3D voxel view of Swansea, Massachusetts — the stone library and Christ Church in the village",
+    "twitterDescription": "Walk the real map of Swansea — find your own street.",
+    "loadingTitle": "SWANSEA",
+    "loadingSub": "Exploring Swansea, Massachusetts"
+  },
+  "storageSeeds": {
+    "nbpt-bike": "1",
+    "nbpt-kayak": "1",
+    "nbpt-seasons-rewarded": "1"
+  },
+  "storageSeedIfUnset": {
+    "nbpt-season": "summer"
+  }
+}
