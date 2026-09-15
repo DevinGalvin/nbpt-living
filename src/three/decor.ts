@@ -10286,9 +10286,11 @@ const HEROES: Record<string, HeroBuilder> = {
   "Woodman's": woodmansEssex,
   'Russell Orchards': (bk, b, g, i) => boardBarn(bk, b, g, i, { wall: '#a8845c', roof: '#c4c7cb', door: '#2f4a30', trim: '#f4f1ea', h: 18 }),   // honey-amber weathered boards, SILVER metal roof, dark green sliding doors — NOT a red barn
   // — Swansea (the Stevens gifts on Main Street; specs from docs/research/swansea.md, colours from the written descriptions — no photo pass yet) —
-  'Swansea Town Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#7b766c', material: 'stone', trim: '#6b4a3a', roof: '#41464e', storeys: 2, roofKind: 'hip', entrance: 'canopy', cupola: true, flag: true, chimney: 'none' }),   // 1891: random rubblestone + brownstone trim, massive pyramidal slate roof; the cupola stands in for its offset clock tower
-  'Swansea Free Public Library': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#8f8b82', material: 'stone', trim: '#8a4a3c', roof: '#4a4e56', storeys: 2, roofKind: 'gable', entrance: 'pediment', stringcourses: true, chimney: 'ends2', door: '#3a2c22' }),   // 1900, Henry Vaughan: granite with red Potsdam sandstone trim, Elizabethan
-  'Christ Church Swansea': (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#8d8a84' }),   // 1900, Henry Vaughan: granite Gothic, lancets, a crenellated entry tower (the name is stamped by map.mjs nameFixes — 57 Main St)
+  // (renderer note: a mid-tone hex reads two stops darker in-game — '#7b766c' came out
+  //  chocolate; stone wants the Custom House's '#a3a49e' register)
+  'Swansea Town Hall': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#aaa196', material: 'stone', trim: '#8c5a44', roof: '#4a4f58', storeys: 2, roofKind: 'hip', entrance: 'canopy', cupola: true, flag: true, chimney: 'none' }),   // 1891: random rubblestone + brownstone trim, massive pyramidal slate roof; the cupola stands in for its offset clock tower
+  'Swansea Free Public Library': (bk, b, g, i) => federalHouse(bk, b, g, i, { wall: '#b4b1a9', material: 'stone', trim: '#9c5442', roof: '#4e535c', storeys: 2, roofKind: 'gable', entrance: 'pediment', stringcourses: true, chimney: 'ends2', door: '#3a2c22' }),   // 1900, Henry Vaughan: granite with red Potsdam sandstone trim, Elizabethan
+  'Christ Church Swansea': (bk, b, g, i) => salemChurch(bk, b, g, i, { stone: '#9a9b9d' }),   // 1900, Henry Vaughan: granite Gothic, lancets, a crenellated entry tower — St. Peter's Salem's granite register (the name is stamped by map.mjs nameFixes — 57 Main St)
   'Newburyport High School': buildNHS,
   'The Residences on the Ridge': buildResidencesRidge,
   'Ridge Carriage House': buildRidgeCarriage,
